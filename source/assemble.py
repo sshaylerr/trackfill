@@ -18,7 +18,6 @@ print('dist/trackfill.html', len(app) // 1024, 'KB')
 # ---------- the self-hosted web app (GitHub Pages or any https host): a real page with a manifest, icons and an offline cache ----------
 import hashlib, shutil, subprocess
 web = root / 'dist/web'; web.mkdir(parents=True, exist_ok=True)
-build = hashlib.sha1(app.encode()).hexdigest()[:10]
 cut = app.index('</style>') + len('</style>')
 head = """<!doctype html>
 <html lang="en">
@@ -34,8 +33,21 @@ head = """<!doctype html>
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
 """
-sw = "<script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>"
+# Updates: on every launch the app asks for the newest version. When one arrives it switches over straight away if you haven't
+# started working yet (first 20 s, nothing playing, work saved first); otherwise it says so and the next launch uses it.
+sw = """<script>
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const had = !!navigator.serviceWorker.controller, t0 = Date.now();
+  navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!had) return;
+    if (Date.now() - t0 < 20000 && !T.playing && !UI.sheet) { try { saveNow(); } catch (e) {} toast('Updating Trackfill…'); setTimeout(() => location.reload(), 700); }
+    else toast('An update is ready: close and reopen Trackfill to use it');
+  });
+}
+</script>"""
 page = head + app[:cut] + '\n<style>html,body{margin:0;height:100%;background:#1c1c1f}</style>\n</head>\n<body>\n' + app[cut:] + '\n' + sw + '\n</body>\n</html>\n'
+build = hashlib.sha1(page.encode()).hexdigest()[:10]   # changes whenever the page does, so phones see sw.js change and update
 (web / 'index.html').write_text(page)
 shutil.copy(root / 'web/manifest.webmanifest', web)
 (web / 'sw.js').write_text((root / 'web/sw.js').read_text().replace('@BUILD@', build))
