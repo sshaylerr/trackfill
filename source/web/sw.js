@@ -8,7 +8,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(r.url), font = /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
   if (url.origin !== location.origin && !font) return;
   e.respondWith(caches.open(CACHE).then(async c => {
-    const hit = await c.match(r, { ignoreSearch: true }), net = fetch(r).then(res => { if (res && (res.ok || res.type === 'opaque')) c.put(r, res.clone()); return res; }).catch(() => hit);
+    const hit = await c.match(r, { ignoreSearch: true }), net = fetch(r, { cache: 'no-cache' }).then(res => { if (res && (res.ok || res.type === 'opaque')) c.put(r, res.clone()); return res; }).catch(() => hit);
     return hit || net;
   }));
 });

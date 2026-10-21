@@ -2826,6 +2826,16 @@ async function boot() {
 boot();
 </script>
 
-<script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
+<script>
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const had = !!navigator.serviceWorker.controller, t0 = Date.now();
+  navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!had) return;
+    if (Date.now() - t0 < 20000 && !T.playing && !UI.sheet) { try { saveNow(); } catch (e) {} toast('Updating Trackfill…'); setTimeout(() => location.reload(), 700); }
+    else toast('An update is ready: close and reopen Trackfill to use it');
+  });
+}
+</script>
 </body>
 </html>
