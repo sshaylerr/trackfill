@@ -1,0 +1,1367 @@
+<title>Trackfill</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&display=swap">
+<style>
+/* Trackfill hardware: a matte charcoal body with rubber keys, backlit pads and knobs; data lives in recessed screens.
+   Layout is fixed like a device: every region has a set size, nothing wraps, text truncates, numbers use fixed-width digits. */
+:root{
+  color-scheme: dark;
+  /* body & controls */
+  --body:#1c1c1f; --body2:#242428; --keyhi:#3b3b41; --keylo:#2a2a2f; --edge:#09090a; --print:#a29d93; --led-off:#3a2f2b;
+  /* screen (also used by canvas drawing) */
+  --bg:#090c0d; --panel:#0f1415; --raised:#162021; --raised2:#1e2a2b; --line:#233133; --ink:#ece8e0; --mute:#8d9a98; --dim:#4f5b5a;
+  /* signal colors */
+  --accent:#f2b544; --accent-ink:#241803; --rec:#e5483d; --play:#53d18d; --play-ink:#0a1a11;
+  --font-ui:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-lcd:"Figtree", system-ui, sans-serif;   /* values: same family as the UI, lighter weight, fixed-width digits */
+}
+[hidden]{display:none!important}
+html{height:100%;box-sizing:border-box;overscroll-behavior:none}
+*,*::before,*::after{box-sizing:border-box}
+body{height:100%;overscroll-behavior:none;background:var(--body) radial-gradient(140% 70% at 50% 0%,#26262b 0%,var(--body) 60%);color:var(--ink);font-family:var(--font-ui);font-size:14px;overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,textarea{font:inherit;color:var(--ink)}
+.lcd{font-family:var(--font-lcd);font-variant-numeric:tabular-nums}
+body{font-variant-numeric:tabular-nums}
+#app{height:100%;max-width:780px;margin:0 auto;display:flex;flex-direction:column;gap:8px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:max(8px,env(safe-area-inset-top,0px)) max(6px,env(safe-area-inset-bottom,0px))}
+
+/* ---------- rubber keys ---------- */
+.key,.tb{height:34px;min-width:34px;padding:0 10px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);
+  box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.09);color:var(--ink);font:600 13px/1 var(--font-ui);
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;flex:none;position:relative;overflow:hidden;text-overflow:ellipsis}
+.key:active,.tb:active,.key.down{transform:translateY(1px);box-shadow:0 1px 0 #050506,inset 0 1px 0 rgba(255,255,255,.05)}
+.key.on{color:var(--accent);background:linear-gradient(180deg,#4a4334,#352f25)}
+.key.warn{color:var(--rec)}
+.key.sm{height:30px;padding:0 8px;font-size:11.5px;border-radius:4px}
+.key.xs{height:26px;min-width:26px;padding:0 7px;font-size:11px;border-radius:3px}
+.key.ic{padding:0;width:34px}
+.key svg,.tb svg{width:17px;height:17px;fill:currentColor;flex:none}
+.key:disabled{opacity:.35}
+.key .led{width:6px;height:6px;border-radius:50%;background:var(--led-off);flex:none}
+.key.on .led{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+.keys{display:inline-flex;gap:4px;flex:none}
+.keys .key{min-width:30px;padding:0 7px}
+.btn{height:36px;padding:0 12px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.09);
+  font:600 13px var(--font-ui);display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;min-width:0;overflow:hidden}
+.btn.on{background:var(--accent);color:var(--accent-ink);border-color:transparent;box-shadow:0 2px 0 #6b4c10}
+.btn.warn{color:var(--rec)}
+.btn.sm{height:32px;padding:0 9px;font-size:12px}
+.btn.xs{height:28px;padding:0 8px;font-size:12px;border-radius:7px}
+.btn:disabled{opacity:.4}
+
+/* ---------- screens ---------- */
+.scr{background:var(--bg);border:1px solid #000;border-radius:5px;box-shadow:inset 0 2px 10px rgba(0,0,0,.75),0 1px 0 rgba(255,255,255,.06);position:relative;overflow:hidden}
+.lcdbox{height:30px;border-radius:3px;background:var(--bg);border:1px solid #000;box-shadow:inset 0 1px 6px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.05);
+  display:flex;align-items:center;padding:0 8px;font:500 12px var(--font-lcd);color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.lcdbox span{overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- transport ---------- */
+#top{display:flex;align-items:center;gap:5px;flex:none;height:40px}
+.tb{height:40px;padding:0 9px;border-radius:4px}
+.tb.ic{padding:0;width:38px;min-width:38px}
+#bPlay.on{color:var(--play)} #bPlay.on::after,#bRec.on::after,#bRec.armed::after{content:"";position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:50%}
+#bPlay.on::after{background:var(--play);box-shadow:0 0 6px var(--play)}
+#bRec{color:var(--rec)} #bRec.armed::after{background:var(--rec);opacity:.6} #bRec.on::after{background:var(--rec);box-shadow:0 0 8px var(--rec);animation:recpulse 1s ease-in-out infinite}
+@keyframes recpulse{50%{opacity:.35}}
+#bLoop{width:70px} #bTempo{width:56px;flex-direction:column;gap:2px;line-height:1}
+#bTempo.clk::after{content:"";position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#bTempo b{font:500 14px var(--font-lcd);color:var(--accent)}
+#bTempo small{font-size:9px;color:var(--print)}
+#bPanel.on{color:var(--accent)}
+.spacer{flex:1}
+#meter{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 60px 32px;gap:6px;align-items:center;height:12px;cursor:pointer}
+#meter .bars{display:flex;flex-direction:column;gap:2px}
+#meter .bar{height:3px;border-radius:2px;background:#0b0b0c;overflow:hidden}
+#meter .bar i{display:block;height:100%;width:100%;transform:scaleX(0);background:var(--play);transform-origin:left}
+#meter .bar i.hot{background:var(--accent)}
+#meter .cpu{font-size:8.5px;color:var(--print);text-align:right;white-space:nowrap}
+#meter .cpu.hot{color:var(--accent)}
+#meter .clip{height:12px;border-radius:3px;background:#0b0b0c;border:1px solid #000;font:700 7px var(--font-lcd);color:var(--dim);display:flex;align-items:center;justify-content:center}
+#meter .clip.on{background:var(--rec);color:#2b0707}
+
+/* ---------- scene keys ---------- */
+#scenes{display:flex;gap:6px;overflow-x:auto;flex:none;height:50px;scrollbar-width:none;padding-bottom:2px}
+#scenes::-webkit-scrollbar{display:none}
+.slot{flex:0 0 56px;height:47px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.08);
+  display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 6px;position:relative;overflow:hidden;text-align:left}
+.slot .srow{display:flex;align-items:baseline;gap:4px;max-width:calc(100% - 8px);min-width:0;height:15px}
+.slot .num{font:500 14px/14px var(--font-lcd);flex:none}
+.slot .mini{display:block;width:44px;height:18px;border-radius:2px;margin-top:4px}
+.slot.empty .mini{opacity:.5}
+.slot .lbl{font-size:10.5px;min-width:0;font-weight:500;color:var(--print);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;height:13px;line-height:13px}
+.slot .meta{font:400 9.5px/10px var(--font-lcd);color:var(--dim);white-space:nowrap}
+.slot .led{position:absolute;right:6px;top:7px;width:6px;height:6px;border-radius:50%;background:var(--led-off)}
+.slot.filled .led{background:var(--accent);box-shadow:0 0 5px var(--accent)}
+.slot.empty .num{color:var(--dim)}
+.slot.sel{background:linear-gradient(180deg,#4a4334,#352f25)} .slot.sel .num{color:var(--accent)}
+.slot.playing .led{background:var(--play);box-shadow:0 0 6px var(--play)}
+.slot .prog{position:absolute;left:0;bottom:0;height:2px;background:var(--play);width:0}
+
+/* ---------- view & mode keys ---------- */
+#view{flex:1;min-height:0;position:relative;overflow:hidden}
+#soundChip{position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:5;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:12.5px;padding:6px 12px;border-radius:999px;pointer-events:none;white-space:nowrap}
+#tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;flex:none;height:42px}
+#tabs button{height:40px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.08);
+  font:600 13px var(--font-ui);color:var(--print);display:flex;align-items:center;justify-content:center;gap:5px;overflow:hidden;white-space:nowrap;min-width:0}
+#tabs button::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--led-off)}
+#tabs button.on{color:var(--ink)} #tabs button.on::before{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+
+/* ---------- knobs, selectors, faders ---------- */
+.kgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:80px;gap:6px 4px;flex:none}
+.knob{display:flex;flex-direction:column;align-items:center;gap:1px;touch-action:none;min-width:0;padding:3px 2px;border-radius:4px;position:relative}
+.knob svg{width:48px;height:48px;display:block}
+.knob .kr{fill:none;stroke:#0b0b0c;stroke-width:4;stroke-dasharray:75 100;stroke-linecap:round}
+.knob .kv{fill:none;stroke:var(--accent);stroke-width:4;stroke-linecap:round;filter:drop-shadow(0 0 2px rgba(242,181,68,.55))}
+.knob .kb{fill:url(#knobFace);stroke:#060607;stroke-width:1}
+.knob .ki{stroke:var(--ink);stroke-width:2.2;stroke-linecap:round}
+.knob .kval{font:400 11px var(--font-lcd);color:var(--ink);white-space:nowrap;height:13px;line-height:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.knob .klab{font:500 11.5px var(--font-ui);color:var(--print);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;height:13px;line-height:13px}
+.knob.mini svg{width:30px;height:30px}.knob.mini .kval,.knob.mini .klab{display:none}
+.nf{outline:2px solid var(--accent)!important;outline-offset:-2px}
+.ne{outline:2px solid var(--play)!important;outline-offset:-2px;background-color:rgba(83,209,141,.08)}
+.knob.nf,.knob.ne,.selr.nf,.selr.ne,.fader.nf,.fader.ne{border-radius:4px}
+.knob.drag .kv{stroke:#ffd27a}
+.knob.autoed .klab{color:var(--accent)}
+.knob.blank{visibility:hidden}
+.selr{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px 2px;border-radius:8px;min-width:0;touch-action:none}
+.selr .sw>span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;line-height:1.2}
+.selr .sw{height:34px;width:100%;max-width:72px;border-radius:3px;background:var(--bg);border:1px solid #000;box-shadow:inset 0 1px 6px rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;
+  font:400 11.5px var(--font-lcd);color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;margin-top:9px}
+.selr .klab{font:500 11.5px var(--font-ui);color:var(--print);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;height:13px;margin-top:2px}
+.param{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 10px 10px;touch-action:pan-y;min-width:0}
+.param .prow{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.param .plab{font-size:12.5px;font-weight:600;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.param .pval{font-size:11px;white-space:nowrap}
+.param .ptrack{height:5px;border-radius:3px;background:#000;margin-top:9px;position:relative;overflow:hidden}
+.param .pfill{position:absolute;top:0;bottom:0;background:var(--accent);border-radius:3px}
+.param.drag{border-color:var(--accent)}
+.fader{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-height:0;width:100%;touch-action:none;border-radius:4px;padding:4px 3px 3px}
+.fader .fval{font:400 9.5px var(--font-lcd);color:var(--ink);height:11px;line-height:11px;white-space:nowrap}
+.fader .ftrack{flex:1;min-height:24px;width:100%;position:relative;display:flex;justify-content:center;gap:3px}
+.fader .fmeter{width:5px;height:100%;border-radius:2px;background:#000;position:relative;overflow:hidden}
+.fader .fmeter i{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(0deg,var(--play) 0%,var(--play) 70%,var(--accent) 88%,var(--rec) 100%);background-size:100% var(--mh,100px);background-position:bottom}
+.fader .fslot{width:4px;height:100%;border-radius:2px;background:#000;box-shadow:0 1px 0 rgba(255,255,255,.05)}
+.fader .funity{position:absolute;left:8%;right:8%;height:1px;background:var(--dim)}
+.fader .fcap{position:absolute;left:50%;width:30px;height:16px;margin-left:-11px;border-radius:2px;background:linear-gradient(180deg,#55555c,#33333a 45%,#2a2a2f);border:1px solid #050506;box-shadow:0 2px 3px rgba(0,0,0,.6)}
+.fader .fcap::after{content:"";position:absolute;left:3px;right:3px;top:7px;height:1px;background:var(--ink)}
+.fader.drag .fcap::after{background:var(--accent)}
+
+/* ---------- pads ---------- */
+.padsView{height:100%;display:flex;flex-direction:column;gap:10px}
+.toolbar{display:flex;gap:6px;align-items:center;flex:none;height:34px;flex-wrap:nowrap;min-width:0}
+.toolbar .lcdbox{flex:1 1 0}
+.toolbar{overflow:hidden}.toolbar .key.sm{padding:0 7px}
+.padsView{container-type:inline-size;padding-bottom:3px}
+@media (max-width:420px){.padsSel{display:none!important}}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));gap:8px;flex:1 1 0;min-height:0;width:100%;max-height:calc(100cqw * 1.45);margin:auto 0}
+.pad{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#28282c 60%,#242428);border:1px solid #070708;
+  box-shadow:0 3px 0 #050506,inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.4);display:flex;flex-direction:column;justify-content:space-between;padding:7px 8px 15px;position:relative;touch-action:none;min-width:0;min-height:0;overflow:hidden}
+.pad::after{content:"";position:absolute;left:7px;right:7px;bottom:6px;height:3px;border-radius:1px;background:color-mix(in srgb,var(--pc) 38%,#101012);transition:background .25s,box-shadow .25s}
+.pad .pn{font:400 10.5px var(--font-lcd);color:var(--print);position:relative;white-space:nowrap;overflow:hidden}
+.pad .nm{font:600 13px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;height:15px;line-height:15px}
+.pad.empty{background:linear-gradient(180deg,#2a2a2e,#232326)} .pad.empty::after{background:#17171a}
+.pad.empty .nm{color:var(--dim)}
+.pad.sel{border-color:#070708;box-shadow:0 3px 0 #050506,inset 0 0 0 1px #8a6a2a} .pad.sel .pn{color:var(--accent)}
+.pad.hit{transform:translateY(2px);box-shadow:0 1px 0 #050506,inset 0 1px 0 rgba(255,255,255,.05);background:linear-gradient(180deg,#38383e,#2e2e33)}
+.pad.hit::after{transition:none;background:var(--pc);box-shadow:0 0 8px var(--pc),0 0 2px #fff}
+.pad.has .pn::after{content:"";display:inline-block;width:5px;height:5px;border-radius:1px;background:var(--pc);margin-left:5px;vertical-align:1px}
+.pad.frz .nm::before{content:"❄ ";}
+.pad.kp .nm{font:500 14px var(--font-lcd);text-transform:none}
+/* ---------- timeline ---------- */
+.seqView{height:100%;display:flex;flex-direction:column;gap:8px}
+.lanebox{height:34px;flex:1 1 0;min-width:0;border-radius:3px;background:var(--bg);border:1px solid #000;box-shadow:inset 0 1px 6px rgba(0,0,0,.8);display:flex;align-items:center;gap:6px;padding:0 8px;text-align:left}
+.lanebox b{font:500 12px var(--font-lcd);color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.lanebox i{font-style:normal;color:var(--mute);font-size:10px;flex:none}
+.tlwrap{flex:1;min-height:120px}
+.tlwrap canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+
+/* ---------- sound ---------- */
+.soundView,.fxView,.mixView{height:100%;display:flex;flex-direction:column;gap:8px;min-height:0}
+.shead{display:flex;gap:6px;align-items:center;flex:none;height:34px}
+.shead input,.textin{height:34px;width:100%;min-width:0;border-radius:3px;background:var(--bg);border:1px solid #000;box-shadow:inset 0 1px 6px rgba(0,0,0,.8);padding:0 10px;font:500 16px var(--font-lcd);color:var(--accent)}
+.textin{font-family:var(--font-ui);font-size:16px;color:var(--ink)}
+.disp{flex:1;min-height:90px}
+.disp canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+
+#view.short .kgrid{grid-auto-rows:64px;gap:2px 4px}
+#view.short .knob svg{width:38px;height:38px} #view.short .knob .kval{font-size:9.5px}
+#view.short .selr .sw{height:28px;margin-top:4px}
+#view.short .disp{min-height:0}
+#view.tiny .disp{min-height:44px}
+.chopView{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+.chopwave{flex:1;min-height:90px;position:relative}
+.chopwave canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.zbtns{position:absolute;right:5px;bottom:20px;display:flex;gap:4px}
+.zbtns .key{height:26px;min-width:30px;padding:0 6px;opacity:.9}
+.spads{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-auto-rows:36px;gap:6px 5px;flex:none}
+.spad{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#28282c 60%,#242428);border:1px solid #070708;box-shadow:0 3px 0 #050506,inset 0 1px 0 rgba(255,255,255,.07);
+  position:relative;color:var(--mute);font:400 12px var(--font-lcd);padding:0 0 7px;min-width:0;touch-action:none}
+.spad::after{content:"";position:absolute;left:5px;right:5px;bottom:5px;height:3px;border-radius:1px;background:color-mix(in srgb,var(--pc) 45%,#101012);transition:background .25s,box-shadow .25s}
+.spad.on{color:var(--accent);box-shadow:0 3px 0 #050506,inset 0 0 0 1px #8a6a2a}
+.spad.hit{transform:translateY(2px);box-shadow:0 1px 0 #050506}
+.spad.hit::after{transition:none;background:var(--pc);box-shadow:0 0 8px var(--pc),0 0 2px #fff}
+.spad:disabled{opacity:.3}
+.spads .chopgo,.spads .spempty{grid-column:1/-1;grid-row:span 2;height:auto}
+.spempty{display:flex;align-items:center;justify-content:center;color:var(--mute);font-size:13px;text-align:center}
+#view.short .spads{grid-auto-rows:30px;gap:5px}
+#view.short .chopwave{min-height:60px}
+#view.tiny .chopwave{display:block}
+#view.tiny .spads{grid-auto-rows:22px;gap:3px 4px}
+#view.tiny .spad{font-size:10px;padding-bottom:5px}
+.padsView.chopping .chopwave{flex:0 0 30%;min-height:96px}
+.padsView.chopping .grid{max-height:none}
+#view.tiny .padsView .chopwave{flex-basis:20%;min-height:44px}
+#view.tiny .padsView.chopping .pad{padding:4px 7px 9px}
+#view.tiny .padsView.chopping .pad .pn{display:none}
+#view.tiny .padsView.chopping .pad .nm{font-size:12px}
+#view.short .detail .dk{grid-template-columns:repeat(3,52px)}
+#view.short .detail .knob .kval{font-size:9px;height:11px;line-height:11px}
+#view.short .strip .knob.mini svg{width:22px;height:22px}
+#view.short .strip .knob.mini{padding:0 2px}
+#view.short .strip{gap:3px}
+#view.tiny .detail .dk{grid-template-columns:repeat(3,34px);gap:2px}
+#view.tiny .detail .knob svg{width:30px;height:30px}
+#view.tiny .detail .knob .klab{display:none}
+#view.tiny .detail .dbtns{flex-direction:row}
+#view.tiny .detail .dbtns>*{flex:1 1 0;min-width:0}
+#view.tiny .sname em{display:none}
+.console.slideL{animation:slideL .14s ease-out}.console.slideR{animation:slideR .14s ease-out}
+@keyframes slideL{from{transform:translateX(18px);opacity:.4}}@keyframes slideR{from{transform:translateX(-18px);opacity:.4}}
+/* ---------- effects ---------- */
+.slots{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;flex:none}
+.slots .key{width:100%;min-width:0;padding:0 2px;height:40px;flex-direction:column;gap:3px;font-size:10px}
+.slots .key .led{position:absolute;top:4px;right:4px;width:5px;height:5px}
+.slots .key.lit .led{background:var(--play);box-shadow:0 0 5px var(--play)}
+.slots .key.cur{border-color:var(--accent);color:var(--accent)}
+.fxPanel{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;overflow-y:auto;overscroll-behavior:contain}
+.fxHead{display:flex;gap:6px;align-items:center;flex:none;height:30px}
+.fxHead .lcdbox{flex:1 1 0}
+
+/* ---------- mixer ---------- */
+.pages{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:3px;flex:none}
+.pages .key{width:100%;min-width:0;padding:0;height:28px;font-size:10px}
+.console{flex:1;min-height:0;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:minmax(0,1fr);gap:2px;padding:6px 3px 4px}
+.strip{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;min-height:0;overflow:hidden;border-radius:3px;padding:3px 1px;border:1px solid transparent}
+.strip.sel{border-color:var(--line);background:var(--panel)}
+.strip.sel .sname b{color:var(--accent)}
+.strip.empty{opacity:.4}
+.sname{display:flex;flex-direction:column;align-items:center;width:100%;min-width:0;height:26px;line-height:12px}
+.sname em{font:400 9.5px var(--font-lcd);font-style:normal;color:var(--mute)}
+.sname b{font:600 11px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.sname i{display:block;width:70%;height:2px;border-radius:1px;margin-top:1px}
+.ms2{display:flex;gap:2px;width:100%;justify-content:center}
+.ms2 button{width:19px;height:19px;border-radius:2px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #050506;font:700 9px var(--font-ui);color:var(--print)}
+.ms2 button.m.on{background:var(--rec);color:#2b0707} .ms2 button.s.on{background:var(--accent);color:var(--accent-ink)}
+.detail{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;align-items:center}
+.detail .dk{display:grid;grid-template-columns:repeat(3,64px);gap:4px;justify-content:end}
+.detail .dbtns{display:flex;flex-direction:column;gap:5px;min-width:0}
+.detail .dbtns .key{width:100%;justify-content:flex-start}
+.scopebox{position:relative;display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;text-align:left;padding:0 8px;cursor:pointer;overflow:hidden}
+.scopebox span,.scopebox i{position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scopebox i{flex:none;display:flex;color:var(--mute)} .scopebox i svg{width:14px;height:14px;fill:currentColor}
+.anbox{height:min(240px,34vh)} .anbox canvas,.fxvis canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.anread{font-size:12px;color:var(--ink);margin-top:8px}
+.fxvis{flex:none;height:112px;margin-bottom:8px}
+#view.short .fxvis{height:78px}
+#view.tiny .fxvis{height:48px}
+#view.tiny .zbtns{bottom:4px} #view.tiny .zbtns .key{height:22px;min-width:26px}
+
+/* ---------- lists in sheets ---------- */
+.list{display:flex;flex-direction:column;gap:6px}
+.li{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:6px 8px;min-height:44px}
+.li .lt{flex:1;min-width:0;text-align:left}
+.li .lt b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .lt span{display:block;font-family:var(--font-lcd);font-size:11px;font-weight:400;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li.on{border-color:var(--accent)} .li .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none}
+.tgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.tgrid button{height:44px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);font:700 12px var(--font-ui);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
+.tgrid button.on{background:var(--accent);color:var(--accent-ink)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{height:30px;padding:0 11px;border-radius:15px;background:var(--panel);border:1px solid var(--line);color:var(--mute);font-weight:600;font-size:12.5px;white-space:nowrap}
+.chip.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.sec{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:14px 2px 6px;font-weight:700}
+.note{color:var(--mute);font-size:13px;line-height:1.45;margin:8px 2px}
+.stack{display:flex;flex-direction:column;gap:8px}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.row{display:flex;gap:6px;align-items:center}
+.diag{display:flex;flex-direction:column;gap:6px}
+.drow{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+.drow .st{font-weight:700;font-size:13px}
+.drow .st.ok{color:var(--play)}.drow .st.warn{color:var(--accent)}.drow .st.fail{color:var(--rec)}
+.drow b{display:block;font-size:13.5px}
+.drow span{display:block;font-family:var(--font-lcd);font-size:11.5px;font-weight:400;color:var(--mute);word-break:break-word;margin-top:2px}
+
+/* ---------- precision panel ---------- */
+#panel{flex:none;height:168px;background:linear-gradient(180deg,var(--body2),var(--body));border:1px solid var(--edge);border-radius:6px;padding:8px 10px 10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.pinfo{height:22px;margin-bottom:8px;font-size:10.5px}
+.pbody{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#panel.mirror .pbody{flex-direction:row-reverse}
+.dpad{display:grid;grid-template-columns:repeat(3,40px);grid-template-rows:repeat(3,38px);gap:2px;padding:4px;border-radius:6px;background:#141416;box-shadow:inset 0 1px 4px rgba(0,0,0,.8)}
+.pk{border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;touch-action:none;color:var(--ink);font:700 12px var(--font-ui)}
+.pk svg{width:15px;height:15px;fill:currentColor}
+.pk.down{transform:translateY(1px);box-shadow:0 1px 0 #050506;color:var(--accent)}
+.dpad .u{grid-area:1/2}.dpad .l{grid-area:2/1}.dpad .r{grid-area:2/3}.dpad .d{grid-area:3/2}
+.dpad .c{grid-area:2/2;border-radius:3px;background:#18181b;box-shadow:inset 0 1px 4px rgba(0,0,0,.8);pointer-events:none}
+.pmid{display:flex;flex-direction:column;gap:5px}
+.pmid .pk{width:56px;height:32px}
+#pShift.on,#pFine.on{color:var(--accent)}
+.pact{display:flex;gap:8px;align-items:center}
+.pact .pk{width:56px;height:56px;border-radius:5px}
+#pOk{background:linear-gradient(180deg,#ffcf6e,var(--accent) 55%,#c88d22);color:var(--accent-ink);box-shadow:0 2px 0 #5c4210}
+
+/* ---------- sheet + toast ---------- */
+#sheet{position:fixed;inset:0;z-index:20;background:rgba(3,4,5,.62);display:flex;align-items:flex-end;justify-content:center}
+#sheet .card{width:100%;max-width:780px;max-height:84%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:#121617;border:1px solid #000;border-bottom:0;border-radius:8px 8px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.6);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px calc(18px + env(safe-area-inset-bottom,0px))}
+.shTitle{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.shTitle span{font-size:18px;font-weight:700;text-wrap:balance}
+#toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:30;background:var(--ink);color:#111;font-weight:600;font-size:13.5px;padding:9px 14px;border-radius:9px;max-width:calc(100% - 32px);text-align:center;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:420px){#top{gap:4px}.tb.ic{width:36px;min-width:36px}#bLoop{width:64px}#bTempo{width:52px}}
+@media (max-width:370px){.tb.ic{width:34px;min-width:34px}.dpad{grid-template-columns:repeat(3,36px);grid-template-rows:repeat(3,34px)}.pact .pk{width:50px;height:50px}.pmid .pk{width:50px}.knob svg{width:42px;height:42px}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <radialGradient id="knobFace" cx="50%" cy="35%" r="70%"><stop offset="0" stop-color="#5a5a61"/><stop offset=".55" stop-color="#34343a"/><stop offset="1" stop-color="#1f1f23"/></radialGradient>
+</defs></svg>
+<div id="app">
+  <header id="top">
+    <button class="tb ic" id="bPlay" aria-label="Play"></button>
+    <button class="tb ic" id="bRec" aria-label="Record"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/></svg></button>
+    <button class="tb" id="bLoop" aria-label="Playback mode">Scene</button>
+    <button class="tb" id="bTempo" aria-label="Tempo"><b>96</b><small>BPM</small></button>
+    <span class="spacer"></span>
+    <button class="tb ic" id="bUndo" aria-label="Undo"><svg viewBox="0 0 24 24"><path d="M9.5 5 4 10.5 9.5 16v-3.7c4.2 0 7.1 1.3 9 4.7-.6-4.9-3.4-8.4-9-9V5z"/></svg></button>
+    <button class="tb ic" id="bPanel" aria-label="Precision controls"><svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" opacity=".95"/></svg></button>
+    <button class="tb ic" id="bMenu" aria-label="Project menu"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="2.2" rx="1.1"/><rect x="4" y="11" width="16" height="2.2" rx="1.1"/><rect x="4" y="16" width="16" height="2.2" rx="1.1"/></svg></button>
+  </header>
+  <div id="meter" title="Output level. Tap to reset the clip light."><div class="bars"><div class="bar"><i></i></div><div class="bar"><i></i></div></div><span class="cpu lcd">CPU —</span><span class="clip">CLIP</span></div>
+  <nav id="scenes" aria-label="Scenes"></nav>
+  <main id="view"></main>
+  <section id="panel" hidden aria-label="Precision controls">
+    <div class="pinfo lcdbox" id="pinfo"></div>
+    <div class="pbody">
+      <div class="dpad">
+        <button class="pk u" data-k="up" aria-label="Up"><svg viewBox="0 0 24 24"><path d="M12 6l7 9H5z"/></svg></button>
+        <button class="pk l" data-k="left" aria-label="Left"><svg viewBox="0 0 24 24"><path d="M6 12l9-7v14z"/></svg></button>
+        <span class="pk c"></span>
+        <button class="pk r" data-k="right" aria-label="Right"><svg viewBox="0 0 24 24"><path d="M18 12l-9 7V5z"/></svg></button>
+        <button class="pk d" data-k="down" aria-label="Down"><svg viewBox="0 0 24 24"><path d="M12 18l-7-9h14z"/></svg></button>
+      </div>
+      <div class="pmid">
+        <button class="pk" id="pFine">Fine</button>
+        <button class="pk" id="pShift">Shift</button>
+        <button class="pk" id="pDel" data-k="del">Del</button>
+      </div>
+      <div class="pact">
+        <button class="pk" id="pBack" data-k="back">Back</button>
+        <button class="pk" id="pOk">OK</button>
+      </div>
+    </div>
+  </section>
+  <nav id="tabs">
+    <button data-v="pads">Pads</button>
+    <button data-v="sound">Sound</button>
+    <button data-v="seq">Timeline</button>
+    <button data-v="mix">Mixer</button>
+  </nav>
+</div>
+<div id="sheet" hidden><div class="card"></div></div>
+<div id="toast" role="status"></div>
+<input type="file" id="fileAudio" accept="audio/*" multiple hidden>
+<input type="file" id="fileProj" accept=".json,application/json" hidden>
+
+<script>
+/*@MODEL@*/
+</script>
+<script>
+/*@HOST@*/
+</script>
+<script>
+'use strict';
+/* ================= build-time payloads ================= */
+const WASM_BYTES = (() => { const s = atob("@WASM_B64@"), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; })();
+const WORKLET_SRC = "@HOST_SRC@" + `
+class TFProc extends AudioWorkletProcessor {
+  constructor(o) { super();
+    const fail = e => this.port.postMessage({ t: 'err', msg: String(e && e.message || e) });
+    try { const inst = new WebAssembly.Instance(new WebAssembly.Module(o.processorOptions.wasm), {});
+      this.host = new TFHost(inst.exports, sampleRate, m => this.port.postMessage(m));
+      this.port.onmessage = e => { try { this.host && this.host.msg(e.data); } catch (err) { fail(err); } };
+      this.port.postMessage({ t: 'ready' });
+    } catch (err) { this.host = null; fail(err); } }
+  process(ins, outs) { const o = outs[0]; if (!this.host || !o || !o[0]) return true; const t0 = Date.now();
+    try { this.host.render(o[0].length, o[0], o[1] || o[0]); } catch (err) { this.port.postMessage({ t: 'err', msg: String(err && err.message || err) }); this.host = null; return true; }
+    this.host.cpuMs += Date.now() - t0; this.host.cpuBlocks++; return true; }
+}
+registerProcessor('tf-engine', TFProc);`;
+
+/* ================= constants & utils ================= */
+const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const PAD_COLORS = ['#e8916c', '#e6c162', '#a3d27d', '#6fcac1', '#78a9ea', '#ab8ee8', '#e486bb', '#cdbda8'];
+const SNAPS = [{ t: 96, l: '1/4' }, { t: 48, l: '1/8' }, { t: 24, l: '1/16' }, { t: 12, l: '1/32' }, { t: 0, l: 'Off' }];
+const KEY_HI = 24, KEY_ROWS = 49, KEY_H = 24, LABEL_W = 50, RULER_H = 20, STRIP_H = 28;
+// a chopped pad's notes carry a slice number; in Keys mode its rows (and the 16 pads) become its slices
+const chopOf = pi => { const p = P.pads[pi]; return p && p.sample && p.chop && p.chop.on && p.chop.pts.length ? p.chop : null; };
+// where a slice starts: in beats of the original loop when its tempo is known, otherwise in seconds
+function sliceName(pi, k) { const p = P.pads[pi], s = SAMPLES.get(p.sample); if (!s) return ''; const sec = (p.chop.pts[k] - p.start) * s.frames / s.sr;
+  let bt = sec * p.tempo / 60 + 1; const q = Math.round(bt * 4) / 4; if (Math.abs(bt - q) < .04) bt = q;   // a hit cut a hair early still reads as its beat
+  return p.tempo ? 'Beat ' + +bt.toFixed(2) : sec.toFixed(2) + ' s'; }
+const padChop = () => UI.keys ? chopOf(UI.pad) : null;
+const KR = { chop: () => UI.tl.mode === 'keys' ? chopOf(UI.pad) : null, rows: () => { const c = KR.chop(); return c ? c.pts.length : KEY_ROWS; },
+  p: r => KR.chop() ? r : KEY_HI - r, row: p => { const c = KR.chop(); return c ? clamp(Math.round(p) || 0, 0, c.pts.length - 1) : KEY_HI - p; },
+  name: p => KR.chop() ? 'Slice ' + (KR.row(p) + 1) : noteName(p) };
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function h(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+const noteName = p => NOTE_NAMES[((p % 12) + 12) % 12] + (3 + Math.floor(p / 12));
+const pct = v => Math.round(v * 100) + '%';
+const gainDb = g => { if (g <= 0.0001) return '−∞ dB'; const d = 20 * Math.log10(g); return (d > 0.05 ? '+' : '') + d.toFixed(1) + ' dB'; };
+const volFmt = v => gainDb(2 * v * v);
+const panFmt = v => { const p = Math.round((v * 2 - 1) * 100); return p === 0 ? 'C' : (p < 0 ? 'L' + (-p) : 'R' + p); };
+const padLabel = i => BANKS[Math.floor(i / 16)] + String(i % 16 + 1).padStart(2, '0');
+const chanLabel = c => c < G0 ? padLabel(c) : c < B0 ? 'G' + (c - G0 + 1) : c < R0 ? 'B' + (c - B0 + 1) : c < MASTER ? 'R' + 'AB'[c - R0] : 'M';
+const chanName = c => c < G0 ? (P.pads[c].name || padLabel(c)) : (P.chans[c].name || chanDefaultName(c));
+const gcd = (a, b) => b ? gcd(b, a % b) : a;
+const posStr = t => `${Math.floor(t / BAR) + 1}.${Math.floor(t % BAR / BEAT) + 1}.${Math.floor(t % BEAT / 24) + 1}`;
+const fixT = t => Math.round(t * 1e4) / 1e4;
+const sceneLen = i => P.scenes[i].bars * BAR;
+const spt = () => 60 / (P.bpm * BEAT);
+const noteCount = sc => { let n = 0; for (const k in sc.notes) n += sc.notes[k].length; return n; };
+const lenStr = t => { if (Math.abs(t - Math.round(t)) > 1e-3) return Math.round(t * spt() * 1000) + ' ms'; t = Math.round(t); if (!t) return '0'; const g = gcd(t, BAR); return `${t / g}/${BAR / g}`; };
+function offGrid(t) { const g = UI.tl.snap || 24, off = t - Math.round(t / g) * g, ms = off * spt() * 1000; return Math.abs(ms) < 0.05 ? 'on grid' : (ms > 0 ? '+' : '−') + Math.abs(ms).toFixed(1) + ' ms off grid'; }
+const curveFrac = tfCurve, valueAt = tfValueAt;
+const duckerCount = () => P.chans.reduce((n, c) => n + c.fx.filter(f => f.type === FX_TYPES.DUCK).length, 0);
+
+/* ================= state ================= */
+let P = null;
+const UI = { view: 'pads', bank: 0, pad: 0, scene: 0, keys: false, oct: 0, keyCell: 0, panel: false, shift: false, fine: 0, mirror: false, sheet: false,
+  tl: { mode: 'bank', lane: 'notes', target: null, zoom: null, sx: 0, sy: null, snap: 24, sel: null, selPt: -1, draw: false, cursor: { t: 0, row: 0, v: .5 } },
+  snd: 0, slice: 0, click: 'rec', countIn: 1, clickVol: .5, mixPage: 0, mixSel: 0, fxCh: 0, fxSlot: 0, fxBack: 'mix', regs: [], autoRec: null, haptics: true };
+const T = { playing: false, rec: false, loop: 'scene' };
+let COL = {}, FONT_LCD = 'monospace', FONT_UI = 'sans-serif';
+function readColors() { const cs = getComputedStyle(document.documentElement); FONT_LCD = cs.getPropertyValue('--font-lcd').trim(); FONT_UI = cs.getPropertyValue('--font-ui').trim();
+  for (const k of ['bg', 'panel', 'raised', 'raised2', 'line', 'ink', 'mute', 'dim', 'accent', 'rec', 'play']) COL[k] = cs.getPropertyValue('--' + k).trim(); }
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400); }
+function btn(label, fn, cls = 'btn') { const b = h('button', cls, label); b.onclick = fn; return b; }
+function seg(labels, active, fn) { const s = h('div', 'keys'); labels.forEach((l, i) => { const b = h('button', 'key sm' + (i === active ? ' on' : ''), l); b.onclick = () => fn(i); s.append(b); }); return s; }
+
+/* ================= samples ================= */
+// { id, name, sr, ch, frames, data: Int16Array (interleaved), builtin?, frz?, added }
+const SAMPLES = new Map();
+// the current kit is built at startup; other built-ins (break, classic kit) are built the first time they are needed
+function buildBuiltin(key) { const k = ALL_BUILTINS.find(x => x[0] === key); if (!k || SAMPLES.has('b:' + key)) return; const s = buildKitSample(k[0], k[1]); SAMPLES.set(s.id, s); }
+function buildBuiltins(all) { for (const [k] of all ? ALL_BUILTINS : KIT) buildBuiltin(k); }
+function ensureBuiltinsFor(proj) { for (const p of proj.pads) if (p.sample && p.sample.startsWith('b:')) buildBuiltin(p.sample.slice(2)); }
+function addUserSample(name, sr, ch, data, extra) {
+  const id = 'u:' + uid(), s = Object.assign({ id, name, sr, ch, frames: data.length / ch, data, added: Date.now() }, extra || {});
+  SAMPLES.set(id, s); DB.put('samples', id, s); return id;
+}
+function deleteSample(id) { const s = SAMPLES.get(id); if (!s || s.builtin) return; SAMPLES.delete(id); DB.del('samples', id); send({ t: 'sampleDel', key: id }); ENG.sent.delete(id); }
+function interleave(chans, maxFrames) { const n = Math.min(chans[0].length, maxFrames), c = chans.length, o = new Int16Array(n * c);
+  for (let i = 0; i < n; i++) for (let k = 0; k < c; k++) { const s = Math.max(-1, Math.min(1, chans[k][i])); o[i * c + k] = s < 0 ? s * 32768 : s * 32767; } return o; }
+function upgradeSampleRecord(s) {   // v1 stored Float32 channel arrays; v2 stores interleaved Int16
+  if (s.data instanceof Int16Array) return s;
+  if (s.chans) { const data = interleave(s.chans, s.chans[0].length); return { id: s.id, name: s.name, sr: s.sr, ch: s.chans.length, frames: s.chans[0].length, data, added: 0 }; }
+  return null;
+}
+const usedSampleIds = () => { const u = new Set(); for (const p of P.pads) { if (p.sample) u.add(p.sample); if (p.frz) for (const k in p.frz) u.add(p.frz[k]); } return u; };
+
+/* ================= storage ================= */
+const DB = { db: null, ok: false,
+  async open() { try { this.db = await new Promise((res, rej) => { const r = indexedDB.open('trackfill', 1); r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('kv'); d.createObjectStore('samples'); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); this.ok = true; } catch (e) { this.db = null; this.ok = false; } },
+  req(store, mode, fn) { return new Promise(res => { if (!this.db) return res(undefined); try { const tx = this.db.transaction(store, mode), q = fn(tx.objectStore(store)); tx.oncomplete = () => res(q && q.result); tx.onerror = () => res(undefined); } catch (e) { res(undefined); } }); },
+  get(store, key) { return this.req(store, 'readonly', s => s.get(key)); },
+  put(store, key, val) { return this.req(store, 'readwrite', s => s.put(val, key)); },
+  del(store, key) { return this.req(store, 'readwrite', s => s.delete(key)); },
+  all(store) { return this.req(store, 'readonly', s => s.getAll()).then(r => r || []); } };
+let saveTimer = 0;
+function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
+function saveNow() { clearTimeout(saveTimer); if (P) DB.put('kv', 'project', P); }
+function savePrefs() { DB.put('kv', 'ui', { view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol }); }
+
+/* ================= undo (scoped: only the part that changed is stored) ================= */
+const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
+function scopeGet(sc) { const [k, i] = sc.split(':'), n = +i;
+  switch (k) { case 'scene': return P.scenes[n]; case 'pad': return P.pads[n]; case 'chan': return P.chans[n];
+    case 'song': return { name: P.name, bpm: P.bpm, swing: P.swing }; default: return P; } }
+function scopeSet(sc, v) { const [k, i] = sc.split(':'), n = +i;
+  switch (k) { case 'scene': P.scenes[n] = v; syncScene(n); break; case 'pad': P.pads[n] = v; syncPad(n); break; case 'chan': P.chans[n] = v; syncChan(n); break;
+    case 'song': Object.assign(P, v); syncSong(); break; default: P = v; syncProject(); } }
+function pushUndo(scope = 'all') { UNDO.push({ scope, data: JSON.stringify(scopeGet(scope)) }); if (UNDO.length > 200) UNDO.shift(); REDO.length = 0; ugKey = null; }
+function undoGroup(k, scope) { const n = Date.now(); if (k !== ugKey || n - ugTime > 1500) { pushUndo(scope); ugKey = k; } ugTime = n; }
+function applyHistory(from, to, label) { if (!from.length) { toast('Nothing to ' + label); return; } const e = from.pop();
+  to.push({ scope: e.scope, data: JSON.stringify(scopeGet(e.scope)) }); scopeSet(e.scope, JSON.parse(e.data));
+  UI.tl.sel = null; UI.tl.selPt = -1; markDirty(); renderAll(); toast(label === 'undo' ? 'Undone' : 'Redone'); }
+const undo = () => applyHistory(UNDO, REDO, 'undo'), redo = () => applyHistory(REDO, UNDO, 'redo');
+
+/* ================= audio engine bridge ================= */
+let ctx = null, wasmModule = null, mediaTag = null;
+const ENG = { node: null, ready: false, err: '', sent: new Set() };
+const REP = { time: 0, playing: false, pos: null, pk: [0, 0], cpu: 0, voices: 0, cm: [] };
+function send(m) { if (ENG.node) ENG.node.port.postMessage(m); }
+function ensureSample(id) { if (!id || ENG.sent.has(id) || !ENG.node) return; const s = SAMPLES.get(id); if (!s) return;
+  send({ t: 'sample', key: id, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr }); ENG.sent.add(id); }
+function syncScene(i) { const sc = P.scenes[i]; send({ t: 'scene', i, v: sc }); for (const k in sc.notes) for (const n of sc.notes[k]) if (n.f) delete n.f; }
+function syncPad(i) { const p = P.pads[i]; ensureSample(p.sample); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
+function syncChan(c) { send({ t: 'chan', i: c, v: P.chans[c] }); }
+function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing } }); updateTransport(); }
+function syncProject() { if (!ENG.node) return; for (const id of usedSampleIds()) ensureSample(id); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
+function sendParam(key, v) { send({ t: 'param', key, v }); }
+function silentWavUrl() { const sr = 8000, n = sr / 2, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), ws = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  ws(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE'); ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' })); }
+// iOS mutes Web Audio on the silent switch unless the page is in the "playback" audio category.
+function unmuteIOS() {
+  try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) {}
+  try { if (!mediaTag) { mediaTag = document.createElement('audio'); mediaTag.setAttribute('x-webkit-airplay', 'deny'); mediaTag.setAttribute('playsinline', ''); mediaTag.preload = 'auto'; mediaTag.loop = true; mediaTag.src = silentWavUrl(); mediaTag.load(); }
+    if (mediaTag.paused) { const p = mediaTag.play(); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+}
+function ensureAudio() {
+  if (ctx && ctx.state === 'running' && ENG.node) { unmuteIOS(); return true; }
+  try {
+    unmuteIOS();
+    if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; ctx = new AC({ latencyHint: 'interactive' }); ctx.onstatechange = updateSoundChip; startEngine(); }
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    setTimeout(updateSoundChip, 80); return true;
+  } catch (e) { console.error(e); toast('Sound could not start on this device'); return false; }
+}
+async function startEngine() {
+  try {
+    if (!ctx.audioWorklet) throw new Error('this browser has no AudioWorklet');
+    await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' })));
+    const node = new AudioWorkletNode(ctx, 'tf-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { wasm: WASM_BYTES } });
+    const clip = ctx.createWaveShaper(); clip.curve = new Float32Array([-1, 1]); clip.oversample = 'none';   // second hard clip, belt and braces
+    node.connect(clip); clip.connect(ctx.destination);
+    node.port.onmessage = e => onEngine(e.data);
+    ENG.node = node; ENG.sent.clear(); syncProject(); sendClick();
+  } catch (e) { ENG.err = e.message || String(e); console.error(e); toast('The audio engine could not start: ' + ENG.err); }
+}
+let lastTrip = 0;
+function onEngine(m) {
+  if (m.t === 'pos') {
+    if (m.playing || m.voices || m.pk[0] > 1e-5 || m.pk[1] > 1e-5) { wake(); lastAct = Date.now(); }
+    REP.time = m.time; REP.playing = m.playing; REP.pos = m.pos; REP.cpu = REP.cpu * .9 + m.cpu * .1; REP.voices = m.voices; REP.cm = m.cm || [];   // CPU is sampled with a 1 ms clock, so it is averaged
+    METER.l = Math.max(m.pk[0], METER.l * .8); METER.r = Math.max(m.pk[1], METER.r * .8); if (m.pk[0] > 1 || m.pk[1] > 1) METER.clip = true;
+    for (const v of m.fl) flashPad(v & 255, (v >> 8) - 1);
+    if (m.sc) onScope(m.sc);
+  } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); }
+  else if (m.t === 'trip') {
+    const n = Date.now(), who = m.ch === MASTER ? 'the master output' : chanName(m.ch);
+    if (m.ch === MASTER) { T.playing = false; updateTransport(); }
+    toast(`Safety mute on ${who}: ${m.why === 1 ? 'it produced invalid audio' : 'levels ran away'}. It has been reset.` + (n - lastTrip < 4000 ? ' Check feedback, resonance and drive.' : ''));
+    lastTrip = n;
+  } else if (m.t === 'err') { ENG.err = m.msg; toast('Audio engine error: ' + m.msg); }
+  else if (m.t === 'oom') toast('The audio engine is out of memory. Remove unused sounds or effects, or freeze heavy pads.');
+}
+async function getModule() { if (!wasmModule) wasmModule = await WebAssembly.compile(WASM_BYTES); return wasmModule; }
+async function renderOffline(order, tail, tap, onProgress) {
+  const mod = await getModule(), samples = new Map();
+  for (const id of usedSampleIds()) { const s = SAMPLES.get(id); if (s) samples.set(id, s); }
+  return tfRenderOffline(mod, P, samples, { sr: 48000, order, tail, tap, onProgress });
+}
+function audition(pi, semi = 0) { if (!ENG.node) return; const pad = P.pads[pi]; if (pad.sample) { ensureSample(pad.sample); send({ t: 'hit', pad: pi, semi, vel: .8, gate: .25, tag: 0 }); } }
+function previewSample(id) { ensureAudio(); ensureSample(id); send({ t: 'preview', key: id }); }
+
+/* ================= transport ================= */
+let lastStop = 0;
+function play() {
+  if (T.playing) { stop(); lastStop = Date.now(); return; }
+  if (Date.now() - lastStop < 450 && ctx) { panic(); lastStop = 0; return; }
+  if (!ensureAudio()) return;
+  if (T.rec) pushUndo('all');
+  const count = T.rec ? UI.countIn : 0; T.playing = true; REP.pos = null; sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count }); updateTransport();
+  if (count) toast(`Count-in: ${count} bar${count > 1 ? 's' : ''}`);
+}
+// the click: off, only while recording is armed, or always. It plays on the engine's clock, so it is sample-accurate, and never reaches exports.
+function sendClick() { send({ t: 'click', on: UI.click === 'always' || (UI.click === 'rec' && T.rec), vol: UI.clickVol }); $('#bTempo').classList.toggle('clk', UI.click === 'always' || (UI.click === 'rec' && T.rec)); }
+function stop() { T.playing = false; send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
+function panic(msg) { T.playing = false; send({ t: 'panic' }); for (const k in HELD) delete HELD[k]; METER.l = METER.r = 0; METER.clip = false; drawMeter(); updateTransport(); updatePlayingSlot(null); toast(msg || 'Panic: all sound stopped and effect tails cleared'); }
+function heardPos() {
+  if (!T.playing || !REP.playing || !REP.pos || !ctx) return null;
+  const lat = ctx.outputLatency || ctx.baseLatency || 0, dt = (ctx.currentTime - lat) - REP.time, sc = REP.pos.scene;
+  return { scene: sc, tick: clamp(REP.pos.tick + dt * ctx.sampleRate * REP.pos.tps, 0, sceneLen(sc) - 1e-6) };
+}
+function recordNote(pi, semi) {
+  const pos = heardPos(); if (!pos) return null; touchPad(pi);
+  const sc = P.scenes[pos.scene], len = sc.bars * BAR, s = UI.tl.snap; let t = pos.tick; if (s) t = Math.round(t / s) * s; t = fixT(((t % len) + len) % len);
+  const n = { t, len: s || 24, p: semi, v: .9 }, ahead = ((t - pos.tick + len) % len) * spt();
+  if (ahead < .3) n.f = 1;   // the engine skips this once: you already heard it live
+  (sc.notes[pi] = sc.notes[pi] || []).push(n); syncScene(pos.scene); markDirty();
+  if (pos.scene === UI.scene) { refreshPadDots(); if (UI.view === 'seq') drawTL(); } renderScenes();
+  return { n, scene: pos.scene };
+}
+function recAuto(key, v) {
+  const pos = heardPos(); if (!pos) return; const sc = P.scenes[pos.scene], t = Math.floor(pos.tick);
+  let st = UI.autoRec; if (!st || st.scene !== pos.scene || st.key !== key || t < st.last) st = UI.autoRec = { scene: pos.scene, key, last: t - 1, wrote: -99 };
+  if (t - st.wrote < 3) return;
+  const pts = sc.auto[key] = (sc.auto[key] || []).filter(q => !(q.t > st.last && q.t <= t));
+  pts.push({ t, v, c: 0 }); pts.sort((a, b) => a.t - b.t); st.last = t; st.wrote = t; syncScene(pos.scene); markDirty();
+}
+// Capture: everything played on the pads is remembered, so a good idea can be kept after the fact.
+const CAP = [];
+function capHit(pi, semi, vel) { const e = { pi, semi, vel, at: ctx ? ctx.currentTime : 0, pos: heardPos(), len: 24 }; CAP.push(e); if (CAP.length > 512) CAP.shift(); return e; }
+function doCapture() {
+  const now = ctx ? ctx.currentTime : 0, fresh = CAP.filter(e => now - e.at < 120); CAP.length = 0;
+  if (!fresh.length) { toast('Nothing to capture yet. Play some pads first.'); return; }
+  pushUndo('all'); let placed = 0, dropped = 0;
+  const live = fresh.filter(e => e.pos), loose = fresh.filter(e => !e.pos);
+  for (const e of live) { const sc = P.scenes[e.pos.scene]; (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(e.pos.tick), len: e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); }
+  if (loose.length) { const sc = P.scenes[UI.scene], len = sc.bars * BAR, t0 = loose[0].at, tpsec = 1 / spt();
+    for (const e of loose) { const t = (e.at - t0) * tpsec; if (t >= len) { dropped++; continue; } (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(t), len: e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); } }
+  P.scenes.forEach((_, i) => syncScene(i)); markDirty(); renderAll();
+  toast(`Captured ${placed} note${placed === 1 ? '' : 's'}` + (dropped ? `; ${dropped} past the end of the scene were left out` : '') + '.');
+}
+
+/* ================= chop: spread slices onto their own pads ================= */
+function spreadSlices(pi) {
+  const pad = P.pads[pi], c = chopOf(pi); if (!c) return; const n = c.pts.length, free = [];
+  for (let i = 1; i < NPADS && free.length < n; i++) { const j = (pi + i) % NPADS; if (!P.pads[j].sample) free.push(j); }
+  if (free.length < n) { toast(`Spreading needs ${n} empty pads and there are ${free.length}. Clear some pads, or remove slices first.`); return; }
+  touchPad(pi); pushUndo('all'); const S = P.chans[pi], tpl = JSON.parse(JSON.stringify(pad));
+  free.forEach((j, k) => { const [a, b] = sliceRange(pad, k);
+    P.pads[j] = Object.assign(JSON.parse(JSON.stringify(tpl)), { name: ((pad.name || 'Slice').slice(0, 8) + ' ' + (k + 1)).slice(0, 12), start: a, end: b, chop: null, frz: null });
+    Object.assign(P.chans[j], { vol: S.vol, pan: S.pan, sa: S.sa, sb: S.sb, out: S.out, fx: S.fx.filter(f => f.type !== FX_TYPES.DUCK).map(f => JSON.parse(JSON.stringify(f))) }); });
+  for (const sc of P.scenes) { const arr = sc.notes[pi]; if (!arr) continue;   // the pattern moves with the slices, so it still sounds the same
+    for (const nn of arr) { const j = free[clamp(Math.round(nn.p) || 0, 0, n - 1)]; (sc.notes[j] = sc.notes[j] || []).push(Object.assign({}, nn, { p: 0 })); } delete sc.notes[pi]; }
+  for (const C of P.chans) for (const f of C.fx) if (f.type === FX_TYPES.DUCK && f.trig.includes(pi)) for (const j of free) if (!f.trig.includes(j)) f.trig.push(j);
+  syncProject(); markDirty(); UI.keys = false; renderAll();
+  toast(`${n} slices are now on pads ${padLabel(free[0])}–${padLabel(free[n - 1])}, with this pad's notes.`);
+}
+
+/* ================= freeze ================= */
+function touchPad(pi) { if (P.pads[pi] && P.pads[pi].frz) { unfreeze(pi); toast(`${padLabel(pi)} unfrozen so you can edit it`); } }
+function unfreeze(pi) { const p = P.pads[pi]; if (!p.frz) return; const ids = Object.values(p.frz); p.frz = null; syncPad(pi); ids.forEach(deleteSample); markDirty(); }
+let busy = false;
+async function freezePad(pi) {
+  if (busy) return; const scenes = P.scenes.map((s, i) => (s.notes[pi] && s.notes[pi].length) ? i : -1).filter(i => i >= 0);
+  if (!scenes.length) { toast('This pad has no notes to freeze'); return; }
+  busy = true; toast('Freezing ' + padLabel(pi) + '…');
+  try { const frz = {};
+    for (const i of scenes) { const r = await renderOffline([{ scene: i, reps: 1 }], 2, pi); frz[i] = addUserSample(`Freeze ${padLabel(pi)} s${i + 1}`, r.sr, 2, interleave([r.L, r.R], r.L.length), { frz: true }); }
+    const old = P.pads[pi].frz; P.pads[pi].frz = frz; if (old) Object.values(old).forEach(deleteSample);
+    syncPad(pi); markDirty(); renderView(); toast(`${padLabel(pi)} frozen: its sound and effects now play from audio`);
+  } catch (e) { console.error(e); toast('Freeze failed: ' + e.message); }
+  busy = false;
+}
+
+/*@CONTROLS@*/
+
+/* ---------- parameter metadata by key ---------- */
+const STRIP = [{ label: 'Volume', short: 'Vol', def: .7, fmt: volFmt, step: .005, coarse: .03 }, { label: 'Pan', short: 'Pan', def: .5, fmt: panFmt, bipolar: true, step: .005, coarse: .05 },
+  { label: 'Send A', short: 'Send A', def: 0, fmt: pct, step: .01, coarse: .05 }, { label: 'Send B', short: 'Send B', def: 0, fmt: pct, step: .01, coarse: .05 }];
+const SOUNDP = [{ label: 'Cutoff', short: 'Cutoff', def: 1, fmt: v => { const f = 20 * Math.pow(1000, v); return f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + ' kHz' : Math.round(f) + ' Hz'; }, step: .002, coarse: .025 },
+  { label: 'Resonance', short: 'Reso', def: .08, fmt: v => (.7 + v * v * 18).toFixed(1), step: .005, coarse: .03 }];
+function keyMeta(key) {
+  const { c, s, i } = tfParseKey(key);
+  if (s === -1) return STRIP[i]; if (s === -2) return SOUNDP[i];
+  const f = P.chans[c].fx[s]; if (!f) return { label: 'Missing effect', short: '?', def: 0, fmt: pct };
+  const d = FX_DEFS[f.type], prm = d.params[i];
+  return { label: `${d.name} ${prm.n}`, short: `${s + 1}·${prm.n}`, def: prm.d, fmt: prm.opts ? v => prm.opts[Math.round(v * (prm.opts.length - 1))] : prm.f, step: prm.opts ? 1 / (prm.opts.length - 1) : .002, coarse: prm.opts ? 1 / (prm.opts.length - 1) : .02 };
+}
+
+/* ================= rendering ================= */
+function renderAll() { renderScenes(); renderView(); updateTransport(); updatePanel(); }
+function setView(v) { navReset(); UI.view = v; renderView(); savePrefs(); }
+function renderView() {
+  for (const cell in HELD) padUp(+cell);
+  if (NAV.mode === 'edit') navEndEdit(true);
+  const V = $('#view'); V.innerHTML = ''; UI.regs = []; TL.cv = null; SCOPE.views = SCOPE.views.filter(v => v.cv.closest('#sheet'));
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === (UI.view === 'fx' ? UI.fxBack : UI.view)));
+  ({ pads: renderPads, seq: renderSeq, sound: renderSound, mix: renderMix, fx: renderFx })[UI.view](V);
+  updatePanel(); updateSoundChip(); scopeWant();
+}
+function updateTransport() {
+  $('#bPlay').innerHTML = T.playing ? '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7.5 5.2 19 12 7.5 18.8z"/></svg>';
+  $('#bPlay').classList.toggle('on', T.playing); const r = $('#bRec'); r.classList.toggle('armed', T.rec && !T.playing); r.classList.toggle('on', T.rec && T.playing);
+  $('#bLoop').textContent = T.loop === 'scene' ? '⟲ Scene' : '▶▶ Song'; $('#bTempo b').textContent = String(+P.bpm.toFixed(1));
+}
+function updateSoundChip() { let c = $('#soundChip'); const need = !ctx || ctx.state !== 'running';
+  if (need && !c) { c = h('div', ''); c.id = 'soundChip'; $('#view').append(c); } else if (!need && c) { c.remove(); ENG.slept = false; }
+  if (c && need) c.textContent = ENG.slept ? 'Sound is asleep · tap anywhere to wake it' : 'Tap anywhere to turn on sound'; }
+// after 2 minutes with nothing playing and no touches, audio sleeps to save battery; the first tap wakes it (expect a short delay on that tap)
+let lastAct = Date.now();
+for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { lastAct = Date.now(); wake(); if (ENG.slept) ensureAudio(); }, true);
+setInterval(() => { if (!ctx || ctx.state !== 'running' || T.playing || busy || REP.voices > 0 || Date.now() - lastAct < 120000) return;
+  ENG.slept = true; ctx.suspend().then(updateSoundChip).catch(() => {}); try { if (mediaTag) mediaTag.pause(); } catch (e) {} }, 5000);
+
+/* ---------- scene strip ---------- */
+// a tiny picture of each scene's pattern (like Koala's sequence squares): one row per pad that plays, bar lines, repeats in the corner.
+// Drawn once per change: each scene keeps its canvas and a signature of its notes.
+const MINI = new Map();
+function sceneMini(i) {
+  const sc = P.scenes[i], rows = []; let n = 0, sum = 0;
+  for (const k in sc.notes) { const a = sc.notes[k]; if (!a.length) continue; rows.push(+k); n += a.length; for (const x of a) sum += x.t * 7 + x.len * 3 + x.p; }
+  rows.sort((a, b) => a - b); const sig = rows.map(k => k + '.' + P.pads[k].color).join(',') + '|' + n + '|' + Math.round(sum) + '|' + sc.bars + '|' + sc.repeat;
+  let m = MINI.get(i); if (m && m.sig === sig) return m.cv;
+  const cv = m ? m.cv : h('canvas', 'mini'), W = 44, H = 18, dpr = window.devicePixelRatio || 1; cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 0, W, H);
+  if (rows.length) { const len = sc.bars * BAR, rh = H / Math.max(rows.length, 6), oy = (H - rh * rows.length) / 2;
+    g.fillStyle = 'rgba(255,255,255,.1)'; for (let b = 1; b < sc.bars; b++) g.fillRect(Math.round(b * W / sc.bars), 0, 1, H);
+    rows.forEach((pi, r) => { g.fillStyle = PAD_COLORS[P.pads[pi].color]; for (const x of sc.notes[pi]) g.fillRect(x.t / len * W, oy + r * rh, Math.max(1, x.len / len * W - .3), Math.max(1, rh - (rh > 2 ? .6 : 0))); });
+    if (sc.repeat > 1) { g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(W - 15, 0, 15, 10); g.fillStyle = '#ddd'; g.font = `500 8.5px ${FONT_LCD}`; g.textAlign = 'right'; g.textBaseline = 'top'; g.fillText('×' + sc.repeat, W - 1.5, 1); } }
+  MINI.set(i, { sig, cv }); return cv;
+}
+function renderScenes() {
+  const S = $('#scenes'), sl = S.scrollLeft; S.innerHTML = '';
+  P.scenes.forEach((sc, i) => { const n = noteCount(sc), el = h('button', 'slot' + (i === UI.scene ? ' sel' : '') + (n ? ' filled' : ' empty'));
+    el.innerHTML = `<span class="srow"><span class="num">${i + 1}</span><span class="lbl">${esc(sc.name) || (n ? 'Scene' : '—')}</span></span><span class="led"></span><span class="prog"></span>`;
+    el.insertBefore(sceneMini(i), el.querySelector('.led')); el.setAttribute('aria-label', `Scene ${i + 1} ${sc.name || ''}`); el.onclick = () => sceneTap(i); S.append(el); });
+  S.scrollLeft = sl; const sel = S.children[UI.scene];
+  if (sel) { const l = sel.offsetLeft, r = l + sel.offsetWidth; if (l < S.scrollLeft || r > S.scrollLeft + S.clientWidth) S.scrollLeft = l - S.clientWidth / 2 + sel.offsetWidth / 2; }
+}
+function updatePlayingSlot(pos) { [...$('#scenes').children].forEach((el, i) => { const on = pos && pos.scene === i; el.classList.toggle('playing', !!on); el.querySelector('.prog').style.width = on ? (pos.tick / sceneLen(i) * 100) + '%' : '0'; }); }
+function selectScene(i) { UI.scene = i; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.sx = 0; UI.tl.zoom = null; UI.tl.cursor.t = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else renderView(); savePrefs(); }
+function sceneTap(i) { if (i === UI.scene) { openSceneSheet(i); return; } if (T.playing) { send({ t: 'pending', scene: i }); toast(`Scene ${i + 1} plays from the next bar`); } selectScene(i); }
+
+/* ---------- pads ---------- */
+const HELD = {};
+// MPC order: pad 1 is bottom left, counting left to right and then upward (also low notes to high in Keys mode)
+const padOrder = n => { const o = []; for (let r = n / 4 - 1; r >= 0; r--) for (let c = 0; c < 4; c++) o.push(r * 4 + c); return o; };
+function cellSemi(cell) { return UI.oct * 12 + cell; }
+function refreshPadDots() {
+  const grid = document.querySelector('.grid'); if (!grid) return; const sc = P.scenes[UI.scene], chop = padChop(), kb = document.querySelector('.kbtn'); if (kb) kb.textContent = chopOf(UI.pad) ? 'Chop' : 'Keys';
+  [...grid.children].forEach(pd => { const cell = +pd.dataset.cell; let pi, name;
+    if (UI.keys) { pi = UI.pad; name = chop ? (cell < chop.pts.length ? sliceName(UI.pad, cell) : '—') : noteName(cellSemi(cell)); pd.classList.add('kp'); pd.classList.remove('sel', 'has', 'frz'); }
+    else { pi = UI.bank * 16 + cell; const p = P.pads[pi]; name = p.sample ? (p.name || 'Sound') : 'Empty'; pd.classList.remove('kp');
+      pd.classList.toggle('sel', UI.pad === pi); pd.classList.toggle('has', !!(sc.notes[pi] && sc.notes[pi].length)); pd.classList.toggle('frz', !!p.frz); }
+    const p = P.pads[pi]; pd.style.setProperty('--pc', chop ? sliceCol(cell) : PAD_COLORS[p.color]); if (chop) pd.classList.toggle('sel', cell === UI.slice); pd.classList.toggle('empty', !p.sample || (chop && cell >= chop.pts.length)); pd.classList.toggle('cursor', UI.panel && UI.keys && cell === UI.keyCell);
+    const html = `<span class="pn">${chop ? cell + 1 : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; } });
+  const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? `Octave ${UI.oct > 0 ? '+' : ''}${UI.oct} · ${p.name || padLabel(UI.pad)}` : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; }
+}
+function flashCell(cell) { const pd = document.querySelector(`.grid .pad[data-cell="${cell}"]`); if (!pd) return; pd.classList.add('hit'); clearTimeout(pd._f); pd._f = setTimeout(() => pd.classList.remove('hit'), 90); }
+// sequenced notes light the pads; for a chopped pad the slice number comes along (k), so its slice lights and the playhead runs
+function flashPad(pi, k = -1) {
+  if (k >= 0 && chopShown()) { slicePlayed(pi, k, Math.max(0, ((ctx && (ctx.outputLatency || ctx.baseLatency)) || 0) * 1000 - 10)); return; }
+  if (UI.view !== 'pads') return;
+  if (UI.keys) { if (k >= 0 && pi === UI.pad && padChop()) flashCell(k); return; }
+  if (Math.floor(pi / 16) === UI.bank) flashCell(pi % 16); }
+let tagSeq = 1;
+function padDown(cell) {
+  ensureAudio(); let pi, semi = 0;
+  const chop = padChop();
+  if (UI.keys) { pi = UI.pad; semi = chop ? cell : cellSemi(cell); UI.keyCell = cell; if (chop && cell >= chop.pts.length) { flashCell(cell); return; } } else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; refreshPadDots(); updatePanel(); } }
+  const pad = P.pads[pi]; flashCell(cell); if (!pad.sample) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return; }
+  const tag = tagSeq++; ensureSample(pad.sample); send({ t: 'hit', pad: pi, semi, vel: .9, tag }); if (chop) { selectSlice(cell); slicePlayed(pi, cell, 0); }
+  const rec = (T.playing && T.rec) ? recordNote(pi, semi) : null, cap = rec ? { len: 24 } : capHit(pi, semi, .9);
+  HELD[cell] = { tag, rec, cap, pi, start: ctx ? ctx.currentTime : 0 };
+}
+function padUp(cell) {
+  const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
+  if (pad.mode === 'gate') { send({ t: 'rel', tag: hd.tag, rel: pad.rel }); const s = UI.tl.snap || 6, ticks = ((ctx ? ctx.currentTime : 0) - hd.start) / spt(), len = Math.max(s, Math.round(ticks / s) * s);
+    hd.cap.len = len; if (hd.rec) { hd.rec.n.len = len; syncScene(hd.rec.scene); markDirty(); } }
+}
+
+/* ---------- timeline ---------- */
+const TL = { cv: null, cx: null, W: 0, H: 0, dpr: 1, drag: null, lastTap: { t: 0, o: null } };
+const tlLen = () => sceneLen(UI.scene);
+const tlTarget = () => UI.tl.target == null ? UI.pad : UI.tl.target;
+const rowH = () => UI.tl.mode === 'bank' ? Math.max(18, (TL.H - RULER_H) / 16) : KEY_H;
+const maxRow = () => UI.tl.mode === 'bank' ? 15 : KR.rows() - 1;
+const t2x = t => LABEL_W + (t - UI.tl.sx) * UI.tl.zoom;
+const x2t = x => (x - LABEL_W) / UI.tl.zoom + UI.tl.sx;
+const row2y = r => RULER_H + r * rowH() - (UI.tl.mode === 'keys' ? UI.tl.sy : 0);
+const y2row = y => Math.floor((y - RULER_H + (UI.tl.mode === 'keys' ? UI.tl.sy : 0)) / rowH());
+const snapT = t => { const s = UI.tl.snap; return s ? Math.round(t / s) * s : fixT(t); };
+const tlStep = () => UI.tl.snap || 6;
+const nudgeStep = () => UI.fine === 2 ? 0.001 / spt() : UI.fine === 1 ? 6 : tlStep();
+const gTop = () => RULER_H + STRIP_H + 8, gBot = () => TL.H - 10;
+const v2y = v => gBot() - (gBot() - gTop()) * v, y2v = y => clamp((gBot() - y) / (gBot() - gTop()), 0, 1);
+function lanePts(create) { const sc = P.scenes[UI.scene], k = UI.tl.lane; if (!sc.auto[k]) { if (!create) return null; sc.auto[k] = []; } return sc.auto[k]; }
+function cleanLane() { const sc = P.scenes[UI.scene]; if (sc.auto[UI.tl.lane] && !sc.auto[UI.tl.lane].length) delete sc.auto[UI.tl.lane]; }
+function tlClamp() { const tl = UI.tl; if (!tl.zoom) tl.zoom = (TL.W - LABEL_W) / (Math.min(P.scenes[UI.scene].bars, 4) * BAR);
+  const vis = (TL.W - LABEL_W) / tl.zoom; tl.sx = clamp(tl.sx, 0, Math.max(0, tlLen() - vis));
+  if (tl.mode === 'keys') { const ck = !!KR.chop(); if (tl.syChop !== ck) { tl.sy = null; tl.syChop = ck; }
+    const total = KR.rows() * KEY_H, viewH = TL.H - RULER_H; if (tl.sy == null) tl.sy = ck ? 0 : (KEY_HI - 6) * KEY_H - viewH / 2; tl.sy = clamp(tl.sy, 0, Math.max(0, total - viewH)); } }
+function zoomTL(f) { const tl = UI.tl, mid = x2t(LABEL_W + (TL.W - LABEL_W) / 2); tl.zoom = clamp(tl.zoom * f, (TL.W - LABEL_W) / (tlLen() * 1.02), 3); tl.sx = mid - (TL.W - LABEL_W) / 2 / tl.zoom; drawTL(); }
+function sizeTL() { if (!TL.cv) return; const r = TL.cv.parentNode.getBoundingClientRect(); TL.dpr = window.devicePixelRatio || 1; TL.W = r.width; TL.H = r.height;
+  TL.cv.width = Math.round(r.width * TL.dpr); TL.cv.height = Math.round(r.height * TL.dpr); drawTL(); }
+function drawGrid(g, y0, y1) {
+  const tl = UI.tl, len = tlLen(), W = TL.W, t0 = Math.max(0, Math.floor(tl.sx)), t1 = Math.min(len, x2t(W));
+  const sub = tl.snap && tl.snap * tl.zoom >= 7 ? tl.snap : (24 * tl.zoom >= 7 ? 24 : BEAT);
+  for (let t = Math.floor(t0 / sub) * sub; t <= t1; t += sub) { const x = Math.round(t2x(t)) + .5; if (x < LABEL_W) continue;
+    g.strokeStyle = t % BAR === 0 ? COL.dim : (t % BEAT === 0 ? COL.line : COL.raised); g.lineWidth = 1; g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke(); }
+  const xe = t2x(len); if (xe < W) { g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(Math.max(LABEL_W, xe), y0, W - xe, y1 - y0); }
+}
+function drawRuler(g) {
+  const tl = UI.tl, len = tlLen(), W = TL.W; g.fillStyle = COL.raised; g.fillRect(0, 0, W, RULER_H); g.font = '500 11px ' + FONT_LCD; g.textBaseline = 'middle';
+  for (let t = 0; t <= len; t += BEAT) { const x = t2x(t); if (x < LABEL_W - 1 || x > W) continue;
+    if (t % BAR === 0) { g.fillStyle = COL.ink; if (t < len) g.fillText(String(t / BAR + 1), x + 4, RULER_H / 2 + 1); g.fillStyle = COL.dim; g.fillRect(x, 0, 1, RULER_H); } else { g.fillStyle = COL.dim; g.fillRect(x, RULER_H - 5, 1, 5); } }
+  g.fillStyle = COL.raised; g.fillRect(0, 0, LABEL_W, RULER_H); g.fillStyle = COL.mute; g.fillText(posStr(Math.max(0, Math.floor(tl.sx))).split('.').slice(0, 2).join('.'), 5, RULER_H / 2 + 1);
+}
+function drawTL() {
+  if (!TL.cv || !TL.cv.isConnected || !TL.W) return; const g = TL.cx, W = TL.W, H = TL.H; tlClamp(); g.setTransform(TL.dpr, 0, 0, TL.dpr, 0, 0);
+  g.fillStyle = COL.panel; g.fillRect(0, 0, W, H); if (UI.tl.lane === 'notes') drawNotesLane(g); else drawAutoLane(g); drawRuler(g);
+  const pos = heardPos(); if (pos && pos.scene === UI.scene) { const x = t2x(pos.tick); if (x >= LABEL_W && x <= W) { g.fillStyle = COL.play; g.fillRect(x - 1, 0, 2, H); } }
+}
+function drawNotesLane(g) {
+  const tl = UI.tl, W = TL.W, H = TL.H, rh = rowH(), sc = P.scenes[UI.scene];
+  g.save(); g.beginPath(); g.rect(0, RULER_H, W, H - RULER_H); g.clip();
+  const rows = tl.mode === 'bank' ? 16 : KR.rows(), chop = KR.chop();
+  for (let r = 0; r < rows; r++) { const y = row2y(r); if (y + rh < RULER_H || y > H) continue;
+    if (tl.mode === 'bank') { const pi = UI.bank * 16 + r; if (pi === UI.pad) { g.fillStyle = COL.raised2; g.fillRect(LABEL_W, y, W, rh); } else if (r % 2) { g.fillStyle = COL.bg; g.globalAlpha = .35; g.fillRect(LABEL_W, y, W, rh); g.globalAlpha = 1; } }
+    else if (chop) { if (r % 2) { g.fillStyle = COL.bg; g.globalAlpha = .35; g.fillRect(LABEL_W, y, W, rh); g.globalAlpha = 1; } if (r % 4 === 3) { g.fillStyle = COL.line; g.fillRect(LABEL_W, y + rh - 1, W, 1); } }
+    else { const p = KEY_HI - r, pc = ((p % 12) + 12) % 12; if ([1, 3, 6, 8, 10].includes(pc)) { g.fillStyle = COL.bg; g.globalAlpha = .55; g.fillRect(LABEL_W, y, W, rh); g.globalAlpha = 1; } if (pc === 0) { g.fillStyle = COL.line; g.fillRect(LABEL_W, y + rh - 1, W, 1); } } }
+  drawGrid(g, RULER_H, H);
+  const drawNote = (n, pi, r, selected) => { const y = row2y(r), x1 = t2x(n.t), x2 = t2x(n.t + n.len); if (x2 < LABEL_W || x1 > W || y + rh < RULER_H || y > H) return;
+    g.globalAlpha = .4 + .6 * n.v; g.fillStyle = PAD_COLORS[P.pads[pi].color]; const w = Math.max(4, x2 - x1 - 1); g.beginPath();
+    if (g.roundRect) g.roundRect(x1, y + 2, w, rh - 4, 3); else g.rect(x1, y + 2, w, rh - 4); g.fill(); g.globalAlpha = 1;
+    if (selected) { g.strokeStyle = NAV.held ? COL.accent : COL.ink; g.lineWidth = 2; g.stroke();
+      if (NAV.held) { g.globalAlpha = .25; g.fillStyle = COL.accent; g.fill(); g.globalAlpha = 1; g.fillStyle = COL.accent; g.fillRect(x1 + w - 4, y + 1, 4, rh - 2); } } };
+  if (tl.mode === 'bank') { for (let r = 0; r < 16; r++) { const pi = UI.bank * 16 + r; for (const n of sc.notes[pi] || []) drawNote(n, pi, r, tl.sel && tl.sel.n === n); } }
+  else { const pi = UI.pad; for (const n of sc.notes[pi] || []) { const r = KR.row(n.p); if (r >= 0 && r < rows) drawNote(n, pi, r, tl.sel && tl.sel.n === n); } }
+  if (NAV.mode === 'canvas' && !tl.sel) { const c = tl.cursor, y = row2y(c.row), x = t2x(c.t); g.setLineDash([4, 3]); g.strokeStyle = COL.accent; g.lineWidth = 1.5; g.strokeRect(x + .5, y + 1.5, Math.max(6, tlStep() * tl.zoom) - 1, rh - 3); g.setLineDash([]); }
+  g.fillStyle = COL.raised; g.fillRect(0, RULER_H, LABEL_W, H); g.font = '500 11px ' + FONT_LCD; g.textBaseline = 'middle';
+  for (let r = 0; r < rows; r++) { const y = row2y(r); if (y + rh < RULER_H || y > H) continue;
+    if (tl.mode === 'bank') { const pi = UI.bank * 16 + r, p = P.pads[pi]; g.fillStyle = PAD_COLORS[p.color]; g.globalAlpha = p.sample ? 1 : .3; g.fillRect(4, y + rh / 2 - 4, 3, 8); g.globalAlpha = 1;
+      g.fillStyle = pi === UI.pad ? COL.ink : (p.sample ? COL.mute : COL.dim); g.fillText((p.name || padLabel(pi)).slice(0, 6), 10, y + rh / 2); }
+    else if (chop) { g.fillStyle = r === UI.slice ? COL.ink : COL.mute; g.fillText('#' + (r + 1), 10, y + rh / 2); }
+    else { const p = KEY_HI - r; g.fillStyle = ((p % 12) + 12) % 12 === 0 ? COL.ink : COL.dim; g.fillText(noteName(p), 6, y + rh / 2); } }
+  g.restore();
+}
+function drawAutoLane(g) {
+  const tl = UI.tl, W = TL.W, H = TL.H, sc = P.scenes[UI.scene], tgt = tlTarget(), meta = keyMeta(tl.lane), base = tfBase(P, tl.lane), pts = lanePts(false) || [];
+  g.fillStyle = COL.bg; g.globalAlpha = .4; g.fillRect(LABEL_W, RULER_H, W, STRIP_H); g.globalAlpha = 1; drawGrid(g, RULER_H, H);
+  if (tgt < G0) for (const n of sc.notes[tgt] || []) { const x1 = t2x(n.t), x2 = t2x(n.t + n.len); g.fillStyle = PAD_COLORS[P.pads[tgt].color]; g.globalAlpha = .7; g.fillRect(x1, RULER_H + 8, Math.max(3, x2 - x1 - 1), STRIP_H - 14); g.globalAlpha = 1; }
+  const y0 = gTop(), y1 = gBot();
+  for (const v of [0, .25, .5, .75, 1]) { g.fillStyle = v === .5 ? COL.dim : COL.line; g.fillRect(LABEL_W, Math.round(v2y(v)), W, 1); }
+  g.save(); g.beginPath(); g.rect(LABEL_W, RULER_H, W - LABEL_W, H - RULER_H); g.clip();
+  if (!pts.length) { g.setLineDash([5, 4]); g.strokeStyle = COL.mute; g.lineWidth = 1.5; g.beginPath(); g.moveTo(LABEL_W, v2y(base ?? 0)); g.lineTo(W, v2y(base ?? 0)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = COL.mute; g.font = '500 12px ' + FONT_UI; g.textBaseline = 'middle'; g.fillText('Tap to add points, or use Draw and Shapes', LABEL_W + 12, (y0 + y1) / 2 - 14); }
+  else {
+    g.beginPath(); g.moveTo(LABEL_W, v2y(pts[0].v)); g.lineTo(t2x(pts[0].t), v2y(pts[0].v));
+    for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1], x1 = t2x(a.t), x2 = t2x(b.t); if (x2 < LABEL_W - 4 || x1 > W + 4) { g.lineTo(x2, v2y(b.v)); continue; }
+      const n = Math.max(1, Math.ceil((x2 - x1) / 2)); for (let k = 1; k <= n; k++) { const f = k / n; g.lineTo(x1 + (x2 - x1) * f, v2y(a.v + (b.v - a.v) * curveFrac(f, a.c || 0))); } }
+    g.lineTo(W, v2y(pts[pts.length - 1].v)); g.strokeStyle = COL.accent; g.lineWidth = 2.2; g.stroke();
+    g.lineTo(W, y1); g.lineTo(LABEL_W, y1); g.closePath(); g.globalAlpha = .12; g.fillStyle = COL.accent; g.fill(); g.globalAlpha = 1;
+    for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; if (Math.abs(b.v - a.v) <= .02 || t2x(b.t) - t2x(a.t) < 28) continue; const tm = (a.t + b.t) / 2, x = t2x(tm), y = v2y(valueAt(pts, tm));
+      g.beginPath(); g.moveTo(x, y - 5); g.lineTo(x + 5, y); g.lineTo(x, y + 5); g.lineTo(x - 5, y); g.closePath(); g.fillStyle = a.c ? COL.accent : COL.panel; g.fill(); g.lineWidth = 1.5; g.strokeStyle = COL.accent; g.stroke(); }
+    if (NAV.held && pts[tl.selPt]) { const p = pts[tl.selPt]; g.beginPath(); g.arc(t2x(p.t), v2y(p.v), 13, 0, 7); g.strokeStyle = COL.accent; g.lineWidth = 2; g.setLineDash([3, 3]); g.stroke(); g.setLineDash([]); }
+    pts.forEach((p, i) => { const x = t2x(p.t), y = v2y(p.v); g.beginPath(); g.arc(x, y, i === tl.selPt ? 7.5 : 5.5, 0, 7); g.fillStyle = i === tl.selPt ? COL.accent : COL.panel; g.fill(); g.lineWidth = 2; g.strokeStyle = i === tl.selPt ? COL.ink : COL.accent; g.stroke(); });
+  }
+  const d = TL.drag; if (d && d.kind === 'draw' && d.pts.length > 1) { g.beginPath(); d.pts.forEach((p, i) => { const x = t2x(p.t), y = v2y(p.v); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.strokeStyle = COL.ink; g.lineWidth = 2; g.stroke(); }
+  if (NAV.mode === 'canvas' && tl.selPt < 0) { const x = t2x(tl.cursor.t), y = v2y(tl.cursor.v); g.setLineDash([4, 3]); g.strokeStyle = COL.accent; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke(); g.setLineDash([]); g.beginPath(); g.arc(x, y, 6, 0, 7); g.strokeStyle = COL.accent; g.stroke(); }
+  g.restore();
+  g.fillStyle = COL.raised; g.fillRect(0, RULER_H, LABEL_W, H); g.font = '500 10.5px ' + FONT_LCD; g.textBaseline = 'middle'; g.fillStyle = COL.mute;
+  if (tgt < G0) g.fillText('notes', 6, RULER_H + STRIP_H / 2);
+  for (const v of [1, .5, 0]) g.fillText(String(meta.fmt(v)).replace(' dB', '').replace(' ', '').slice(0, 8), 4, v2y(v));
+}
+function tlLocal(e) { const r = TL.cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+function hitNote(x, y) {
+  const sc = P.scenes[UI.scene], r = y2row(y), tl = UI.tl; if (r < 0 || r > maxRow()) return null;
+  const test = (pi, n) => { const x1 = t2x(n.t), x2 = Math.max(t2x(n.t + n.len), x1 + 10); return x >= x1 - 4 && x <= x2 + 4 ? { pi, n, edge: x > x2 - 12 && (x2 - x1) > 22 } : null; };
+  if (tl.mode === 'bank') { const pi = UI.bank * 16 + r, arr = sc.notes[pi] || []; for (let i = arr.length - 1; i >= 0; i--) { const hh = test(pi, arr[i]); if (hh) return hh; } }
+  else { const pi = UI.pad, arr = sc.notes[pi] || []; for (let i = arr.length - 1; i >= 0; i--) { if (KR.row(arr[i].p) !== r) continue; const hh = test(pi, arr[i]); if (hh) return hh; } }
+  return null;
+}
+function addNoteAt(t, row) {
+  const sc = P.scenes[UI.scene], len = tlLen(), tl = UI.tl; pushUndo('scene:' + UI.scene); let pi, p = 0;
+  if (tl.mode === 'bank') pi = UI.bank * 16 + row; else { pi = UI.pad; p = KR.p(row); }
+  touchPad(pi); const n = { t: clamp(t, 0, len - 1), len: tl.snap || 24, p, v: .85 }; (sc.notes[pi] = sc.notes[pi] || []).push(n); tl.sel = { pi, n };
+  if (tl.mode === 'bank') UI.pad = pi; audition(pi, p); afterEdit(); return n;
+}
+function deleteSelNote() { const s = UI.tl.sel; if (!s) { toast('Select a note first'); return; } pushUndo('scene:' + UI.scene); touchPad(s.pi);
+  const arr = P.scenes[UI.scene].notes[s.pi]; if (arr) { const i = arr.indexOf(s.n); if (i >= 0) arr.splice(i, 1); if (!arr.length) delete P.scenes[UI.scene].notes[s.pi]; } UI.tl.sel = null; afterEdit(); }
+function moveNoteRow(s, d) { const tl = UI.tl, sc = P.scenes[UI.scene];
+  if (tl.mode === 'bank') { const row = clamp(s.pi - UI.bank * 16 + d, 0, 15), npi = UI.bank * 16 + row; if (npi === s.pi) return; touchPad(npi);
+    const arr = sc.notes[s.pi]; arr.splice(arr.indexOf(s.n), 1); if (!arr.length) delete sc.notes[s.pi]; (sc.notes[npi] = sc.notes[npi] || []).push(s.n); s.pi = npi; UI.pad = npi; audition(npi, s.n.p); }
+  else { const np = KR.p(clamp(KR.row(s.n.p) + d, 0, KR.rows() - 1)); if (np !== s.n.p) { s.n.p = np; audition(s.pi, np); } } }
+function afterEdit() { syncScene(UI.scene); markDirty(); drawTL(); renderScenes(); updatePanel(); }
+function bindTL(cv) {
+  cv.addEventListener('pointerdown', e => {
+    if (TL.drag) return; e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} ensureAudio(); const { x, y } = tlLocal(e), tl = UI.tl;
+    const base = { id: e.pointerId, x0: x, y0: y, sx0: tl.sx, sy0: tl.sy, moved: false };
+    if (y < RULER_H) { TL.drag = Object.assign(base, { kind: 'pan' }); return; }
+    if (tl.lane === 'notes') {
+      if (x < LABEL_W) { TL.drag = Object.assign(base, { kind: 'label' }); return; }
+      const hit = hitNote(x, y);
+      if (hit) { tl.sel = { pi: hit.pi, n: hit.n }; if (tl.mode === 'bank') UI.pad = hit.pi; TL.drag = Object.assign(base, { kind: hit.edge ? 'resize' : 'move', hit, t0: hit.n.t, len0: hit.n.len, row0: y2row(y), p0: hit.n.p, pushed: false }); drawTL(); updatePanel(); return; }
+      TL.drag = Object.assign(base, { kind: 'empty' }); return;
+    }
+    if (x < LABEL_W) { TL.drag = Object.assign(base, { kind: 'pan' }); return; }
+    const pts = lanePts(false) || []; let hi = -1, best = 20; pts.forEach((p, i) => { const d = Math.hypot(t2x(p.t) - x, v2y(p.v) - y); if (d < best) { best = d; hi = i; } });
+    if (hi >= 0) { tl.selPt = hi; TL.drag = Object.assign(base, { kind: 'pt', i: hi, pushed: false }); drawTL(); updatePanel(); return; }
+    if (tl.draw) { pushUndo('scene:' + UI.scene); TL.drag = Object.assign(base, { kind: 'draw', pts: [{ t: clamp(x2t(x), 0, tlLen()), v: y2v(y) }] }); return; }
+    if (pts.length > 1) { const t = x2t(x); let si = -1; for (let i = 0; i < pts.length - 1; i++) if (t > pts[i].t && t < pts[i + 1].t) si = i;
+      if (si >= 0 && Math.abs(v2y(valueAt(pts, t)) - y) < 22 && Math.abs(pts[si + 1].v - pts[si].v) > .02) { pushUndo('scene:' + UI.scene); const a = pts[si], b = pts[si + 1]; TL.drag = Object.assign(base, { kind: 'bend', si, xf: clamp((t - a.t) / (b.t - a.t), .06, .94) }); return; } }
+    TL.drag = Object.assign(base, { kind: 'empty' });
+  });
+  cv.addEventListener('pointermove', e => {
+    const d = TL.drag; if (!d || e.pointerId !== d.id) return; const { x, y } = tlLocal(e), tl = UI.tl, len = tlLen();
+    if (!d.moved && Math.hypot(x - d.x0, y - d.y0) > 7) d.moved = true; if (!d.moved) return;
+    if (d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') { if (d.kind !== 'label') d.kind = 'pan'; tl.sx = d.sx0 - (x - d.x0) / tl.zoom; if (tl.mode === 'keys' && tl.lane === 'notes') tl.sy = d.sy0 - (y - d.y0); drawTL(); return; }
+    if (d.kind === 'move' || d.kind === 'resize') { if (!d.pushed) { pushUndo('scene:' + UI.scene); touchPad(d.hit.pi); d.pushed = true; } const n = d.hit.n, dt = (x - d.x0) / tl.zoom;
+      if (d.kind === 'move') { n.t = clamp(snapT(d.t0 + dt), 0, len - .01); const dr = y2row(y) - d.row0;
+        if (tl.mode === 'bank') { const cur = d.hit.pi - UI.bank * 16, want = clamp(d.row0 + dr, 0, 15); if (want !== cur) moveNoteRow(tl.sel, want - cur); d.hit.pi = tl.sel.pi; }
+        else { const np = KR.p(clamp(KR.row(d.p0) + dr, 0, KR.rows() - 1)); if (np !== n.p) { n.p = np; audition(d.hit.pi, np); } } }
+      else { const s = tl.snap || 1; n.len = clamp(snapT(d.t0 + d.len0 + dt) - n.t, s, len - n.t); }
+      drawTL(); updatePanel(); return; }
+    if (d.kind === 'pt') { if (!d.pushed) { pushUndo('scene:' + UI.scene); d.pushed = true; } const pts = lanePts(true), p = pts[d.i], lo = d.i > 0 ? pts[d.i - 1].t + .01 : 0, hi2 = d.i < pts.length - 1 ? pts[d.i + 1].t - .01 : len;
+      p.t = clamp(snapT(x2t(x)), lo, hi2); p.v = Math.round(y2v(y) * 1000) / 1000; drawTL(); updatePanel(); return; }
+    if (d.kind === 'bend') { const pts = lanePts(true), a = pts[d.si], b = pts[d.si + 1], mf = clamp((y2v(y) - a.v) / (b.v - a.v), .002, .998);
+      let lo = -.97, hi = .97; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (curveFrac(d.xf, m) > mf) lo = m; else hi = m; }
+      a.c = Math.round((lo + hi) / 2 * 1000) / 1000; if (Math.abs(a.c) < .015) a.c = 0; drawTL(); updatePanel(); return; }
+    if (d.kind === 'draw') { const t = clamp(x2t(x), 0, len), last = d.pts[d.pts.length - 1]; if (Math.abs(t2x(t) - t2x(last.t)) >= 3) d.pts.push({ t, v: y2v(y) }); drawTL(); }
+  });
+  const up = e => {
+    const d = TL.drag; if (!d || e.pointerId !== d.id) return; TL.drag = null; const tl = UI.tl, { x, y } = tlLocal(e), now = Date.now();
+    if (d.kind === 'label' && !d.moved) { const r = y2row(y); if (r >= 0 && r <= maxRow()) { if (tl.mode === 'bank') { UI.pad = UI.bank * 16 + r; UI.tl.target = null; audition(UI.pad); } else audition(UI.pad, KR.p(r)); } drawTL(); updatePanel(); return; }
+    if (d.kind === 'empty' && !d.moved) {
+      if (tl.lane === 'notes') { const r = y2row(y); if (r >= 0 && r <= maxRow()) { const s = tl.snap, t = s ? Math.floor(x2t(x) / s) * s : fixT(x2t(x)); if (t < tlLen()) addNoteAt(t, r); } }
+      else { const t = clamp(snapT(x2t(x)), 0, tlLen()); pushUndo('scene:' + UI.scene); const pts = lanePts(true); pts.push({ t, v: Math.round(y2v(y) * 1000) / 1000, c: 0 }); pts.sort((a, b) => a.t - b.t); tl.selPt = pts.findIndex(p => p.t === t); afterEdit(); }
+      TL.lastTap = { t: now, o: null }; return; }
+    if ((d.kind === 'move' || d.kind === 'resize') && !d.moved) { if (TL.lastTap.o === d.hit.n && now - TL.lastTap.t < 350) { tl.sel = { pi: d.hit.pi, n: d.hit.n }; deleteSelNote(); TL.lastTap = { t: 0, o: null }; return; }
+      TL.lastTap = { t: now, o: d.hit.n }; audition(d.hit.pi, d.hit.n.p); return; }
+    if (d.kind === 'pt' && !d.moved) { const pts = lanePts(false), p = pts && pts[d.i]; if (p && TL.lastTap.o === p && now - TL.lastTap.t < 350) { autoCtl.del(); TL.lastTap = { t: 0, o: null }; return; } TL.lastTap = { t: now, o: p }; return; }
+    if (d.kind === 'draw') { finishDraw(d.pts); return; }
+    if (d.kind !== 'pan' && d.kind !== 'empty') afterEdit();
+  };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+}
+function simplify(pts, eps) { if (pts.length < 3) return pts.slice(); const sx = p => t2x(p.t), sy = p => v2y(p.v); let dmax = 0, idx = 0; const a = pts[0], b = pts[pts.length - 1];
+  for (let i = 1; i < pts.length - 1; i++) { const p = pts[i], num = Math.abs((sy(b) - sy(a)) * sx(p) - (sx(b) - sx(a)) * sy(p) + sx(b) * sy(a) - sy(b) * sx(a)), den = Math.hypot(sy(b) - sy(a), sx(b) - sx(a)) || 1; if (num / den > dmax) { dmax = num / den; idx = i; } }
+  if (dmax > eps) { const l = simplify(pts.slice(0, idx + 1), eps), r = simplify(pts.slice(idx), eps); return l.slice(0, -1).concat(r); } return [a, b]; }
+function finishDraw(raw) { if (raw.length < 2) { drawTL(); return; } const s = raw.slice().sort((a, b) => a.t - b.t), lo = s[0].t, hi = s[s.length - 1].t;
+  const simp = simplify(s, 2.5).map(p => ({ t: fixT(p.t), v: Math.round(p.v * 1000) / 1000, c: 0 })), pts = lanePts(true);
+  const merged = pts.filter(p => p.t < lo || p.t > hi).concat(simp).sort((a, b) => a.t - b.t).filter((p, i, arr) => i === 0 || p.t !== arr[i - 1].t);
+  pts.length = 0; pts.push(...merged); UI.tl.selPt = -1; afterEdit(); }
+function openShapes() {
+  const key = UI.tl.lane, { s, i } = tfParseKey(key), len = tlLen(), bv = tfBase(P, key), base = bv > .02 ? bv : .7, isPan = s === -1 && i === 1, isCut = s === -2 && i === 0, lo = isPan ? 0 : isCut ? .25 : 0;
+  const shapes = [['Fade in', () => [{ t: 0, v: lo, c: .5 }, { t: len, v: base, c: 0 }]], ['Fade out', () => [{ t: 0, v: base, c: -.3 }, { t: len, v: lo, c: 0 }]],
+    ['Rise', () => [{ t: 0, v: isCut ? .3 : 0, c: .7 }, { t: len, v: 1, c: 0 }]], ['Fall', () => [{ t: 0, v: 1, c: -.6 }, { t: len, v: isCut ? .3 : 0, c: 0 }]],
+    ['Swell', () => [{ t: 0, v: lo, c: .5 }, { t: len / 2, v: base, c: -.5 }, { t: len, v: lo, c: 0 }]],
+    ['Pump (every beat)', () => { const a = []; for (let t = 0; t < len; t += BEAT) { a.push({ t, v: s === -1 && i === 0 ? base * .25 : lo, c: -.6 }); a.push({ t: t + BEAT * .85, v: base, c: 0 }); } return a; }],
+    ['Pan sweep', () => { const a = []; for (let t = 0; t <= len; t += BAR) a.push({ t, v: (t / BAR) % 2 ? .85 : .15, c: 0 }); return a; }], ['Clear lane', () => []]];
+  openSheet(keyMeta(key).label + ' shapes', card => { const g = h('div', 'g2');
+    for (const [l, fn] of shapes) g.append(btn(l, () => { pushUndo('scene:' + UI.scene); const pts = lanePts(true); pts.length = 0; pts.push(...fn()); if (!pts.length) cleanLane(); UI.tl.selPt = -1; syncScene(UI.scene); markDirty(); closeSheet(); }, 'btn' + (l === 'Clear lane' ? ' warn' : '')));
+    card.append(g, h('p', 'note', 'Shapes replace this lane in the current scene. Drag any point afterwards, or grab the line between two points (the diamond marks the middle) and drag to bend it.')); });
+}
+
+/* ---------- import & library ---------- */
+let importTarget = null;
+function pickAudio(pi) { importTarget = pi; ensureAudio(); $('#fileAudio').click(); }
+$('#fileAudio').addEventListener('change', async e => { const files = [...(e.target.files || [])]; e.target.value = ''; if (files.length) await importFiles(files, importTarget); });
+async function importFiles(files, firstPad) {
+  ensureAudio(); toast(`Loading ${files.length} file${files.length > 1 ? 's' : ''}…`);
+  const ids = [], failed = [];
+  for (const f of files) {
+    try { const ab = await f.arrayBuffer(), buf = await new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
+      const chans = []; for (let c = 0; c < Math.min(2, buf.numberOfChannels); c++) chans.push(buf.getChannelData(c));
+      const name = f.name.replace(/\.[^.]+$/, '').slice(0, 24); ids.push({ id: addUserSample(name, buf.sampleRate, chans.length, interleave(chans, Math.floor(buf.sampleRate * 90))), name }); }
+    catch (err) { failed.push(f.name); }
+  }
+  // fill: the chosen pad first, then the next empty pads from the selected pad onward
+  const placed = []; let next = firstPad != null ? firstPad : UI.pad;
+  const nextEmpty = from => { for (let k = 0; k < NPADS; k++) { const i = (from + k) % NPADS; if (!P.pads[i].sample && !placed.includes(i)) return i; } return -1; };
+  if (ids.length) pushUndo('all');
+  ids.forEach((x, n) => { const target = n === 0 && firstPad != null ? firstPad : nextEmpty(next); if (target < 0) return; touchPad(target);
+    Object.assign(P.pads[target], { sample: x.id, name: x.name.slice(0, 12), start: 0, end: 1, reverse: false, frz: null }); placed.push(target); next = target; syncPad(target); });
+  markDirty(); renderAll();
+  if (placed.length) { UI.pad = placed[0]; UI.bank = Math.floor(UI.pad / 16); audition(placed[0]); }
+  const where = placed.length ? (placed.length === 1 ? padLabel(placed[0]) : `${padLabel(placed[0])}–${padLabel(placed[placed.length - 1])}`) : '';
+  toast((placed.length ? `Loaded ${placed.length} onto ${where}` : ids.length ? 'Added to the library (no empty pads left)' : 'Nothing loaded') +
+    (ids.length > placed.length && placed.length ? `; ${ids.length - placed.length} more in the library` : '') + (failed.length ? `. ${failed.length} file${failed.length > 1 ? 's' : ''} could not be read as audio.` : '.'));
+}
+function openLibrary() {
+  buildBuiltins(true);
+  openSheet('Sound library', card => {
+    const top = h('div', 'row'), q = h('input', 'textin'); q.placeholder = 'Search sounds'; q.style.flex = '1'; top.append(q, btn('Import', () => { closeSheet(); pickAudio(UI.pad); }, 'btn on')); card.append(top);
+    const box = h('div', 'stack'); box.style.marginTop = '10px'; card.append(box);
+    const used = usedSampleIds();
+    const draw = () => { box.innerHTML = ''; const f = q.value.trim().toLowerCase(), all = [...SAMPLES.values()].filter(s => !s.frz && (!f || s.name.toLowerCase().includes(f)));
+      const mine = all.filter(s => !s.builtin).sort((a, b) => (b.added || 0) - (a.added || 0)), kit = all.filter(s => s.builtin);
+      for (const [title, arr] of [['Your sounds', mine], ['Built-in', kit]]) { if (!arr.length) continue; box.append(h('div', 'sec', title)); const list = h('div', 'list');
+        for (const s of arr) { const li = h('div', 'li' + (P.pads[UI.pad].sample === s.id ? ' on' : ''));
+          li.innerHTML = `<div class="lt"><b>${esc(s.name)}</b><span>${(s.frames / s.sr).toFixed(2)} s · ${s.ch === 2 ? 'stereo' : 'mono'}${used.has(s.id) ? ' · in use' : ''}</span></div>`;
+          const pv = btn('▶', e => { e.stopPropagation(); previewSample(s.id); }, 'btn xs'); pv.setAttribute('aria-label', 'Preview ' + s.name); li.append(pv);
+          li.append(btn('Use', e => { e.stopPropagation(); pushUndo('pad:' + UI.pad); touchPad(UI.pad); const kit2 = s.builtin ? ALL_BUILTINS.find(k => 'b:' + k[0] === s.id) : null;
+            Object.assign(P.pads[UI.pad], { sample: s.id, name: s.name.slice(0, 12), start: 0, end: 1 }, kit2 ? { mode: kit2[3], rel: kit2[4] } : {}); syncPad(UI.pad); markDirty(); audition(UI.pad); draw(); }, 'btn xs on'));
+          if (!s.builtin && !used.has(s.id)) li.append(confirmBtn('✕', 'Delete?', () => { deleteSample(s.id); draw(); }, 'btn xs warn'));
+          list.append(li); }
+        box.append(list); }
+      if (!box.children.length) box.append(h('p', 'note', 'No sounds match.')); };
+    q.oninput = draw; draw();
+    card.append(h('p', 'note', 'Imported sounds stay in your library for every project. Pick several files at once and they fill the next empty pads.'));
+  });
+}
+
+/*@VIEWS@*/
+/* ---------- sheets ---------- */
+function openSheet(title, build, onClose) { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } UI.sheetClose = onClose || null; navReset(); const S = $('#sheet'), card = S.querySelector('.card'); card.innerHTML = ''; const hd = h('div', 'shTitle'); hd.append(h('span', '', esc(title)), btn('Done', closeSheet, 'btn sm')); card.append(hd); build(card); S.hidden = false; UI.sheet = true; if (UI.panel) requestAnimationFrame(updatePanel); }
+function closeSheet() { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } navReset(); $('#sheet').hidden = true; UI.sheet = false; renderScenes(); renderView(); }
+$('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
+function confirmBtn(label, again, fn, cls = 'btn warn') { const b = btn(label, e => { if (e) e.stopPropagation(); if (b._armed) { fn(); return; } b._armed = true; b.textContent = again; setTimeout(() => { b._armed = false; b.textContent = label; }, 3000); }, cls); return b; }
+function openSceneSheet(i) {
+  const sc = P.scenes[i];
+  openSheet('Scene ' + (i + 1), card => {
+    const names = ['Intro', 'Verse', 'Pre', 'Chorus', 'Hook', 'Drop', 'Break', 'Bridge', 'Outro'], chips = h('div', 'chips'); chips.style.flexWrap = 'wrap';
+    const inp = h('input', 'textin'); inp.value = sc.name; inp.placeholder = 'Or type a label'; inp.maxLength = 14; inp.onfocus = () => pushUndo('scene:' + i); inp.oninput = () => { sc.name = inp.value; markDirty(); };
+    for (const n of names) { const c = h('button', 'chip' + (sc.name === n ? ' on' : ''), n); c.onclick = () => { pushUndo('scene:' + i); sc.name = sc.name === n ? '' : n; inp.value = sc.name; [...chips.children].forEach(x => x.classList.toggle('on', x.textContent === sc.name)); markDirty(); }; chips.append(c); }
+    const st = h('div', 'stack'); st.append(chips, inp);
+    const g = h('div', 'g2');
+    g.append(paramEl({ label: 'Length', min: 1, max: 16, step: 1, coarse: 1, big: 4, get: () => sc.bars, set: v => { sc.bars = v; UI.tl.zoom = null; syncScene(i); markDirty(); }, onStart: () => pushUndo('scene:' + i), def: 4, fmt: v => v + (v > 1 ? ' bars' : ' bar'), noFocus: true }),
+      paramEl({ label: 'Repeats in song', min: 1, max: 8, step: 1, coarse: 1, big: 1, get: () => sc.repeat, set: v => { sc.repeat = v; syncScene(i); markDirty(); }, onStart: () => pushUndo('scene:' + i), def: 1, fmt: v => '×' + v, noFocus: true }));
+    st.append(g);
+    const a = h('div', 'g2'), tgt = i + 1 < NSCENES ? i + 1 : null;
+    const copy = () => { pushUndo('scene:' + tgt); P.scenes[tgt] = JSON.parse(JSON.stringify(sc)); syncScene(tgt); markDirty(); closeSheet(); selectScene(tgt); toast(`Copied into scene ${tgt + 1}`); };
+    if (tgt != null) a.append(noteCount(P.scenes[tgt]) ? confirmBtn(`Copy into ${tgt + 1}`, `Replace scene ${tgt + 1}?`, copy, 'btn') : btn(`Copy into ${tgt + 1}`, copy));
+    a.append(confirmBtn('Clear scene', 'Tap again to clear', () => { pushUndo('scene:' + i); P.scenes[i] = Object.assign(emptyScene(), { bars: sc.bars }); syncScene(i); markDirty(); closeSheet(); }));
+    st.append(a, h('p', 'note', 'Song mode plays scenes 1 to 16 in order and skips empty ones. Copy a scene into the next slot to make a variation.')); card.append(st);
+  });
+}
+let taps = [];
+function openTempo() {
+  openSheet('Tempo & click', card => { const g = h('div', 'g2');
+    const tp = paramEl({ label: 'Tempo', min: 40, max: 220, step: .1, coarse: 1, big: 10, get: () => P.bpm, set: v => { P.bpm = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 96, fmt: v => (+v.toFixed(1)) + ' BPM', noFocus: true });
+    g.append(tp, paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, get: () => P.swing, set: v => { P.swing = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 0, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
+    const tap = btn('Tap tempo', () => { const n = performance.now(); taps = taps.filter(t => n - t < 2500); taps.push(n); if (taps.length >= 3) { const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); P.bpm = clamp(Math.round(60000 / iv), 40, 220); tp._upd(); syncSong(); markDirty(); } });
+    tap.style.height = '56px'; tap.style.width = '100%'; tap.style.marginTop = '10px'; card.append(g, tap, h('p', 'note', 'Tap at least three times in time with the beat.'));
+    const ck = h('div', 'g2'), pick = (title, opts, cur, set) => { card.append(h('div', 'sec', title)); const row = h('div', 'g3');
+      opts.forEach(([v, l]) => row.append(btn(l, () => { set(v); savePrefs(); sendClick(); closeSheet(); openTempo(); }, 'btn' + (cur === v ? ' on' : '')))); card.append(row); };
+    pick('Click', [['off', 'Off'], ['rec', 'Recording'], ['always', 'Always']], UI.click, v => UI.click = v);
+    pick('Count-in when recording', [[0, 'Off'], [1, '1 bar'], [2, '2 bars']], UI.countIn, v => UI.countIn = v);
+    const cv = paramEl({ label: 'Click volume', min: 0, max: 1, step: .05, coarse: .1, get: () => UI.clickVol, set: v => { UI.clickVol = v; sendClick(); savePrefs(); }, def: .5, fmt: v => Math.round(v * 100) + '%', noFocus: true }); cv.style.marginTop = '14px';
+    card.append(cv, h('p', 'note', 'The click plays from the master output but never goes into exports, bounces or freezes. The BPM key shows a dot while it is on.')); });
+}
+function openMenu() {
+  openSheet(P.name || 'Project', card => { const st = h('div', 'stack');
+    const pg = h('div', 'g2'); pg.append(btn('Panic: stop all sound', () => { closeSheet(); panic(); }, 'btn warn'), btn('Engine check', () => { closeSheet(); openDiag(); })); st.append(pg, h('p', 'note', 'Tapping Stop twice quickly also triggers Panic.'));
+    const inp = h('input', 'textin'); inp.value = P.name; inp.maxLength = 30; inp.setAttribute('aria-label', 'Project name'); inp.onfocus = () => pushUndo('song'); inp.oninput = () => { P.name = inp.value; markDirty(); }; st.append(inp);
+    st.append(h('div', 'sec', 'Export')); let g = h('div', 'g2'); g.append(btn('Export song', () => exportAudio('song')), btn('Export scene ' + (UI.scene + 1), () => exportAudio('scene'))); st.append(g);
+    st.append(h('p', 'note', (window.claude ? 'Exports are 48 kHz 16-bit WAV files inside a .zip. Song export plays scenes in order with their repeats.' : 'Exports are 48 kHz 16-bit WAV files. Song export plays scenes in order with their repeats.')));
+    st.append(h('div', 'sec', 'Backup')); g = h('div', 'g2'); g.append(btn('Save backup file', saveBackup), btn('Open backup file', () => $('#fileProj').click())); st.append(g);
+    st.append(h('p', 'note', DB.ok ? 'Your work saves automatically on this device. A backup file keeps it safe and moves it to another device.' : 'This browser is not keeping your work between visits. Save a backup file before you leave.'));
+    st.append(h('div', 'sec', 'Edit')); g = h('div', 'g2'); g.append(btn('Redo', redo), btn(UI.mirror ? 'Move d-pad left' : 'Move d-pad right', () => { UI.mirror = !UI.mirror; $('#panel').classList.toggle('mirror', UI.mirror); savePrefs(); closeSheet(); })); st.append(g);
+    g = h('div', 'g2'); g.append(btn('Haptics: ' + (UI.haptics ? 'On' : 'Off'), () => { UI.haptics = !UI.haptics; savePrefs(); haptic(); closeSheet(); toast(UI.haptics ? 'Haptics on (iPhone needs iOS 18)' : 'Haptics off'); }, 'btn' + (UI.haptics ? ' on' : ''))); st.append(g);
+    g = h('div', 'g2'); g.append(confirmBtn('New project', 'Tap again: start fresh', () => { pushUndo('all'); if (T.playing) stop(); P = newProject(); afterLoad(); closeSheet(); toast('New project. Bank A has the built-in kit.'); }),
+      confirmBtn('Load demo song', 'Tap again to load demo', () => { pushUndo('all'); if (T.playing) stop(); P = demoProject(); afterLoad(); closeSheet(); }, 'btn')); st.append(g);
+    card.append(st); });
+}
+function afterLoad() { ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
+
+/* ---------- engine check ---------- */
+async function runChecks() {
+  const rows = [], add = (st, name, detail) => rows.push({ st, name, detail }); ensureAudio();
+  const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  add('ok', 'Device', `${ios ? 'iOS' : 'other'} · ${navigator.hardwareConcurrency || '?'} cores · ${screen.width}×${screen.height} @${devicePixelRatio}x`);
+  add(ctx && ctx.state === 'running' ? 'ok' : 'warn', 'Audio', ctx ? `${ctx.state} · ${ctx.sampleRate} Hz · base ${((ctx.baseLatency || 0) * 1000).toFixed(1)} ms · output ${((ctx.outputLatency || 0) * 1000).toFixed(1)} ms` : 'not started');
+  add(ENG.ready ? 'ok' : 'fail', 'Audio engine', ENG.ready ? `running · CPU ${Math.round(REP.cpu * 100)}% · ${REP.voices} voices` : (ENG.err || 'starting…'));
+  const as = navigator.audioSession; add(as && as.type === 'playback' ? 'ok' : 'warn', 'Silent switch override', as ? 'audioSession = ' + as.type + (as.type === 'playback' ? '' : ' (not playback yet: tap a pad, then check again)') : 'audioSession not available; using the media-element workaround');
+  let wasmMain; try { await WebAssembly.compile(WASM_BYTES); wasmMain = 'ok'; } catch (e) { wasmMain = 'blocked: ' + e.message; } add(wasmMain === 'ok' ? 'ok' : 'fail', 'WebAssembly (main thread, for exports)', wasmMain);
+  const sab = typeof SharedArrayBuffer !== 'undefined'; add(sab && window.crossOriginIsolated ? 'ok' : 'warn', 'Shared memory', `SharedArrayBuffer ${sab ? 'present' : 'missing'} · crossOriginIsolated ${!!window.crossOriginIsolated} (not required)`);
+  add('ok', 'Safety', 'guard and hard clip run inside the engine; a second clip follows it');
+  try { const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null, per = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : null;
+    add(DB.ok ? 'ok' : 'fail', 'Local storage', `${DB.ok ? 'IndexedDB ok' : 'IndexedDB unavailable'} · persisted ${per} · ${est ? Math.round((est.usage || 0) / 1e6) + ' MB used of ' + Math.round((est.quota || 0) / 1e6) + ' MB' : 'quota unknown'}`); } catch (e) { add('warn', 'Local storage', e.message); }
+  const dl = await capDownloads(); add('ok', 'File saving', dl ? 'Claude save service' : 'share sheet (Save to Files)');
+  add(navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? 'warn' : 'fail', 'Microphone API', navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? 'present, but this hosted page is not allowed to use it' : 'absent');
+  add('requestMIDIAccess' in navigator ? 'ok' : 'warn', 'Web MIDI', 'requestMIDIAccess' in navigator ? 'available' : 'not available (expected on iPhone)');
+  return rows;
+}
+function openDiag() {
+  openSheet('Engine check', async card => { const box = h('div', 'diag'); box.append(h('p', 'note', 'Checking what this browser allows…')); card.append(box);
+    const rows = await runChecks(); box.innerHTML = ''; const sym = { ok: '✓', warn: '!', fail: '×' };
+    for (const r of rows) { const d = h('div', 'drow'); d.innerHTML = `<span class="st ${r.st}">${sym[r.st]}</span><div><b>${esc(r.name)}</b><span>${esc(r.detail)}</span></div>`; box.append(d); }
+    const text = rows.map(r => `${sym[r.st]} ${r.name}: ${r.detail}`).join('\n'), ta = h('textarea', 'textin'); ta.value = text; ta.readOnly = true; ta.style.height = '90px'; ta.style.paddingBlock = '8px'; ta.style.fontSize = '11px';
+    const cp = btn('Copy results', () => { const f = () => { ta.select(); toast('Selected. Use Copy from the menu.'); }; try { navigator.clipboard.writeText(text).then(() => toast('Copied'), f); } catch (e) { f(); } }, 'btn on'); cp.style.width = '100%';
+    box.append(cp, ta); });
+}
+
+/* ---------- export, backup ---------- */
+function songOrder() { const o = []; P.scenes.forEach((s, i) => { if (noteCount(s)) o.push({ scene: i, reps: s.repeat }); }); return o.length ? o : [{ scene: UI.scene, reps: 1 }]; }
+function encodeWav(L, R, sr) { const n = L.length, buf = new ArrayBuffer(44 + n * 4), v = new DataView(buf), ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0, 'RIFF'); v.setUint32(4, 36 + n * 4, true); ws(8, 'WAVE'); ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 4, true); v.setUint16(32, 4, true); v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, n * 4, true);
+  let o = 44; for (let i = 0; i < n; i++) for (const s0 of [L[i], R[i]]) { const s = clamp(s0 === s0 ? s0 : 0, -1, 1); v.setInt16(o, s < 0 ? s * 32768 : s * 32767, true); o += 2; } return new Uint8Array(buf); }
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u) { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files) { const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  for (const f of files) { const name = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length, l = new DataView(new ArrayBuffer(30));
+    l.setUint32(0, 0x04034b50, true); l.setUint16(4, 20, true); l.setUint16(12, 0x21, true); l.setUint32(14, crc, true); l.setUint32(18, sz, true); l.setUint32(22, sz, true); l.setUint16(26, name.length, true); parts.push(new Uint8Array(l.buffer), name, f.data);
+    const c = new DataView(new ArrayBuffer(46)); c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(14, 0x21, true); c.setUint32(16, crc, true); c.setUint32(20, sz, true); c.setUint32(24, sz, true); c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+    central.push(new Uint8Array(c.buffer), name); off += 30 + name.length + sz; }
+  const cd = central.reduce((a, b) => a + b.length, 0), e = new DataView(new ArrayBuffer(22)); e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cd, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: 'application/zip' }); }
+let dlP = null; function capDownloads() { if (!dlP) dlP = (window.claude && window.claude.use) ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null); return dlP; }
+// On its own website (the home-screen app) there is no Claude save service: the file goes to the share sheet (Save to Files, AirDrop…),
+// which iPhone only opens from a tap, so a long export first shows a "ready" sheet with the button to tap.
+function shareFile(filename, data) {
+  const type = /\.wav$/.test(filename) ? 'audio/wav' : /\.zip$/.test(filename) ? 'application/zip' : 'application/json', blob = data instanceof Blob ? data : new Blob([data], { type });
+  const file = new File([blob], filename, { type }), go = async () => {
+    try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); closeSheet(); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+    const a = document.createElement('a'), u = URL.createObjectURL(blob); a.href = u; a.download = filename; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); closeSheet(); };
+  openSheet('Ready to save', card => { const b = btn('Save or share ' + filename, go, 'btn on'); b.style.width = '100%'; b.style.height = '56px';
+    card.append(b, h('p', 'note', 'Choose Save to Files to keep it on this iPhone, or send it with AirDrop or another app.')); });
+  return true;
+}
+async function saveFile(filename, data) { const dl = await capDownloads(); if (!dl) return shareFile(filename, data);
+  try { const r = await dl.save({ filename, data }); if (r && r.status === 'saved') toast('Saved ' + filename); return true; }
+  catch (e) { const c = e && e.code; toast(c === 'declined' ? 'Save cancelled' : c === 'rate_limited' ? 'A save is already waiting for you' : 'Couldn’t save: ' + ((e && e.message) || 'unknown error')); return false; } }
+const slug = s => (s || 'trackfill').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'trackfill';
+async function exportAudio(which) { if (busy) return; busy = true; closeSheet(); toast('Rendering…');
+  try { const order = which === 'song' ? songOrder() : [{ scene: UI.scene, reps: 1 }], r = await renderOffline(order, 2, -1, p => toast(`Rendering… ${Math.round(p * 100)}%`));
+    const base = slug(P.name) + (which === 'song' ? '' : '-scene-' + (UI.scene + 1)), wav = encodeWav(r.L, r.R, r.sr);
+    if (await capDownloads()) await saveFile(base + '.zip', makeZip([{ name: base + '.wav', data: wav }])); else shareFile(base + '.wav', new Blob([wav], { type: 'audio/wav' })); }
+  catch (e) { console.error(e); toast('Export failed: ' + e.message); } busy = false; }
+async function bounceScene() { if (busy) return; busy = true; toast('Bouncing scene ' + (UI.scene + 1) + '…');
+  try { const r = await renderOffline([{ scene: UI.scene, reps: 1 }], 1.5, -1), name = 'Bounce ' + (UI.scene + 1), id = addUserSample(name, r.sr, 2, interleave([r.L, r.R], r.L.length));
+    pushUndo('pad:' + UI.pad); touchPad(UI.pad); Object.assign(P.pads[UI.pad], { sample: id, name, start: 0, end: 1, pitch: 0, fine: 0, reverse: false, mode: 'one' }); syncPad(UI.pad); markDirty(); renderView(); toast(`Scene ${UI.scene + 1} is now on ${padLabel(UI.pad)}`); }
+  catch (e) { console.error(e); toast('Bounce failed: ' + e.message); } busy = false; }
+function i16ToB64(a) { const u = new Uint8Array(a.buffer, a.byteOffset, a.byteLength); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+function b64ToI16(b) { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Int16Array(u.buffer); }
+async function saveBackup() { const samples = {}; for (const id of usedSampleIds()) { const s = SAMPLES.get(id); if (s && !s.builtin) samples[id] = { name: s.name, sr: s.sr, ch: s.ch, frz: !!s.frz, data: i16ToB64(s.data) }; }
+  await saveFile(slug(P.name) + '.trackfill.json', JSON.stringify({ format: 'trackfill', version: PROJECT_VERSION, saved: new Date().toISOString(), project: P, samples })); }
+$('#fileProj').addEventListener('change', async e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { const d = JSON.parse(await f.text()); if (d.format !== 'trackfill' || !d.project) throw new Error('not a Trackfill backup');
+    for (const [id, s] of Object.entries(d.samples || {})) { let rec;
+      if (s.data) { const data = b64ToI16(s.data); rec = { id, name: s.name, sr: s.sr, ch: s.ch, frames: data.length / s.ch, data, frz: s.frz, added: Date.now() }; }
+      else if (s.chans) { const chans = s.chans.map(b => { const i16 = b64ToI16(b), f32 = new Float32Array(i16.length); for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768; return f32; }); rec = { id, name: s.name, sr: s.sr, ch: chans.length, frames: chans[0].length, data: interleave(chans, chans[0].length), added: Date.now() }; }
+      if (rec) { SAMPLES.set(id, rec); DB.put('samples', id, rec); ENG.sent.delete(id); } }
+    pushUndo('all'); if (T.playing) stop(); P = migrate(d.project); afterLoad(); closeSheet(); toast('Opened ' + (P.name || 'backup')); }
+  catch (err) { toast('Couldn’t open that file: ' + err.message); } });
+
+/* ================= precision panel: select → OK → adjust → OK (keep) or BACK (cancel) =================
+   Arrows move a focus ring between every control on screen by position (up/down/left/right).
+   OK presses a key, plays a pad, or enters a control: knobs, faders and selectors then take the arrows until OK or BACK.
+   The timeline is one control: inside it, the cursor selects notes and points the same way. */
+const NAV = { el: null, mode: 'nav', orig: null, undoAt: -1, last: null, selUndo: -1, held: false, holdT: 0, okHadSel: false };
+const NAV_SEL = 'button:not(:disabled), .knob:not(.blank), .fader, .selr, .param, .pad, input, canvas.navc';
+const tlCtl = () => UI.tl.lane === 'notes' ? noteCtl : autoCtl;
+// the d-pad drives one canvas per screen: the timeline, or the slice editor on the Sound view's Chop page
+const canvasCtl = () => UI.view === 'seq' ? tlCtl() : chopCtl, canvasDraw = () => UI.view === 'seq' ? drawTL() : drawChop();
+function navRoot() { return UI.sheet ? $('#sheet .card') : $('#app'); }
+function navItems() { return [...navRoot().querySelectorAll(NAV_SEL)].filter(el => { if (el.closest('#panel')) return false;
+  const box = el.parentElement && el.parentElement.closest('.knob,.fader,.selr,.param,.pad'); if (box) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }); }
+function navCenter(el) { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, r }; }
+function navDefault() {
+  if (UI.sheet) return navItems()[1] || navItems()[0]; const v = $('#view');
+  return (UI.view === 'pads' ? v.querySelector(`.pad[data-cell="${UI.keys ? UI.keyCell : UI.pad % 16}"]`) : UI.view === 'seq' ? v.querySelector('canvas.navc') : UI.view === 'mix' ? v.querySelector('.strip.sel .fader') : v.querySelector('.knob:not(.blank), .selr, .fader')) || navItems()[0];
+}
+function navReset() { if (NAV.el) NAV.el.classList.remove('nf', 'ne'); NAV.el = null; NAV.last = null; NAV.mode = 'nav'; NAV.selUndo = -1; }
+function setNav(el, quiet) {
+  if (NAV.el && NAV.el !== el) NAV.el.classList.remove('nf', 'ne'); NAV.el = el || null; if (!el) return;
+  el.classList.toggle('nf', UI.panel); const c = navCenter(el); NAV.last = { x: c.x, y: c.y };
+  if (!quiet) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  if (el.classList.contains('pad')) { const cell = +el.dataset.cell; if (UI.keys) UI.keyCell = cell; else { const pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; refreshPadDots(); } } }
+}
+function navEnsure() {
+  if (NAV.el && NAV.el.isConnected && navRoot().contains(NAV.el)) return NAV.el;
+  const wasCanvas = NAV.mode === 'canvas'; NAV.mode = 'nav'; let el = null;
+  if (NAV.last) { let best = 70; for (const it of navItems()) { const c = navCenter(it), d = Math.hypot(c.x - NAV.last.x, c.y - NAV.last.y); if (d < best) { best = d; el = it; } } }
+  setNav(el || navDefault(), true);
+  if (wasCanvas && NAV.el && NAV.el.matches('canvas.navc')) { NAV.mode = 'canvas'; NAV.el.classList.add('ne'); }
+  return NAV.el;
+}
+function navMove(dir) {
+  const cur = navEnsure(); if (!cur) return; const c = navCenter(cur), horiz = dir === 'left' || dir === 'right'; let best = null, bs = 1e9;
+  for (const it of navItems()) { if (it === cur) continue; const o = navCenter(it), dx = o.x - c.x, dy = o.y - c.y, prim = dir === 'right' ? dx : dir === 'left' ? -dx : dir === 'down' ? dy : -dy; if (prim < 4) continue;
+    const overlap = horiz ? (o.r.top < c.r.bottom - 2 && o.r.bottom > c.r.top + 2) : (o.r.left < c.r.right - 2 && o.r.right > c.r.left + 2);
+    const s = prim + (overlap ? 0 : (horiz ? Math.abs(dy) : Math.abs(dx)) * 3); if (s < bs) { bs = s; best = it; } }
+  if (best) setNav(best);
+}
+function navOk(down) {
+  const el = navEnsure(); if (!el) return;
+  if (NAV.mode === 'canvas') {
+    const ctl = canvasCtl();   // hold OK: the arrows switch to their alternate job (note length, point curve, slice start)
+    if (down) { NAV.okHadSel = ctl.hasSel(); if (!NAV.okHadSel || ctl.okOnDown) ctl.ok(); clearTimeout(NAV.holdT);
+      NAV.holdT = setTimeout(() => { if (ctl.hasSel()) { NAV.held = true; if (ctl.holdStart) ctl.holdStart(); haptic(); canvasDraw(); updatePanel(); } }, 350); }
+    else { clearTimeout(NAV.holdT); if (NAV.held) { NAV.held = false; canvasDraw(); if (ctl.holdEnd) ctl.holdEnd(); } else if (NAV.okHadSel && !ctl.okOnDown) ctl.ok(); }
+    return; }
+  if (NAV.mode === 'edit') { if (down) navEndEdit(true); return; }
+  if (el.classList.contains('pad')) { const cell = +el.dataset.cell; if (down) padDown(cell); else padUp(cell); return; }
+  if (!down) return;
+  if (el.matches('canvas.navc')) { NAV.mode = 'canvas'; el.classList.add('ne'); canvasDraw(); return; }
+  const reg = el._reg;
+  if (reg && reg.edit) { NAV.undoAt = UNDO.length; NAV.orig = reg.get(); reg.begin(); NAV.mode = 'edit'; el.classList.add('ne'); return; }
+  if (reg && reg.ok) { reg.ok(); return; }
+  if (el.tagName === 'INPUT') { el.focus(); return; }
+  el.click();
+}
+function navEndEdit(commit) {
+  const el = NAV.el, reg = el && el._reg; NAV.mode = 'nav'; if (el) el.classList.remove('ne'); if (!reg) return;
+  if (!commit) reg.setv(NAV.orig);
+  reg.finish();
+  if (!commit || reg.get() === NAV.orig) while (UNDO.length > NAV.undoAt) UNDO.pop();   // nothing changed: drop the undo step
+}
+function navArrow(dir, sh) {
+  if (NAV.mode === 'canvas') { canvasCtl()[dir](sh || NAV.held, sh); return; }
+  if (NAV.mode === 'edit' && NAV.el && NAV.el._reg) { NAV.el._reg.step(dir === 'up' || dir === 'right' ? 1 : -1, sh); return; }
+  navMove(dir);
+}
+function navBack() {
+  if (NAV.mode === 'canvas') { if (!canvasCtl().back()) { NAV.mode = 'nav'; NAV.el && NAV.el.classList.remove('ne'); canvasDraw(); } return; }
+  if (NAV.mode === 'edit') { navEndEdit(false); return; }
+  if (UI.sheet) closeSheet();
+}
+function navDel() { if (NAV.mode === 'canvas') canvasCtl().del(); }
+function navInfo() {
+  const el = NAV.el; if (!el) return '';
+  if (NAV.mode === 'canvas' && NAV.held) return canvasCtl().heldInfo();
+  if (NAV.mode === 'canvas') return canvasCtl().info(); const reg = el._reg;
+  if (NAV.mode === 'edit' && reg) return `Editing ${reg.label}: ${reg.valText()} · ↑↓ adjust · OK keep · Back cancel`;
+  if (el.classList.contains('pad')) return UI.keys ? `${padChop() ? 'Slice ' + (+el.dataset.cell + 1) : noteName(cellSemi(+el.dataset.cell))} · OK plays` : `${padLabel(UI.pad)} ${P.pads[UI.pad].name || 'Empty'} · OK plays`;
+  if (el.matches('canvas.navc')) return UI.view !== 'seq' ? 'Slices · OK to pick, play and move slices' : 'Timeline · OK to edit notes and points';
+  if (reg) return `${reg.label}: ${reg.valText()} · OK to ${reg.edit ? 'adjust' : 'open'}`;
+  const t = (el.getAttribute('aria-label') || el.value || el.textContent || '').trim().replace(/\s+/g, ' ');
+  return `${t || 'Key'} · OK to press`;
+}
+function updatePanel() { if (!UI.panel) return; navEnsure(); $('#pinfo').textContent = navInfo(); }
+function togglePanel() {
+  UI.panel = !UI.panel; $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
+  if (!UI.panel) { if (NAV.mode === 'edit') navEndEdit(true); NAV.mode = 'nav'; if (NAV.el) NAV.el.classList.remove('nf', 'ne'); if (UI.view === 'seq') drawTL(); else drawChop(); }
+  else requestAnimationFrame(() => { navEnsure(); NAV.el && NAV.el.classList.add('nf'); updatePanel(); });
+  savePrefs();
+}
+// touching a control with the panel open moves the focus ring there (and keeps any edit in progress)
+document.addEventListener('pointerdown', e => {
+  if (!UI.panel || e.target.closest('#panel')) return; const t = e.target.closest(NAV_SEL); if (!t || !navRoot().contains(t)) return;
+  if (NAV.mode === 'edit' && t !== NAV.el) navEndEdit(true); if (NAV.mode === 'canvas' && t !== NAV.el) { NAV.mode = 'nav'; NAV.el && NAV.el.classList.remove('ne'); }
+  setNav(t, true); setTimeout(updatePanel, 0);
+}, true);
+function selStart() { NAV.selUndo = UNDO.length; pushUndo('scene:' + UI.scene); }
+function selCancel() { if (NAV.selUndo >= 0 && UNDO.length === NAV.selUndo + 1) { const e = UNDO.pop(); scopeSet(e.scope, JSON.parse(e.data)); markDirty(); renderScenes(); } NAV.selUndo = -1; }
+function noteAtCursor() { const c = UI.tl.cursor, st = tlStep(), sc = P.scenes[UI.scene]; let pi, p = null; if (UI.tl.mode === 'bank') pi = UI.bank * 16 + c.row; else { pi = UI.pad; p = c.row; }
+  const n = (sc.notes[pi] || []).find(n => n.t >= c.t - 1e-6 && n.t < c.t + st && (p == null || KR.row(n.p) === p)); return n ? { pi, n } : null; }
+function tlEnsure() { const tl = UI.tl, c = tl.cursor; let t = c.t, row = c.row; if (tl.sel) { t = tl.sel.n.t; row = tl.mode === 'bank' ? tl.sel.pi - UI.bank * 16 : KR.row(tl.sel.n.p); }
+  if (tl.lane !== 'notes' && tl.selPt >= 0) { const pts = lanePts(false); if (pts && pts[tl.selPt]) t = pts[tl.selPt].t; }
+  const x = t2x(t); if (x < LABEL_W + 8) tl.sx = t - 8 / tl.zoom; else if (x > TL.W - 30) tl.sx = t - (TL.W - LABEL_W - 40) / tl.zoom;
+  if (tl.mode === 'keys' && tl.lane === 'notes') { const y = row * KEY_H - tl.sy, vh = TL.H - RULER_H; if (y < 0) tl.sy = row * KEY_H; else if (y > vh - KEY_H) tl.sy = row * KEY_H - vh + KEY_H; } drawTL(); }
+const noteCtl = {
+  hasSel() { return !!UI.tl.sel; },
+  heldInfo() { return `Length ${lenStr(UI.tl.sel ? UI.tl.sel.n.len : 0)} · ←→ length · ↑↓ vel`; },
+  info() { const s = UI.tl.sel, c = UI.tl.cursor;
+    if (s && s.n) return `${chanName(s.pi)} ${posStr(s.n.t)} · length ${lenStr(s.n.len)} · velocity ${Math.round(s.n.v * 100)}${UI.tl.mode === 'keys' ? ' · ' + KR.name(s.n.p) : ''} · ${offGrid(s.n.t)} · OK keep · Back cancel`;
+    const row = UI.tl.mode === 'bank' ? chanName(UI.bank * 16 + c.row) : KR.name(KR.p(c.row)); return `Cursor ${posStr(c.t)} · ${row} · ${noteAtCursor() ? 'OK selects' : 'OK adds a note'} · Back leaves`; },
+  hz(d, sh) { const s = UI.tl.sel, st = nudgeStep(), len = tlLen();
+    if (s) { if (NAV.selUndo < 0) undoGroup('n', 'scene:' + UI.scene); touchPad(s.pi); if (sh) s.n.len = fixT(clamp(s.n.len + d * st, Math.min(st, 6), len - s.n.t)); else s.n.t = fixT(clamp(s.n.t + d * st, 0, len - .01)); UI.tl.cursor.t = UI.fine ? s.n.t : Math.floor(s.n.t / st) * st; syncScene(UI.scene); markDirty(); }
+    else UI.tl.cursor.t = clamp(Math.floor(UI.tl.cursor.t / st) * st + d * st, 0, len - st); tlEnsure(); },
+  vt(d, sh) { const s = UI.tl.sel;
+    if (s) { if (NAV.selUndo < 0) undoGroup('n', 'scene:' + UI.scene); touchPad(s.pi); if (sh) s.n.v = clamp(Math.round((s.n.v - d * (UI.fine ? .01 : .05)) * 100) / 100, .01, 1); else moveNoteRow(s, d); UI.tl.cursor.row = UI.tl.mode === 'bank' ? s.pi - UI.bank * 16 : KR.row(s.n.p); syncScene(UI.scene); markDirty(); }
+    else UI.tl.cursor.row = clamp(UI.tl.cursor.row + d, 0, maxRow()); tlEnsure(); },
+  left(s) { this.hz(-1, s); }, right(s) { this.hz(1, s); }, up(s) { this.vt(-1, s); }, down(s) { this.vt(1, s); },
+  ok() { const tl = UI.tl; if (tl.sel) { tl.sel = null; NAV.selUndo = -1; afterEdit(); return; }
+    const hit = noteAtCursor(); if (hit) { selStart(); tl.sel = hit; audition(hit.pi, hit.n.p); drawTL(); return; }
+    addNoteAt(tl.cursor.t, tl.cursor.row); NAV.selUndo = UNDO.length - 1; },
+  back() { const tl = UI.tl; if (!tl.sel) return false; if (NAV.selUndo >= 0) selCancel(); tl.sel = null; drawTL(); return true; },
+  del() { NAV.selUndo = -1; deleteSelNote(); } };
+const autoCtl = {
+  pts() { return lanePts(false) || []; },
+  hasSel() { return UI.tl.selPt >= 0; },
+  heldInfo() { return 'Curve · ←→ bend'; },
+  info() { const tl = UI.tl, meta = keyMeta(tl.lane), pts = this.pts();
+    if (tl.selPt >= 0 && pts[tl.selPt]) { const p = pts[tl.selPt]; return `Point ${tl.selPt + 1}/${pts.length} ${posStr(p.t)} · ${meta.fmt(p.v)} · curve ${(p.c || 0).toFixed(2)} · ${offGrid(p.t)} · OK keep · Back cancel`; }
+    return `Cursor ${posStr(tl.cursor.t)} · ${meta.fmt(tl.cursor.v)} · ${this.near() >= 0 ? 'OK selects' : 'OK adds a point'} · Back leaves`; },
+  near() { const pts = this.pts(), st = tlStep(), t = UI.tl.cursor.t; let bi = -1, bd = st / 2 + 1e-6; pts.forEach((p, i) => { const d = Math.abs(p.t - t); if (d <= bd) { bd = d; bi = i; } }); return bi; },
+  left(sh) { this.hz(-1, sh); }, right(sh) { this.hz(1, sh); }, up(sh) { this.vt(1, sh); }, down(sh) { this.vt(-1, sh); },
+  hz(d, sh) { const tl = UI.tl, pts = this.pts(), st = nudgeStep(), len = tlLen(), p = pts[tl.selPt];
+    if (tl.selPt >= 0 && p) { if (NAV.selUndo < 0) undoGroup('a', 'scene:' + UI.scene);
+      if (sh) { const nx = pts[tl.selPt + 1]; p.c = clamp(Math.round(((p.c || 0) + (nx && nx.v < p.v ? d : -d) * (UI.fine ? .02 : .1)) * 100) / 100, -.97, .97); }
+      else { const lo = tl.selPt > 0 ? pts[tl.selPt - 1].t + .01 : 0, hi = tl.selPt < pts.length - 1 ? pts[tl.selPt + 1].t - .01 : len; p.t = fixT(clamp(p.t + d * st, lo, hi)); tl.cursor.t = p.t; }
+      syncScene(UI.scene); markDirty(); }
+    else tl.cursor.t = fixT(clamp((UI.fine ? tl.cursor.t : Math.round(tl.cursor.t / st) * st) + d * st, 0, len)); tlEnsure(); },
+  vt(d, sh) { const tl = UI.tl, p = this.pts()[tl.selPt];
+    if (tl.selPt >= 0 && p) { if (NAV.selUndo < 0) undoGroup('a', 'scene:' + UI.scene); p.v = clamp(Math.round((p.v + d * (UI.fine ? .002 : sh ? .1 : .02)) * 1000) / 1000, 0, 1); tl.cursor.v = p.v; syncScene(UI.scene); markDirty(); }
+    else tl.cursor.v = clamp(Math.round((tl.cursor.v + d * (UI.fine ? .005 : sh ? .1 : .02)) * 1000) / 1000, 0, 1); drawTL(); },
+  ok() { const tl = UI.tl; if (tl.selPt >= 0) { tl.selPt = -1; NAV.selUndo = -1; afterEdit(); return; }
+    const i = this.near(); if (i >= 0) { selStart(); tl.selPt = i; tl.cursor.v = this.pts()[i].v; drawTL(); return; }
+    pushUndo('scene:' + UI.scene); NAV.selUndo = UNDO.length - 1; const pts = lanePts(true), t = clamp(tl.cursor.t, 0, tlLen()); pts.push({ t, v: tl.cursor.v, c: 0 }); pts.sort((a, b) => a.t - b.t); tl.selPt = pts.findIndex(p => p.t === t); afterEdit(); },
+  back() { const tl = UI.tl; if (tl.selPt < 0) return false; if (NAV.selUndo >= 0) selCancel(); tl.selPt = -1; drawTL(); return true; },
+  del() { const tl = UI.tl, pts = lanePts(false); NAV.selUndo = -1; if (!pts || tl.selPt < 0 || !pts[tl.selPt]) { toast('Select a point first'); return; } pushUndo('scene:' + UI.scene); pts.splice(tl.selPt, 1); tl.selPt = -1; if (!pts.length) cleanLane(); afterEdit(); } };
+// haptics: Android vibrates; iPhone Safari 18+ gives a tick when a hidden switch is toggled from a tap. Other browsers do nothing.
+let hapticEl = null;
+let hapticWanted = false;
+function haptic() { if (!UI.haptics) return; if (navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} return; } hapticWanted = true; }
+function hapticFire() { if (!hapticWanted) return; hapticWanted = false; try {
+  if (!hapticEl) { hapticEl = document.createElement('label'); hapticEl.setAttribute('aria-hidden', 'true'); hapticEl.style.cssText = 'position:fixed;left:-60px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none';
+    const i = document.createElement('input'); i.type = 'checkbox'; i.setAttribute('switch', ''); i.tabIndex = -1; hapticEl.append(i); document.body.append(hapticEl); }
+  hapticEl.click(); } catch (e) {} }
+for (const ev of ['touchend', 'pointerup', 'click']) document.addEventListener(ev, hapticFire, true);
+function holdBtn(el, fn) { let t1 = 0, t2 = 0; const stop = () => { clearTimeout(t1); clearInterval(t2); el.classList.remove('down'); };
+  el.addEventListener('pointerdown', e => { e.preventDefault(); el.classList.add('down'); haptic(); fn(); updatePanel(); t1 = setTimeout(() => { t2 = setInterval(() => { fn(); updatePanel(); }, 70); }, 380); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, stop); }
+document.querySelectorAll('.dpad .pk[data-k]').forEach(b => holdBtn(b, () => navArrow(b.dataset.k, UI.shift)));
+holdBtn($('#pDel'), navDel);
+$('#pBack').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); navBack(); updatePanel(); });
+$('#pShift').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); UI.shift = !UI.shift; $('#pShift').classList.toggle('on', UI.shift); updatePanel(); });
+function setFine(v) { UI.fine = v; const b = $('#pFine'); b.textContent = ['Fine', '1/64', '1 ms'][v]; b.classList.toggle('on', v > 0); }
+$('#pFine').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); setFine((UI.fine + 1) % 3); updatePanel(); toast(['Normal steps', 'Fine: 1/64 notes, smallest value steps', 'Extra fine: 1 ms nudges'][UI.fine]); });
+{ const ok = $('#pOk'); ok.addEventListener('pointerdown', e => { e.preventDefault(); ok.classList.add('down'); haptic(); navOk(true); updatePanel(); });
+  const up = () => { if (!ok.classList.contains('down')) return; ok.classList.remove('down'); navOk(false); updatePanel(); }; ok.addEventListener('pointerup', up); ok.addEventListener('pointercancel', up); ok.addEventListener('pointerleave', up); }
+addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; if (e.key === ' ') { e.preventDefault(); play(); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }, f = UI.fine;
+  if (map[e.key]) { e.preventDefault(); if (e.altKey) UI.fine = Math.max(1, f); navArrow(map[e.key], e.shiftKey || UI.shift); UI.fine = f; }
+  else if (e.key === 'Enter') { e.preventDefault(); if (!e.repeat) navOk(true); }
+  else if (e.key === 'Escape') { e.preventDefault(); navBack(); }
+  else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); navDel(); }
+  else return; updatePanel(); });
+addEventListener('keyup', e => { if (e.key === 'Enter' && e.target.tagName !== 'INPUT') { navOk(false); updatePanel(); } });
+
+/* ================= meter, transport wiring & frame loop ================= */
+const METER = { l: 0, r: 0, clip: false };
+const meterEls = [...document.querySelectorAll('#meter .bar i')], clipEl = document.querySelector('#meter .clip'), cpuEl = document.querySelector('#meter .cpu');
+let lastCpuDraw = 0;
+const meterLast = [-1, -1];
+function drawMeter() { [METER.l, METER.r].forEach((v, i) => { const db = v > 1e-5 ? 20 * Math.log10(v) : -99, f = Math.round(clamp((db + 48) / 48, 0, 1) * 200) / 200; if (f === meterLast[i]) return; meterLast[i] = f;   // write the style only when it changes
+    meterEls[i].style.transform = `scaleX(${f})`; meterEls[i].classList.toggle('hot', db > -3); }); clipEl.classList.toggle('on', METER.clip);
+  const n = performance.now(); if (n - lastCpuDraw > 400) { lastCpuDraw = n; const c = ENG.ready ? Math.round(REP.cpu * 100) : null; cpuEl.textContent = c == null ? 'CPU —' : `CPU ${c}%`; cpuEl.classList.toggle('hot', c != null && c > 60); } }
+$('#meter').addEventListener('click', () => { METER.clip = false; drawMeter(); });
+$('#bPlay').onclick = play;
+$('#bRec').onclick = () => { T.rec = !T.rec; sendClick(); if (T.rec && T.playing) pushUndo('all'); updateTransport(); if (T.rec && !T.playing) toast('Record armed. Press play, then play pads or move controls.'); };
+$('#bLoop').onclick = () => { T.loop = T.loop === 'scene' ? 'song' : 'scene'; send({ t: 'loop', v: T.loop }); updateTransport(); savePrefs(); toast(T.loop === 'song' ? 'Song mode: scenes play in order with repeats' : 'Scene mode: the selected scene loops'); };
+$('#bTempo').onclick = openTempo; $('#bUndo').onclick = undo; $('#bPanel').onclick = togglePanel; $('#bMenu').onclick = openMenu;
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setView(b.dataset.v));
+document.addEventListener('pointerdown', ensureAudio, true);
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', e => { if (e.touches.length > 1 || !e.target.closest('#sheet .card, #scenes, .fxPanel')) e.preventDefault(); }, { passive: false });
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+document.addEventListener('touchend', () => { if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); }, true);
+document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(); if (T.playing) stop(); if (mediaTag) mediaTag.pause(); } });
+new ResizeObserver(() => { const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') drawDisp(); else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); }).observe($('#view'));
+let lastHeard = -1;
+// the screen loop runs only while something moves (playback, sound, meters falling, a recent touch); wake() restarts it
+let frameOn = false, lastFrame = 0, wakeAt = 0;
+function wake() { wakeAt = performance.now(); if (!frameOn) { frameOn = true; requestAnimationFrame(frame); } }
+function frame(ts) {
+  if (!P) { requestAnimationFrame(frame); return; }
+  if (ts - lastFrame < 14) { requestAnimationFrame(frame); return; } lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
+  METER.l *= .97; METER.r *= .97; drawMeter();
+  const scoping = scopeMoving(); if (scoping) scopeFrame(Math.min(.1, (ts - (frame.prev || ts)) / 1000)); frame.prev = ts;
+  const busy = scoping || T.playing || METER.l > 1e-4 || METER.r > 1e-4 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v > 1e-4));
+  if (busy) requestAnimationFrame(frame); else { frameOn = false; return; }   // nothing moving: stop drawing until woken
+  if (!ctx) return;
+  if (UI.view === 'mix') for (const m of STRIP_METERS) { const pk = REP.cm[m.c] || 0; m.v = Math.max(pk, m.v * .9); const db = m.v > 1e-5 ? 20 * Math.log10(m.v) : -99, f = clamp((db + 48) / 54, 0, 1);
+    m.el.style.height = (f * 100).toFixed(1) + '%'; m.el.style.background = db > 0 ? COL.rec : db > -6 ? COL.accent : COL.play; }
+  const pos = heardPos();
+  if (pos) {
+    if (pos.scene !== lastHeard) { lastHeard = pos.scene; if (pos.scene !== UI.scene && !TL.drag) { UI.scene = pos.scene; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.sx = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else if (UI.view === 'seq') renderView(); } }
+    updatePlayingSlot(pos);
+    if (UI.view === 'seq' && pos.scene === UI.scene && !TL.drag) { const x = t2x(pos.tick); if (x > TL.W - 4 || x < LABEL_W) UI.tl.sx = Math.floor(pos.tick / BAR) * BAR; }
+    if (UI.view === 'seq') drawTL();
+  } else if (lastHeard !== -1) { lastHeard = -1; updatePlayingSlot(null); }
+}
+
+/* ================= boot ================= */
+async function boot() {
+  readColors(); buildBuiltins(); await DB.open();
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {}
+  const saved = await DB.get('kv', 'project');
+  for (const s of await DB.all('samples')) { const r = upgradeSampleRecord(s); if (r) { SAMPLES.set(r.id, r); if (r !== s) DB.put('samples', r.id, r); } }
+  P = saved ? migrate(saved) : demoProject(); ensureBuiltinsFor(P);
+  const pr = await DB.get('kv', 'ui');
+  if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (pr.snap != null) UI.tl.snap = pr.snap;
+    UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); }
+  $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
+  renderAll(); wake(); markDirty();
+  if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
+}
+boot();
+</script>

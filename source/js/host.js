@@ -1,0 +1,394 @@
+'use strict';
+/* Trackfill engine host.
+   Runs inside the AudioWorklet for live playback, and on the main thread for exports, bounces and freezes,
+   so every path produces identical audio. It owns a copy of the song plus sequencing, automation, routing
+   and solo logic. The WASM module (engine.cpp) does all per-sample work.
+
+   Timing: a lookahead cursor runs 20 ms ahead of the audio and pushes timestamped events into a heap.
+   That lets note-triggered duckers start before the note itself (true lookahead, no added latency). */
+
+const TF = { PPQ: 96, BAR: 384, NCH: 83, NPAD: 64, G0: 64, B0: 72, R0: 80, MASTER: 82, NSLOT: 8, SUB: 16,
+  FRZ_TAG: 1 << 20, PREVIEW_TAG: (1 << 20) - 1, CLICK_TAG: (1 << 20) - 2 };
+
+/* ---------- shared math (must match engine.cpp) ---------- */
+function tfBezFast(x, w) {
+  const k = 2 - 2 * w, A = x * k - 1, B = -x * k, C = x; let d = B * B - 4 * A * C; if (d < 0) d = 0;
+  const den = -B + Math.sqrt(d); let s;
+  if (den > 1e-12) s = 2 * C / den; else if (Math.abs(A) > 1e-12) s = (-B - Math.sqrt(d)) / (2 * A); else s = x;
+  s = s < 0 ? 0 : s > 1 ? 1 : s;
+  const D = (1 - s) * (1 - s) + 2 * w * s * (1 - s) + s * s;
+  return (2 * w * s * (1 - s) + s * s) / D;
+}
+function tfCurve(x, c) {
+  if (!c || x <= 0 || x >= 1) return x;
+  const a = Math.min(0.97, Math.abs(c)), w = a / (1 - a);
+  return c < 0 ? tfBezFast(x, w) : 1 - tfBezFast(1 - x, w);
+}
+function tfValueAt(pts, t) {
+  if (!pts || !pts.length) return null;
+  if (t <= pts[0].t) return pts[0].v;
+  const L = pts[pts.length - 1]; if (t >= L.t) return L.v;
+  let lo = 0, hi = pts.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m].t <= t) lo = m; else hi = m; }
+  const a = pts[lo], b = pts[hi];
+  return a.v + (b.v - a.v) * tfCurve((t - a.t) / Math.max(1e-9, b.t - a.t), a.c || 0);
+}
+function tfSwing(t, sw) { const r = ((t % 48) + 48) % 48; return Math.abs(r - 24) < 1e-4 ? sw * 12 : 0; }
+function tfDest(P, c) {
+  if (c === TF.MASTER) return -1;
+  const o = P.chans[c].out;
+  if (c < TF.G0) return (o >= TF.G0 && o < TF.R0) || o === TF.MASTER ? o : TF.MASTER;
+  if (c < TF.B0) return (o >= TF.B0 && o < TF.R0) || o === TF.MASTER ? o : TF.MASTER;
+  return TF.MASTER;
+}
+// Automation / parameter keys: "channel.slot.index". slot -1 = channel strip (vol, pan, send A, send B),
+// slot -2 = pad sound (cutoff, resonance), slot 0..7 = insert effect parameter.
+function tfParseKey(k) { const a = k.split('.'); return { c: +a[0], s: +a[1], i: +a[2] }; }
+function tfBase(P, k) {
+  const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return null;
+  if (s === -1) return [C.vol, C.pan, C.sa, C.sb][i];
+  if (s === -2) { const p = P.pads[c]; return p ? [p.cut, p.res][i] : null; }
+  const f = C.fx[s]; return f ? f.p[i] : null;
+}
+function tfSetBase(P, k, v) {
+  const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return;
+  if (s === -1) C[['vol', 'pan', 'sa', 'sb'][i]] = v;
+  else if (s === -2) { const p = P.pads[c]; if (p) p[['cut', 'res'][i]] = v; }
+  else if (C.fx[s]) C.fx[s].p[i] = v;
+}
+function tfHasNotes(sc) { for (const k in sc.notes) if (sc.notes[k].length) return true; return false; }
+
+/* ---------- analyzer: 2048-point FFT folded into 64 log-spaced bands (25 Hz to 20 kHz), in dBFS ---------- */
+class TFSpectrum {
+  constructor(sr) {
+    const N = this.N = 2048; this.re = new Float32Array(N); this.im = new Float32Array(N); this.out = new Float32Array(64);
+    this.win = new Float32Array(N); for (let i = 0; i < N; i++) this.win[i] = .5 - .5 * Math.cos(2 * Math.PI * i / (N - 1));
+    this.rev = new Uint16Array(N); for (let i = 0, j = 0; i < N; i++) { this.rev[i] = j; let b = N >> 1; while (j & b) { j ^= b; b >>= 1; } j |= b; }
+    this.cs = new Float32Array(N / 2); this.sn = new Float32Array(N / 2); for (let i = 0; i < N / 2; i++) { this.cs[i] = Math.cos(2 * Math.PI * i / N); this.sn[i] = -Math.sin(2 * Math.PI * i / N); }
+    this.k0 = new Uint16Array(64); this.k1 = new Uint16Array(64);
+    for (let b = 0; b < 64; b++) { const f0 = 25 * Math.pow(800, b / 64), f1 = 25 * Math.pow(800, (b + 1) / 64);
+      this.k0[b] = Math.max(1, Math.round(f0 * N / sr)); this.k1[b] = Math.max(this.k0[b], Math.min(N / 2 - 1, Math.round(f1 * N / sr))); }
+  }
+  run(buf, w) {
+    const N = this.N, re = this.re, im = this.im, mask = N - 1;
+    for (let i = 0; i < N; i++) { const j = this.rev[i]; re[j] = buf[(w + i) & mask] * this.win[i]; im[j] = 0; }
+    for (let size = 2; size <= N; size <<= 1) { const half = size >> 1, step = N / size;
+      for (let s = 0; s < N; s += size) for (let k = 0; k < half; k++) { const c = this.cs[k * step], sn = this.sn[k * step], a = s + k, b = a + half;
+        const tr = re[b] * c - im[b] * sn, ti = re[b] * sn + im[b] * c; re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti; } }
+    for (let b = 0; b < 64; b++) { let m = 0; for (let k = this.k0[b]; k <= this.k1[b]; k++) { const v = re[k] * re[k] + im[k] * im[k]; if (v > m) m = v; }
+      this.out[b] = 20 * Math.log10(Math.sqrt(m) * 4 / N + 1e-9); }   // a full-scale sine reads 0 dB
+    return this.out;
+  }
+}
+
+class TFHeap {
+  constructor() { this.a = []; }
+  get size() { return this.a.length; }
+  clear() { this.a.length = 0; }
+  peek() { return this.a[0]; }
+  push(e) { const a = this.a; a.push(e); let i = a.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (a[p].time <= e.time) break; a[i] = a[p]; i = p; } a[i] = e; }
+  pop() {
+    const a = this.a, top = a[0], last = a.pop();
+    if (a.length) {
+      let i = 0; const n = a.length;
+      for (;;) { const l = 2 * i + 1, r = l + 1; let m = -1, mt = last.time;
+        if (l < n && a[l].time < mt) { m = l; mt = a[l].time; }
+        if (r < n && a[r].time < mt) m = r;
+        if (m < 0) break; a[i] = a[m]; i = m; }
+      a[i] = last;
+    }
+    return top;
+  }
+}
+
+class TFHost {
+  constructor(ex, sr, post) {
+    this.ex = ex; this.sr = sr; this.post = post || null; ex.tf_init(sr);
+    this.P = null; this.sm = new Map();
+    this.fxT = []; for (let c = 0; c < TF.NCH; c++) this.fxT.push([-1, -1, -1, -1, -1, -1, -1, -1]);
+    this.duck = []; this.playing = false; this.loop = 'scene'; this.heap = new TFHeap(); this.marks = []; this.now = 0;
+    this.ah = null; this.pending = null; this.LA = Math.round(0.02 * sr);
+    this.live = new Set(); this.autoOn = new Set(); this.fresh = new Map(); this.pos = null; this.idx = [];
+    this.click = { on: false, vol: .5 }; this.idleSent = false;   // the click is live-only: offline renders never turn it on
+    this.flashes = []; this.cpuMs = 0; this.cpuBlocks = 0; this.lastReport = 0; this.tap = -1; this.buf = null;
+  }
+  views() {
+    const ex = this.ex, b = ex.memory.buffer;
+    if (b !== this.buf || this.vTap !== this.tap) {
+      this.buf = b; this.vTap = this.tap;
+      this.vL = new Float32Array(b, this.tap >= 0 ? ex.tf_key_l(this.tap) : ex.tf_out_l(), 128);
+      this.vR = new Float32Array(b, this.tap >= 0 ? ex.tf_key_r(this.tap) : ex.tf_out_r(), 128);
+      this.vPk = new Float32Array(b, ex.tf_ch_peaks(), TF.NCH);
+    }
+  }
+  msg(m) {
+    const P = this.P;
+    switch (m.t) {
+      case 'project': this.P = m.P; this.idx = []; this.syncAll(); break;
+      case 'scene': P.scenes[m.i] = m.v; this.idx[m.i] = null; this.fresh.set(m.i, this.now); break;
+      case 'pad': P.pads[m.i] = m.v; this.syncPad(m.i); break;
+      case 'chan': P.chans[m.i] = m.v; this.syncChan(m.i); this.syncMutes(); this.buildDuck(); break;
+      case 'chans': for (const [i, v] of m.v) { P.chans[i] = v; this.syncChan(i); } this.syncMutes(); this.buildDuck(); break;
+      case 'song': if (m.v.swing !== P.swing) this.idx = []; Object.assign(P, m.v); this.ex.tf_set_bpm(P.bpm); break;
+      case 'sample': this.addSample(m.key, m.data, m.frames, m.ch, m.sr); break;
+      case 'sampleDel': this.removeSample(m.key); break;
+      case 'play': this.start(m.scene, m.loop, m.count || 0); break;
+      case 'click': this.click = { on: !!m.on, vol: Math.max(0, Math.min(1, +m.vol || 0)) }; if (m.on) this.makeClicks(); break;
+      case 'stop': this.stop(false); break;
+      case 'pending': this.pending = m.scene; break;
+      case 'loop': this.loop = m.v; break;
+      case 'hit': this.hit(m); break;
+      case 'rel': this.ex.tf_voice_release(m.tag, m.rel); break;
+      case 'live': if (m.on) this.live.add(m.key); else this.live.delete(m.key); break;
+      case 'param': tfSetBase(P, m.key, m.v); this.applyKey(m.key, m.v); break;
+      case 'preview': this.preview(m.key); break;
+      case 'panic': this.panic(); break;
+      case 'scope': this.setScope(m); break;
+    }
+  }
+  /* ---------- parameters & routing ---------- */
+  applyKey(k, v) {
+    const { c, s, i } = tfParseKey(k), ex = this.ex;
+    if (v == null || !(v === v)) return;
+    if (s === -1) { if (i === 0) ex.tf_ch_set(c, 0, 2 * v * v); else if (i === 1) ex.tf_ch_set(c, 1, v * 2 - 1); else ex.tf_ch_set(c, i, v); }
+    else if (s === -2) { if (this.frozen(c)) return; ex.tf_ch_set(c, i === 0 ? 5 : 6, i === 0 ? 20 * Math.pow(1000, v) : 0.7 + v * v * 18); }
+    else ex.tf_fx_param(c, s, i, v);
+  }
+  frozen(pi) { const p = this.P.pads[pi]; return !!(p && p.frz); }
+  syncChan(c) {
+    const ex = this.ex, C = this.P.chans[c], frz = c < TF.NPAD && this.frozen(c);
+    ex.tf_ch_route(c, tfDest(this.P, c));
+    for (let i = 0; i < 4; i++) this.applyKey(c + '.-1.' + i, [C.vol, C.pan, C.sa, C.sb][i]);
+    for (let s = 0; s < TF.NSLOT; s++) {
+      const f = C.fx[s], t = f ? f.type : -1;
+      if (t !== this.fxT[c][s]) { const ok = ex.tf_fx_type(c, s, t); this.fxT[c][s] = ok ? t : -1; if (!ok && t >= 0 && this.post) this.post({ t: 'oom' }); }
+      if (f) { for (let i = 0; i < f.p.length; i++) ex.tf_fx_param(c, s, i, f.p[i]); ex.tf_fx_on(c, s, f.on && !frz ? 1 : 0); ex.tf_fx_key(c, s, f.type === 6 && f.key != null ? f.key : -1); }
+    }
+  }
+  syncPad(i) {
+    const p = this.P.pads[i];
+    if (this.frozen(i)) { this.ex.tf_ch_set(i, 5, 20000); this.ex.tf_ch_set(i, 6, 0.707); }
+    else { this.applyKey(i + '.-2.0', p.cut); this.applyKey(i + '.-2.1', p.res); }
+    this.syncChan(i);
+  }
+  syncMutes() {
+    const P = this.P, C = P.chans, any = C.some(c => c.solo), keep = new Set();
+    if (any) {
+      const path = c => { const a = [c]; let d = tfDest(P, c); while (d >= 0) { a.push(d); d = tfDest(P, d); } return a; };
+      const solo = new Set(); C.forEach((c, i) => { if (c.solo) solo.add(i); });
+      for (let c = 0; c < TF.NCH; c++) { const p = path(c); if (p.some(x => solo.has(x))) p.forEach(x => keep.add(x)); }
+      keep.add(TF.R0); keep.add(TF.R0 + 1); keep.add(TF.MASTER);
+    }
+    for (let c = 0; c < TF.NCH; c++) this.ex.tf_ch_set(c, 4, C[c].mute || (any && !keep.has(c)) ? 0 : 1);
+  }
+  buildDuck() {
+    const d = []; for (let i = 0; i < TF.NPAD; i++) d.push(null);
+    this.P.chans.forEach((C, c) => C.fx.forEach((f, s) => {
+      if (!f || f.type !== 6 || !f.on || Math.round(f.p[0]) !== 0 || !f.trig) return;
+      const la = Math.round(f.p[6] * 20 / 1000 * this.sr);
+      for (const pi of f.trig) if (pi >= 0 && pi < TF.NPAD) (d[pi] = d[pi] || []).push({ c, s, la });
+    }));
+    this.duck = d;
+  }
+  syncAll() {
+    this.ex.tf_set_bpm(this.P.bpm);
+    for (let c = 0; c < TF.NCH; c++) this.syncChan(c);
+    for (let i = 0; i < TF.NPAD; i++) this.syncPad(i);
+    this.syncMutes(); this.buildDuck();
+  }
+  /* ---------- samples & voices ---------- */
+  addSample(key, data, frames, ch, sr) {
+    this.removeSample(key);
+    const ex = this.ex, ptr = ex.tf_malloc(data.byteLength); if (!ptr) { this.post && this.post({ t: 'oom', key }); return; }
+    new Int16Array(ex.memory.buffer, ptr, data.length).set(data);
+    const id = ex.tf_sample_add(ptr, frames, ch, sr);
+    if (id) this.sm.set(key, { id, frames, sr }); else ex.tf_free(ptr);
+  }
+  removeSample(key) { const e = this.sm.get(key); if (e) { this.ex.tf_sample_remove(e.id); this.sm.delete(key); } }
+  voice(pi, off, semi, vel, gateSec, tag) {
+    const pad = this.P.pads[pi]; if (!pad || !pad.sample) return;
+    const e = this.sm.get(pad.sample); if (!e) return;
+    const ex = this.ex, ch = pad.chop, chopped = ch && ch.on && ch.pts.length, gate = pad.mode === 'gate' ? gateSec : -1; let start = pad.start, end = pad.end, vm = pad.voice || 'poly';
+    if (chopped) {   // chopped: the note number picks a slice; choke cuts the slice before it
+      const n = ch.pts.length, k = Math.max(0, Math.min(n - 1, Math.round(semi) || 0)); start = ch.pts[k]; end = k + 1 < n ? ch.pts[k + 1] : pad.end; semi = 0;
+      if (ch.choke) ex.tf_ch_release(pi, 0.004); if (vm === 'legato') vm = 'mono';   // a new slice is a new sound, so legato acts as mono
+    }
+    let rate = Math.pow(2, (pad.pitch + pad.fine / 100 + semi) / 12);
+    if (pad.tempo > 0) rate *= this.P.bpm / pad.tempo;   // follow the project tempo by repitching
+    // voicing: mono cuts the last note; legato hands a held note the new pitch (gliding) without restarting; poly keeps up to pad.poly notes
+    if (vm === 'legato' && ex.tf_voice_legato(pi, rate, pad.glide || 0, gate, pad.rel, tag)) return;
+    if (vm !== 'poly') ex.tf_ch_release(pi, 0.004); else ex.tf_ch_limit(pi, Math.max(0, (pad.poly || 8) - 1), 0.004);
+    ex.tf_voice_start(pi, e.id, off, rate, start, end, pad.reverse ? 1 : 0, vel, Math.max(0.0005, pad.atk), pad.rel, gate, tag, 0);
+  }
+  hit(m) {
+    this.voice(m.pad, 0, m.semi || 0, m.vel == null ? 0.9 : m.vel, m.gate == null ? 3600 : m.gate, m.tag || 0);
+    const d = this.duck[m.pad]; if (d) for (const x of d) this.ex.tf_duck_trigger(x.c, x.s, 0);
+  }
+  preview(key) {
+    this.ex.tf_voice_release(TF.PREVIEW_TAG, 0.01);
+    const e = this.sm.get(key); if (e) this.ex.tf_voice_start(TF.MASTER, e.id, 0, 1, 0, 1, 0, 0.8, 0.0005, 0.02, -1, TF.PREVIEW_TAG, 1);
+  }
+  /* ---------- analyzer: one channel at a time (the one on screen), after its effects and before its fader ---------- */
+  // ch: the channel to analyze (or -1: no analyzer at all). fc/fs: an effect whose live gain change the screen shows (one number, no analysis).
+  setScope(m) {
+    this.visFx = m.fc != null && m.fc >= 0 ? [m.fc, m.fs] : null;
+    if (m.ch == null || m.ch < 0 || m.ch >= TF.NCH) { this.scope = null; return; }
+    let s = this.scope; if (!s) { s = this.scope = { buf: new Float32Array(2048), w: 0, pkL: 0, pkR: 0, ssL: 0, ssR: 0, n: 0, mem: null }; if (!this.spec) this.spec = new TFSpectrum(this.sr); }
+    if (s.ch !== m.ch) { s.ch = m.ch; s.mem = null; s.buf.fill(0); s.pkL = s.pkR = s.ssL = s.ssR = 0; s.n = 0; }   // never carry the last channel's levels over
+  }
+  scopeFeed(m) {
+    const s = this.scope, ex = this.ex, mem = ex.memory.buffer;
+    if (s.mem !== mem) { s.mem = mem; s.vL = new Float32Array(mem, ex.tf_key_l(s.ch), 128); s.vR = new Float32Array(mem, ex.tf_key_r(s.ch), 128); }
+    const L = s.vL, R = s.vR, buf = s.buf; let w = s.w, pl = s.pkL, pr = s.pkR, sl = 0, sr = 0;
+    for (let i = 0; i < m; i++) { const l = L[i], r = R[i]; buf[w] = (l + r) * .5; w = (w + 1) & 2047; const al = l < 0 ? -l : l, ar = r < 0 ? -r : r; if (al > pl) pl = al; if (ar > pr) pr = ar; sl += l * l; sr += r * r; }
+    s.w = w; s.pkL = pl; s.pkR = pr; s.ssL += sl; s.ssR += sr; s.n += m;
+  }
+  scopeReport() {
+    const s = this.scope, v = this.visFx, r = { ch: s ? s.ch : -1, vis: v ? this.ex.tf_fx_vis(v[0], v[1]) : 0 };
+    if (s) { const loud = s.pkL > 1e-5 || s.pkR > 1e-5, n = Math.max(1, s.n);
+      r.b = loud ? Array.from(this.spec.run(s.buf, s.w)) : null; r.pk = [s.pkL, s.pkR]; r.rms = [Math.sqrt(s.ssL / n), Math.sqrt(s.ssR / n)];
+      s.pkL = s.pkR = s.ssL = s.ssR = 0; s.n = 0; }
+    return r;
+  }
+  /* ---------- metronome ---------- */
+  makeClicks() {   // two short sine blips, high for the downbeat; made once, at the engine's own rate
+    if (this.sm.has('click:hi')) return; const sr = this.sr, n = Math.round(sr * .03);
+    for (const [key, f] of [['click:hi', 2000], ['click:lo', 1300]]) { const d = new Int16Array(n);
+      for (let i = 0; i < n; i++) { const t = i / sr; d[i] = Math.round(Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 160) * Math.min(1, t / .0005) * .7 * 32767); }
+      this.addSample(key, d, n, 1, sr); }
+  }
+  clicks(t, t0, t1, tps) {   // a click on every beat between ticks t0 and t1 (t = sample time of t0)
+    for (let b = Math.ceil(t0 / TF.PPQ - 1e-9) * TF.PPQ; b < t1; b += TF.PPQ) this.heap.push({ time: t + (b - t0) / tps, k: 4, acc: b % TF.BAR === 0 });
+  }
+  /* ---------- transport ---------- */
+  start(scene, loop, count) {
+    this.stop(true);
+    if (loop) this.loop = loop;
+    this.playing = true; this.pending = null;
+    const t = this.now + this.LA, tps = this.P.bpm * TF.PPQ / (60 * this.sr), bars = Math.max(0, Math.min(2, count | 0));
+    if (bars) { this.makeClicks(); this.clicks(t, 0, bars * TF.BAR, tps); }   // count-in: clicks only, then the scene starts
+    this.ah = { scene, rep: 0, tick: 0, t: t + Math.round(bars * TF.BAR / tps), started: false };
+  }
+  stop(soft) {
+    this.playing = false; this.heap.clear(); this.marks.length = 0; this.pos = null;
+    if (!soft) this.ex.tf_release_all(0.005);
+    this.restoreAuto();
+  }
+  panic() { this.stop(false); this.ex.tf_reset_all(); }
+  restoreAuto() { for (const k of this.autoOn) { const b = tfBase(this.P, k); if (b != null) this.applyKey(k, b); } this.autoOn.clear(); }
+  nextSong(i) { for (let k = 1; k <= this.P.scenes.length; k++) { const j = (i + k) % this.P.scenes.length; if (tfHasNotes(this.P.scenes[j])) return j; } return i; }
+  advance(n) {
+    const P = this.P, a = this.ah; let t = a.t, remain = n, guard = 0;
+    while (remain > 0 && guard++ < 64) {
+      const sc = P.scenes[a.scene], len = sc.bars * TF.BAR, tps = P.bpm * TF.PPQ / (60 * this.sr);
+      if (!a.started) { a.started = true; this.sceneStart(a.scene, t); }
+      let span = Math.max(1, Math.ceil((len - a.tick) / tps - 1e-9)), sw = false;
+      if (this.pending != null) {
+        if (this.pending === a.scene) this.pending = null;
+        else { const nb = (Math.floor(a.tick / TF.BAR + 1e-9) + 1) * TF.BAR, sb = Math.max(1, Math.ceil((nb - a.tick) / tps - 1e-9));
+          if (sb <= span && sb <= remain) { span = sb; sw = true; } }
+      }
+      span = Math.min(span, remain);
+      const t0 = a.tick, t1 = Math.min(len, a.tick + span * tps);
+      this.marks.push({ time: t, scene: a.scene, tick: t0, tps });
+      this.emit(a.scene, sc, t0, t1, t, tps, len); if (this.click.on) this.clicks(t, t0, t1, tps);
+      a.tick = t1; t += span; remain -= span;
+      if (sw) { this.cutClips(t); a.scene = this.pending; this.pending = null; a.rep = 0; a.tick = 0; a.started = false; }
+      else if (a.tick >= len - 1e-6) {
+        if (this.loop === 'song') { a.rep++; if (a.rep >= sc.repeat) { a.rep = 0; a.scene = this.nextSong(a.scene); } } else a.rep = 0;
+        a.tick = 0; a.started = false;
+      }
+    }
+    a.t = t;
+  }
+  noteIndex(si, sc, len) {   // all notes of a scene, swing applied, sorted by time; rebuilt only when the scene changes
+    let ix = this.idx[si]; if (ix) return ix; ix = [];
+    for (const k in sc.notes) for (const n of sc.notes[k]) { let nt = n.t + tfSwing(n.t, this.P.swing); if (nt >= len) nt = len - 1e-3; ix.push({ nt, pi: +k, n }); }
+    ix.sort((a, b) => a.nt - b.nt); this.idx[si] = ix; return ix;
+  }
+  emit(si, sc, t0, t1, time0, tps, len) {
+    const ix = this.noteIndex(si, sc, len), fr = this.fresh.get(si), freshOk = fr != null && this.now - fr < this.sr * 0.5;
+    let lo = 0, hi = ix.length; while (lo < hi) { const m = (lo + hi) >> 1; if (ix[m].nt < t0) lo = m + 1; else hi = m; }
+    for (let j = lo; j < ix.length && ix[j].nt < t1; j++) {
+      const { nt, pi, n } = ix[j], pad = this.P.pads[pi], ducks = this.duck[pi];
+      if (n.f) { n.f = 0; if (freshOk) continue; }
+      const time = time0 + (nt - t0) / tps;
+      if (!this.frozen(pi) && pad && pad.sample) this.heap.push({ time, k: 0, pi, semi: n.p, vel: n.v, gate: n.len / tps / this.sr });
+      if (ducks) for (const d of ducks) this.heap.push({ time: time - d.la, k: 1, c: d.c, s: d.s });
+    }
+  }
+  sceneStart(si, t) {
+    this.P.pads.forEach((p, pi) => { if (p.frz && p.frz[si]) this.heap.push({ time: t, k: 2, pi, key: p.frz[si] }); });
+  }
+  cutClips(t) { this.P.pads.forEach((p, pi) => { if (p.frz) this.heap.push({ time: t, k: 3, tag: TF.FRZ_TAG + pi }); }); }
+  dispatch(e, off) {
+    const ex = this.ex;
+    if (e.k === 0) { this.voice(e.pi, off, e.semi, e.vel, e.gate, 0);
+      if (this.post && this.flashes.length < 64) { const c = this.P.pads[e.pi].chop, n = c && c.on ? c.pts.length : 0;   // pad | (slice + 1) << 8
+        this.flashes.push(n ? e.pi | ((Math.max(0, Math.min(n - 1, Math.round(e.semi) || 0)) + 1) << 8) : e.pi); } }
+    else if (e.k === 1) ex.tf_duck_trigger(e.c, e.s, off);
+    else if (e.k === 2) { const s = this.sm.get(e.key); if (s) ex.tf_voice_start(e.pi, s.id, off, 1, 0, 1, 0, 1, 0.0005, 0.01, -1, TF.FRZ_TAG + e.pi, 1); }
+    else if (e.k === 3) ex.tf_voice_release(e.tag, 0.03);
+    else if (e.k === 4) { const s = this.sm.get(e.acc ? 'click:hi' : 'click:lo'); if (s) ex.tf_voice_start(TF.MASTER, s.id, off, 1, 0, 1, 0, (e.acc ? 1 : .6) * (this.click.vol || .5), 0.0005, 0.005, -1, TF.CLICK_TAG, 1); }
+  }
+  automate(t) {
+    const M = this.marks;
+    while (M.length > 1 && M[1].time <= t) M.shift();
+    if (!M.length || M[0].time > t) return;
+    const m = M[0], tick = m.tick + (t - m.time) * m.tps, A = this.P.scenes[m.scene].auto || {};
+    this.pos = { scene: m.scene, tick, tps: m.tps };
+    for (const k of this.autoOn) if (!A[k] || !A[k].length || this.live.has(k)) { const b = tfBase(this.P, k); if (b != null) this.applyKey(k, b); this.autoOn.delete(k); }
+    for (const k in A) { const pts = A[k]; if (!pts || !pts.length || this.live.has(k)) continue; this.applyKey(k, tfValueAt(pts, tick)); this.autoOn.add(k); }
+  }
+  render(n, L, R) {
+    const ex = this.ex; let off = 0;
+    while (off < n) {
+      const m = Math.min(TF.SUB, n - off), end = this.now + m;
+      if (this.playing) this.advance(m);
+      while (this.heap.size && this.heap.peek().time < end) { const e = this.heap.pop(); this.dispatch(e, Math.max(0, Math.min(m - 1, Math.floor(e.time - this.now)))); }
+      if (this.playing) this.automate(end);
+      ex.tf_render(m); this.views(); if (this.scope) this.scopeFeed(m);
+      const vL = this.vL, vR = this.vR;
+      for (let i = 0; i < m; i++) { L[off + i] = vL[i]; R[off + i] = vR[i]; }
+      this.now = end; off += m;
+    }
+    const tr = ex.tf_trip();
+    if (tr >= 0) { if (tr === TF.MASTER) this.stop(true); this.post && this.post({ t: 'trip', ch: tr, why: ex.tf_trip_why() }); }
+    if (this.post && this.now - this.lastReport >= this.sr / 30) {
+      this.lastReport = this.now;
+      const blocksMs = this.cpuBlocks * n / this.sr * 1000, pk = [ex.tf_peak(0), ex.tf_peak(1)], voices = ex.tf_voices();
+      // nothing playing and nothing sounding: one last report, then quiet until something happens (saves the page waking up 30 times a second)
+      const idle = !this.playing && !voices && pk[0] < 1e-5 && pk[1] < 1e-5 && !this.flashes.length;
+      if (!idle || !this.idleSent) this.post({ t: 'pos', time: (typeof currentTime !== 'undefined' ? currentTime : 0) + n / this.sr, playing: this.playing, pos: this.pos,
+        pk, cm: Array.from(this.vPk), cpu: blocksMs > 0 ? this.cpuMs / blocksMs : 0, voices, fl: this.flashes.splice(0), sc: this.scope || this.visFx ? this.scopeReport() : null });
+      else if (this.scope || this.visFx) this.scopeReport();
+      this.idleSent = idle;
+      this.vPk.fill(0); this.cpuMs = 0; this.cpuBlocks = 0;
+    }
+  }
+}
+
+/* ---------- offline rendering (main thread / tests) ----------
+   order: [{scene, reps}], tail seconds, tap: channel index to capture pre-fader (freeze) or -1 for the master. */
+async function tfRenderOffline(module, P, samples, opts) {
+  const sr = opts.sr || 48000, inst = new WebAssembly.Instance(module, {}), host = new TFHost(inst.exports, sr, null);
+  host.msg({ t: 'project', P: JSON.parse(JSON.stringify(P)) });
+  for (const [key, s] of samples) host.msg({ t: 'sample', key, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr });
+  host.tap = opts.tap == null ? -1 : opts.tap;
+  const tps = P.bpm * TF.PPQ / (60 * sr), order = opts.order;
+  let total = 0; for (const o of order) total += Math.ceil(P.scenes[o.scene].bars * TF.BAR / tps) * o.reps;
+  const tail = Math.round((opts.tail || 0) * sr), N = total + tail;
+  if (N > sr * 600) throw new Error('longer than 10 minutes');
+  const L = new Float32Array(N), R = new Float32Array(N), sL = new Float32Array(128), sR = new Float32Array(128);
+  host.start(order[0].scene, order.length === 1 && order[0].reps === 1 ? 'scene' : 'song');
+  let pre = host.LA; while (pre > 0) { const m = Math.min(128, pre); host.render(m, sL, sR); pre -= m; }   // pre-roll the lookahead
+  let done = 0, blocks = 0;
+  while (done < N) {
+    if (done >= total && host.playing) host.stop(true);
+    const m = Math.min(128, N - done, done < total ? total - done : N - done);
+    host.render(m, sL, sR); L.set(sL.subarray(0, m), done); R.set(sR.subarray(0, m), done); done += m;
+    if (++blocks % 400 === 0) { if (opts.onProgress) opts.onProgress(done / N); await new Promise(r => setTimeout(r, 0)); }
+  }
+  return { L, R, sr };
+}
+if (typeof module !== 'undefined') module.exports = { TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
