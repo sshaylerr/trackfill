@@ -115,6 +115,78 @@ const fMs = m => m >= 1000 ? (m / 1000).toFixed(2) + ' s' : (m < 10 ? m.toFixed(
 const fPct = v => Math.round(v * 100) + '%';
 const fPan = v => { const p = Math.round((v * 2 - 1) * 100); return p === 0 ? 'C' : (p < 0 ? 'L' + (-p) : 'R' + p); };
 const P_ = (n, d, f, opts) => ({ n, d, f, opts });
+const fSign = (v, a, b) => { const d = linmap(v, a, b); return (d > 0.05 ? '+' : '') + d.toFixed(1) + ' dB'; };
+const fRatio = v => expmap(v, 1, 20).toFixed(1) + ':1', fHzOff = (a, b) => v => v <= .001 ? 'Off' : fHz(expmap(v, a, b));
+const ROOMF = P_('Mix', .3, fPct), PRE = (mx = 200) => P_('Predelay', .05, v => fMs(linmap(v, 0, mx)));
+const DELAY_P = [P_('Sync', 1, null, ['Off', 'On']), P_('Division', .7, null, ['1/32', '1/16T', '1/16', '1/8T', '1/16D', '1/8', '1/4T', '1/8D', '1/4', '1/4D', '1/2']), P_('Time', .726, v => fMs(expmap(v, 1, 2000))),
+  P_('Feedback', .42, v => fPct(linmap(v, 0, .95))), P_('Mix', .35, fPct), P_('Ping-pong', 0, null, ['Off', 'On']), P_('Low cut', .35, v => fHz(expmap(v, 20, 2000))), P_('High cut', .598, v => fHz(expmap(v, 1000, 20000)))];
+const ANALOG_FILT = third => [P_('Cutoff', .7, v => fHz(expmap(v, 20, 20000))), P_('Resonance', .3, fPct), P_('Drive', 0, v => fDb(linmap(v, 0, 24))), third, P_('Mix', 1, fPct),
+  P_('LFO rate', .5, v => expmap(v, .05, 20).toFixed(2) + ' Hz'), P_('LFO depth', 0, v => linmap(v, 0, 4).toFixed(1) + ' oct'), P_('Envelope', .5, v => { const o = linmap(v, -4, 4); return (o > 0.05 ? '+' : '') + o.toFixed(1) + ' oct'; })];
+const SAT_P = [P_('Drive', .333, v => fDb(linmap(v, 0, 36))), P_('Tone', .5, v => { const t = Math.round((v * 2 - 1) * 100); return t === 0 ? '0' : (t > 0 ? '+' : '−') + Math.abs(t); }), P_('Punish', 0, null, ['Off', 'On']),
+  P_('Mix', 1, fPct), P_('Output', .8, v => fDb(linmap(v, -24, 6))), P_('Low cut', 0, fHzOff(20, 500)), P_('High cut', 1, v => fHz(expmap(v, 1000, 20000)))];
+const CLIP_P = [P_('Drive', 0, v => fDb(linmap(v, 0, 24))), P_('Ceiling', 1, v => fDb(linmap(v, -24, 0))), P_('Knee', .2, fPct), P_('Mix', 1, fPct)];
+const LIM_P = [P_('Gain', 0, v => '+' + linmap(v, 0, 24).toFixed(1) + ' dB'), P_('Ceiling', .975, v => fDb(linmap(v, -12, 0))), P_('Release', .5, v => fMs(expmap(v, 1, 1000))), P_('Lookahead', .692, v => fMs(expmap(v, .1, 5))), P_('True peak', 1, null, ['Off', 'On'])];
+const XO = [P_('Low split', .5, v => fHz(expmap(v, 60, 600))), P_('High split', .5, v => fHz(expmap(v, 1000, 10000)))];
+const BANDG = ['Low gain', 'Mid gain', 'High gain'].map(n => P_(n, .5, v => fSign(v, -24, 24)));
+const MB_CLASSIC = [...XO, P_('Threshold', .6, v => fDb(linmap(v, -60, 0))), P_('Ratio', .463, fRatio), P_('Below thr', 0, v => fDb(linmap(v, -80, -20))), P_('Below ratio', 0, v => '1:' + expmap(v, 1, 4).toFixed(2)),
+  P_('Attack', .5, v => fMs(expmap(v, .5, 100))), P_('Release', .5, v => fMs(expmap(v, 10, 1000))), ...BANDG, P_('Output', .5, v => fSign(v, -24, 24))];
+const TAPE_P = [P_('Drive', .3, v => fDb(linmap(v, -6, 24))), P_('Bump', .4, v => '+' + (v * 6).toFixed(1) + ' dB'), P_('Wow', .2, fPct), P_('Flutter', .2, fPct), P_('Hiss', .15, fPct), P_('Tone', .3, v => fHz(expmap(1 - v, 3000, 20000))), P_('Mix', 1, fPct), P_('Output', .5, v => fSign(v, -12, 12))];
+// modes beyond each effect's original (mode 0). Names stay generic: what the circuit does, not whose it was.
+const FX_MODES = {
+  0: { mode0: ['Clean', 'Precise digital bands'], more: [
+    ['Passive', 'Tube passive EQ: boost and cut the same low frequency for the bump-and-dip; silky top', [P_('Low freq', .667, null, ['20', '30', '60', '100']), P_('Low boost', 0, v => '+' + linmap(v, 0, 13.5).toFixed(1) + ' dB'), P_('Low atten', 0, v => '−' + linmap(v, 0, 17.5).toFixed(1) + ' dB'),
+      P_('High freq', .667, null, ['3k', '4k', '5k', '8k', '10k', '12k', '16k']), P_('High boost', 0, v => '+' + linmap(v, 0, 16).toFixed(1) + ' dB'), P_('Bandwidth', .5, v => v < .34 ? 'Sharp' : v > .66 ? 'Broad' : 'Medium'),
+      P_('Atten freq', .5, null, ['5k', '10k', '20k']), P_('High atten', 0, v => '−' + linmap(v, 0, 16).toFixed(1) + ' dB'), P_('Tube', .3, fPct), P_('Output', .5, v => fSign(v, -12, 12))]],
+    ['Punch', 'Proportional Q: gentle when subtle, focused when pushed; stepped frequencies', [P_('Low freq', .5, null, ['30', '40', '50', '100', '200', '300', '400']), P_('Low gain', .5, v => fSign(v, -12, 12)),
+      P_('Mid freq', .667, null, ['200', '400', '600', '800', '1.5k', '3k', '5k']), P_('Mid gain', .5, v => fSign(v, -12, 12)), P_('High freq', .5, null, ['2.5k', '5k', '7.5k', '10k', '12.5k', '15k', '20k']), P_('High gain', .5, v => fSign(v, -12, 12)),
+      P_('Low shape', 1, null, ['Bell', 'Shelf']), P_('High shape', 1, null, ['Bell', 'Shelf']), P_('Filter', 0, null, ['Off', 'On']), P_('Output', .5, v => fSign(v, -12, 12)), P_('Colour', .3, fPct)]],
+    ['Console', 'Channel-strip EQ: shelves, two sweepable mids, high-pass', [P_('HPF', 0, fHzOff(16, 350)), P_('LF gain', .5, v => fSign(v, -15, 15)), P_('LF freq', .5, v => fHz(expmap(v, 30, 450))),
+      P_('LMF gain', .5, v => fSign(v, -15, 15)), P_('LMF freq', .5, v => fHz(expmap(v, 200, 2500))), P_('LMF Q', .5, v => expmap(v, .5, 2.5).toFixed(2)), P_('HMF gain', .5, v => fSign(v, -15, 15)), P_('HMF freq', .5, v => fHz(expmap(v, 600, 7000))),
+      P_('HMF Q', .5, v => expmap(v, .5, 2.5).toFixed(2)), P_('HF gain', .5, v => fSign(v, -15, 15)), P_('HF freq', .5, v => fHz(expmap(v, 1500, 16000))), P_('Output', .5, v => fSign(v, -12, 12))]]] },
+  1: { mode0: ['Digital', 'Clean and exact, with a sidechain high-pass'], more: [
+    ['Opto', 'Optical leveling: smooth attack, release that follows the music', [P_('Peak reduction', .4, fPct), P_('Gain', .2, v => '+' + linmap(v, 0, 30).toFixed(1) + ' dB'), P_('Mode', 0, null, ['Compress', 'Limit']), P_('Emphasis', .3, fPct), P_('Mix', 1, fPct), P_('Tube', .3, fPct)]],
+    ['FET', 'Lightning-fast and aggressive; colour grows as you push it', [P_('Input', .35, v => '+' + linmap(v, 0, 36).toFixed(1) + ' dB'), P_('Output', .667, v => fSign(v, -24, 12)), P_('Attack', .5, v => Math.round(expmap(v, 20, 800)) + ' µs'),
+      P_('Release', .4, v => fMs(expmap(v, 50, 1100))), P_('Ratio', 0, null, ['4', '8', '12', '20', 'All']), P_('Mix', 1, fPct)]],
+    ['VCA', 'Bus glue: clean, stepped controls, auto release', [P_('Threshold', .6, v => fDb(linmap(v, -40, 0))), P_('Ratio', .5, null, ['2', '4', '10']), P_('Attack', .6, null, ['0.1', '0.3', '1', '3', '10', '30']),
+      P_('Release', 1, null, ['0.1', '0.3', '0.6', '1.2', 'Auto']), P_('Makeup', 0, v => '+' + linmap(v, 0, 20).toFixed(1) + ' dB'), P_('Mix', 1, fPct), P_('Key HPF', 0, fHzOff(20, 500))]]] },
+  2: { mode0: ['Clean', 'Neutral state-variable filter'], more: [
+    ['Ladder', 'Four saturating poles: warm, fat, self-oscillates', [...ANALOG_FILT(P_('Type', 0, null, ['LP24', 'LP12', 'BP', 'HP'])), P_('Bass', 0, fPct)]],
+    ['Diode', 'Squelchy acid filter', ANALOG_FILT(P_('Squelch', .4, v => fHz(expmap(v, 40, 400))))],
+    ['Screamer', 'Aggressive resonance that clips and screams', ANALOG_FILT(P_('Type', 0, null, ['LP', 'HP']))],
+    ['Morph', 'Smooth 12 dB: low-pass through notch to high-pass', ANALOG_FILT(P_('Morph', 0, v => v < .25 ? 'LP' : v > .75 ? 'HP' : v > .4 && v < .6 ? 'Notch' : fPct(v)))],
+    ['Formant', 'Talking vowels', [P_('Vowel', 0, v => 'AEIOU'[Math.min(4, Math.round(v * 4))]), P_('Shift', .5, v => '×' + Math.pow(2, linmap(v, -1, 1)).toFixed(2)), P_('Resonance', .5, fPct), P_('Mix', 1, fPct), P_('Drive', 0, v => fDb(linmap(v, 0, 24))),
+      P_('LFO rate', .5, v => expmap(v, .05, 20).toFixed(2) + ' Hz'), P_('LFO depth', 0, fPct), P_('Envelope', .5, v => { const t = Math.round((v * 2 - 1) * 100); return (t > 0 ? '+' : '') + t + '%'; })]],
+    ['Comb', 'Tuned metallic resonance', [P_('Freq', .5, v => fHz(expmap(v, 20, 5000))), P_('Feedback', .85, v => fPct(linmap(v, -.97, .97))), P_('Damping', .3, fPct), P_('Mix', .5, fPct),
+      P_('LFO rate', .5, v => expmap(v, .05, 20).toFixed(2) + ' Hz'), P_('LFO depth', 0, v => linmap(v, 0, 3).toFixed(1) + ' oct'), P_('Envelope', .5, v => { const o = linmap(v, -4, 4); return (o > 0.05 ? '+' : '') + o.toFixed(1) + ' oct'; })]]] },
+  3: { mode0: ['Classic', 'The original four curves'], more: [
+    ['Tube', 'Warm, even harmonics', SAT_P], ['Tape', 'Round and soft; highs stay clean', SAT_P], ['Transistor', 'Harder edge, odd harmonics', SAT_P], ['Console', 'Gentle desk colour', SAT_P], ['Fuzz', 'Square-wave grind', SAT_P]] },
+  4: { mode0: ['Digital', 'Clean repeats'], more: [
+    ['Tape', 'Wow, flutter and saturation in the repeats', [...DELAY_P, P_('Drive', .3, fPct), P_('Wow', .3, fPct), P_('Flutter', .3, fPct), P_('Age', .2, fPct)]],
+    ['Analog', 'Dark, warm repeats that soften as they get longer', [...DELAY_P, P_('Drive', .3, fPct), P_('Wow', .15, fPct), P_('Flutter', .1, fPct), P_('Age', .2, fPct)]]] },
+  5: { mode0: ['Classic', 'The original compact reverb'], more: [
+    ['Room', 'Real rooms: early reflections, three-band decay, smooth tails', [ROOMF, PRE(), P_('Decay', .477, v => fMs(expmap(v, .2, 20) * 1000)), P_('High cut', .7, v => fHz(expmap(v, 1000, 20000))), P_('Depth', .7, v => 'Early ' + Math.round((1 - v) * 100) + '%'),
+      P_('Size', .5, fPct), P_('Early size', .5, fPct), P_('Bass mult', .5, v => expmap(v, .25, 4).toFixed(2) + '×'), P_('Bass xover', .5, v => fHz(expmap(v, 100, 2000))), P_('High mult', .594, v => expmap(v, .1, 1.5).toFixed(2) + '×'),
+      P_('High xover', .5, v => fHz(expmap(v, 1000, 16000))), P_('Mod', .3, fPct)]],
+    ['Plate', 'Dense and bright from the first moment', [ROOMF, PRE(), P_('Decay', .45, v => fMs(expmap(v, .2, 20) * 1000)), P_('Damping', .7, v => fHz(expmap(v, 1000, 20000))), P_('Bandwidth', .85, v => fHz(expmap(v, 1000, 20000))),
+      P_('Size', .5, fPct), P_('Mod', .3, fPct), P_('Low cut', .3, v => fHz(expmap(v, 20, 1000))), P_('Width', 1, fPct)]],
+    ['Vintage', 'Grainy, lush early digital reverb', [ROOMF, PRE(), P_('Decay', .55, v => fMs(expmap(v, .2, 20) * 1000)), P_('Size', .5, fPct), P_('Color', .5, null, ['1970s', '1980s', 'Now']), P_('Mod depth', .4, fPct),
+      P_('Mod rate', .5, v => expmap(v, .25, 4).toFixed(2) + '×'), P_('High cut', .8, v => fHz(expmap(v, 1000, 20000))), P_('Low cut', .2, v => fHz(expmap(v, 20, 1000))), P_('Bass mult', .5, v => expmap(v, .25, 4).toFixed(2) + '×'), P_('Attack', .6, fPct)]],
+    ['Huge', 'Enormous spaces, swells and freeze', [P_('Mix', .4, fPct), PRE(300), P_('Size', .6, fPct), P_('Decay', .5, v => { const s = expmap(v, 1, 100); return s < 10 ? s.toFixed(1) + ' s' : Math.round(s) + ' s'; }),
+      P_('Gravity', .5, v => { const g = Math.round((v * 2 - 1) * 100); return (g > 0 ? '+' : '') + g; }), P_('Mod depth', .4, fPct), P_('Mod rate', .5, v => expmap(v, .25, 4).toFixed(2) + '×'), P_('Low cut', .3, v => fHz(expmap(v, 20, 1000))),
+      P_('High cut', .7, v => fHz(expmap(v, 1000, 20000))), P_('Freeze', 0, null, ['Off', 'On'])]]] },
+  8: { mode0: ['Classic', 'Two modulated delays'], more: [
+    ['Vintage', 'Bucket-brigade synth chorus: modes I, II and both', [P_('Mode', 0, null, ['I', 'II', 'I+II']), P_('Mix', 1, fPct)]],
+    ['Wide', 'Subtle stereo shimmer, mono-safe', [P_('Mode', .333, null, ['1', '2', '3', '4']), P_('Mix', 1, fPct)]],
+    ['Flanger', 'Jet sweeps with feedback', [P_('Rate', .3, v => expmap(v, .02, 5).toFixed(2) + ' Hz'), P_('Depth', .6, fPct), P_('Manual', .4, v => fMs(expmap(v, .1, 10))), P_('Feedback', .7, v => fPct(linmap(v, -.95, .95))), P_('Mix', .7, fPct), P_('Stereo', .5, v => Math.round(v * 180) + '°')]]] },
+  9: { mode0: ['Classic', 'Hard ceiling with adjustable softness'], more: [['Smooth', 'Soft knee into the ceiling, oversampled', CLIP_P], ['Warm', 'Rounded, slightly asymmetric, oversampled', CLIP_P]] },
+  10: { mode0: ['Digital', 'Bits and sample rate'], more: [
+    ['12-bit', 'Gritty 12-bit sampler with its resonant filter', [P_('Drive', 0, v => '+' + linmap(v, 0, 18).toFixed(1) + ' dB'), P_('Filter', .7, v => fHz(expmap(v, 500, 18000))), P_('Resonance', .1, fPct), P_('Mix', 1, fPct)]],
+    ['Lo-fi', 'Crunchy, squashed, a little noisy', [P_('Amount', .4, fPct), P_('Tone', .6, v => fHz(expmap(v, 800, 16000))), P_('Noise', .2, fPct), P_('Compress', .4, fPct), P_('Mix', 1, fPct)]]] },
+  12: { mode0: ['Classic', 'Six stages, adjustable'], more: [['Vintage', 'Four-stage pedal swirl, one knob', [P_('Speed', .4, v => expmap(v, .1, 10).toFixed(2) + ' Hz'), P_('Mix', 1, fPct), P_('Voice', 0, null, ['Feedback', 'Clean'])]]] },
+  13: { mode0: ['Transparent', 'Clean loudness'], more: [['Punchy', 'Keeps the hit of drums', LIM_P], ['Aggressive', 'Loud and forward, with a little clip', LIM_P], ['Safe', 'Slow and careful; never crosses the ceiling', LIM_P]] },
+  14: { mode0: ['Classic', 'Three bands, compress above and lift below'], more: [['Squash', 'Over-the-top upward and downward compression', [...XO.map((p, i) => P_(p.n, i ? .398 : .166, p.f)), P_('Depth', 1, fPct), P_('Time', .5, v => expmap(v, .1, 10).toFixed(2) + '×'), P_('Upward', 1, fPct), P_('Downward', 1, fPct), P_('In gain', .5, v => fSign(v, -24, 24)), ...BANDG, P_('Out gain', .5, v => fSign(v, -24, 24))]]] },
+  15: { mode0: ['Studio', 'Pro reel-to-reel: warm and steady'], more: [['Cassette', 'Darker, wobblier, hissier', TAPE_P], ['Worn', 'Old tape: dull, wobbly, the odd dropout', TAPE_P]] },
+};
 const FX_DEFS = [
   { name: 'EQ', short: 'EQ', params: [P_('Low cut', 0, v => v <= .001 ? 'Off' : fHz(expmap(v, 20, 1000))), P_('Low gain', .5, v => fDb(linmap(v, -18, 18))), P_('Low freq', .343, v => fHz(expmap(v, 30, 1000))),
     P_('Mid gain', .5, v => fDb(linmap(v, -18, 18))), P_('Mid freq', .5, v => fHz(expmap(v, 100, 10000))), P_('Mid Q', .366, v => expmap(v, .3, 8).toFixed(2)),
@@ -139,10 +211,23 @@ const FX_DEFS = [
   { name: 'Clipper', short: 'Clip', params: [P_('Drive', 0, v => fDb(linmap(v, 0, 24))), P_('Ceiling', 1, v => fDb(linmap(v, -24, 0))), P_('Softness', .2, fPct), P_('Mix', 1, fPct)] },
   { name: 'Bitcrush', short: 'Crush', params: [P_('Bits', .5, v => Math.round(linmap(v, 16, 2) * 10) / 10 + ' bit'), P_('Downsample', .3, v => '÷' + expmap(v, 1, 50).toFixed(1)), P_('Mix', 1, fPct)] },
   { name: 'Transient', short: 'Trans', params: [P_('Attack', .5, v => { const t = Math.round((v * 2 - 1) * 100); return (t > 0 ? '+' : '') + t + '%'; }), P_('Sustain', .5, v => { const t = Math.round((v * 2 - 1) * 100); return (t > 0 ? '+' : '') + t + '%'; }), P_('Output', .5, v => fDb(linmap(v, -12, 12)))] },
-  { name: 'Phaser', short: 'Phase', params: [P_('Rate', .4, v => expmap(v, .03, 5).toFixed(2) + ' Hz'), P_('Depth', .6, fPct), P_('Feedback', .4, v => fPct(linmap(v, 0, .85))), P_('Mix', .5, fPct), P_('Center', .5, v => fHz(expmap(v, 200, 4000)))] }
+  { name: 'Phaser', short: 'Phase', params: [P_('Rate', .4, v => expmap(v, .03, 5).toFixed(2) + ' Hz'), P_('Depth', .6, fPct), P_('Feedback', .4, v => fPct(linmap(v, 0, .85))), P_('Mix', .5, fPct), P_('Center', .5, v => fHz(expmap(v, 200, 4000)))] },
+  { name: 'Limiter', short: 'Limit', params: LIM_P },
+  { name: 'Multiband', short: 'Multi', params: MB_CLASSIC },
+  { name: 'Tape', short: 'Tape', params: TAPE_P },
+  { name: 'Gate', short: 'Gate', key: true, params: [P_('Threshold', .5, v => fDb(linmap(v, -80, 0))), P_('Range', 1, v => '−' + Math.round(linmap(v, 0, 80)) + ' dB'), P_('Attack', .3, v => fMs(expmap(v, .05, 50))),
+    P_('Hold', .1, v => fMs(linmap(v, 0, 500))), P_('Release', .4, v => fMs(expmap(v, 5, 2000))), P_('Hysteresis', .333, v => linmap(v, 0, 12).toFixed(1) + ' dB')] },
+  { name: 'Disperser', short: 'Disp', params: [P_('Amount', .5, v => Math.round(1 + v * 47) + ' stages'), P_('Frequency', .55, v => fHz(expmap(v, 20, 20000))), P_('Pinch', .5, v => expmap(v, .2, 8).toFixed(2)), P_('Mix', 1, fPct)] }
 ];
-const FX_TYPES = { EQ: 0, COMP: 1, FILTER: 2, SAT: 3, DELAY: 4, REVERB: 5, DUCK: 6, UTIL: 7, CHORUS: 8, CLIP: 9, CRUSH: 10, TRANS: 11, PHASER: 12 };
-function newFx(type, over) { const f = { type, on: true, p: FX_DEFS[type].params.map(p => p.d), key: null, trig: [] }; if (over) for (const k in over) f.p[+k] = over[k]; return f; }
+const FX_TYPES = { EQ: 0, COMP: 1, FILTER: 2, SAT: 3, DELAY: 4, REVERB: 5, DUCK: 6, UTIL: 7, CHORUS: 8, CLIP: 9, CRUSH: 10, TRANS: 11, PHASER: 12, LIMIT: 13, MBAND: 14, TAPE: 15, GATE: 16, DISP: 17 };
+// every effect lists its modes; mode 0 is the effect's original design (old projects play it unchanged)
+FX_DEFS.forEach((d, t) => { const m = FX_MODES[t]; d.modes = [{ n: m ? m.mode0[0] : '', blurb: m ? m.mode0[1] : '', params: d.params }].concat(m ? m.more.map(([n, blurb, params]) => ({ n, blurb, params })) : []); });
+FX_DEFS[7].params.push(P_('Bass mono', 0, fHzOff(20, 500)));
+const fxParams = f => (FX_DEFS[f.type].modes[f.mode | 0] || FX_DEFS[f.type].modes[0]).params;
+function newFx(type, over, mode = 0) { const f = { type, mode, on: true, p: FX_DEFS[type].modes[mode].params.map(p => p.d), key: null, trig: [] }; if (over) for (const k in over) f.p[+k] = over[k]; return f; }
+// switch modes: a control with the same name keeps its value (delay time, mix, crossovers); the rest start at the new mode's defaults
+function setFxMode(f, mode) { const old = fxParams(f), neu = FX_DEFS[f.type].modes[mode].params, keep = {}; old.forEach((p, i) => { keep[p.n] = f.p[i]; });
+  f.mode = mode; f.p = neu.map(p => keep[p.n] != null && !p.opts === !old.find(o => o.n === p.n).opts ? keep[p.n] : p.d); return f; }
 const optVal = (k, n) => n > 1 ? k / (n - 1) : 0;
 
 /* ---------- channels ---------- */
@@ -230,7 +315,8 @@ function normalize(p) {
     return d; });
   n.chans = Array.from({ length: NCHANS }, (_, c) => { const d = defaultChan(c), s = (p.chans || [])[c]; if (!s) return d;
     const o = Object.assign(d, s); o.fx = (s.fx || []).filter(f => f && FX_DEFS[f.type]).slice(0, NSLOTS).map(f => {
-      const def = newFx(f.type); return Object.assign(def, f, { p: def.p.map((v, i) => f.p && f.p[i] != null ? clamp01(f.p[i]) : v), trig: (f.trig || []).filter(x => x >= 0 && x < NPADS) }); });
+      const mode = Math.max(0, Math.min(FX_DEFS[f.type].modes.length - 1, f.mode | 0)), def = newFx(f.type, null, mode);
+      return Object.assign(def, f, { mode, p: def.p.map((v, i) => f.p && f.p[i] != null ? clamp01(f.p[i]) : v), trig: (f.trig || []).filter(x => x >= 0 && x < NPADS) }); });
     return o; });
   n.scenes = Array.from({ length: NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.notes = s.notes || {}; s.auto = s.auto || {}; return s; });
   n.bpm = Math.min(220, Math.max(40, +n.bpm || 96)); n.swing = clamp01(+n.swing || 0);
@@ -280,4 +366,4 @@ function demoProject() {
   return p;
 }
 if (typeof module !== 'undefined') module.exports = { MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
-  buildKitSample, toInt16, FX_DEFS, FX_TYPES, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };
+  buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };
