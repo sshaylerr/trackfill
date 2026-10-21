@@ -53,7 +53,7 @@ function openLaneSheet(c) {
     const strip = [0, 1, 2, 3].filter(i => i < 2 || c < R0).map(i => [c + '.-1.' + i, STRIP[i].label, 'channel']);
     if (c < G0) strip.push([c + '.-2.0', 'Cutoff', 'pad filter'], [c + '.-2.1', 'Resonance', 'pad filter']);
     list('Channel', strip);
-    P.chans[c].fx.forEach((f, s) => list(`Insert ${s + 1} · ${FX_DEFS[f.type].name}`, FX_DEFS[f.type].params.map((p, i) => p.opts ? null : [`${c}.${s}.${i}`, p.n, FX_DEFS[f.type].name]).filter(Boolean)));
+    P.chans[c].fx.forEach((f, s) => list(`Insert ${s + 1} · ${FX_DEFS[f.type].name}`, fxParams(f).map((p, i) => p.opts ? null : [`${c}.${s}.${i}`, p.n, FX_DEFS[f.type].name]).filter(Boolean)));
     card.append(h('div', 'sec', 'Elsewhere')); card.append(btn('Another channel…', () => openChannelPicker(), 'btn'));
   });
 }
@@ -236,33 +236,34 @@ function renderFx(V) {
   if (c >= G0 && c < MASTER) { const nm = h('input'); nm.value = C.name; nm.maxLength = 14; nm.setAttribute('aria-label', 'Channel name'); nm.onfocus = () => pushUndo('chan:' + c); nm.oninput = () => { C.name = nm.value; markDirty(); }; head.append(nm); }
   else { const b = h('div', 'lcdbox', esc(chanName(c))); b.style.flex = '1'; head.append(b); }
   const slots = h('div', 'slots'); UI.fxSlot = clamp(UI.fxSlot, 0, Math.min(NSLOTS - 1, C.fx.length));
-  for (let s = 0; s < NSLOTS; s++) { const f = C.fx[s], k = btn(`<span class="led"></span><span class="lcd" style="font-size:8px;color:var(--dim)">${s + 1}</span>${f ? FX_DEFS[f.type].short : (s === C.fx.length ? '+' : '')}`,
+  for (let s = 0; s < NSLOTS; s++) { const f = C.fx[s], md = f && f.mode ? FX_DEFS[f.type].modes[f.mode].n : null, k = btn(`<span class="led"></span><span class="lcd" style="font-size:8px;color:var(--dim)">${s + 1}</span>${f ? esc(md || FX_DEFS[f.type].short) : (s === C.fx.length ? '+' : '')}`,
       () => { if (s <= C.fx.length) { UI.fxSlot = s; renderView(); } }, 'key' + (s === UI.fxSlot ? ' cur' : '') + (f && f.on ? ' lit' : ''));
+    if (f) { const lk = fxLook(f.type, f.mode | 0); k.style.boxShadow = `inset 0 -3px 0 ${lk.ring}, 0 2px 0 #050506`; }
     if (s > C.fx.length) k.disabled = true; slots.append(k); }
   const panel = h('div', 'fxPanel'), f = C.fx[UI.fxSlot], s = UI.fxSlot;
   if (f) {
-    const d = FX_DEFS[f.type], fh = h('div', 'fxHead');
+    const params = fxParams(f), fh = h('div', 'fxHead');
     const move = dir => { const t = s + dir; if (t < 0 || t >= C.fx.length) return; pushUndo('all'); [C.fx[s], C.fx[t]] = [C.fx[t], C.fx[s]]; const map = C.fx.map((_, i) => i); map[s] = t; map[t] = s; remapSlots(c, map); UI.fxSlot = t; fxChanged(c); };
-    fh.append(btn(f.on ? 'On' : 'Off', () => { pushUndo('chan:' + c); f.on = !f.on; fxChanged(c); }, 'key sm' + (f.on ? ' on' : '')), h('div', 'lcdbox', `${s + 1} · ${d.name}`),
+    fh.append(btn(f.on ? 'On' : 'Off', () => { pushUndo('chan:' + c); f.on = !f.on; fxChanged(c); }, 'key sm' + (f.on ? ' on' : '')), h('div', 'lcdbox', `Insert ${s + 1}`),
       btn(IC.left, () => move(-1), 'key sm ic'), btn(IC.right, () => move(1), 'key sm ic'),
       confirmBtn('✕', '?', () => { pushUndo('all'); C.fx.splice(s, 1); const map = []; for (let i = 0; i < NSLOTS; i++) map[i] = i < s ? i : i === s ? -1 : i - 1; remapSlots(c, map); UI.fxSlot = Math.max(0, s - 1); fxChanged(c); }, 'key sm ic warn'));
-    const vis = h('div', 'scr fxvis'), vcv = h('canvas'); vis.append(vcv); const redrawVis = () => drawFxVis(vcv, c, s);
-    if (FXV_LIVE.has(f.type)) scopeView(vcv, redrawVis); requestAnimationFrame(redrawVis);
+    const ref = {}, dev = deviceEl(c, s, f, ref), redrawVis = () => ref.fn && ref.fn();
     const g = h('div', 'kgrid'), notesDuck = f.type === FX_TYPES.DUCK && Math.round(f.p[0]) === 0;
-    d.params.forEach((prm, i) => { const key = `${c}.${s}.${i}`;
+    params.forEach((prm, i) => { const key = `${c}.${s}.${i}`;
       if (prm.opts) g.append(selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(key, f.p[i]); redrawVis(); if (f.type === FX_TYPES.DUCK && i === 0) { syncChan(c); renderView(); } markDirty(); }));
       else if (!(notesDuck && i === 7)) g.append(keyParam(key, { label: prm.n, after: redrawVis })); });
     if (notesDuck) g.append(cellBtn('Triggers', f.trig.length ? f.trig.map(chanName).join(', ') : 'none', () => openTriggers(c, s)));
-    if (f.type === FX_TYPES.DUCK && !notesDuck) g.append(cellBtn('Listens to', f.key == null ? 'None' : chanLabel(f.key) + ' ' + chanName(f.key), () => openKeyPicker(c, s)));
-    panel.append(fh, vis, g);
+    if ((f.type === FX_TYPES.DUCK && !notesDuck) || f.type === FX_TYPES.GATE) g.append(cellBtn('Listens to', f.key == null ? (f.type === FX_TYPES.GATE ? 'Itself' : 'None') : chanLabel(f.key) + ' ' + chanName(f.key), () => openKeyPicker(c, s)));
+    dev.append(g); panel.append(fh, dev);
     if (c < G0 && P.pads[c].frz) panel.append(h('p', 'note', 'This pad is frozen. Changing its effects unfreezes it.'));
   } else {
-    panel.append(h('div', 'sec', 'Add an effect to slot ' + (s + 1)));
-    const g = h('div', 'tgrid');
-    FX_DEFS.forEach((d, t) => { const full = t === FX_TYPES.DUCK && duckerCount() >= MAX_DUCKERS;
-      const b = btn(d.name + (full ? ' (8 max)' : ''), () => { pushUndo('chan:' + c); const nf = newFx(t); if (t === FX_TYPES.DUCK) { const kick = P.pads.findIndex(p => p.sample === 'b:dkick' || p.sample === 'b:kick'); if (kick >= 0 && kick !== c) nf.trig = [kick]; }
-        C.fx.push(nf); UI.fxSlot = C.fx.length - 1; fxChanged(c); }); b.disabled = full; g.append(b); });
-    panel.append(g, h('p', 'note', 'Every pad, group, bus, return and the master has 8 insert slots. Up to 8 duckers per project.'));
+    panel.append(h('div', 'sec', 'Add a device to insert ' + (s + 1)));
+    const g = h('div', 'tgrid devgrid');
+    FX_DEFS.forEach((d, t) => { const full = t === FX_TYPES.DUCK && duckerCount() >= MAX_DUCKERS, lk = fxLook(t, 0);
+      const b = btn(`<b>${esc(d.name)}</b><i>${d.modes.length > 1 ? d.modes.length + ' modes' : '&nbsp;'}</i>` + (full ? ' (8 max)' : ''), () => { pushUndo('chan:' + c); const nf = newFx(t); if (t === FX_TYPES.DUCK) { const kick = P.pads.findIndex(p => p.sample === 'b:dkick' || p.sample === 'b:kick'); if (kick >= 0 && kick !== c) nf.trig = [kick]; }
+        C.fx.push(nf); UI.fxSlot = C.fx.length - 1; fxChanged(c); });
+      b.style.background = `linear-gradient(180deg,${lk.face},${lk.face2})`; b.style.color = lk.ink; b.style.boxShadow = `inset 0 -3px 0 ${lk.ring}, 0 2px 0 #050506`; b.disabled = full; g.append(b); });
+    panel.append(g, h('p', 'note', 'Every pad, group, bus, return and the master has 8 insert slots. Most devices have several modes; switch them on the device. Up to 8 duckers per project.'));
   }
   w.append(head, slots, panel); V.append(w);
 }
@@ -275,10 +276,11 @@ function openTriggers(c, s) {
 }
 function openKeyPicker(c, s) {
   const f = P.chans[c].fx[s];
-  openSheet('Duck when this gets loud', card => { const list = h('div', 'list');
+  const gate = f.type === FX_TYPES.GATE;
+  openSheet(gate ? 'Gate opens when this gets loud' : 'Duck when this gets loud', card => { const list = h('div', 'list');
     const add = (k, title, sub) => { const li = h('div', 'li' + ((f.key ?? null) === k ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${esc(title)}</b><span>${esc(sub)}</span></div>`;
       li.onclick = () => { pushUndo('chan:' + c); f.key = k; syncChan(c); markDirty(); closeSheet(); }; list.append(li); };
-    add(null, 'None', 'the ducker does nothing in audio mode');
+    add(null, gate ? 'Itself' : 'None', gate ? 'the gate listens to its own channel' : 'the ducker does nothing in audio mode');
     for (let k = 0; k < NCHANS; k++) { if (k === c) continue; if (k < G0 && !P.pads[k].sample) continue; if (k >= G0 && k < R0 && !chanUsed(k) && !P.chans[k].fx.length) continue;
       add(k, chanLabel(k) + ' · ' + chanName(k), k < G0 ? 'pad' : chanKind(k)); }
     card.append(list, h('p', 'note', 'The source is heard after its effects and before its fader, so its volume automation does not change the ducking. To duck from notes instead, set Trigger to Notes.')); });

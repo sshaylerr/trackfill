@@ -160,9 +160,10 @@ class TFHost {
     ex.tf_ch_route(c, tfDest(this.P, c));
     for (let i = 0; i < 4; i++) this.applyKey(c + '.-1.' + i, [C.vol, C.pan, C.sa, C.sb][i]);
     for (let s = 0; s < TF.NSLOT; s++) {
-      const f = C.fx[s], t = f ? f.type : -1;
-      if (t !== this.fxT[c][s]) { const ok = ex.tf_fx_type(c, s, t); this.fxT[c][s] = ok ? t : -1; if (!ok && t >= 0 && this.post) this.post({ t: 'oom' }); }
-      if (f) { for (let i = 0; i < f.p.length; i++) ex.tf_fx_param(c, s, i, f.p[i]); ex.tf_fx_on(c, s, f.on && !frz ? 1 : 0); ex.tf_fx_key(c, s, f.type === 6 && f.key != null ? f.key : -1); }
+      const f = C.fx[s], t = f ? f.type : -1, mode = f ? (f.mode | 0) : 0, id = t < 0 ? -1 : t * 16 + mode;   // an effect slot is identified by type and mode
+      if (id !== this.fxT[c][s]) { let ok = ex.tf_fx_type(c, s, t); if (ok && t >= 0 && mode) ok = ex.tf_fx_mode(c, s, mode);
+        this.fxT[c][s] = ok ? id : -1; if (!ok && t >= 0 && this.post) this.post({ t: 'oom' }); }
+      if (f) { for (let i = 0; i < f.p.length; i++) ex.tf_fx_param(c, s, i, f.p[i]); ex.tf_fx_on(c, s, f.on && !frz ? 1 : 0); ex.tf_fx_key(c, s, (f.type === 6 || f.type === 16) && f.key != null ? f.key : -1); }
     }
   }
   syncPad(i) {
@@ -244,7 +245,7 @@ class TFHost {
     s.w = w; s.pkL = pl; s.pkR = pr; s.ssL += sl; s.ssR += sr; s.n += m;
   }
   scopeReport() {
-    const s = this.scope, v = this.visFx, r = { ch: s ? s.ch : -1, vis: v ? this.ex.tf_fx_vis(v[0], v[1]) : 0 };
+    const s = this.scope, v = this.visFx, r = { ch: s ? s.ch : -1, vis: v ? this.ex.tf_fx_vis(v[0], v[1], 0) : 0, vis3: v ? [0, 1, 2].map(i => this.ex.tf_fx_vis(v[0], v[1], i)) : null };
     if (s) { const loud = s.pkL > 1e-5 || s.pkR > 1e-5, n = Math.max(1, s.n);
       r.b = loud ? Array.from(this.spec.run(s.buf, s.w)) : null; r.pk = [s.pkL, s.pkR]; r.rms = [Math.sqrt(s.ssL / n), Math.sqrt(s.ssR / n)];
       s.pkL = s.pkR = s.ssL = s.ssR = 0; s.n = 0; }

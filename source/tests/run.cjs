@@ -47,11 +47,20 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const r = await H.tfRenderOffline(wasm, X, kit, { order: [{ scene: 1, reps: 2 }], tail: 4 }); const s2 = stats(r.L, r.R);
     ok(s2.bad === 0 && s2.pk <= 1, `extreme effect settings stay finite and clipped (peak ${s2.pk.toFixed(2)})`);
   }
-  console.log('new effects');
-  for (const [t, name] of [[8, 'chorus'], [9, 'clipper'], [10, 'bitcrush'], [11, 'transient'], [12, 'phaser']]) {
-    for (const ext of [0, 1]) { const X = M.demoProject(); X.chans[1].fx = [M.newFx(t, Object.fromEntries(M.FX_DEFS[t].params.map((_, i) => [i, ext]))), M.newFx(t)];
-      const r = await H.tfRenderOffline(wasm, X, kit, { order: [{ scene: 1, reps: 1 }], tail: 1 }), st2 = stats(r.L, r.R);
-      ok(st2.bad === 0 && st2.pk <= 1 && st2.rms > .001, `${name} with all controls at ${ext ? 'max' : 'min'} stays finite and audible`); } }
+  console.log('every effect and mode');
+  { let n = 0, bad = []; const cpu = [];
+    for (const [t, d] of M.FX_DEFS.entries()) for (const [m, md] of d.modes.entries()) {
+      if (t === M.FX_TYPES.DUCK) continue;
+      for (const ext of ['min', 'max', 'default']) { const X = M.demoProject(), over = ext === 'default' ? null : Object.fromEntries(md.params.map((_, i) => [i, ext === 'max' ? 1 : 0]));
+        X.chans[1].fx = [M.newFx(t, over, m)]; X.chans[1].vol = 1;
+        const t0 = Date.now(), r = await H.tfRenderOffline(wasm, X, kit, { order: [{ scene: 1, reps: 1 }], tail: 1 }), st2 = stats(r.L, r.R); n++;
+        if (st2.bad || st2.pk > 1 || st2.rms < .0005) bad.push(`${d.name} ${md.n || ''} ${ext} (bad ${st2.bad}, peak ${st2.pk.toFixed(2)}, rms ${st2.rms.toFixed(4)})`); } }
+    ok(!bad.length, `${n} renders: every mode at minimum, maximum and default settings stays finite, within 0 dBFS and audible` + (bad.length ? '\n      ' + bad.join('\n      ') : ''));
+  }
+  console.log('mode switching');
+  { const f = M.newFx(M.FX_TYPES.DELAY); f.p[2] = .9; f.p[3] = .7; M.setFxMode(f, 1); ok(f.p.length === 12 && f.p[2] === .9 && f.p[3] === .7, 'switching Delay to Tape keeps Time and Feedback');
+    const r = M.newFx(M.FX_TYPES.REVERB); r.p[4] = 1; M.setFxMode(r, 1); ok(r.p[0] === 1, 'switching Reverb to Room carries Mix across even though it moved');
+    const old = M.normalize({ chans: [{ fx: [{ type: 1, p: [.5, .5, .5, .5, .5, 0, 1, 0] }] }] }); ok(old.chans[0].fx[0].mode === 0 && old.chans[0].fx[0].p.length === 8, 'effects saved before modes load as their original design'); }
   console.log('chopping');
   { const brk = kit.get('b:break170'), D = M.demoProject(), pad = D.pads[16];
     ok(pad.chop.pts.length >= 8 && pad.chop.pts.every((v, i, a) => !i || v > a[i - 1]), `transient slicing finds the hits of Break 170 (${pad.chop.pts.length} slices)`);
