@@ -1,6 +1,6 @@
 # Trackfill: Plugin Inspirations
 
-A running list of the plugins and hardware we're drawing on to rebuild Trackfill's effects and synths. Status: **Idea → Researching → Measuring → Building → Done**.
+A running list of the plugins and hardware we're drawing on to rebuild Trackfill's effects and synths. Status: **Idea → Researching → Measuring → Building → Done**. In the app every effect is now a device with a mode switch; inspirations live there under generic mode names.
 
 ## How we work
 
@@ -30,10 +30,10 @@ Two reverb effects: Room for real spaces, and Space for the huge and the vintage
 
 | Effect · mode | Inspired by | What makes it great | Our approach | Status |
 | --- | --- | --- | --- | --- |
-| Room | [Valhalla Room](https://valhalladsp.com/2011/04/26/valhallaroom-an-overview/) | Separate early and late sections. Three-band decay: [Bass and High Mult](https://valhalladsp.com/?p=781) scale low and high decay against the main time, with adjustable crossovers. Left and right late reverbs that bleed into each other at a set rate. Dozens of slow randomized LFOs, so tails stay smooth without obvious chorus. [Several modes](https://valhalladsp.com/?p=741) with their own density and colour | 16-line network with input diffusion, early-reflection taps, three-band decay filters in the loop and randomized modulation. Tune each mode against your captures | Idea |
-| Space · Vintage | Valhalla VintageVerb | The grainy, lush colour of 1970s and 80s digital reverbs: limited bandwidth, a low internal sample rate, chorused tails, era-based colour modes | Run the core at a reduced rate with gentle filtering and saturation, plus modulated diffusion. Colour modes switch bandwidth and modulation | Idea |
-| Space · Huge | Eventide Blackhole | Enormous, near-endless spaces. A Gravity control that can turn the decay inside out into swells. Freeze | Long, very diffuse network. Gravity shapes the build and decay, and a Freeze button holds the tail | Idea |
-| Plate (my suggestion) | EMT 140, Valhalla Plate | Dense and bright from the first moment, no early echoes. Classic on snares and vocals | Dattorro-style plate: a compact allpass network, cheaper than Room (Medium) | Idea |
+| Room | [Valhalla Room](https://valhalladsp.com/2011/04/26/valhallaroom-an-overview/) | Separate early and late sections. Three-band decay: [Bass and High Mult](https://valhalladsp.com/?p=781) scale low and high decay against the main time, with adjustable crossovers. Left and right late reverbs that bleed into each other at a set rate. Dozens of slow randomized LFOs, so tails stay smooth without obvious chorus. [Several modes](https://valhalladsp.com/?p=741) with their own density and colour | 16-line network with input diffusion, early-reflection taps, three-band decay filters in the loop and randomized modulation. Tune each mode against your captures | Building: first pass in the app; tuning against captures next |
+| Space · Vintage | Valhalla VintageVerb | The grainy, lush colour of 1970s and 80s digital reverbs: limited bandwidth, a low internal sample rate, chorused tails, era-based colour modes | Run the core at a reduced rate with gentle filtering and saturation, plus modulated diffusion. Colour modes switch bandwidth and modulation | Building: first pass in the app; tuning against captures next |
+| Space · Huge | Eventide Blackhole | Enormous, near-endless spaces. A Gravity control that can turn the decay inside out into swells. Freeze | Long, very diffuse network. Gravity shapes the build and decay, and a Freeze button holds the tail | Building: first pass in the app; tuning against captures next |
+| Plate (my suggestion) | EMT 140, Valhalla Plate | Dense and bright from the first moment, no early echoes. Classic on snares and vocals | Dattorro-style plate: a compact allpass network, cheaper than Room (Medium) | Building: first pass in the app; tuning against captures next |
 | Spring (my suggestion, later) | Classic amp and dub springs | The drippy "boing" and metallic chirp | Chains of dispersive allpasses; Medium | Idea |
 
 ## Dynamics
@@ -42,15 +42,15 @@ One Compressor with four modes, a new Limiter, a new Multiband with an OTT mode,
 
 | Effect · mode | Inspired by | What makes it great | Our approach | Status |
 | --- | --- | --- | --- | --- |
-| Compressor · Opto | Teletronix LA-2A | The optical cell: slowish attack and a two-stage release (fast at first, then a long tail) that follows the music. Soft knee, gentle ratio, tube colour, only two knobs | Detector feeding a model of the light cell's response, soft knee, light tube saturation on the output | Idea |
-| Compressor · FET | Urei 1176 | Very fast attack, well under a millisecond. Ratio buttons, including the all-buttons trick that goes aggressive and distorted. FET and transformer colour that grows as you push the input | Fast detector, ratio presets plus an all-buttons mode, saturation that rises with gain reduction | Idea |
-| Compressor · VCA (my suggestion) | SSL bus compressor | The "glue" on drum buses and mixes: clean VCA, a few fixed ratios, auto release, sidechain high-pass | Feed-forward VCA design, ratio and attack steps, program-dependent auto release | Idea |
+| Compressor · Opto | Teletronix LA-2A | The optical cell: slowish attack and a two-stage release (fast at first, then a long tail) that follows the music. Soft knee, gentle ratio, tube colour, only two knobs | Detector feeding a model of the light cell's response, soft knee, light tube saturation on the output | Building: first pass in the app; tuning against captures next |
+| Compressor · FET | Urei 1176 | Very fast attack, well under a millisecond. Ratio buttons, including the all-buttons trick that goes aggressive and distorted. FET and transformer colour that grows as you push the input | Fast detector, ratio presets plus an all-buttons mode, saturation that rises with gain reduction | Building: first pass in the app; tuning against captures next |
+| Compressor · VCA (my suggestion) | SSL bus compressor | The "glue" on drum buses and mixes: clean VCA, a few fixed ratios, auto release, sidechain high-pass | Feed-forward VCA design, ratio and attack steps, program-dependent auto release | Building: first pass in the app; tuning against captures next |
 | Compressor · Digital | Our current compressor | Clean and precise, no colour | Keep it, add optional lookahead | Idea |
-| Limiter | FabFilter Pro-L 2 | Transparent loudness: lookahead, true-peak limiting, oversampling, and several styles that trade punch against cleanliness | Lookahead limiter with style presets (attack and release shapes), true-peak detection with oversampling; Medium to Heavy, for the master and buses | Idea |
-| Multiband · Classic and OTT | Ableton Multiband Dynamics | Three bands, each able to compress and expand both above and below its thresholds. The OTT preset (heavy upward and downward squash) is a staple of EDM sound design | Phase-aligned three-band split; per-band above and below controls; an OTT mode with Depth, Time and output | Idea |
-| Clipper (upgrade) | StandardCLIP, KClip | Clean, loud peaks with no pumping. Oversampling keeps the clipping from adding harsh aliasing | Add oversampling and a choice of clip curves | Idea |
+| Limiter | FabFilter Pro-L 2 | Transparent loudness: lookahead, true-peak limiting, oversampling, and several styles that trade punch against cleanliness | Lookahead limiter with style presets (attack and release shapes), true-peak detection with oversampling; Medium to Heavy, for the master and buses | Building: first pass in the app; tuning against captures next |
+| Multiband · Classic and OTT | Ableton Multiband Dynamics | Three bands, each able to compress and expand both above and below its thresholds. The OTT preset (heavy upward and downward squash) is a staple of EDM sound design | Phase-aligned three-band split; per-band above and below controls; an OTT mode with Depth, Time and output | Building: first pass in the app; tuning against captures next |
+| Clipper (upgrade) | StandardCLIP, KClip | Clean, loud peaks with no pumping. Oversampling keeps the clipping from adding harsh aliasing | Add oversampling and a choice of clip curves | Building: first pass in the app; tuning against captures next |
 | Transient (upgrade) | SPL Transient Designer | Works the same at any level: shapes attack and sustain without a threshold | Refine our two-envelope design to match its response | Idea |
-| Gate (my suggestion) | Drum gates, e.g. Drawmer DS201 | Tightens drums and room tails; can key from another track | Threshold with hysteresis, hold, range, lookahead, optional key input | Idea |
+| Gate (my suggestion) | Drum gates, e.g. Drawmer DS201 | Tightens drums and room tails; can key from another track | Threshold with hysteresis, hold, range, lookahead, optional key input | Building: first pass in the app; tuning against captures next |
 
 ## EQ
 
@@ -58,9 +58,9 @@ One EQ with four modes. All are Light; only Surgical's dynamic bands step up to 
 
 | Mode | Inspired by | What makes it great | Our approach | Status |
 | --- | --- | --- | --- | --- |
-| Pultec | Pultec EQP-1A | Passive curves that can't sound harsh. Boosting and cutting the same low frequency at once gives a big low shelf with a dip just above it (the "Pultec trick"). Broad, silky top boost. Tube makeup colour | Curves fitted to measured responses, including the boost-and-cut interaction; gentle tube saturation | Idea |
-| API | API 550 | Proportional Q: the band narrows as you boost harder, so small moves stay broad and big ones focused. Stepped frequencies. Punchy colour | Three bands with proportional Q and stepped frequency choices; optional colour | Idea |
-| Console (my suggestion) | SSL E and G channel EQ | The classic mixing-console EQ for drums and buses: four bands, tight mids, high and low filters | Four bands plus filters, curves matched to the E and G styles | Idea |
+| Pultec | Pultec EQP-1A | Passive curves that can't sound harsh. Boosting and cutting the same low frequency at once gives a big low shelf with a dip just above it (the "Pultec trick"). Broad, silky top boost. Tube makeup colour | Curves fitted to measured responses, including the boost-and-cut interaction; gentle tube saturation | Building: first pass in the app; tuning against captures next |
+| API | API 550 | Proportional Q: the band narrows as you boost harder, so small moves stay broad and big ones focused. Stepped frequencies. Punchy colour | Three bands with proportional Q and stepped frequency choices; optional colour | Building: first pass in the app; tuning against captures next |
+| Console (my suggestion) | SSL E and G channel EQ | The classic mixing-console EQ for drums and buses: four bands, tight mids, high and low filters | Four bands plus filters, curves matched to the E and G styles | Building: first pass in the app; tuning against captures next |
 | Surgical | FabFilter Pro-Q | Precise bands of any shape. Curves stay accurate near the top of the range instead of bunching up. Dynamic bands that only act when a frequency gets loud. Mid/side | Up to 8 bands of any shape with accurate high-frequency curves, optional dynamic bands, mid/side. No linear-phase mode: too costly and it adds latency | Idea |
 
 ## Filters
@@ -69,11 +69,11 @@ One Filter with circuit modes. The same filter cores go into the synths, so this
 
 | Mode | Inspired by | What makes it great | Our approach | Status |
 | --- | --- | --- | --- | --- |
-| Ladder | Moog transistor ladder | Four-pole, 24 dB/oct. Saturating stages give warmth and drive. Resonance thins the bass and can self-oscillate | Zero-delay-feedback ladder with saturation per stage, an optional bass-compensation switch, oversampling at high resonance | Idea |
-| Diode (303) | Roland TB-303 | The squelch: a diode ladder whose resonance and slope behave differently from Moog's, and come alive with accent and envelope | Diode-ladder model. Pairs with an accent-aware envelope and slides in the synth and sequencer | Idea |
-| Screamer | Korg MS-20 | Aggressive, screaming resonance that distorts when pushed, in high-pass and low-pass | Model of the MS-20 style filter with built-in clipping in the feedback | Idea |
-| State-variable | Oberheim SEM | Smooth 12 dB filter with a knob that morphs low-pass through notch to high-pass | Our current filter core plus a continuous morph control | Idea |
-| Formant and comb (my suggestion) | Vowel and comb filters in Serum and similar | Talking, vocal and metallic tones; a staple of DnB and neuro bass design | Three-peak vowel filter with morph; tuned comb filter with feedback | Idea |
+| Ladder | Moog transistor ladder | Four-pole, 24 dB/oct. Saturating stages give warmth and drive. Resonance thins the bass and can self-oscillate | Zero-delay-feedback ladder with saturation per stage, an optional bass-compensation switch, oversampling at high resonance | Building: first pass in the app; tuning against captures next |
+| Diode (303) | Roland TB-303 | The squelch: a diode ladder whose resonance and slope behave differently from Moog's, and come alive with accent and envelope | Diode-ladder model. Pairs with an accent-aware envelope and slides in the synth and sequencer | Building: first pass in the app; tuning against captures next |
+| Screamer | Korg MS-20 | Aggressive, screaming resonance that distorts when pushed, in high-pass and low-pass | Model of the MS-20 style filter with built-in clipping in the feedback | Building: first pass in the app; tuning against captures next |
+| State-variable | Oberheim SEM | Smooth 12 dB filter with a knob that morphs low-pass through notch to high-pass | Our current filter core plus a continuous morph control | Building: first pass in the app; tuning against captures next |
+| Formant and comb (my suggestion) | Vowel and comb filters in Serum and similar | Talking, vocal and metallic tones; a staple of DnB and neuro bass design | Three-peak vowel filter with morph; tuned comb filter with feedback | Building: first pass in the app; tuning against captures next |
 | Clean | Our current filter | Neutral and cheap | Keep as the default mode | Done |
 
 I'd also give the Filter a built-in LFO and envelope follower (auto-wah), as in Soundtoys FilterFreak, so it moves on its own without drawing automation.
@@ -84,13 +84,14 @@ These fill the gaps for making full tracks. Most upgrade an effect we already ha
 
 | Effect · modes | Inspired by | What makes it great | Our approach | Status |
 | --- | --- | --- | --- | --- |
-| Saturation · Tube, Tape, Transistor, Console, Fuzz | Soundtoys Decapitator, FabFilter Saturn 2 | Different analog circuits that each add their own harmonics and tone, with a "punish" boost and tone tilt. Saturn adds multiband styles | Modes fitted to measured harmonic curves; oversampling; multiband later. Medium | Idea |
-| Tape | Classic tape emulations, e.g. Waves J37 | Soft saturation, low-end bump, gentle top roll-off, wow and flutter, hiss | One effect with drive, wear, wow, flutter and noise. Medium | Idea |
-| Delay · Tape, Analog, Digital, Ping-pong | Soundtoys EchoBoy, Valhalla Delay | Each echo style has its own colour and decay; groove and swing settings; saturation in the feedback | Modes on our delay: filtering, saturation and modulation in the feedback, swing. Medium | Idea |
-| Chorus · Juno, Dimension | Roland Juno-60 chorus, Roland Dimension D | The lush, wide shimmer of old bucket-brigade chips | Two classic modes on our chorus, with the original LFO rates and filtering. Light | Idea |
-| Phaser and Flanger | MXR Phase 90, Electro-Harmonix Electric Mistress | Classic swirl and jet sweeps | Phase 90 mode on our phaser; a new flanger with feedback and manual sweep. Light | Idea |
-| Lo-fi · SP-1200, SP-404 | E-mu SP-1200, Roland SP-404, D16 Decimort | The 12-bit sampler grit behind classic breaks: aliasing, gritty converters, filters | Bitcrush modes that model the converter and filter character. Light | Idea |
-| Stereo tools | iZotope Ozone Imager, mono-maker utilities | Width by frequency band; bass kept mono below a set frequency | Upgrade Utility with a bass-mono frequency and band width. Light | Idea |
+| Saturation · Tube, Tape, Transistor, Console, Fuzz | Soundtoys Decapitator, FabFilter Saturn 2 | Different analog circuits that each add their own harmonics and tone, with a "punish" boost and tone tilt. Saturn adds multiband styles | Modes fitted to measured harmonic curves; oversampling; multiband later. Medium | Building: first pass in the app; tuning against captures next |
+| Tape | Classic tape emulations, e.g. Waves J37 | Soft saturation, low-end bump, gentle top roll-off, wow and flutter, hiss | One effect with drive, wear, wow, flutter and noise. Medium | Building: first pass in the app; tuning against captures next |
+| Delay · Tape, Analog, Digital, Ping-pong | Soundtoys EchoBoy, Valhalla Delay | Each echo style has its own colour and decay; groove and swing settings; saturation in the feedback | Modes on our delay: filtering, saturation and modulation in the feedback, swing. Medium | Building: first pass in the app; tuning against captures next |
+| Chorus · Juno, Dimension | Roland Juno-60 chorus, Roland Dimension D | The lush, wide shimmer of old bucket-brigade chips | Two classic modes on our chorus, with the original LFO rates and filtering. Light | Building: first pass in the app; tuning against captures next |
+| Phaser and Flanger | MXR Phase 90, Electro-Harmonix Electric Mistress | Classic swirl and jet sweeps | Phase 90 mode on our phaser; a new flanger with feedback and manual sweep. Light | Building: first pass in the app; tuning against captures next |
+| Lo-fi · SP-1200, SP-404 | E-mu SP-1200, Roland SP-404, D16 Decimort | The 12-bit sampler grit behind classic breaks: aliasing, gritty converters, filters | Bitcrush modes that model the converter and filter character. Light | Building: first pass in the app; tuning against captures next |
+| Stereo tools | iZotope Ozone Imager, mono-maker utilities | Width by frequency band; bass kept mono below a set frequency | Upgrade Utility with a bass-mono frequency and band width. Light | Building: first pass in the app; tuning against captures next |
+| Disperser (your request) | Kilohearts Disperser | Smears a sound's phase around one frequency so transients turn into a "zap" or laser sweep; huge for DnB and neuro basses | A chain of up to 48 allpass stages around a chosen frequency, with Pinch for how tightly they bunch. Light to Medium | Building: first pass in the app; tuning against captures next |
 | Performance FX | Image-Line Gross Beat, tape-stop and stutter effects | Tape stops, stutters, half-time and gated chops: big for DnB transitions | A synced effect that slices and replays its own buffer, playable live and by automation. Light to Medium | Idea |
 
 ## Synths
