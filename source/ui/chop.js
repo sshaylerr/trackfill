@@ -18,7 +18,7 @@ function chopView(pi) {
   else for (const k of [8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7]) {   // 1–8 on the bottom row, like the pads
     const b = h('button', 'spad' + (k === UI.slice ? ' on' : ''), String(k + 1)); b.dataset.k = k; b.style.setProperty('--pc', sliceCol(k)); b.disabled = k >= c.pts.length;
     b.addEventListener('pointerdown', e => { e.preventDefault(); b._pd = Date.now(); b._tag = playSlice(pi, k); });
-    const up = () => { if (b._tag && P.pads[pi].mode === 'gate') send({ t: 'rel', tag: b._tag, rel: P.pads[pi].rel }); b._tag = 0; };
+    const up = () => { if (b._tag && P.pads[pi].mode !== 'one') send({ t: 'rel', tag: b._tag, rel: P.pads[pi].rel }); b._tag = 0; };
     b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
     b.addEventListener('click', () => { if (Date.now() - (b._pd || 0) < 800) return; playSlice(pi, k, .25); });   // d-pad OK, keyboard
     pads.append(b);

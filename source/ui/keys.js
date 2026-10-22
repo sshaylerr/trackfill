@@ -36,6 +36,15 @@ function openKeysSheet(pi = UI.pad) {
           paramEl({ label: 'Human feel', min: 0, max: 1, step: .05, coarse: .1, get: () => kxOf(pi).feel, set: v => { setKx(pi, { feel: v }); }, onStart: () => pushUndo('pad:' + pi), def: .5, fmt: v => Math.round(v * 100) + '%', noFocus: true }));
         body.append(fg); sec('Strum direction'); opts(STRUMS, kx.dir, v => change({ dir: v }));
         body.append(h('p', 'note', 'Human feel shapes each note\'s loudness (the top note sings, inner notes sit back) and loosens the timing a touch. Recording keeps it all exactly as you played it.'));
+        sec('Arpeggiator'); opts([[false, 'Off'], [true, 'On']], kx.arp, v => { if (!v) stopLatch(); change({ arp: v }); }, 'g2');
+        if (kx.arp) {
+          sec('Pattern'); opts(ARP_PATS, kx.apat, v => change({ apat: v }));
+          sec('Rate'); opts(ARP_RATES, kx.arate, v => change({ arate: v }));
+          sec('Octaves'); opts([[1, '1'], [2, '2'], [3, '3']], kx.aoct, v => change({ aoct: v }));
+          const ag = h('div', 'g2'); ag.append(paramEl({ label: 'Note length', min: .05, max: 1, step: .01, coarse: .05, get: () => kxOf(pi).agate, set: v => { setKx(pi, { agate: v }); }, onStart: () => pushUndo('pad:' + pi), def: .6, fmt: v => Math.round(v * 100) + '%', noFocus: true }));
+          const lb = btn(kx.latch ? 'Latch: on' : 'Latch: off', () => { if (kx.latch) stopLatch(); change({ latch: !kx.latch }); }, 'btn' + (kx.latch ? ' on' : '')); ag.append(lb); body.append(ag);
+          body.append(h('p', 'note', 'Hold a chord pad and the arpeggiator plays its notes in time with the project, locked to the grid while playing. With Latch on it keeps going after you let go: tap another chord to switch, or the same pad to stop. Recording keeps every note it plays.'));
+        }
       }
       card.scrollTop = top;
     }

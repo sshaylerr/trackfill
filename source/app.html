@@ -11,16 +11,20 @@
   /* body & controls */
   --body:#1c1c1f; --body2:#242428; --keyhi:#3b3b41; --keylo:#2a2a2f; --edge:#09090a; --print:#a29d93; --led-off:#3a2f2b;
   /* screen (also used by canvas drawing) */
-  --bg:#090c0d; --panel:#0f1415; --raised:#162021; --raised2:#1e2a2b; --line:#233133; --ink:#ece8e0; --mute:#8d9a98; --dim:#4f5b5a;
+  --bg:#0a0a0b; --panel:#111113; --raised:#19191c; --raised2:#222226; --line:#2c2b30; --ink:#ece8e0; --mute:#9b968d; --dim:#56534e; --sheet:#141416; --glow:#26262b;
   /* signal colors */
-  --accent:#f2b544; --accent-ink:#241803; --rec:#e5483d; --play:#53d18d; --play-ink:#0a1a11;
+  --accent:#f2b544; --accent-ink:#241803;
+  /* shades of the accent, so a theme only needs to set --accent and --accent-ink */
+  --accent-hi:color-mix(in srgb,var(--accent) 62%,#fff); --accent-lo:color-mix(in srgb,var(--accent) 72%,#000); --accent-deep:color-mix(in srgb,var(--accent) 34%,#000);
+  --accent-ring:color-mix(in srgb,var(--accent) 52%,#111); --accent-glow:color-mix(in srgb,var(--accent) 55%,transparent);
+  --on1:color-mix(in srgb,var(--accent) 22%,#38362f); --on2:color-mix(in srgb,var(--accent) 16%,#2a2722); --rec:#e5483d; --play:#53d18d; --play-ink:#0a1a11;
   --font-ui:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-lcd:"Figtree", system-ui, sans-serif;   /* values: same family as the UI, lighter weight, fixed-width digits */
 }
 [hidden]{display:none!important}
 html{height:100%;box-sizing:border-box;overscroll-behavior:none}
 *,*::before,*::after{box-sizing:border-box}
-body{height:100%;overscroll-behavior:none;background:var(--body) radial-gradient(140% 70% at 50% 0%,#26262b 0%,var(--body) 60%);color:var(--ink);font-family:var(--font-ui);font-size:14px;overflow:hidden;
+body{height:100%;overscroll-behavior:none;background:var(--body) radial-gradient(140% 70% at 50% 0%,var(--glow) 0%,var(--body) 60%);color:var(--ink);font-family:var(--font-ui);font-size:14px;overflow:hidden;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -35,7 +39,7 @@ body{font-variant-numeric:tabular-nums}
   box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.09);color:var(--ink);font:600 13px/1 var(--font-ui);
   display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;flex:none;position:relative;overflow:hidden;text-overflow:ellipsis}
 .key:active,.tb:active,.key.down{transform:translateY(1px);box-shadow:0 1px 0 #050506,inset 0 1px 0 rgba(255,255,255,.05)}
-.key.on{color:var(--accent);background:linear-gradient(180deg,#4a4334,#352f25)}
+.key.on{color:var(--accent);background:linear-gradient(180deg,var(--on1),var(--on2))}
 .key.warn{color:var(--rec)}
 .key.sm{height:30px;padding:0 8px;font-size:11.5px;border-radius:4px}
 .key.xs{height:26px;min-width:26px;padding:0 7px;font-size:11px;border-radius:3px}
@@ -48,7 +52,7 @@ body{font-variant-numeric:tabular-nums}
 .keys .key{min-width:30px;padding:0 7px}
 .btn{height:36px;padding:0 12px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.09);
   font:600 13px var(--font-ui);display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;min-width:0;overflow:hidden}
-.btn.on{background:var(--accent);color:var(--accent-ink);border-color:transparent;box-shadow:0 2px 0 #6b4c10}
+.btn.on{background:var(--accent);color:var(--accent-ink);border-color:transparent;box-shadow:0 2px 0 var(--accent-deep)}
 .btn.warn{color:var(--rec)}
 .btn.sm{height:32px;padding:0 9px;font-size:12px}
 .btn.xs{height:28px;padding:0 8px;font-size:12px;border-radius:7px}
@@ -71,6 +75,14 @@ body{font-variant-numeric:tabular-nums}
 #bLoop{width:70px} #bTempo{width:56px;flex-direction:column;gap:2px;line-height:1}
 #bTempo.clk::after{content:"";position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px} .g4 .btn{padding:0 6px;min-width:0}
+.btn.theme{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px} .btn.theme.on{background:linear-gradient(180deg,var(--on1),var(--on2));color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-ring)}
+.swd{width:12px;height:12px;border-radius:50%;flex:none;background:var(--sa);box-shadow:0 0 0 2px var(--sb),0 0 6px var(--sa)}
+/* pad styles: dark (default), tinted with the pad's colour, or fully coloured */
+body[data-pads="tint"] .pad:not(.empty){background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 20%,#323237),color-mix(in srgb,var(--pc) 13%,#28282c) 60%,color-mix(in srgb,var(--pc) 10%,#242428))}
+body[data-pads="bright"] .pad:not(.empty){background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 62%,#3a3a3f),color-mix(in srgb,var(--pc) 48%,#2a2a2e))} body[data-pads="bright"] .pad:not(.empty) .nm,body[data-pads="bright"] .pad:not(.empty) .pn{color:#111;text-shadow:0 1px 0 rgba(255,255,255,.2)}
+body[data-pads="bright"] .pad:not(.empty)::after{background:color-mix(in srgb,var(--pc) 40%,#000)} body[data-pads="bright"] .pad.hit::after{background:#fff}
+body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightness(1.3)}
 .g6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px} .g6 .btn{padding-left:0;padding-right:0;min-width:0}
 .btn.wide{width:100%}
 .btn.prow{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:2px 10px;text-align:left;width:100%;margin-bottom:6px;height:auto;min-height:50px;padding:8px 12px}
@@ -104,7 +116,7 @@ body{font-variant-numeric:tabular-nums}
 .slot .led{position:absolute;right:6px;top:7px;width:6px;height:6px;border-radius:50%;background:var(--led-off)}
 .slot.filled .led{background:var(--accent);box-shadow:0 0 5px var(--accent)}
 .slot.empty .num{color:var(--dim)}
-.slot.sel{background:linear-gradient(180deg,#4a4334,#352f25)} .slot.sel .num{color:var(--accent)}
+.slot.sel{background:linear-gradient(180deg,var(--on1),var(--on2))} .slot.sel .num{color:var(--accent)}
 .slot.playing .led{background:var(--play);box-shadow:0 0 6px var(--play)}
 .slot .prog{position:absolute;left:0;bottom:0;height:2px;background:var(--play);width:0}
 
@@ -122,7 +134,7 @@ body{font-variant-numeric:tabular-nums}
 .knob{display:flex;flex-direction:column;align-items:center;gap:1px;touch-action:none;min-width:0;padding:3px 2px;border-radius:4px;position:relative}
 .knob svg{width:48px;height:48px;display:block}
 .knob .kr{fill:none;stroke:#0b0b0c;stroke-width:4;stroke-dasharray:75 100;stroke-linecap:round}
-.knob .kv{fill:none;stroke:var(--accent);stroke-width:4;stroke-linecap:round;filter:drop-shadow(0 0 2px rgba(242,181,68,.55))}
+.knob .kv{fill:none;stroke:var(--accent);stroke-width:4;stroke-linecap:round;filter:drop-shadow(0 0 2px var(--accent-glow))}
 .knob .kb{fill:url(#knobFace);stroke:#060607;stroke-width:1}
 .knob .ki{stroke:var(--ink);stroke-width:2.2;stroke-linecap:round}
 .knob .kval{font:400 11px var(--font-lcd);color:var(--ink);white-space:nowrap;height:13px;line-height:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
@@ -131,7 +143,7 @@ body{font-variant-numeric:tabular-nums}
 .nf{outline:2px solid var(--accent)!important;outline-offset:-2px}
 .ne{outline:2px solid var(--play)!important;outline-offset:-2px;background-color:rgba(83,209,141,.08)}
 .knob.nf,.knob.ne,.selr.nf,.selr.ne,.fader.nf,.fader.ne{border-radius:4px}
-.knob.drag .kv{stroke:#ffd27a}
+.knob.drag .kv{stroke:var(--accent-hi)}
 .knob.autoed .klab{color:var(--accent)}
 .knob.blank{visibility:hidden}
 .selr{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px 2px;border-radius:8px;min-width:0;touch-action:none}
@@ -172,7 +184,7 @@ body{font-variant-numeric:tabular-nums}
 .pad .nm{font:600 13px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;height:15px;line-height:15px}
 .pad.empty{background:linear-gradient(180deg,#2a2a2e,#232326)} .pad.empty::after{background:#17171a}
 .pad.empty .nm{color:var(--dim)}
-.pad.sel{border-color:#070708;box-shadow:0 3px 0 #050506,inset 0 0 0 1px #8a6a2a} .pad.sel .pn{color:var(--accent)}
+.pad.sel{border-color:#070708;box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)} .pad.sel .pn{color:var(--accent)}
 .pad.hit{transform:translateY(2px);box-shadow:0 1px 0 #050506,inset 0 1px 0 rgba(255,255,255,.05);background:linear-gradient(180deg,#38383e,#2e2e33)}
 .pad.hit::after{transition:none;background:var(--pc);box-shadow:0 0 8px var(--pc),0 0 2px #fff}
 .pad.has .pn::after{content:"";display:inline-block;width:5px;height:5px;border-radius:1px;background:var(--pc);margin-left:5px;vertical-align:1px}
@@ -180,7 +192,8 @@ body{font-variant-numeric:tabular-nums}
 .pad.kp .nm{font:500 14px var(--font-lcd);text-transform:none}
 .pad.kroot .pn{color:var(--accent)} .pad.kroot::after{background:color-mix(in srgb,var(--pc) 70%,#101012)}
 .pad.kout .nm{color:var(--mute)} .pad.kout{background:linear-gradient(180deg,#2b2b2f,#232326)}
-.pad.kchord .nm{font-size:13px;letter-spacing:-.01em} .pad.kprog .pn{color:var(--accent)}
+.pad.kchord .nm{font-size:13px;letter-spacing:-.01em}
+.pad.klatch::after{background:var(--pc);box-shadow:0 0 8px var(--pc)} .pad.klatch .pn{color:var(--accent)} .pad.kprog .pn{color:var(--accent)}
 .pad.kprog::before{content:"";position:absolute;inset:0;border-radius:2px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent);pointer-events:none}
 /* ---------- timeline ---------- */
 .seqView{height:100%;display:flex;flex-direction:column;gap:8px}
@@ -212,7 +225,7 @@ body{font-variant-numeric:tabular-nums}
 .spad{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#28282c 60%,#242428);border:1px solid #070708;box-shadow:0 3px 0 #050506,inset 0 1px 0 rgba(255,255,255,.07);
   position:relative;color:var(--mute);font:400 12px var(--font-lcd);padding:0 0 7px;min-width:0;touch-action:none}
 .spad::after{content:"";position:absolute;left:5px;right:5px;bottom:5px;height:3px;border-radius:1px;background:color-mix(in srgb,var(--pc) 45%,#101012);transition:background .25s,box-shadow .25s}
-.spad.on{color:var(--accent);box-shadow:0 3px 0 #050506,inset 0 0 0 1px #8a6a2a}
+.spad.on{color:var(--accent);box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)}
 .spad.hit{transform:translateY(2px);box-shadow:0 1px 0 #050506}
 .spad.hit::after{transition:none;background:var(--pc);box-shadow:0 0 8px var(--pc),0 0 2px #fff}
 .spad:disabled{opacity:.3}
@@ -351,11 +364,11 @@ body{font-variant-numeric:tabular-nums}
 #pShift.on,#pFine.on{color:var(--accent)}
 .pact{display:flex;gap:8px;align-items:center}
 .pact .pk{width:56px;height:56px;border-radius:5px}
-#pOk{background:linear-gradient(180deg,#ffcf6e,var(--accent) 55%,#c88d22);color:var(--accent-ink);box-shadow:0 2px 0 #5c4210}
+#pOk{background:linear-gradient(180deg,var(--accent-hi),var(--accent) 55%,var(--accent-lo));color:var(--accent-ink);box-shadow:0 2px 0 var(--accent-deep)}
 
 /* ---------- sheet + toast ---------- */
 #sheet{position:fixed;inset:0;z-index:20;background:rgba(3,4,5,.62);display:flex;align-items:flex-end;justify-content:center}
-#sheet .card{width:100%;max-width:780px;max-height:84%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:#121617;border:1px solid #000;border-bottom:0;border-radius:8px 8px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.6);
+#sheet .card{width:100%;max-width:780px;max-height:84%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--sheet);border:1px solid #000;border-bottom:0;border-radius:8px 8px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.6);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px calc(18px + env(safe-area-inset-bottom,0px))}
 .shTitle{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
 .shTitle span{font-size:18px;font-weight:700;text-wrap:balance}
@@ -482,13 +495,33 @@ const duckerCount = () => P.chans.reduce((n, c) => n + c.fx.filter(f => f.type =
 
 /* ================= state ================= */
 let P = null;
-const UI = { view: 'pads', bank: 0, pad: 0, scene: 0, keys: false, oct: 0, keyCell: 0, panel: false, shift: false, fine: 0, mirror: false, sheet: false,
+const UI = { theme: 'amber', padStyle: 'dark', view: 'pads', bank: 0, pad: 0, scene: 0, keys: false, oct: 0, keyCell: 0, panel: false, shift: false, fine: 0, mirror: false, sheet: false,
   tl: { mode: 'bank', lane: 'notes', target: null, zoom: null, sx: 0, sy: null, snap: 24, sel: null, selPt: -1, draw: false, cursor: { t: 0, row: 0, v: .5 } },
   snd: 0, slice: 0, click: 'rec', countIn: 1, clickVol: .5, mixPage: 0, mixSel: 0, fxCh: 0, fxSlot: 0, fxBack: 'mix', regs: [], autoRec: null, haptics: true };
 const T = { playing: false, rec: false, loop: 'scene' };
 let COL = {}, FONT_LCD = 'monospace', FONT_UI = 'sans-serif';
 function readColors() { const cs = getComputedStyle(document.documentElement); FONT_LCD = cs.getPropertyValue('--font-lcd').trim(); FONT_UI = cs.getPropertyValue('--font-ui').trim();
   for (const k of ['bg', 'panel', 'raised', 'raised2', 'line', 'ink', 'mute', 'dim', 'accent', 'rec', 'play']) COL[k] = cs.getPropertyValue('--' + k).trim(); }
+/* ---------- themes: an accent colour plus matching body and screen tones (device faceplates keep their own looks) ---------- */
+const THEMES = [
+  { id: 'amber', name: 'Amber', accent: '#f2b544', ink: '#241803' },
+  { id: 'signal', name: 'Signal', accent: '#ff7a33', ink: '#2a0e02', body: ['#19191a', '#212123', '#38383b', '#28282a', '#242426'], scr: ['#0a0a0a', '#111111', '#19191a', '#212122', '#2c2c2e', '#141414', '#9b9790', '#56544f'] },
+  { id: 'mint', name: 'Mint', accent: '#4fe0b0', ink: '#032118', body: ['#1a1d1c', '#222625', '#373d3b', '#282d2b', '#232927'], scr: ['#090b0b', '#0f1312', '#171c1b', '#1f2524', '#29312f', '#121615', '#8f9a96', '#4f5956'] },
+  { id: 'violet', name: 'Violet', accent: '#b79cff', ink: '#170d38', body: ['#1c1b21', '#24232b', '#3b3946', '#2b2a33', '#27252f'], scr: ['#0b0a0e', '#121117', '#1a1920', '#22212a', '#2d2b36', '#15141a', '#9893a5', '#545061'] },
+  { id: 'rose', name: 'Rose', accent: '#ff8fb3', ink: '#2e0a17', body: ['#1e1b1d', '#262225', '#3e383c', '#2e292c', '#28232a'], scr: ['#0b0a0b', '#131113', '#1b181a', '#241f22', '#302a2e', '#161315', '#a0939a', '#5a5056'] },
+  { id: 'acid', name: 'Acid', accent: '#c6f14b', ink: '#1b2402', body: ['#1b1c19', '#232420', '#3a3b35', '#2a2b27', '#25261f'], scr: ['#0a0b09', '#111210', '#191a17', '#21221e', '#2b2d28', '#141512', '#9a9a8c', '#555649'] },
+  { id: 'arctic', name: 'Arctic', accent: '#8fd6ff', ink: '#04192a', body: ['#1b1d21', '#23262b', '#393d45', '#2a2d33', '#252930'], scr: ['#090b0e', '#101318', '#181c22', '#20252c', '#2a3039', '#13161b', '#929aa6', '#525a66'] },
+  { id: 'mono', name: 'Mono', accent: '#ece8e0', ink: '#1a1a1a' },
+];
+const BODY_VARS = ['body', 'body2', 'keyhi', 'keylo', 'glow'], SCR_VARS = ['bg', 'panel', 'raised', 'raised2', 'line', 'sheet', 'mute', 'dim'];
+function applyTheme() {
+  const th = THEMES.find(x => x.id === UI.theme) || THEMES[0], st = document.documentElement.style;
+  st.setProperty('--accent', th.accent); st.setProperty('--accent-ink', th.ink);
+  BODY_VARS.forEach((k, i) => th.body ? st.setProperty('--' + k, th.body[i]) : st.removeProperty('--' + k));
+  SCR_VARS.forEach((k, i) => th.scr ? st.setProperty('--' + k, th.scr[i]) : st.removeProperty('--' + k));
+  document.body.dataset.pads = UI.padStyle || 'dark'; readColors();
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = th.body ? th.body[0] : '#1c1c1f';
+}
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400); }
 function btn(label, fn, cls = 'btn') { const b = h('button', cls, label); b.onclick = fn; return b; }
 function seg(labels, active, fn) { const s = h('div', 'keys'); labels.forEach((l, i) => { const b = h('button', 'key sm' + (i === active ? ' on' : ''), l); b.onclick = () => fn(i); s.append(b); }); return s; }
@@ -499,6 +532,17 @@ const SAMPLES = new Map();
 // the current kit is built at startup; other built-ins (break, classic kit) are built the first time they are needed
 function buildBuiltin(key) { const k = ALL_BUILTINS.find(x => x[0] === key); if (!k || SAMPLES.has('b:' + key)) return; const s = buildKitSample(k[0], k[1]); SAMPLES.set(s.id, s); }
 function buildBuiltins(all) { for (const [k] of all ? ALL_BUILTINS : KIT) buildBuiltin(k); }
+// built-in sounds are synthesized; the bigger ones are kept on the device after the first time so launching stays quick
+const builtinVer = k => SOUNDS[k].toString().length;
+async function warmBuiltins(proj) {
+  for (const p of proj.pads) { const id = p.sample; if (!id || !id.startsWith('b:') || SAMPLES.has(id)) continue; const key = id.slice(2), k = ALL_BUILTINS.find(x => x[0] === key); if (!k) continue;
+    const ck = `bc:${key}:${builtinVer(key)}`, c = await DB.get('kv', ck);
+    if (c && c.data && c.frames) { SAMPLES.set(id, Object.assign(c, { name: k[1], builtin: true })); continue; }
+    const s = buildKitSample(key, k[1]); SAMPLES.set(id, s); if (s.frames > KIT_SR) DB.put('kv', ck, { id, sr: s.sr, ch: s.ch, frames: s.frames, data: s.data });
+    await new Promise(r => setTimeout(r, 0)); }   // let the screen breathe between sounds
+}
+function newJungle() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the Liquid jungle kit…');
+  setTimeout(async () => { const np = jungleProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Liquid jungle: drums and break on bank A, keys and pads on bank B (set up for Chords). F minor, 174 BPM.'); }, 60); }
 function ensureBuiltinsFor(proj) { for (const p of proj.pads) if (p.sample && p.sample.startsWith('b:')) buildBuiltin(p.sample.slice(2)); }
 function addUserSample(name, sr, ch, data, extra) {
   const id = 'u:' + uid(), s = Object.assign({ id, name, sr, ch, frames: data.length / ch, data, added: Date.now() }, extra || {});
@@ -525,7 +569,7 @@ const DB = { db: null, ok: false,
 let saveTimer = 0;
 function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
 function saveNow() { clearTimeout(saveTimer); if (P) DB.put('kv', 'project', P); }
-function savePrefs() { DB.put('kv', 'ui', { view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol }); }
+function savePrefs() { DB.put('kv', 'ui', { theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -591,6 +635,7 @@ function onEngine(m) {
     REP.time = m.time; REP.playing = m.playing; REP.pos = m.pos; REP.cpu = REP.cpu * .9 + m.cpu * .1; REP.voices = m.voices; REP.cm = m.cm || [];   // CPU is sampled with a 1 ms clock, so it is averaged
     METER.l = Math.max(m.pk[0], METER.l * .8); METER.r = Math.max(m.pk[1], METER.r * .8); if (m.pk[0] > 1 || m.pk[1] > 1) METER.clip = true;
     for (const v of m.fl) flashPad(v & 255, (v >> 8) - 1);
+    if (m.arp) arpPlayed(m.arp);
     if (m.sc) onScope(m.sc);
   } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); }
   else if (m.t === 'trip') {
@@ -623,7 +668,7 @@ function play() {
 // the click: off, only while recording is armed, or always. It plays on the engine's clock, so it is sample-accurate, and never reaches exports.
 function sendClick() { send({ t: 'click', on: UI.click === 'always' || (UI.click === 'rec' && T.rec), vol: UI.clickVol }); $('#bTempo').classList.toggle('clk', UI.click === 'always' || (UI.click === 'rec' && T.rec)); }
 function stop() { T.playing = false; send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
-function panic(msg) { T.playing = false; send({ t: 'panic' }); for (const k in HELD) delete HELD[k]; METER.l = METER.r = 0; METER.clip = false; drawMeter(); updateTransport(); updatePlayingSlot(null); toast(msg || 'Panic: all sound stopped and effect tails cleared'); }
+function panic(msg) { T.playing = false; send({ t: 'panic' }); KEYS.latch = null; for (const k in HELD) delete HELD[k]; METER.l = METER.r = 0; METER.clip = false; drawMeter(); updateTransport(); updatePlayingSlot(null); toast(msg || 'Panic: all sound stopped and effect tails cleared'); }
 function heardPos() {
   if (!T.playing || !REP.playing || !REP.pos || !ctx) return null;
   const lat = ctx.outputLatency || ctx.baseLatency || 0, dt = (ctx.currentTime - lat) - REP.time, sc = REP.pos.scene;
@@ -674,7 +719,7 @@ function spreadSlices(pi) {
   for (const sc of P.scenes) { const arr = sc.notes[pi]; if (!arr) continue;   // the pattern moves with the slices, so it still sounds the same
     for (const nn of arr) { const j = free[clamp(Math.round(nn.p) || 0, 0, n - 1)]; (sc.notes[j] = sc.notes[j] || []).push(Object.assign({}, nn, { p: 0 })); } delete sc.notes[pi]; }
   for (const C of P.chans) for (const f of C.fx) if (f.type === FX_TYPES.DUCK && f.trig.includes(pi)) for (const j of free) if (!f.trig.includes(j)) f.trig.push(j);
-  syncProject(); markDirty(); UI.keys = false; renderAll();
+  syncProject(); markDirty(); UI.keys = false; KEYS.latch = null; renderAll();
   toast(`${n} slices are now on pads ${padLabel(free[0])}–${padLabel(free[n - 1])}, with this pad's notes.`);
 }
 
@@ -799,12 +844,21 @@ function refreshPadDots() {
     else { pi = UI.bank * 16 + cell; const p = P.pads[pi]; name = p.sample ? (p.name || 'Sound') : 'Empty'; pd.classList.remove('kp');
       pd.classList.toggle('sel', UI.pad === pi); pd.classList.toggle('has', !!(sc.notes[pi] && sc.notes[pi].length)); pd.classList.toggle('frz', !!p.frz); }
     const p = P.pads[pi]; pd.style.setProperty('--pc', chop ? sliceCol(cell) : PAD_COLORS[p.color]); if (chop) pd.classList.toggle('sel', cell === UI.slice); pd.classList.toggle('empty', !p.sample || (chop && cell >= chop.pts.length)); pd.classList.toggle('cursor', UI.panel && UI.keys && cell === UI.keyCell);
-    pd.classList.toggle('kroot', !!(kc && kc.root)); pd.classList.toggle('kout', !!(kc && kc.out)); pd.classList.toggle('kchord', !!(kc && kc.chord)); pd.classList.toggle('kprog', !!(kc && kc.prog)); if (kc && kc.none) pd.classList.add('empty');
+    pd.classList.toggle('klatch', !!(kc && KEYS.latch && KEYS.latch.pi === pi && KEYS.latch.cell === cell)); pd.classList.toggle('kroot', !!(kc && kc.root)); pd.classList.toggle('kout', !!(kc && kc.out)); pd.classList.toggle('kchord', !!(kc && kc.chord)); pd.classList.toggle('kprog', !!(kc && kc.prog)); if (kc && kc.none) pd.classList.add('empty');
     const html = `<span class="pn">${chop ? cell + 1 : pn != null ? esc(pn) : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; } });
   const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; }
 }
+function stopLatch() { if (KEYS.latch) { send({ t: 'arpStop', tag: KEYS.latch.tag }); KEYS.latch = null; } }
+// notes the arpeggiator played: recorded as played while recording, otherwise kept for Capture
+function arpPlayed(list) {
+  const rec = T.playing && T.rec, touched = new Set();
+  for (const [pi, semi, vel, si, tick, len] of list) { const sc = P.scenes[si]; if (!sc) continue; const L = sc.bars * BAR, t = fixT(((tick % L) + L) % L);
+    if (rec) { touchPad(pi); (sc.notes[pi] = sc.notes[pi] || []).push({ t, len, p: semi, v: vel }); touched.add(si); }
+    else { CAP.push({ pi, semi, vel, at: ctx ? ctx.currentTime : 0, pos: { scene: si, tick: t }, len }); if (CAP.length > 512) CAP.shift(); } }
+  if (touched.size) { touched.forEach(si => syncScene(si)); markDirty(); if (touched.has(UI.scene)) { refreshPadDots(); if (UI.view === 'seq') drawTL(); } renderScenes(); }
+}
 function keysStatus(pi) { const kx = kxOf(pi), oc = UI.oct ? ` · Oct ${UI.oct > 0 ? '+' : ''}${UI.oct}` : '';
-  return (kx.mode === 'chords' ? (kx.prog ? PROGS[kx.prog - 1].n : 'Chords') + ' · ' : kx.mode === 'scale' ? 'Scale · ' : '') + keyName(padKey(pi)) + oc; }
+  return (kx.mode === 'chords' ? (kx.prog ? PROGS[kx.prog - 1].n : 'Chords') + (kx.arp ? ' · Arp' : '') + ' · ' : kx.mode === 'scale' ? 'Scale · ' : '') + keyName(padKey(pi)) + oc; }
 function flashCell(cell) { const pd = document.querySelector(`.grid .pad[data-cell="${cell}"]`); if (!pd) return; pd.classList.add('hit'); clearTimeout(pd._f); pd._f = setTimeout(() => pd.classList.remove('hit'), 90); }
 // sequenced notes light the pads; for a chopped pad the slice number comes along (k), so its slice lights and the playhead runs
 function flashPad(pi, k = -1) {
@@ -820,6 +874,12 @@ function padDown(cell) {
   else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; refreshPadDots(); updatePanel(); } }
   const pad = P.pads[pi]; flashCell(cell); if (!pad.sample) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return; }
   const tag = tagSeq++; ensureSample(pad.sample);
+  if (kc && kc.chord && kxOf(pi).arp) {   // arpeggiator: the engine plays the chord's notes in time; latch keeps it going after you let go
+    const kx = kxOf(pi), notes = playChord(pi, kc.chord), lt = KEYS.latch;
+    if (lt) { send({ t: 'arpStop', tag: lt.tag }); KEYS.latch = null; if (kx.latch && lt.pi === pi && lt.cell === cell) { refreshPadDots(); return; } }
+    send({ t: 'arp', pad: pi, tag, notes: notes.map(x => ({ semi: x.semi, vel: x.vel })), pat: kx.apat, rate: kx.arate, oct: kx.aoct, gate: kx.agate });
+    if (kx.latch) { KEYS.latch = { tag, pi, cell }; refreshPadDots(); } else HELD[cell] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return;
+  }
   if (kc && kc.chord) {   // a chord: every note shares one tag, so letting go releases them all (and cancels strummed notes not yet played)
     const notes = playChord(pi, kc.chord); send({ t: 'hit', pad: pi, notes, tag });
     const live = T.playing && T.rec, rec = [], cap = [];
@@ -832,7 +892,8 @@ function padDown(cell) {
 }
 function padUp(cell) {
   const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
-  if (pad.mode === 'gate') { send({ t: 'rel', tag: hd.tag, rel: pad.rel }); const s = UI.tl.snap || 6, held = ((ctx ? ctx.currentTime : 0) - hd.start) / spt();
+  if (hd.arp) { send({ t: 'arpStop', tag: hd.tag }); return; }
+  if (pad.mode === 'gate' || pad.mode === 'loop') { send({ t: 'rel', tag: hd.tag, rel: pad.rel }); const s = UI.tl.snap || 6, held = ((ctx ? ctx.currentTime : 0) - hd.start) / spt();
     const len = k => Math.max(s, Math.round((held - (hd.ms[k] || 0) / 1000 / spt()) / s) * s);
     hd.cap.forEach((c, k) => { c.len = len(k); }); hd.rec.forEach((r, k) => { r.n.len = len(k); });
     if (hd.rec.length) { syncScene(hd.rec[0].scene); markDirty(); } }
@@ -1049,19 +1110,20 @@ async function importFiles(files, firstPad) {
     (ids.length > placed.length && placed.length ? `; ${ids.length - placed.length} more in the library` : '') + (failed.length ? `. ${failed.length} file${failed.length > 1 ? 's' : ''} could not be read as audio.` : '.'));
 }
 function openLibrary() {
-  buildBuiltins(true);
   openSheet('Sound library', card => {
     const top = h('div', 'row'), q = h('input', 'textin'); q.placeholder = 'Search sounds'; q.style.flex = '1'; top.append(q, btn('Import', () => { closeSheet(); pickAudio(UI.pad); }, 'btn on')); card.append(top);
     const box = h('div', 'stack'); box.style.marginTop = '10px'; card.append(box);
     const used = usedSampleIds();
     const draw = () => { box.innerHTML = ''; const f = q.value.trim().toLowerCase(), all = [...SAMPLES.values()].filter(s => !s.frz && (!f || s.name.toLowerCase().includes(f)));
-      const mine = all.filter(s => !s.builtin).sort((a, b) => (b.added || 0) - (a.added || 0)), kit = all.filter(s => s.builtin);
-      for (const [title, arr] of [['Your sounds', mine], ['Built-in', kit]]) { if (!arr.length) continue; box.append(h('div', 'sec', title)); const list = h('div', 'list');
-        for (const s of arr) { const li = h('div', 'li' + (P.pads[UI.pad].sample === s.id ? ' on' : ''));
-          li.innerHTML = `<div class="lt"><b>${esc(s.name)}</b><span>${(s.frames / s.sr).toFixed(2)} s · ${s.ch === 2 ? 'stereo' : 'mono'}${used.has(s.id) ? ' · in use' : ''}</span></div>`;
-          const pv = btn('▶', e => { e.stopPropagation(); previewSample(s.id); }, 'btn xs'); pv.setAttribute('aria-label', 'Preview ' + s.name); li.append(pv);
-          li.append(btn('Use', e => { e.stopPropagation(); pushUndo('pad:' + UI.pad); touchPad(UI.pad); const kit2 = s.builtin ? ALL_BUILTINS.find(k => 'b:' + k[0] === s.id) : null;
-            Object.assign(P.pads[UI.pad], { sample: s.id, name: s.name.slice(0, 12), start: 0, end: 1 }, kit2 ? { mode: kit2[3], rel: kit2[4] } : {}); syncPad(UI.pad); markDirty(); audition(UI.pad); draw(); }, 'btn xs on'));
+      const mine = all.filter(s => !s.builtin).sort((a, b) => (b.added || 0) - (a.added || 0));
+      // built-ins are listed by pack and only synthesized when you preview or use one
+      const packs = PACKS.map(([title, keys]) => [title, keys.map(k => ALL_BUILTINS.find(x => x[0] === k)).filter(k => k && (!f || k[1].toLowerCase().includes(f) || title.toLowerCase().includes(f))).map(k => ({ id: 'b:' + k[0], name: k[1].replace(/ \((classic|jungle)\)$/, ''), builtin: true, kit: k }))]);
+      for (const [title, arr] of [['Your sounds', mine], ...packs]) { if (!arr.length) continue; box.append(h('div', 'sec', title)); const list = h('div', 'list');
+        for (const s of arr) { const li = h('div', 'li' + (P.pads[UI.pad].sample === s.id ? ' on' : '')), b = SAMPLES.get(s.id);
+          li.innerHTML = `<div class="lt"><b>${esc(s.name)}</b><span>${b ? (b.frames / b.sr).toFixed(2) + ' s' : 'Built-in'}${s.kit && s.kit[3] === 'loop' ? ' · loops' : ''}${used.has(s.id) ? ' · in use' : ''}</span></div>`;
+          const pv = btn('▶', e => { e.stopPropagation(); if (s.kit) buildBuiltin(s.kit[0]); previewSample(s.id); }, 'btn xs'); pv.setAttribute('aria-label', 'Preview ' + s.name); li.append(pv);
+          li.append(btn('Use', e => { e.stopPropagation(); pushUndo('pad:' + UI.pad); touchPad(UI.pad); const kit2 = s.kit; if (kit2) buildBuiltin(kit2[0]);
+            Object.assign(P.pads[UI.pad], { sample: s.id, name: s.name.slice(0, 12), start: 0, end: 1 }, kit2 ? Object.assign({ mode: kit2[3], rel: kit2[4] }, JUNGLE_PAD[kit2[0]] || {}) : {}); syncPad(UI.pad); markDirty(); audition(UI.pad); draw(); }, 'btn xs on'));
           if (!s.builtin && !used.has(s.id)) li.append(confirmBtn('✕', 'Delete?', () => { deleteSample(s.id); draw(); }, 'btn xs warn'));
           list.append(li); }
         box.append(list); }
@@ -1117,10 +1179,15 @@ function openMenu() {
     st.append(h('p', 'note', (window.claude ? 'Exports are 48 kHz 16-bit WAV files inside a .zip. Song export plays scenes in order with their repeats.' : 'Exports are 48 kHz 16-bit WAV files. Song export plays scenes in order with their repeats.')));
     st.append(h('div', 'sec', 'Backup')); g = h('div', 'g2'); g.append(btn('Save backup file', saveBackup), btn('Open backup file', () => $('#fileProj').click())); st.append(g);
     st.append(h('p', 'note', DB.ok ? 'Your work saves automatically on this device. A backup file keeps it safe and moves it to another device.' : 'This browser is not keeping your work between visits. Save a backup file before you leave.'));
+    st.append(h('div', 'sec', 'Look')); const tg = h('div', 'g4');
+    for (const th of THEMES) { const b = btn(`<i class="swd" style="--sa:${th.accent};--sb:${th.body ? th.body[2] : '#3b3b41'}"></i>${th.name}`, () => { UI.theme = th.id; applyTheme(); savePrefs(); closeSheet(); openMenu(); }, 'btn theme' + (UI.theme === th.id ? ' on' : '')); tg.append(b); }
+    st.append(tg); g = h('div', 'g3'); for (const [v, l] of [['dark', 'Pads: dark'], ['tint', 'Pads: tinted'], ['bright', 'Pads: colour']]) g.append(btn(l, () => { UI.padStyle = v; applyTheme(); savePrefs(); closeSheet(); openMenu(); }, 'btn' + ((UI.padStyle || 'dark') === v ? ' on' : '')));
+    st.append(g);
     st.append(h('div', 'sec', 'Edit')); g = h('div', 'g2'); g.append(btn('Redo', redo), btn(UI.mirror ? 'Move d-pad left' : 'Move d-pad right', () => { UI.mirror = !UI.mirror; $('#panel').classList.toggle('mirror', UI.mirror); savePrefs(); closeSheet(); })); st.append(g);
     g = h('div', 'g2'); g.append(btn('Haptics: ' + (UI.haptics ? 'On' : 'Off'), () => { UI.haptics = !UI.haptics; savePrefs(); haptic(); closeSheet(); toast(UI.haptics ? 'Haptics on (iPhone needs iOS 18)' : 'Haptics off'); }, 'btn' + (UI.haptics ? ' on' : ''))); st.append(g);
     g = h('div', 'g2'); g.append(confirmBtn('New project', 'Tap again: start fresh', () => { pushUndo('all'); if (T.playing) stop(); P = newProject(); afterLoad(); closeSheet(); toast('New project. Bank A has the built-in kit.'); }),
       confirmBtn('Load demo song', 'Tap again to load demo', () => { pushUndo('all'); if (T.playing) stop(); P = demoProject(); afterLoad(); closeSheet(); }, 'btn')); st.append(g);
+    g = h('div', 'g2'); g.append(confirmBtn('New: Liquid jungle kit', 'Tap again: start it', newJungle, 'btn')); st.append(g);
     card.append(st); });
 }
 function afterLoad() { ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
@@ -1431,11 +1498,12 @@ async function boot() {
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {}
   const saved = await DB.get('kv', 'project');
   for (const s of await DB.all('samples')) { const r = upgradeSampleRecord(s); if (r) { SAMPLES.set(r.id, r); if (r !== s) DB.put('samples', r.id, r); } }
-  P = saved ? migrate(saved) : demoProject(); ensureBuiltinsFor(P);
+  P = saved ? migrate(saved) : demoProject(); await warmBuiltins(P); ensureBuiltinsFor(P);
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (pr.snap != null) UI.tl.snap = pr.snap;
+    UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); }
-  $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
+  applyTheme(); $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
 }

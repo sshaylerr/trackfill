@@ -142,6 +142,12 @@ Chord progressions aren't owned by songs, but naming them after songs in the app
 
 "Idiom" means a common way of playing rather than one song. Ideas for more are welcome: any song you love, I can work out its progression and voicing.
 
+## Sound packs
+
+| Pack | Inspired by | What's in it | Status |
+| --- | --- | --- | --- |
+| Liquid jungle | Sigma and Danny Byrd style liquid DnB and jungle; the classic funk breaks (the "Think" break) | Kick, snare, ghost, rim, hats, shaker, ride; a funk break of our own at 170 (chopped, follows tempo); piano, e-piano, organ, strings, atmosphere, pluck, vox, all long and tuned to C; seamless-looping Reese and sub; jungle 808; riser, downlifter, impact, rewind, vinyl | Building: first pass in the app |
+
 ## Synths
 
 Your ideas go first; the rows below are mine to compare against. Each synth plays from a pad like a sound, with up to 8 voices, and shares the filter cores above.

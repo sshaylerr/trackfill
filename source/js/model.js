@@ -102,7 +102,164 @@ const KIT = [['dkick', 'Kick', 0, 'one', .03], ['dsnare', 'Snare', 1, 'one', .04
   ['hoover', 'Hoover', 5, 'gate', .25], ['rave', 'Rave Stab', 5, 'one', .1], ['hey', 'Hey', 6, 'one', .05], ['riser2', 'Riser', 6, 'one', .05]];
 // in the library only: extra sounds and the original kit (kept so older projects still play)
 const EXTRA = [['break170', 'Break 170', 2, 'one', .02], ['siren', 'Siren', 6, 'gate', .2]];
-const ALL_BUILTINS = KIT.concat(EXTRA, CLASSIC.map(k => [k[0], k[1] + ' (classic)', k[2], k[3], k[4]]));
+/* ---------- Liquid jungle pack: crisp drums, a funk break, long natural-sounding keys and pads tuned to C, loopable sustains, FX ---------- */
+const NC2 = 65.41, NC3 = 130.81, NC4 = 261.63;
+// decaying sine partials as rotating phasors (cheap): parts = [[freq, amp, decay per second], ...]
+function partials(L, parts) {
+  const n = Math.floor(L * KIT_SR), out = new Float32Array(n);
+  for (const [f, a, d] of parts) { if (f >= KIT_SR * .45) continue; const w = 2 * Math.PI * f / KIT_SR, cw = Math.cos(w), sw = Math.sin(w), k = Math.exp(-d / KIT_SR);
+    let c = Math.cos(f), s = Math.sin(f), g = a; for (let i = 0; i < n; i++) { out[i] += s * g; const c2 = c * cw - s * sw; s = c * sw + s * cw; c = c2; g *= k; } }
+  return out;
+}
+// small Schroeder room for the break
+function room(x, fb = .72, damp = .35, mix = .14) {
+  const combs = [1116, 1188, 1277, 1356].map(n => ({ b: new Float32Array(n), i: 0, z: 0 })), aps = [556, 441].map(n => ({ b: new Float32Array(n), i: 0 })), out = new Float32Array(x.length);
+  for (let t = 0; t < x.length; t++) { let s = 0; const inp = x[t] * .25;
+    for (const c of combs) { const y = c.b[c.i]; c.z = y * (1 - damp) + c.z * damp; c.b[c.i] = inp + c.z * fb; c.i = (c.i + 1) % c.b.length; s += y; }
+    for (const a of aps) { const y = a.b[a.i]; a.b[a.i] = s + y * .5; s = y - s * .5; a.i = (a.i + 1) % a.b.length; }
+    out[t] = x[t] + s * mix; }
+  return out;
+}
+const env1 = (t, a) => t < a ? t / a : 1;
+// loopable sounds are built so the loop is seamless: every oscillator and LFO completes a whole number of cycles over the loop (Ll seconds)
+const cyc = (f, Ll) => Math.max(1, Math.round(f * Ll)) / Ll;
+Object.assign(SOUNDS, {
+  jkick() { let ph = 0; const hp = biquad('hp', 3000, .7); return finish(gen(.4, t => { ph += 2 * Math.PI * (50 + 165 * Math.exp(-t * 45) + 28 * Math.exp(-t * 9)) / KIT_SR;
+    return Math.tanh(2.1 * Math.sin(ph) * Math.exp(-t * 8.5) * env1(t, .0008)) + (t < .005 ? hp(noise()) * .45 * (1 - t / .005) : 0); }), .95); },
+  jsnare() { const bp = biquad('bp', 5200, .8), hp = biquad('hp', 1500, .7); let p1 = 0, p2 = 0; const x = gen(.45, t => { p1 += 2 * Math.PI * (195 + 45 * Math.exp(-t * 55)) / KIT_SR; p2 += 2 * Math.PI * 340 / KIT_SR;
+      const body = (Math.sin(p1) * .85 + Math.sin(p2) * .3) * Math.exp(-t * 30), n = hp(bp(noise()) * 1.3 + noise() * .3) * (Math.exp(-t * 17) * .85 + Math.exp(-t * 7) * .15);
+      return Math.tanh(1.7 * (body + n)); });
+    return finish(room(x, .6, .4, .1), .95, .03); },
+  jghost() { const hp = biquad('hp', 2200, .7); let p = 0; return finish(gen(.16, t => { p += 2 * Math.PI * 230 / KIT_SR; return (hp(noise()) * .9 + Math.sin(p) * .25) * Math.exp(-t * 32) * env1(t, .001); }), .45); },
+  jrim() { const bp = biquad('bp', 3800, 1.2); let p = 0; return finish(gen(.25, t => { p += 2 * Math.PI * (300 + 80 * Math.exp(-t * 70)) / KIT_SR;
+    return Math.tanh(1.5 * (Math.sin(p) * Math.exp(-t * 34) * .8 + bp(noise()) * Math.exp(-t * 22) * 1.4)); }), .9); },
+  jhat() { const hp = biquad('hp', 8800, .8); return finish(gen(.07, t => hp(metal(t, 455) * .55 + noise() * .55) * Math.exp(-t * 62)), .62); },
+  johat() { const hp = biquad('hp', 7600, .8); return finish(gen(.5, t => hp(metal(t, 430) * .55 + noise() * .5) * Math.exp(-t * 7) * env1(t, .002)), .5, .05); },
+  jshaker() { const bp = biquad('bp', 6500, .9); return finish(gen(.12, t => bp(noise()) * (t < .012 ? t / .012 : Math.exp(-(t - .012) * 40))), .45); },
+  jride() { const bp = biquad('bp', 7000, .7); let p = 0; return finish(gen(1.8, t => { p += 2 * Math.PI * 2650 / KIT_SR;
+    return bp(metal(t, 560) * .65 + noise() * .12) * (Math.exp(-t * 2) * .6 + Math.exp(-t * 25) * .4) + Math.sin(p) * .12 * Math.exp(-t * 4); }), .45, .12); },
+  // the break's own drums: rounder, roomier, like a real kit
+  bkick() { let ph = 0; const bp = biquad('bp', 3000, 1); return finish(gen(.35, t => { ph += 2 * Math.PI * (58 + 85 * Math.exp(-t * 32)) / KIT_SR;
+    return Math.sin(ph) * Math.exp(-t * 11) * env1(t, .001) + bp(t < .004 ? noise() : 0) * 1.5; }), .95); },
+  bsnare() { const bp = biquad('bp', 3400, .7), hp = biquad('hp', 900, .7); let p1 = 0, p2 = 0; return finish(gen(.5, t => { p1 += 2 * Math.PI * (210 + 30 * Math.exp(-t * 40)) / KIT_SR; p2 += 2 * Math.PI * 365 / KIT_SR;
+    return Math.tanh(1.4 * ((Math.sin(p1) * .7 + Math.sin(p2) * .3) * Math.exp(-t * 22) + hp(bp(noise())) * 1.4 * (Math.exp(-t * 12) * .8 + Math.exp(-t * 6) * .2))); }), .95); },
+  // a funky two-bar break at 170 BPM: ghost notes, swung hats, an open hat, a bit of room. Our own pattern, in the spirit of the classic funk breaks
+  jbreak() { const spb = 60 / 170, st = spb / 4, L = spb * 8 + .5, out = new Float32Array(Math.floor(L * KIT_SR));
+    const bk = SOUNDS.bkick(), bs = SOUNDS.bsnare(), gh = SOUNDS.jghost(), hh = SOUNDS.jhat(), oh = SOUNDS.johat();
+    const put = (src, step, g) => { const o = Math.floor((step * st + (step % 2 ? st * .16 : 0)) * KIT_SR); for (let i = 0; i < src.length && o + i < out.length; i++) out[o + i] += src[i] * g; };
+    for (const [s, g] of [[0, 1], [10, .82], [16, 1], [19, .55], [22, .85], [26, .8]]) put(bk, s, g);
+    for (const [s, g] of [[4, 1], [12, .97], [20, 1], [28, 1]]) put(bs, s, g);
+    for (const [s, g] of [[7, .5], [9, .42], [15, .55], [23, .45], [25, .5], [30, .4], [31, .6]]) put(gh, s, g);
+    for (let s = 0; s < 32; s++) { if (s === 14 || s === 30) { put(oh, s, .42); continue; } put(hh, s, s % 2 ? (s % 4 === 3 ? .3 : .2) : (s % 4 ? .42 : .55)); }
+    const lp = biquad('lp', 11000, .7), w = room(out, .7, .45, .16); let m = 0; for (const v of w) m = Math.max(m, Math.abs(v));
+    for (let i = 0; i < w.length; i++) w[i] = Math.tanh(1.25 * lp(w[i] / m)) * .92;
+    return finish(w, .92, .05); },
+  // keys and pads: long, so chord notes held at any pitch end together (when you let go, not when the sample runs out)
+  jpiano() { const parts = [], B = .00035;
+    for (let n = 1; n <= 22; n++) { const f = n * NC3 * Math.sqrt(1 + B * n * n), a = Math.pow(n, -1.1) * (1 + .7 * Math.exp(-n / 2.5)) * (n === 1 ? .7 : 1), d = .38 + .06 * Math.pow(n, 1.55);
+      parts.push([f, a * .6, d], [f * 1.0006, a * .4, d * .2 + .06]); }   // two strings: a quick first decay and a long, slightly detuned tail
+    const x = partials(7.5, parts), bp = biquad('bp', 2200, 1.1); let th = 0;
+    for (let i = 0; i < x.length; i++) { const t = i / KIT_SR; th += 2 * Math.PI * 85 / KIT_SR; x[i] = Math.tanh(1.15 * (x[i] * env1(t, .0015) + bp(noise()) * .2 * Math.exp(-t * 85) + Math.sin(th) * .12 * Math.exp(-t * 35))); }
+    return finish(x, .85, .4); },
+  jkeys() { let pc = 0, pt = 0; return finish(gen(6.5, t => { pc += 2 * Math.PI * NC3 / KIT_SR; pt += 2 * Math.PI * NC3 * 7 / KIT_SR;
+    const I = .25 + 1.7 * Math.exp(-t * 3.2), body = Math.sin(pc + I * Math.sin(pc)) * (Math.exp(-t * .5) * .72 + Math.exp(-t * 2.4) * .28);
+    const tine = Math.sin(pt + .9 * Math.exp(-t * 18) * Math.sin(pc)) * Math.exp(-t * 8) * .24;
+    return Math.tanh(1.25 * (body + tine)) * (1 + .05 * Math.sin(2 * Math.PI * 4.2 * t) * Math.min(1, t / 1)) * env1(t, .0015); }), .85, .4); },
+  jorgan() { const dr = [[.5, .5], [1, 1], [1.5, .4], [2, .55], [3, .18], [4, .3]], ph = dr.map(() => 0), Ll = 2.4, f0 = cyc(NC3 / 2, Ll) * 2, vr = cyc(6.3, Ll);
+    return finish(gen(3, t => { const v = 1 + .0022 * Math.sin(2 * Math.PI * vr * t); let s = 0; dr.forEach(([r, a], k) => { ph[k] += 2 * Math.PI * f0 * r * v / KIT_SR; s += Math.sin(ph[k]) * a; });
+      return Math.tanh(.6 * (s + Math.sin(ph[3] * 1.5) * .45 * Math.exp(-t * 7))) * env1(t, .003) + (t < .006 ? noise() * .2 * (1 - t / .006) : 0); }), .8, 0); },
+  jstrings() { const Ll = 4.8, det = [-.011, -.006, -.0025, 0, .0025, .006, .011], fr = det.map(d => cyc(NC3 * (1 + d), Ll)), vr = det.map((_, k) => cyc(5 + k * .21, Ll)), ph = det.map(() => (noise() + 1) / 2), lp = biquad('lp', 3000, .6), lp2 = biquad('lp', 4800, .5);
+    return finish(gen(6, t => { let s = 0; for (let k = 0; k < det.length; k++) { const vib = 1 + .0028 * Math.sin(2 * Math.PI * vr[k] * t + k); ph[k] = (ph[k] + fr[k] * vib / KIT_SR) % 1; s += saw(ph[k]); }
+      return lp2(lp(s * .2)) * env1(t, .04); }), .75, 0); },
+  jatmos() { const Ll = 7.5, det = [-.008, -.003, .003, .008], fr = det.map((d, k) => cyc(NC3 * (1 + d) * (k % 2 ? 2 : 1), Ll)), ph = det.map(() => (noise() + 1) / 2), f = svfMod(), air = svfMod(), fs = cyc(NC3, Ll), l1 = 1 / Ll, l2 = 2 / Ll; let sub = 0;
+    return finish(gen(10, t => { let s = 0; for (let k = 0; k < 4; k++) { ph[k] = (ph[k] + fr[k] / KIT_SR) % 1; s += saw(ph[k]); }
+      sub += 2 * Math.PI * fs / KIT_SR; const cut = 750 + 450 * Math.sin(2 * Math.PI * l1 * t - 1.5) + 220 * Math.sin(2 * Math.PI * l2 * t);
+      return (f(s * .25, cut, .7).lo + Math.sin(sub) * .14 + air(noise(), 3200 + 1400 * Math.sin(2 * Math.PI * l1 * t), .5).bp * .05) * env1(t, .08); }), .7, 0); },
+  jpluck() { const f = svfMod(); let a = 0, b = 0; return finish(gen(2, t => { a = (a + NC4 / KIT_SR) % 1; b = (b + NC4 * 1.004 / KIT_SR) % 1;
+    return f(saw(a) * .6 + (b < .5 ? .45 : -.45), 260 + 6200 * Math.exp(-t * 16) + 600 * Math.exp(-t * 3), .45).lo * Math.exp(-t * 2.6) * env1(t, .0015); }), .85, .05); },
+  jvox() { const F = [[800, .11, 1], [1150, .12, .6], [2900, .14, .25], [3300, .16, .15]].map(([fr, q, g]) => [svfMod(), fr, q, g]), Ll = 2.8, f0 = cyc(NC4, Ll), vr = cyc(5.3, Ll); let ph = 0;
+    return finish(gen(4, t => { const vib = 1 + .011 * Math.sin(2 * Math.PI * vr * t) * Math.min(1, t / .6); ph = (ph + f0 * vib / KIT_SR) % 1;
+      const src = (saw(ph) - .6 * Math.sin(2 * Math.PI * ph)) * .7 + noise() * .05; let y = 0; for (const [s, fr, q, g] of F) y += s(src, fr, q).bp * g;
+      return Math.tanh(2 * y) * env1(t, .06); }), .8, 0); },
+  // bass: long and loopable
+  jreese() { const f = svfMod(), Ll = 6.8, fa = cyc(NC2 * .9935, Ll), fb = cyc(NC2 * 1.0068, Ll), fc = cyc(NC2 * 1.0015, Ll), fs = cyc(NC2, Ll), l1 = 2 / Ll, l2 = 4 / Ll; let a = 0, b = 0, c = 0, s = 0;
+    return finish(gen(8, t => { a = (a + fa / KIT_SR) % 1; b = (b + fb / KIT_SR) % 1; c = (c + fc / KIT_SR) % 1; s += 2 * Math.PI * fs / KIT_SR;
+    const cut = 650 + 280 * Math.sin(2 * Math.PI * l1 * t) + 120 * Math.sin(2 * Math.PI * l2 * t + 1);
+    return Math.tanh(1.4 * f((saw(a) + saw(b) + .6 * saw(c)) * .5, cut, .5).lo + .55 * Math.sin(s)) * env1(t, .006); }), .85, 0); },
+  j808() { let ph = 0; return finish(gen(4, t => { ph += 2 * Math.PI * NC2 * Math.pow(2, 7 * Math.exp(-t * 28) / 12) / KIT_SR;
+    return Math.tanh(2.2 * Math.sin(ph) * Math.exp(-t * .6) * env1(t, .002)) * (.85 + .15 * Math.exp(-t * 8)); }), .9, .2); },
+  jsub() { let ph = 0; const f = cyc(NC2, 2.4); return finish(gen(3, t => { ph += 2 * Math.PI * f / KIT_SR; return (Math.sin(ph) + .08 * Math.sin(2 * ph)) * env1(t, .004); }), .9, 0); },
+  // FX
+  jriser() { const f = svfMod(); let ph = 0; const L = 4; return finish(gen(L, t => { const u = t / L; ph = (ph + 180 * Math.pow(4, u) / KIT_SR) % 1;
+    return (f(noise(), 300 * Math.pow(32, u * u), .35).bp + saw(ph) * .15 * u) * Math.pow(u, 1.7) * Math.min(1, (L - t) / .02); }), .75, .01); },
+  jdown() { const f = svfMod(); let ph = 0; const L = 3; return finish(gen(L, t => { const u = t / L; ph += 2 * Math.PI * (40 + 860 * Math.pow(1 - u, 2.5)) / KIT_SR;
+    return (f(noise(), 150 + 8000 * Math.pow(1 - u, 2), .6).lo * .6 + Math.sin(ph) * .5) * Math.exp(-t * 1.1) * env1(t, .01); }), .8, .1); },
+  jimpact() { let ph = 0; const hp = biquad('hp', 3000, .7), lp = biquad('lp', 1200, .7); return finish(gen(3.5, t => { ph += 2 * Math.PI * (28 + 40 * Math.exp(-t * 5)) / KIT_SR;
+    return Math.tanh(1.6 * Math.sin(ph) * Math.exp(-t * 1.2)) * .8 + hp(noise()) * .35 * Math.exp(-t * 1.5) + lp(noise()) * .5 * Math.exp(-t * 5); }), .9, .2); },
+  // a jungle rewind: the break spun backwards, speeding up, then slowing to a stop
+  jrewind() { const b = SOUNDS.jbreak(), L = 1.8, n = Math.floor(L * KIT_SR), out = new Float32Array(n); let pos = b.length - 1;
+    for (let i = 0; i < n; i++) { const u = i / n, v = u < .7 ? .6 + 7 * Math.pow(u / .7, 2) : 7.6 * Math.pow(1 - (u - .7) / .3, 2); pos -= v; if (pos < 1) pos += b.length - 2;
+      const k = Math.floor(pos), fr = pos - k; out[i] = (b[k] * (1 - fr) + b[k + 1] * fr) * Math.min(1, (n - i) / 2000); }
+    const lp = biquad('lp', 6000, .7); for (let i = 0; i < n; i++) out[i] = lp(out[i]); return finish(out, .85, .02); },
+  jvinyl() { const hp = biquad('hp', 900, .7), lp = biquad('lp', 5000, .7); let pop = 0;
+    return finish(gen(6, t => { if (noise() > .9985) pop = noise() * (noise() > .9 ? 1 : .4); pop *= .82; return hp(pop) + lp(noise()) * .035; }), .35, .02); },
+});
+// key, name, color, mode, release
+const JUNGLE = [['jkick', 'Kick', 0, 'one', .03], ['jsnare', 'Snare', 1, 'one', .04], ['jghost', 'Ghost', 1, 'one', .02], ['jrim', 'Rim', 1, 'one', .02],
+  ['jhat', 'Hat', 2, 'one', .02], ['johat', 'Open Hat', 2, 'one', .05], ['jshaker', 'Shaker', 2, 'one', .02], ['jride', 'Ride', 7, 'one', .1],
+  ['jbreak', 'Funk Break', 2, 'one', .02], ['j808', 'Jungle 808', 3, 'gate', .12], ['jreese', 'Reese', 3, 'loop', .1], ['jsub', 'Sub', 3, 'loop', .06],
+  ['jriser', 'Riser', 6, 'one', .05], ['jdown', 'Downlifter', 6, 'one', .1], ['jimpact', 'Impact', 0, 'one', .2], ['jrewind', 'Rewind', 6, 'one', .02],
+  ['jpiano', 'Piano', 1, 'gate', .45], ['jkeys', 'E-Piano', 1, 'gate', .4], ['jorgan', 'Organ', 5, 'loop', .12], ['jstrings', 'Strings', 5, 'loop', .7],
+  ['jatmos', 'Atmosphere', 5, 'loop', 1.6], ['jpluck', 'Pluck', 0, 'gate', .18], ['jvox', 'Vox Ah', 6, 'loop', .35], ['jvinyl', 'Vinyl', 7, 'loop', .3]];
+// where each loopable sound's loop starts (fraction of the sample) and its crossfade (seconds), plus attack
+// (the synth loops are seamless by construction, so they only need a tiny crossfade; the noisy ones get a longer one)
+const JUNGLE_PAD = { jreese: { loopS: .15, xf: .005 }, jsub: { loopS: .2, xf: .005 }, jorgan: { loopS: .2, xf: .005 }, jstrings: { loopS: .2, xf: .005, atk: .25 },
+  jatmos: { loopS: .25, xf: .02, atk: .9 }, jvox: { loopS: .3, xf: .02, atk: .06 }, jvinyl: { loopS: .05, xf: .3 } };
+
+// A starter project with the jungle pack: kit and break on bank A, keys and pads on bank B (set up for Chords), F minor at 174
+function jungleProject() {
+  const p = newProject(true), HM = HMN(), prog = n => HM.PROGS.findIndex(x => x.n === n) + 1; p.name = 'Liquid jungle'; p.bpm = 174; p.key = { root: 5, scale: 5 };
+  JUNGLE.forEach(([k, name, color, mode, rel], i) => Object.assign(p.pads[i], { name, sample: 'b:' + k, color, mode, rel }, JUNGLE_PAD[k] || {}));
+  const kx = (pi, o) => { p.pads[pi].kx = HM.normalizeKx(Object.assign({ mode: 'chords' }, o)); p.pads[pi].poly = 12; };
+  kx(16, { prog: prog('Liquid roll'), voicing: 'piano', strum: 10, feel: .6 }); kx(17, { prog: prog('Two of a kind'), voicing: 'rootless', feel: .6 });
+  kx(18, { prog: prog('Deep stabs'), voicing: 'stab', colour: 'seventh' }); kx(19, { prog: prog('Night drive'), voicing: 'wide' }); kx(20, { prog: prog('Liquid roll'), voicing: 'wide' });
+  kx(21, { prog: prog('Liquid roll'), voicing: 'close', arp: true, apat: 'updown', arate: 24, aoct: 2, agate: .45, latch: true }); p.pads[22].kx = HM.normalizeKx({ mode: 'scale' });
+  const S = p.scenes, q = 24, add = (s, pi, t, len, pp = 0, v = .9) => { (S[s].notes[pi] = S[s].notes[pi] || []).push({ t, len, p: pp, v }); };
+  Object.assign(S[0], { name: 'Intro' }); Object.assign(S[1], { name: 'Roller', repeat: 2 });
+  // the break, chopped by its hits and following the song tempo
+  const brk = buildKitSample('jbreak', 'Funk Break'), bp = p.pads[8]; Object.assign(bp, { tempo: 170, chop: newChop() }); rechop(bp, brk);
+  const beats = bp.chop.pts.map(v => v * brk.frames / brk.sr * 170 / 60);
+  for (const b of [0, 2]) beats.forEach((x, k) => { if (x < 7.98) add(1, 8, b * BAR + Math.round(x * 4) * q, 12, k, .85); });
+  // chords: the Liquid roll in F minor on the piano, voiced and voice-led as the pad plays it, a whole bar each, held so they end together
+  const chords = HM.chordPads(p.key, p.pads[16].kx).slice(0, 4); let prev = null;
+  chords.forEach((c, b) => { const n = HM.voiceChord(c, 'piano', prev, { centre: 5 }); prev = n;
+    n.forEach((semi, i) => { for (const s of [0, 1]) add(s, 16, b * BAR + i * 2, BAR - 30 - i * 2, semi, +(.72 + (i === n.length - 1 ? .12 : 0) - (i % 2) * .05).toFixed(2)); });
+    add(0, 20, b * BAR, BAR, c.root - 5 + 5, .7);   // atmosphere: the root, a pad underneath
+    const root = ((c.root + 6) % 12) - 6;   // bass root near C2
+    for (const [st, l] of [[0, 10], [10, 4], [14, 2]]) add(1, 10, b * BAR + st * q, l * q - 6, root, .9);
+    add(1, 9, b * BAR, 6 * q, root, .9); });
+  add(0, 23, 0, 4 * BAR, 0, .8); add(0, 12, 2 * BAR, 2 * BAR, 0, .75); add(1, 14, 0, 48, 0, .8);
+  for (let b = 0; b < 4; b++) { const o = b * BAR; add(1, 0, o, 24); add(1, 0, o + 10 * q, 24, 0, .85); add(1, 1, o + 4 * q, 24, 0, .95); add(1, 1, o + 12 * q, 24, 0, .95);
+    for (let i = 2; i < 16; i += 4) add(1, 5, o + i * q, 12, 0, .4); for (let i = 0; i < 16; i++) add(1, 6, o + i * q, 12, 0, i % 4 === 2 ? .5 : .28); }
+  // mix: drums and break on the drum bus, bass on a group, keys and pads to the returns
+  const C = p.chans, duck = Object.assign(newFx(FX_TYPES.DUCK, { 1: .45, 3: .05, 4: .5, 6: .25 }), { trig: [0, 1] });
+  for (const pi of [0, 1, 2, 3, 4, 5, 6, 7, 8]) C[pi].out = B0;
+  Object.assign(C[8], { vol: .55, fx: [newFx(FX_TYPES.EQ, { 0: .5, 6: .55 })] }); Object.assign(C[2], { vol: .5 }); Object.assign(C[6], { vol: .42 }); Object.assign(C[7], { vol: .45 });
+  Object.assign(C[B0], { name: 'Drums', fx: [newFx(FX_TYPES.COMP, { 0: .76, 1: .35, 2: .55, 3: .4, 6: .7 }), newFx(FX_TYPES.CLIP, { 0: .1, 1: .96, 2: .3 })] });
+  for (const pi of [9, 10, 11]) C[pi].out = G0;
+  Object.assign(C[G0], { name: 'Bass', vol: .62, fx: [newFx(FX_TYPES.EQ, { 0: .3 }), duck] });
+  Object.assign(C[10], { vol: .62, fx: [newFx(FX_TYPES.SAT, { 0: .22, 3: .6 }, 2)] }); Object.assign(C[9], { vol: .6 });
+  Object.assign(C[16], { sb: .3, sa: .08, vol: .5 }); Object.assign(C[17], { sb: .28, vol: .55 }); Object.assign(C[18], { sb: .2, sa: .15, vol: .5 });
+  Object.assign(C[19], { sb: .35, vol: .45 }); Object.assign(C[20], { sb: .3, vol: .42 }); Object.assign(C[21], { sa: .3, sb: .25, vol: .45 }); Object.assign(C[22], { sb: .35, sa: .2, vol: .5 }); Object.assign(C[23], { vol: .35 });
+  Object.assign(C[12], { sb: .3, vol: .5 }); Object.assign(C[13], { sb: .3, vol: .5 }); Object.assign(C[15], { vol: .55 });
+  C[R0 + 1].fx = [newFx(FX_TYPES.REVERB, { 0: 1, 2: .5 }, 2)];
+  C[MASTER].fx = [newFx(FX_TYPES.LIMIT, null, 0)]; C[MASTER].vol = .62;
+  return p;
+}
+
+const ALL_BUILTINS = KIT.concat(EXTRA, CLASSIC.map(k => [k[0], k[1] + ' (classic)', k[2], k[3], k[4]]), JUNGLE.map(k => [k[0], k[1] + ' (jungle)', k[2], k[3], k[4]]));
+// which pack each built-in belongs to, for the library
+const PACKS = [['Liquid jungle', JUNGLE.map(k => k[0])], ['Dancefloor kit', KIT.concat(EXTRA).map(k => k[0])], ['Classic', CLASSIC.map(k => k[0])]];
 function toInt16(f) { const o = new Int16Array(f.length); for (let i = 0; i < f.length; i++) { const s = f[i] < -1 ? -1 : f[i] > 1 ? 1 : f[i]; o[i] = s < 0 ? s * 32768 : s * 32767; } return o; }
 // Sample records: { id, name, sr, ch, frames, data: Int16Array interleaved, builtin? }
 function buildKitSample(key, name) { rngS = 1 + [...key].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) % 99991; const f = SOUNDS[key](); return { id: 'b:' + key, name, sr: KIT_SR, ch: 1, frames: f.length, data: toInt16(f), builtin: true }; }
@@ -241,7 +398,7 @@ function defaultChan(c) {
 }
 // tempo: the sound's own tempo in BPM (0 = off); when set, it is repitched to follow the project tempo.
 // chop: slices of the sound. Notes on a chopped pad carry the slice number in 'p' instead of a pitch.
-function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null }; }
+function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08 }; }
 
 /* ---------- chopping ---------- */
 const MAX_SLICES = 16;
@@ -306,13 +463,14 @@ function migrate(src) {
 }
 function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : (v === v ? v : 0); }
 // harmony helpers live in harmony.js (one script with this file in the app; a require in the tests)
-const HMN = () => typeof normalizeKx === 'function' ? { normalizeKx, normalizeKey } : require('./harmony.js');
+const HMN = () => typeof normalizeKx === 'function' ? { normalizeKx, normalizeKey, PROGS, chordPads, voiceChord } : require('./harmony.js');
 function normalize(p) {
   const n = newProject(true); Object.assign(n, p); n.v = PROJECT_VERSION;
   n.key = HMN().normalizeKey(p.key);
   n.pads = Array.from({ length: NPADS }, (_, i) => { const d = Object.assign(defaultPad(i), (p.pads || [])[i] || {});
     d.tempo = +d.tempo > 0 ? Math.min(300, Math.max(20, +d.tempo)) : 0;
-    d.kx = d.kx ? HMN().normalizeKx(d.kx) : null;   // Keys view settings: notes, scale or chords (null until first changed)
+    d.kx = d.kx ? HMN().normalizeKx(d.kx) : null;
+    d.mode = ['one', 'gate', 'loop'].includes(d.mode) ? d.mode : 'one'; d.loopS = clamp01(+d.loopS || 0); d.xf = Math.max(0, Math.min(1, d.xf == null ? .08 : +d.xf || 0));   // Keys view settings: notes, scale or chords (null until first changed)
     d.voice = ['poly', 'mono', 'legato'].includes(d.voice) ? d.voice : 'poly'; d.poly = Math.max(1, Math.min(16, Math.round(+d.poly) || 8)); d.glide = Math.max(0, Math.min(1, +d.glide || 0));
     if (d.chop) { const c = Object.assign(newChop(), d.chop); c.by = ['t', 'e', 'm'].includes(c.by) ? c.by : 't'; c.div = Math.max(2, Math.min(MAX_SLICES, Math.round(+c.div) || 16)); c.sens = clamp01(+c.sens);
       c.on = !!c.on; c.choke = !!c.choke; c.pts = (Array.isArray(c.pts) ? c.pts : []).map(Number).filter(v => v >= 0 && v <= 1).sort((x, y) => x - y).filter((v, k, a) => !k || v - a[k - 1] > 1e-6).slice(0, MAX_SLICES); d.chop = c; }
@@ -369,5 +527,5 @@ function demoProject() {
   C[MASTER].fx = [newFx(FX_TYPES.CLIP, { 1: .985, 2: .5 })]; C[MASTER].vol = .6;
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
+if (typeof module !== 'undefined') module.exports = { JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
   buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };

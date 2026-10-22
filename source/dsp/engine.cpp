@@ -132,6 +132,7 @@ struct Voice {
   float gl;                                // glide coefficient per sample, 0 = no glide
   float vel, relFrom;
   double t, atkN, relStart, relEnd, delay;
+  double lpS, lpE, xfN;                    // loop (frames from 'first'): lpE <= 0 means no loop; xfN: crossfade length
   u32 age;
 };
 static Voice vc[NVOICE];
@@ -184,10 +185,22 @@ EX i32 tf_voice_start(i32 ch, i32 sid, i32 delay, float rate, float start, float
     v->on = 1; v->s = sid; v->ch = ch; v->post = post; v->tag = tag; v->rev = rev;
     v->pos = 0; v->inc = inc; v->incT = inc; v->gl = 0.f; v->first = first; v->last = last;
     v->vel = sane(vel, 0.f, 2.f, 0.8f); v->t = 0; v->atkN = atkN; v->relStart = relStart; v->relEnd = relEnd;
-    v->relFrom = envAt(v, relStart); v->delay = delay < 0 ? 0 : delay; v->age = vage++;
+    v->relFrom = envAt(v, relStart); v->delay = delay < 0 ? 0 : delay; v->age = vage++; v->lpS = v->lpE = v->xfN = 0;
     return i;
   }
   return -1;
+}
+// loop a voice just started (index from tf_voice_start): from ls (fraction of the whole sample) to the end of its region, crossfading
+// xf seconds of the material before ls into the loop end so the seam is smooth. A looped voice is held until its gate or a release.
+EX void tf_voice_loop(i32 i, float ls, float xf, float gate, float rel) {
+  if (i < 0 || i >= NVOICE || !vc[i].on || vc[i].rev) return;
+  Voice* v = &vc[i]; Samp* S = &samp[v->s]; const double span = v->last - v->first;
+  double s = sane(ls, 0.f, 1.f, 0.f) * S->frames - v->first; if (s < 0) s = 0;
+  const double len = span - s; if (len < 0.01 * S->sr) return;   // too short to loop
+  double x = sane(xf, 0.f, 2.f, 0.05f) * S->sr; x = mind(x, mind(len * 0.5, s)); if (x < 0) x = 0;
+  v->lpS = s; v->lpE = span; v->xfN = x;
+  const double relS = sane(rel, 0.f, 20.f, 0.05f) * SR, g = gate >= 0.f ? gate * SR : 1e12;
+  v->relStart = maxd(v->atkN, g); v->relEnd = v->relStart + maxd(0.008 * SR, relS); v->relFrom = envAt(v, v->relStart);
 }
 EX void tf_voice_release(i32 tag, float rel) { for (i32 i = 0; i < NVOICE; i++) if (vc[i].on && vc[i].tag == tag) voiceRelease(&vc[i], rel); }
 // choke: release every playing pad voice on a channel (frozen clips and previews are left alone)
@@ -206,7 +219,7 @@ EX i32 tf_voice_legato(i32 ch, float rate, float glide, float gate, float rel, i
   if (!b) return 0;
   Samp* S = &samp[b->s]; const double incT = (double)rate * S->sr / SR, g = sane(glide, 0.f, 10.f, 0.f) * SR;
   b->incT = incT; if (g < 1.0) { b->inc = incT; b->gl = 0.f; } else b->gl = 1.f - fexp(-4.f / (float)g);   // ~98% there after the glide time
-  const double remain = maxd(1.0, (b->last - b->first - b->pos) / incT), relS = sane(rel, 0.f, 20.f, 0.05f) * SR, t = b->t;
+  const double remain = b->lpE > 0 ? 1e12 : maxd(1.0, (b->last - b->first - b->pos) / incT), relS = sane(rel, 0.f, 20.f, 0.05f) * SR, t = b->t;
   double rs, re;
   if (gate >= 0.f) { rs = mind(t + maxd(1.0, gate * SR), t + remain - 0.005 * SR); re = mind(rs + maxd(0.008 * SR, relS), t + remain); }
   else { re = t + remain; rs = maxd(t, re - maxd(0.005 * SR, mind(relS, remain * 0.5))); }
@@ -621,6 +634,18 @@ static void fx_run(i32 c, Fx* f, float* L, float* R, i32 n) {
 }
 
 /* ================= render ================= */
+// 4-point cubic read of a sample at fractional frame f (clamped to [lo, hi])
+static inline void readAt(const i16* d, i32 st, double f, i32 lo, i32 hi, float& yl, float& yr) {
+  i32 i1 = (i32)f; float fr = (float)(f - i1); if (i1 < lo) { i1 = lo; fr = 0.f; } if (i1 > hi) { i1 = hi; fr = 0.f; }
+  i32 i0 = i1 - 1 < lo ? lo : i1 - 1, i2 = i1 + 1 > hi ? hi : i1 + 1, i3 = i1 + 2 > hi ? hi : i1 + 2;
+  for (i32 c = 0; c < 2; c++) {
+    i32 cc = st == 2 ? c : 0;
+    float y0 = d[i0 * st + cc] * 3.0517578e-5f, y1 = d[i1 * st + cc] * 3.0517578e-5f, y2 = d[i2 * st + cc] * 3.0517578e-5f, y3 = d[i3 * st + cc] * 3.0517578e-5f;
+    float c1 = 0.5f * (y2 - y0), c2 = y0 - 2.5f * y1 + 2.f * y2 - 0.5f * y3, c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+    float y = ((c3 * fr + c2) * fr + c1) * fr + y1; if (c) yr = y; else yl = y;
+    if (st == 1) { yr = y; break; }
+  }
+}
 static void renderVoices(i32 n) {
   for (i32 vi = 0; vi < NVOICE; vi++) {
     Voice* v = &vc[vi]; if (!v->on) continue;
@@ -634,18 +659,14 @@ static void renderVoices(i32 n) {
       if (v->t >= v->relEnd || v->pos >= span) { v->on = 0; break; }
       float e = v->t < v->relStart ? envAt(v, v->t) : v->relFrom * (float)(1.0 - (v->t - v->relStart) / (v->relEnd - v->relStart));
       double f = v->rev ? v->last - v->pos : first + v->pos;
-      i32 i1 = (i32)f; float fr = (float)(f - i1);
-      i32 i0 = i1 - 1 < lo ? lo : i1 - 1, i2 = i1 + 1 > hi ? hi : i1 + 1, i3 = i1 + 2 > hi ? hi : i1 + 2;
-      for (i32 c = 0; c < 2; c++) {
-        i32 cc = st == 2 ? c : 0;
-        float y0 = d[i0 * st + cc] * 3.0517578e-5f, y1 = d[i1 * st + cc] * 3.0517578e-5f, y2 = d[i2 * st + cc] * 3.0517578e-5f, y3 = d[i3 * st + cc] * 3.0517578e-5f;
-        float c1 = 0.5f * (y2 - y0), c2 = y0 - 2.5f * y1 + 2.f * y2 - 0.5f * y3, c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
-        float y = ((c3 * fr + c2) * fr + c1) * fr + y1;
-        if (c) R[i] += y * e; else L[i] += y * e;
-      }
-      v->pos += v->inc; v->t += 1.0;
+      float yl, yr; readAt(d, st, f, lo, hi, yl, yr);
+      if (v->lpE > 0 && v->xfN > 0 && v->pos > v->lpE - v->xfN) {   // loop seam: blend in the same spot one loop earlier (equal power)
+        float w = (float)((v->pos - (v->lpE - v->xfN)) / v->xfN), al, ar; readAt(d, st, f - (v->lpE - v->lpS), lo, hi, al, ar);
+        const float ga = sqrtf_(1.f - w), gb = sqrtf_(w); yl = yl * ga + al * gb; yr = yr * ga + ar * gb; }
+      L[i] += yl * e; R[i] += yr * e;
+      v->pos += v->inc; v->t += 1.0; if (v->lpE > 0 && v->pos >= v->lpE) v->pos -= v->lpE - v->lpS;
       if (v->gl > 0.f) { v->inc += (v->incT - v->inc) * v->gl;
-        if (v->t < v->relStart && span - v->pos < v->inc * 0.004 * SR) voiceRelease(v, 0.003f); }   // a glide sped it up: fade before the sample runs out
+        if (v->lpE <= 0 && v->t < v->relStart && span - v->pos < v->inc * 0.004 * SR) voiceRelease(v, 0.003f); }   // a glide sped it up: fade before the sample runs out
     }
   }
 }

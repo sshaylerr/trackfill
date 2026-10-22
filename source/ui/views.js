@@ -10,7 +10,7 @@ function renderPads(V) {
   const w = h('div', 'padsView'), top = h('div', 'toolbar');
   const ck = () => chopOf(UI.pad) ? 'Chop' : 'Keys';
   if (UI.keys && chopOf(UI.pad)) top.append(btn('Chop', () => { UI.keys = false; renderView(); }, 'key sm on kbtn'));
-  else if (UI.keys) top.append(btn('Keys', () => { UI.keys = false; renderView(); }, 'key sm on kbtn'), btn(IC.left, () => keysOct(-1), 'key sm ic'), btn(IC.right, () => keysOct(1), 'key sm ic'), btn(keysModeLabel(UI.pad) + ' ▾', () => openKeysSheet(UI.pad), 'key sm kmode'));
+  else if (UI.keys) top.append(btn('Keys', () => { UI.keys = false; stopLatch(); renderView(); }, 'key sm on kbtn'), btn(IC.left, () => keysOct(-1), 'key sm ic'), btn(IC.right, () => keysOct(1), 'key sm ic'), btn(keysModeLabel(UI.pad) + ' ▾', () => openKeysSheet(UI.pad), 'key sm kmode'));
   else top.append(seg(['A', 'B', 'C', 'D'], UI.bank, i => { UI.bank = i; UI.pad = i * 16 + UI.pad % 16; renderView(); savePrefs(); }), btn(ck(), () => { UI.keys = true; renderView(); }, 'key sm kbtn'), btn('Import', () => pickAudio(null), 'key sm'));
   top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'));
   const grid = h('div', 'grid');
@@ -87,7 +87,8 @@ function renderSound(V) {
       padParam(pi, 'fine', { label: 'Fine', min: -100, max: 100, step: 1, coarse: 10, big: 50, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v + ' ct' }),
       padParam(pi, 'start', { label: 'Start', step: .001, coarse: .01, big: .05, def: 0, fmt: v => (v * 100).toFixed(1) + '%' }),
       padParam(pi, 'end', { label: 'End', step: .001, coarse: .01, big: .05, def: 1, fmt: v => (v * 100).toFixed(1) + '%' }),
-      modeSel(pi), selEl('Reverse', ['Off', 'On'], () => pad.reverse ? 1 : 0, i => { pushUndo('pad:' + pi); touchPad(pi); pad.reverse = !!i; syncPad(pi); markDirty(); drawDisp(); }),
+      modeSel(pi), pad.mode === 'loop' ? padParam(pi, 'loopS', { label: 'Loop start', step: .001, coarse: .01, big: .05, def: .25, fmt: v => (v * 100).toFixed(1) + '%', after: () => drawDisp() })
+        : selEl('Reverse', ['Off', 'On'], () => pad.reverse ? 1 : 0, i => { pushUndo('pad:' + pi); touchPad(pi); pad.reverse = !!i; syncPad(pi); markDirty(); drawDisp(); }),
       cellBtn('Sound', SAMPLES.get(pad.sample)?.name || 'Empty', openLibrary), cellBtn('Tools', 'Open', () => openSoundTools(pi)));
   } else if (UI.snd === PG.AMP) {
     g.append(padParam(pi, 'atk', { label: 'Attack', max: 2, step: .001, coarse: .02, big: .1, def: 0, fmt: v => Math.round(v * 1000) + ' ms' }),
@@ -95,7 +96,8 @@ function renderSound(V) {
       modeSel(pi), keyParam(pi + '.-1.0', Object.assign({ label: 'Volume' }, redraw)),
       selEl('Voicing', ['Poly', 'Mono', 'Legato'], () => ['poly', 'mono', 'legato'].indexOf(pad.voice), i => { pushUndo('pad:' + pi); touchPad(pi); pad.voice = ['poly', 'mono', 'legato'][i]; syncPad(pi); markDirty(); }),
       padParam(pi, 'poly', { label: 'Voices', min: 1, max: 16, step: 1, coarse: 1, big: 4, def: 8, fmt: v => String(v) }),
-      padParam(pi, 'glide', { label: 'Glide', max: 1, step: .001, coarse: .01, big: .1, def: .08, fmt: v => Math.round(v * 1000) + ' ms' }), blankCell());
+      padParam(pi, 'glide', { label: 'Glide', max: 1, step: .001, coarse: .01, big: .1, def: .08, fmt: v => Math.round(v * 1000) + ' ms' }),
+      pad.mode === 'loop' ? padParam(pi, 'xf', { label: 'Loop fade', max: 1, step: .001, coarse: .01, big: .05, def: .08, fmt: v => Math.round(v * 1000) + ' ms' }) : blankCell());
   } else if (UI.snd === PG.FILTER) {
     g.append(keyParam(pi + '.-2.0', redraw), keyParam(pi + '.-2.1', redraw), blankCell(), blankCell(), blankCell(), blankCell(), blankCell(), blankCell());
   } else {
@@ -105,7 +107,7 @@ function renderSound(V) {
   }
   w.append(head, pages, disp, g); V.append(w); requestAnimationFrame(drawDisp); if (UI.snd === PG.MIX) scopeView(cv, drawDisp);
 }
-function modeSel(pi) { const pad = P.pads[pi]; return selEl('Mode', ['One-shot', 'Gate'], () => pad.mode === 'gate' ? 1 : 0, i => { pushUndo('pad:' + pi); touchPad(pi); pad.mode = i ? 'gate' : 'one'; syncPad(pi); markDirty(); drawDisp(); }); }
+function modeSel(pi) { const pad = P.pads[pi]; return selEl('Mode', ['One-shot', 'Gate', 'Loop'], () => ['one', 'gate', 'loop'].indexOf(pad.mode), i => { pushUndo('pad:' + pi); touchPad(pi); const was = pad.mode; pad.mode = ['one', 'gate', 'loop'][i]; if ((was === 'loop') !== (pad.mode === 'loop') && UI.view === 'sound') setTimeout(renderView); syncPad(pi); markDirty(); drawDisp(); }); }
 function samplePeaks(s, W) { if (s._pk && s._pk.w === W) return s._pk.a; const d = s.data, ch = s.ch, n = s.frames, a = new Float32Array(W * 2), stride = Math.max(1, Math.floor(n / W / 200));
   for (let x = 0; x < W; x++) { const i0 = Math.floor(x * n / W), i1 = Math.floor((x + 1) * n / W); let mn = 0, mx = 0; for (let i = i0; i < i1; i += stride) { const v = d[i * ch] / 32768; if (v < mn) mn = v; if (v > mx) mx = v; } a[x * 2] = mn; a[x * 2 + 1] = mx; }
   s._pk = { w: W, a }; return a; }
@@ -124,11 +126,12 @@ function drawDisp() {
       for (let x = 0; x < W; x++) { const mn = pk[x * 2], mx = pk[x * 2 + 1]; g.fillRect(x, mid - mx * mid * .88, 1, Math.max(1, (mx - mn) * mid * .88)); }
       const xs = pad.start * W, xe = pad.end * W; g.fillStyle = 'rgba(0,0,0,.66)'; g.fillRect(0, 0, xs, H); g.fillRect(xe, 0, W - xe, H);
       g.fillStyle = COL.accent; g.fillRect(xs - 1, 0, 2, H); g.fillRect(xe - 1, 0, 2, H); g.fillRect(xs, 0, 9, 12); g.fillRect(xe - 9, H - 12, 9, 12);
+      if (pad.mode === 'loop') { const xl = clamp(pad.loopS, pad.start, pad.end) * W; g.globalAlpha = .13; g.fillRect(xl, 0, xe - xl, H); g.globalAlpha = 1; g.fillRect(xl - 1, 0, 2, H); txt('loop', xl + 5, 22, COL.accent); }
       txt(`${(s.frames / s.sr).toFixed(2)}s · ${s.ch === 2 ? 'stereo' : 'mono'}${pad.reverse ? ' · reversed' : ''}`, 8, H - 10); txt(s.name, W - 8, 10, COL.mute, 'right');
       return;
     }
     // AMP: the envelope over the trimmed sound
-    const rate = Math.pow(2, (pad.pitch + pad.fine / 100) / 12) * (pad.tempo ? P.bpm / pad.tempo : 1), seg = Math.max(.01, (pad.end - pad.start) * s.frames / s.sr / rate), gate = pad.mode === 'gate';
+    const rate = Math.pow(2, (pad.pitch + pad.fine / 100) / 12) * (pad.tempo ? P.bpm / pad.tempo : 1), seg = Math.max(.01, (pad.end - pad.start) * s.frames / s.sr / rate), gate = pad.mode === 'gate' || pad.mode === 'loop';
     const atk = pad.atk, rel = pad.rel, span = gate ? atk + Math.max(.25, atk) + rel : seg, X = t => 10 + (W - 20) * clamp(t / span, 0, 1), top = 16, bot = H - 18, Y = v => bot - (bot - top) * v;
     grid([], [top, bot]);
     if (!gate) { g.globalAlpha = .28; g.fillStyle = col; const a0 = Math.floor(pad.start * W), a1 = Math.ceil(pad.end * W);

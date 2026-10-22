@@ -8,7 +8,7 @@
    That lets note-triggered duckers start before the note itself (true lookahead, no added latency). */
 
 const TF = { PPQ: 96, BAR: 384, NCH: 83, NPAD: 64, G0: 64, B0: 72, R0: 80, MASTER: 82, NSLOT: 8, SUB: 16,
-  FRZ_TAG: 1 << 20, PREVIEW_TAG: (1 << 20) - 1, CLICK_TAG: (1 << 20) - 2 };
+  ARP_TAG: 1 << 24, FRZ_TAG: 1 << 20, PREVIEW_TAG: (1 << 20) - 1, CLICK_TAG: (1 << 20) - 2 };
 
 /* ---------- shared math (must match engine.cpp) ---------- */
 function tfBezFast(x, w) {
@@ -106,7 +106,7 @@ class TFHost {
     this.ex = ex; this.sr = sr; this.post = post || null; ex.tf_init(sr);
     this.P = null; this.sm = new Map();
     this.fxT = []; for (let c = 0; c < TF.NCH; c++) this.fxT.push([-1, -1, -1, -1, -1, -1, -1, -1]);
-    this.duck = []; this.playing = false; this.loop = 'scene'; this.heap = new TFHeap(); this.marks = []; this.now = 0;
+    this.duck = []; this.playing = false; this.loop = 'scene'; this.heap = new TFHeap(); this.marks = []; this.arps = new Map(); this.arpOut = []; this.now = 0;
     this.ah = null; this.pending = null; this.LA = Math.round(0.02 * sr);
     this.live = new Set(); this.autoOn = new Set(); this.fresh = new Map(); this.pos = null; this.idx = [];
     this.click = { on: false, vol: .5 }; this.idleSent = false;   // the click is live-only: offline renders never turn it on
@@ -138,6 +138,8 @@ class TFHost {
       case 'pending': this.pending = m.scene; break;
       case 'loop': this.loop = m.v; break;
       case 'hit': this.hit(m); break;
+      case 'arp': this.arpStart(m); break;
+      case 'arpStop': this.arps.delete(m.tag); break;
       case 'rel': this.ex.tf_voice_release(m.tag, m.rel); for (const e of this.heap.a) if (e.k === 5 && e.tag === m.tag) e.dead = 1; break;
       case 'live': if (m.on) this.live.add(m.key); else this.live.delete(m.key); break;
       case 'param': tfSetBase(P, m.key, m.v); this.applyKey(m.key, m.v); break;
@@ -209,7 +211,7 @@ class TFHost {
   voice(pi, off, semi, vel, gateSec, tag, chordN = 0) {
     const pad = this.P.pads[pi]; if (!pad || !pad.sample) return;
     const e = this.sm.get(pad.sample); if (!e) return;
-    const ex = this.ex, ch = pad.chop, chopped = ch && ch.on && ch.pts.length, gate = pad.mode === 'gate' ? gateSec : -1; let start = pad.start, end = pad.end, vm = pad.voice || 'poly';
+    const ex = this.ex, ch = pad.chop, chopped = ch && ch.on && ch.pts.length, loop = pad.mode === 'loop' && !chopped, gate = pad.mode === 'gate' || loop ? gateSec : -1; let start = pad.start, end = pad.end, vm = pad.voice || 'poly';
     if (chopped) {   // chopped: the note number picks a slice; choke cuts the slice before it
       const n = ch.pts.length, k = Math.max(0, Math.min(n - 1, Math.round(semi) || 0)); start = ch.pts[k]; end = k + 1 < n ? ch.pts[k + 1] : pad.end; semi = 0;
       if (ch.choke) ex.tf_ch_release(pi, 0.004); if (vm === 'legato') vm = 'mono';   // a new slice is a new sound, so legato acts as mono
@@ -220,7 +222,8 @@ class TFHost {
     if (chordN) vm = 'poly';   // a chord played live always sounds whole, whatever the pad's voicing
     if (vm === 'legato' && ex.tf_voice_legato(pi, rate, pad.glide || 0, gate, pad.rel, tag)) return;
     if (vm !== 'poly') ex.tf_ch_release(pi, 0.004); else ex.tf_ch_limit(pi, Math.max(0, Math.max(pad.poly || 8, chordN) - 1), 0.004);
-    ex.tf_voice_start(pi, e.id, off, rate, start, end, pad.reverse ? 1 : 0, vel, Math.max(0.0005, pad.atk), pad.rel, gate, tag, 0);
+    const vi = ex.tf_voice_start(pi, e.id, off, rate, start, end, loop || !pad.reverse ? 0 : 1, vel, Math.max(0.0005, pad.atk), pad.rel, gate, tag, 0);
+    if (loop && vi >= 0) ex.tf_voice_loop(vi, Math.max(start, Math.min(end, pad.loopS == null ? start : pad.loopS)), pad.xf == null ? 0.08 : pad.xf, gate, pad.rel);
   }
   hit(m) {
     if (m.notes) {   // a chord: notes may be strummed (ms after now); a release before a late note starts cancels it
@@ -280,7 +283,37 @@ class TFHost {
     if (!soft) this.ex.tf_release_all(0.005);
     this.restoreAuto();
   }
-  panic() { this.stop(false); this.ex.tf_reset_all(); }
+  panic() { this.stop(false); this.arps.clear(); this.ex.tf_reset_all(); }
+  /* ---------- arpeggiator: runs here so it locks to the transport; notes it plays while recording are reported back ---------- */
+  tickAt(T) { let m = null; for (const x of this.marks) { if (x.time <= T) m = x; else break; } return this.playing && m ? { scene: m.scene, tick: m.tick + (T - m.time) * m.tps, tps: m.tps } : null; }
+  arpStart(m) {
+    const base = m.notes.slice().sort((a, b) => a.semi - b.semi), seq = [];
+    for (let o = 0; o < Math.max(1, Math.min(3, m.oct | 0)); o++) for (const x of base) seq.push({ semi: x.semi + 12 * o, vel: x.vel });
+    let order = seq; if (m.pat === 'down') order = seq.slice().reverse(); else if (m.pat === 'updown') order = seq.concat(seq.slice(1, -1).reverse());
+    this.arps.set(m.tag, { pi: m.pad, seq, order, pat: m.pat, rate: Math.max(6, m.rate | 0), gate: Math.max(.05, Math.min(1, +m.gate || .5)), step: 0, n: base.length, next: this.now, last: -1, rs: (m.tag * 2654435761) >>> 0 });
+  }
+  runArps(end) {
+    for (const [tag, a] of this.arps) {
+      const pad = this.P.pads[a.pi]; if (!pad || !pad.sample) { this.arps.delete(tag); continue; }
+      while (a.next < end) {
+        const T = a.next, off = Math.max(0, Math.min(end - this.now - 1, Math.floor(T - this.now))), pos = this.tickAt(T);
+        const tps = pos ? pos.tps : this.P.bpm * TF.PPQ / 60 / this.sr, stepF = a.rate / tps, lenF = stepF * a.gate;
+        let notes;
+        if (a.pat === 'chord') notes = a.seq.slice(a.n * (a.step % (a.seq.length / a.n)), a.n * (a.step % (a.seq.length / a.n) + 1));   // the whole chord, climbing octaves
+        else if (a.pat === 'random') { let k; do { a.rs = (a.rs * 1664525 + 1013904223) >>> 0; k = a.rs % a.seq.length; } while (a.seq.length > 1 && k === a.last); a.last = k; notes = [a.seq[k]]; }
+        else notes = [a.order[a.step % a.order.length]];
+        a.step++;
+        for (const x of notes) { const nt = TF.ARP_TAG + (this.arpN = ((this.arpN || 0) + 1) & 0xffffff);
+          this.voice(a.pi, off, x.semi, x.vel, lenF / this.sr, nt, notes.length > 1 ? notes.length : 0);
+          this.heap.push({ time: T + lenF, k: 6, tag: nt, rel: pad.rel });
+          if (pos && this.arpOut.length < 256) this.arpOut.push([a.pi, x.semi, +x.vel.toFixed(3), pos.scene, +pos.tick.toFixed(3), Math.max(1, Math.round(a.rate * a.gate))]); }
+        if (this.post && this.flashes.length < 64) this.flashes.push(a.pi);
+        // the next step: on the transport's grid while playing (swing included), free-running from the tap when stopped
+        if (pos) { let nt = (Math.floor(pos.tick / a.rate + 1e-6) + 1) * a.rate; if (nt - pos.tick < a.rate * .5) nt += a.rate; a.next = T + (nt + tfSwing(nt, this.P.swing || 0) - pos.tick) / tps; }
+        else a.next = T + stepF;
+      }
+    }
+  }
   restoreAuto() { for (const k of this.autoOn) { const b = tfBase(this.P, k); if (b != null) this.applyKey(k, b); } this.autoOn.clear(); }
   nextSong(i) { for (let k = 1; k <= this.P.scenes.length; k++) { const j = (i + k) % this.P.scenes.length; if (tfHasNotes(this.P.scenes[j])) return j; } return i; }
   advance(n) {
@@ -333,6 +366,7 @@ class TFHost {
       if (this.post && this.flashes.length < 64) { const c = this.P.pads[e.pi].chop, n = c && c.on ? c.pts.length : 0;   // pad | (slice + 1) << 8
         this.flashes.push(n ? e.pi | ((Math.max(0, Math.min(n - 1, Math.round(e.semi) || 0)) + 1) << 8) : e.pi); } }
     else if (e.k === 1) ex.tf_duck_trigger(e.c, e.s, off);
+    else if (e.k === 6) ex.tf_voice_release(e.tag, e.rel);
     else if (e.k === 5) { if (!e.dead) this.voice(e.pi, off, e.semi, e.vel, 3600, e.tag, e.n); }
     else if (e.k === 2) { const s = this.sm.get(e.key); if (s) ex.tf_voice_start(e.pi, s.id, off, 1, 0, 1, 0, 1, 0.0005, 0.01, -1, TF.FRZ_TAG + e.pi, 1); }
     else if (e.k === 3) ex.tf_voice_release(e.tag, 0.03);
@@ -352,6 +386,7 @@ class TFHost {
     while (off < n) {
       const m = Math.min(TF.SUB, n - off), end = this.now + m;
       if (this.playing) this.advance(m);
+      if (this.arps.size) this.runArps(end);
       while (this.heap.size && this.heap.peek().time < end) { const e = this.heap.pop(); this.dispatch(e, Math.max(0, Math.min(m - 1, Math.floor(e.time - this.now)))); }
       if (this.playing) this.automate(end);
       ex.tf_render(m); this.views(); if (this.scope) this.scopeFeed(m);
@@ -367,7 +402,7 @@ class TFHost {
       // nothing playing and nothing sounding: one last report, then quiet until something happens (saves the page waking up 30 times a second)
       const idle = !this.playing && !voices && pk[0] < 1e-5 && pk[1] < 1e-5 && !this.flashes.length;
       if (!idle || !this.idleSent) this.post({ t: 'pos', time: (typeof currentTime !== 'undefined' ? currentTime : 0) + n / this.sr, playing: this.playing, pos: this.pos,
-        pk, cm: Array.from(this.vPk), cpu: blocksMs > 0 ? this.cpuMs / blocksMs : 0, voices, fl: this.flashes.splice(0), sc: this.scope || this.visFx ? this.scopeReport() : null });
+        pk, cm: Array.from(this.vPk), cpu: blocksMs > 0 ? this.cpuMs / blocksMs : 0, voices, fl: this.flashes.splice(0), arp: this.arpOut.length ? this.arpOut.splice(0) : undefined, sc: this.scope || this.visFx ? this.scopeReport() : null });
       else if (this.scope || this.visFx) this.scopeReport();
       this.idleSent = idle;
       this.vPk.fill(0); this.cpuMs = 0; this.cpuBlocks = 0;
