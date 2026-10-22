@@ -10,7 +10,7 @@ function renderPads(V) {
   const w = h('div', 'padsView'), top = h('div', 'toolbar');
   const ck = () => chopOf(UI.pad) ? 'Chop' : 'Keys';
   if (UI.keys && chopOf(UI.pad)) top.append(btn('Chop', () => { UI.keys = false; renderView(); }, 'key sm on kbtn'));
-  else if (UI.keys) top.append(btn('Keys', () => { UI.keys = false; renderView(); }, 'key sm on kbtn'), btn(IC.left, () => { UI.oct = clamp(UI.oct - 1, -2, 2); renderView(); }, 'key sm ic'), btn(IC.right, () => { UI.oct = clamp(UI.oct + 1, -2, 2); renderView(); }, 'key sm ic'));
+  else if (UI.keys) top.append(btn('Keys', () => { UI.keys = false; renderView(); }, 'key sm on kbtn'), btn(IC.left, () => keysOct(-1), 'key sm ic'), btn(IC.right, () => keysOct(1), 'key sm ic'), btn(keysModeLabel(UI.pad) + ' ▾', () => openKeysSheet(UI.pad), 'key sm kmode'));
   else top.append(seg(['A', 'B', 'C', 'D'], UI.bank, i => { UI.bank = i; UI.pad = i * 16 + UI.pad % 16; renderView(); savePrefs(); }), btn(ck(), () => { UI.keys = true; renderView(); }, 'key sm kbtn'), btn('Import', () => pickAudio(null), 'key sm'));
   top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'));
   const grid = h('div', 'grid');

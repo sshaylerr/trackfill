@@ -71,6 +71,11 @@ body{font-variant-numeric:tabular-nums}
 #bLoop{width:70px} #bTempo{width:56px;flex-direction:column;gap:2px;line-height:1}
 #bTempo.clk::after{content:"";position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.g6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px} .g6 .btn{padding-left:0;padding-right:0;min-width:0}
+.btn.wide{width:100%}
+.btn.prow{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:2px 10px;text-align:left;width:100%;margin-bottom:6px;height:auto;min-height:50px;padding:8px 12px}
+.btn.prow b{font-weight:600;font-size:15px} .btn.prow span{font-size:12px;color:var(--mute);justify-self:end} .btn.prow i{grid-column:1/-1;font-style:normal;font:400 12px var(--font-lcd);color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn.prow.on span,.btn.prow.on i{color:inherit;opacity:.8}
 #bTempo b{font:500 14px var(--font-lcd);color:var(--accent)}
 #bTempo small{font-size:9px;color:var(--print)}
 #bPanel.on{color:var(--accent)}
@@ -173,6 +178,10 @@ body{font-variant-numeric:tabular-nums}
 .pad.has .pn::after{content:"";display:inline-block;width:5px;height:5px;border-radius:1px;background:var(--pc);margin-left:5px;vertical-align:1px}
 .pad.frz .nm::before{content:"❄ ";}
 .pad.kp .nm{font:500 14px var(--font-lcd);text-transform:none}
+.pad.kroot .pn{color:var(--accent)} .pad.kroot::after{background:color-mix(in srgb,var(--pc) 70%,#101012)}
+.pad.kout .nm{color:var(--mute)} .pad.kout{background:linear-gradient(180deg,#2b2b2f,#232326)}
+.pad.kchord .nm{font-size:13px;letter-spacing:-.01em} .pad.kprog .pn{color:var(--accent)}
+.pad.kprog::before{content:"";position:absolute;inset:0;border-radius:2px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent);pointer-events:none}
 /* ---------- timeline ---------- */
 .seqView{height:100%;display:flex;flex-direction:column;gap:8px}
 .lanebox{height:34px;flex:1 1 0;min-width:0;border-radius:3px;background:var(--bg);border:1px solid #000;box-shadow:inset 0 1px 6px rgba(0,0,0,.8);display:flex;align-items:center;gap:6px;padding:0 8px;text-align:left}
@@ -219,7 +228,7 @@ body{font-variant-numeric:tabular-nums}
 #view.tiny .padsView .chopwave{flex-basis:20%;min-height:44px}
 #view.tiny .padsView.chopping .pad{padding:4px 7px 9px}
 #view.tiny .padsView.chopping .pad .pn{display:none}
-#view.tiny .padsView.chopping .pad .nm{font-size:12px}
+#view.tiny .padsView.chopping .pad .nm{font-size:12px} #view.tiny .pad.kchord .nm{font-size:11.5px;letter-spacing:-.02em}
 #view.short .detail .dk{grid-template-columns:repeat(3,52px)}
 #view.short .detail .knob .kval{font-size:9px;height:11px;line-height:11px}
 #view.short .strip .knob.mini svg{width:22px;height:22px}
@@ -522,7 +531,7 @@ function savePrefs() { DB.put('kv', 'ui', { view: UI.view === 'fx' ? 'mix' : UI.
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
 function scopeGet(sc) { const [k, i] = sc.split(':'), n = +i;
   switch (k) { case 'scene': return P.scenes[n]; case 'pad': return P.pads[n]; case 'chan': return P.chans[n];
-    case 'song': return { name: P.name, bpm: P.bpm, swing: P.swing }; default: return P; } }
+    case 'song': return { name: P.name, bpm: P.bpm, swing: P.swing, key: P.key }; default: return P; } }
 function scopeSet(sc, v) { const [k, i] = sc.split(':'), n = +i;
   switch (k) { case 'scene': P.scenes[n] = v; syncScene(n); break; case 'pad': P.pads[n] = v; syncPad(n); break; case 'chan': P.chans[n] = v; syncChan(n); break;
     case 'song': Object.assign(P, v); syncSong(); break; default: P = v; syncProject(); } }
@@ -620,10 +629,11 @@ function heardPos() {
   const lat = ctx.outputLatency || ctx.baseLatency || 0, dt = (ctx.currentTime - lat) - REP.time, sc = REP.pos.scene;
   return { scene: sc, tick: clamp(REP.pos.tick + dt * ctx.sampleRate * REP.pos.tps, 0, sceneLen(sc) - 1e-6) };
 }
-function recordNote(pi, semi) {
+// ms: how long after the tap this note sounded (a strum); it's kept as played, after the tap itself is snapped to the grid
+function recordNote(pi, semi, vel = .9, ms = 0) {
   const pos = heardPos(); if (!pos) return null; touchPad(pi);
-  const sc = P.scenes[pos.scene], len = sc.bars * BAR, s = UI.tl.snap; let t = pos.tick; if (s) t = Math.round(t / s) * s; t = fixT(((t % len) + len) % len);
-  const n = { t, len: s || 24, p: semi, v: .9 }, ahead = ((t - pos.tick + len) % len) * spt();
+  const sc = P.scenes[pos.scene], len = sc.bars * BAR, s = UI.tl.snap, off = ms / 1000 / spt(); let t = pos.tick; if (s) t = Math.round(t / s) * s; t = fixT((((t + off) % len) + len) % len);
+  const n = { t, len: s || 24, p: semi, v: +vel.toFixed(3) }, ahead = ((t - pos.tick - off + len) % len) * spt();
   if (ahead < .3) n.f = 1;   // the engine skips this once: you already heard it live
   (sc.notes[pi] = sc.notes[pi] || []).push(n); syncScene(pos.scene); markDirty();
   if (pos.scene === UI.scene) { refreshPadDots(); if (UI.view === 'seq') drawTL(); } renderScenes();
@@ -638,7 +648,8 @@ function recAuto(key, v) {
 }
 // Capture: everything played on the pads is remembered, so a good idea can be kept after the fact.
 const CAP = [];
-function capHit(pi, semi, vel) { const e = { pi, semi, vel, at: ctx ? ctx.currentTime : 0, pos: heardPos(), len: 24 }; CAP.push(e); if (CAP.length > 512) CAP.shift(); return e; }
+function capHit(pi, semi, vel, ms = 0) { const pos = heardPos(), off = ms / 1000 / spt();
+  const e = { pi, semi, vel: +vel.toFixed(3), at: (ctx ? ctx.currentTime : 0) + ms / 1000, pos: pos ? { scene: pos.scene, tick: (pos.tick + off) % sceneLen(pos.scene) } : null, len: 24 }; CAP.push(e); if (CAP.length > 512) CAP.shift(); return e; }
 function doCapture() {
   const now = ctx ? ctx.currentTime : 0, fresh = CAP.filter(e => now - e.at < 120); CAP.length = 0;
   if (!fresh.length) { toast('Nothing to capture yet. Play some pads first.'); return; }
@@ -758,16 +769,42 @@ const HELD = {};
 // MPC order: pad 1 is bottom left, counting left to right and then upward (also low notes to high in Keys mode)
 const padOrder = n => { const o = []; for (let r = n / 4 - 1; r >= 0; r--) for (let c = 0; c < 4; c++) o.push(r * 4 + c); return o; };
 function cellSemi(cell) { return UI.oct * 12 + cell; }
+/* ---------- Keys view: each pad plays notes, the project key's scale, or chords (its own settings in pad.kx) ---------- */
+const DEF_KX = defaultKx(), KEYS = { prev: {}, flip: {}, cache: null };
+const kxOf = pi => P.pads[pi].kx || DEF_KX;
+const padKey = pi => { const kx = kxOf(pi); return kx.scale >= 0 ? { root: P.key.root, scale: kx.scale } : P.key; };
+const keyFlats = pi => { const k = padKey(pi); return useFlats(k.root, scaleOf(k.scale)[1]); };
+function keyChords(pi) { const kx = kxOf(pi), sig = JSON.stringify([P.key, kx]); if (!KEYS.cache || KEYS.cache.pi !== pi || KEYS.cache.sig !== sig) KEYS.cache = { pi, sig, pads: chordPads(P.key, kx) }; return KEYS.cache.pads; }
+// what a pad plays in Keys view: { semi } for a note, { chord } for a chord, plus how it's labelled
+function keyCell(cell) {
+  const pi = UI.pad, kx = kxOf(pi), fl = keyFlats(pi);
+  if (kx.mode === 'chords') { const c = keyChords(pi)[cell]; return c ? { chord: c, pn: c.roman, name: c.name, prog: c.prog != null } : { pn: '', name: '—', none: true }; }
+  if (kx.mode === 'scale') { const s = scalePads(P.key, kx, UI.oct)[cell]; return { semi: s.semi, pn: String(s.deg), name: noteLabel(s.semi, fl), root: s.root }; }
+  const semi = cellSemi(cell); return { semi, pn: String(cell + 1), name: noteLabel(semi, fl), root: mod12(semi - P.key.root) === 0, out: !inScale(semi, P.key, kx) };
+}
+function setKx(pi, ch) { const p = P.pads[pi]; p.kx = Object.assign({}, kxOf(pi), ch); KEYS.prev[pi] = null; markDirty(); }
+// a chord as a person would play it: voiced, voice-led from the last chord on this pad, with strum and feel
+function playChord(pi, c) {
+  const kx = kxOf(pi), centre = 5 + UI.oct * 12 + (c.up ? 12 : 0);
+  const notes = voiceChord(c, kx.voicing, KEYS.prev[pi], { lead: kx.lead, centre }); KEYS.prev[pi] = notes;
+  const all = addBass(notes, c, kx.bass); KEYS.flip[pi] = !KEYS.flip[pi];
+  return humanize(all, { strum: kx.strum, dir: kx.dir, feel: kx.feel, bassFirst: kx.bass !== 'off' }, Math.random, KEYS.flip[pi]);
+}
 function refreshPadDots() {
   const grid = document.querySelector('.grid'); if (!grid) return; const sc = P.scenes[UI.scene], chop = padChop(), kb = document.querySelector('.kbtn'); if (kb) kb.textContent = chopOf(UI.pad) ? 'Chop' : 'Keys';
   [...grid.children].forEach(pd => { const cell = +pd.dataset.cell; let pi, name;
-    if (UI.keys) { pi = UI.pad; name = chop ? (cell < chop.pts.length ? sliceName(UI.pad, cell) : '—') : noteName(cellSemi(cell)); pd.classList.add('kp'); pd.classList.remove('sel', 'has', 'frz'); }
+    let pn = null, kc = null;
+    if (UI.keys) { pi = UI.pad; if (chop) name = cell < chop.pts.length ? sliceName(UI.pad, cell) : '—'; else { kc = keyCell(cell); name = kc.name; pn = kc.pn; }
+      pd.classList.add('kp'); pd.classList.remove('sel', 'has', 'frz'); }
     else { pi = UI.bank * 16 + cell; const p = P.pads[pi]; name = p.sample ? (p.name || 'Sound') : 'Empty'; pd.classList.remove('kp');
       pd.classList.toggle('sel', UI.pad === pi); pd.classList.toggle('has', !!(sc.notes[pi] && sc.notes[pi].length)); pd.classList.toggle('frz', !!p.frz); }
     const p = P.pads[pi]; pd.style.setProperty('--pc', chop ? sliceCol(cell) : PAD_COLORS[p.color]); if (chop) pd.classList.toggle('sel', cell === UI.slice); pd.classList.toggle('empty', !p.sample || (chop && cell >= chop.pts.length)); pd.classList.toggle('cursor', UI.panel && UI.keys && cell === UI.keyCell);
-    const html = `<span class="pn">${chop ? cell + 1 : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; } });
-  const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? `Octave ${UI.oct > 0 ? '+' : ''}${UI.oct} · ${p.name || padLabel(UI.pad)}` : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; }
+    pd.classList.toggle('kroot', !!(kc && kc.root)); pd.classList.toggle('kout', !!(kc && kc.out)); pd.classList.toggle('kchord', !!(kc && kc.chord)); pd.classList.toggle('kprog', !!(kc && kc.prog)); if (kc && kc.none) pd.classList.add('empty');
+    const html = `<span class="pn">${chop ? cell + 1 : pn != null ? esc(pn) : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; } });
+  const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; }
 }
+function keysStatus(pi) { const kx = kxOf(pi), oc = UI.oct ? ` · Oct ${UI.oct > 0 ? '+' : ''}${UI.oct}` : '';
+  return (kx.mode === 'chords' ? (kx.prog ? PROGS[kx.prog - 1].n : 'Chords') + ' · ' : kx.mode === 'scale' ? 'Scale · ' : '') + keyName(padKey(pi)) + oc; }
 function flashCell(cell) { const pd = document.querySelector(`.grid .pad[data-cell="${cell}"]`); if (!pd) return; pd.classList.add('hit'); clearTimeout(pd._f); pd._f = setTimeout(() => pd.classList.remove('hit'), 90); }
 // sequenced notes light the pads; for a chopped pad the slice number comes along (k), so its slice lights and the playhead runs
 function flashPad(pi, k = -1) {
@@ -777,18 +814,28 @@ function flashPad(pi, k = -1) {
   if (Math.floor(pi / 16) === UI.bank) flashCell(pi % 16); }
 let tagSeq = 1;
 function padDown(cell) {
-  ensureAudio(); let pi, semi = 0;
+  ensureAudio(); let pi, semi = 0, kc = null;
   const chop = padChop();
-  if (UI.keys) { pi = UI.pad; semi = chop ? cell : cellSemi(cell); UI.keyCell = cell; if (chop && cell >= chop.pts.length) { flashCell(cell); return; } } else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; refreshPadDots(); updatePanel(); } }
+  if (UI.keys) { pi = UI.pad; UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flashCell(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flashCell(cell); return; } semi = kc.semi; } }
+  else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; refreshPadDots(); updatePanel(); } }
   const pad = P.pads[pi]; flashCell(cell); if (!pad.sample) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return; }
-  const tag = tagSeq++; ensureSample(pad.sample); send({ t: 'hit', pad: pi, semi, vel: .9, tag }); if (chop) { selectSlice(cell); slicePlayed(pi, cell, 0); }
-  const rec = (T.playing && T.rec) ? recordNote(pi, semi) : null, cap = rec ? { len: 24 } : capHit(pi, semi, .9);
-  HELD[cell] = { tag, rec, cap, pi, start: ctx ? ctx.currentTime : 0 };
+  const tag = tagSeq++; ensureSample(pad.sample);
+  if (kc && kc.chord) {   // a chord: every note shares one tag, so letting go releases them all (and cancels strummed notes not yet played)
+    const notes = playChord(pi, kc.chord); send({ t: 'hit', pad: pi, notes, tag });
+    const live = T.playing && T.rec, rec = [], cap = [];
+    for (const x of notes) { if (live) { const r = recordNote(pi, x.semi, x.vel, x.ms); if (r) rec.push(r); } else cap.push(capHit(pi, x.semi, x.vel, x.ms)); }
+    HELD[cell] = { tag, rec, cap: live ? [] : cap, pi, start: ctx ? ctx.currentTime : 0, ms: notes.map(x => x.ms) }; return;
+  }
+  send({ t: 'hit', pad: pi, semi, vel: .9, tag }); if (chop) { selectSlice(cell); slicePlayed(pi, cell, 0); }
+  const rec = (T.playing && T.rec) ? recordNote(pi, semi) : null, cap = rec ? null : capHit(pi, semi, .9);
+  HELD[cell] = { tag, rec: rec ? [rec] : [], cap: cap ? [cap] : [], pi, start: ctx ? ctx.currentTime : 0, ms: [0] };
 }
 function padUp(cell) {
   const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
-  if (pad.mode === 'gate') { send({ t: 'rel', tag: hd.tag, rel: pad.rel }); const s = UI.tl.snap || 6, ticks = ((ctx ? ctx.currentTime : 0) - hd.start) / spt(), len = Math.max(s, Math.round(ticks / s) * s);
-    hd.cap.len = len; if (hd.rec) { hd.rec.n.len = len; syncScene(hd.rec.scene); markDirty(); } }
+  if (pad.mode === 'gate') { send({ t: 'rel', tag: hd.tag, rel: pad.rel }); const s = UI.tl.snap || 6, held = ((ctx ? ctx.currentTime : 0) - hd.start) / spt();
+    const len = k => Math.max(s, Math.round((held - (hd.ms[k] || 0) / 1000 / spt()) / s) * s);
+    hd.cap.forEach((c, k) => { c.len = len(k); }); hd.rec.forEach((r, k) => { r.n.len = len(k); });
+    if (hd.rec.length) { syncScene(hd.rec[0].scene); markDirty(); } }
 }
 
 /* ---------- timeline ---------- */
@@ -1236,7 +1283,7 @@ function navInfo() {
   if (NAV.mode === 'canvas' && NAV.held) return canvasCtl().heldInfo();
   if (NAV.mode === 'canvas') return canvasCtl().info(); const reg = el._reg;
   if (NAV.mode === 'edit' && reg) return `Editing ${reg.label}: ${reg.valText()} · ↑↓ adjust · OK keep · Back cancel`;
-  if (el.classList.contains('pad')) return UI.keys ? `${padChop() ? 'Slice ' + (+el.dataset.cell + 1) : noteName(cellSemi(+el.dataset.cell))} · OK plays` : `${padLabel(UI.pad)} ${P.pads[UI.pad].name || 'Empty'} · OK plays`;
+  if (el.classList.contains('pad')) return UI.keys ? `${padChop() ? 'Slice ' + (+el.dataset.cell + 1) : keyCell(+el.dataset.cell).name} · OK plays` : `${padLabel(UI.pad)} ${P.pads[UI.pad].name || 'Empty'} · OK plays`;
   if (el.matches('canvas.navc')) return UI.view !== 'seq' ? 'Slices · OK to pick, play and move slices' : 'Timeline · OK to edit notes and points';
   if (reg) return `${reg.label}: ${reg.valText()} · OK to ${reg.edit ? 'adjust' : 'open'}`;
   const t = (el.getAttribute('aria-label') || el.value || el.textContent || '').trim().replace(/\s+/g, ' ');

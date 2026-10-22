@@ -94,6 +94,54 @@ These fill the gaps for making full tracks. Most upgrade an effect we already ha
 | Disperser (your request) | Kilohearts Disperser | Smears a sound's phase around one frequency so transients turn into a "zap" or laser sweep; huge for DnB and neuro basses | A chain of up to 48 allpass stages around a chosen frequency, with Pinch for how tightly they bunch. Light to Medium | Building: first pass in the app; tuning against captures next |
 | Performance FX | Image-Line Gross Beat, tape-stop and stutter effects | Tape stops, stutters, half-time and gated chops: big for DnB transitions | A synced effect that slices and replays its own buffer, playable live and by automation. Light to Medium | Idea |
 
+## Scales and chords (Keys view)
+
+Inspired by the MPC's Pad Perform (scale and chord modes), with one big difference: our chords are voiced and played the way a person plays them, and the pads always hold the full set of chords in the key, not just one song's.
+
+| Part | Inspired by | What we built | Status |
+| --- | --- | --- | --- |
+| Scale mode | MPC Pad Perform scales | 25 scales: the seven major modes, minor colours (harmonic, melodic, Phrygian dominant, Hungarian and more), pentatonics and blues, world and symmetric scales. Root pads lit | Building: first pass in the app |
+| Chord mode | MPC Pad Perform chords | Every chord in the key, then borrowed and colour chords (♭VI, ♭VII, iv in major, V7 and Neapolitan in minor, secondary dominants, sus chords) | Building: first pass in the app |
+| Voicings | Real piano, guitar and synth playing | Close, Open, Drop 2, Shell, Rootless, Quartal, Piano (two hands), Wide pad, Stab. "Rich" colour picks extensions per chord the way players do (maj9, m9, 13, ♯11 on a Lydian chord, add11 where a 9 would clash) | Building: first pass in the app |
+| Feel | How players actually play | Smooth voice leading, strum up, down or alternating, velocity shaping (top note sings), a touch of looseness; recorded exactly as played | Building: first pass in the app |
+
+### Progressions and where they come from
+
+Chord progressions aren't owned by songs, but naming them after songs in the app would be confusing, so they're named by feel. These are the sources.
+
+| In the app | Chords (in the key) | Comes from |
+| --- | --- | --- |
+| Liquid roll | i – ♭VI – ♭III – ♭VII | "Zombie" (The Cranberries); a staple of liquid DnB and trance |
+| Night drive | i – ♭VII – ♭VI – v – iv – ♭III – ♭VI – V | Liquid DnB minor walk-downs (idiom) |
+| Dark stairs | i – ♭II – ♭vii – i | Phrygian darkness in neuro and dubstep (idiom) |
+| Deep stabs | i9 – iv9 – ♭VImaj9 – v7 | Deep house and UK garage minor-9th stabs (idiom) |
+| Two of a kind | ♭VImaj7 – V7 – i7 – ♭vii7 – ♭III7 | "Just the Two of Us" (Grover Washington Jr. and Bill Withers) |
+| Moonlit vamp | i7 – IV9 | "Oye Como Va" (Tito Puente, Santana) and Dorian funk vamps |
+| Lucky groove | i7 – ♭III – v7 – IV | "Get Lucky" (Daft Punk) |
+| Pedal pulse | i – ii/i – ♭III/i – ii/i | "Billie Jean" (Michael Jackson): chords over one held bass note |
+| Hit the road | i – ♭VII – ♭VI – V | The Andalusian cadence: "Hit the Road Jack" (Ray Charles) |
+| Sweet dark | i – ♭VI – V | "Sweet Dreams (Are Made of This)" (Eurythmics) |
+| Time lapse | i – v – ♭VII – IV | "Time" (Hans Zimmer, Inception) |
+| Watchtower | i – ♭VII – ♭VI – ♭VII | "All Along the Watchtower" (Bob Dylan, Jimi Hendrix) |
+| Autumn circle | iv – ♭VII – ♭III – ♭VI – iiø – V – i | The minor circle of fifths: "Autumn Leaves", "Fly Me to the Moon" |
+| Minor two-five | iiø – V7♭9 – i | Jazz minor ii–V–i (idiom) |
+| Modal drift | i – ♭ii (quartal) | "So What" (Miles Davis) |
+| Anthem | I – V – vi – IV | "Let It Be" (The Beatles), "Don't Stop Believin'" (Journey) |
+| Heartbreak | vi – IV – I – V | "Despacito", countless pop and EDM drops |
+| Golden oldie | I – vi – IV – V | "Stand by Me" (Ben E. King) and doo-wop |
+| Royal road | IVmaj7 – V – iii7 – vi | The J-pop "royal road", a future bass favourite |
+| Canon | I – V – vi – iii – IV – I – IV – V | Pachelbel's Canon in D |
+| Gospel lift | I – iii – IV – ♯iv° – I/5 – vi – ii – V | Gospel and church walk-ups (idiom) |
+| Beach bossa | Imaj7 – II7 – ii7 – ♭II7 | "The Girl from Ipanema" (Jobim) |
+| Turnaround | I – VI7 – ii – V | Rhythm changes and jazz turnarounds (idiom) |
+| Backdoor home | IV – iv – ♭VII7 – I | The backdoor resolution in neo-soul and jazz (idiom) |
+| Outsider | I – III – IV – iv | "Creep" (Radiohead) |
+| Clockwork | I – v – ii | "Clocks" (Coldplay) |
+| Coda | I – ♭VII – IV – I | The "Hey Jude" coda (The Beatles) |
+| Sunrise | vi – IV – I – V | Trance and progressive house breakdowns (idiom) |
+
+"Idiom" means a common way of playing rather than one song. Ideas for more are welcome: any song you love, I can work out its progression and voicing.
+
 ## Synths
 
 Your ideas go first; the rows below are mine to compare against. Each synth plays from a pad like a sound, with up to 8 voices, and shares the filter cores above.
