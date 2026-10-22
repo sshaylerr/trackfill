@@ -126,6 +126,20 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     host.msg({ t: 'hit', pad: 11, tag: 8, notes: [0, 3, 7, 10, 14].map((semi, i) => ({ semi: semi + 2, vel: .9, ms: i * 60 })) }); run(2); host.msg({ t: 'rel', tag: 8, rel: .02 }); run(80);
     ok(ex.tf_voices() === 5, `letting go mid-strum releases what started and cancels the rest (${ex.tf_voices()} voices left, the first chord's)`);
   }
+  console.log('loops, arpeggiator and the jungle kit');
+  { const J = M.jungleProject(), jk = new Map(kit); const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null);
+    J.chans.forEach(c => { c.fx = []; }); host.msg({ t: 'project', P: J }); for (const [key, s] of jk) host.msg({ t: 'sample', key, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr });
+    const L = new Float32Array(128), R = new Float32Array(128), run = n => { let e = 0; for (let i = 0; i < n; i++) { host.render(128, L, R); for (const v of L) e += v * v; } return e / (n * 128); };
+    host.msg({ t: 'hit', pad: 10, semi: 0, vel: .9, tag: 3 }); run(375); const early = run(375); run(375 * 10); const late = run(375);
+    ok(ex.tf_voices() === 1 && Math.abs(10 * Math.log10(late / early)) < 3, `a looped Reese holds for 13 s from an 8 s sample at an even level (${(10 * Math.log10(late / early)).toFixed(1)} dB)`);
+    host.msg({ t: 'rel', tag: 3, rel: .1 }); run(60); ok(ex.tf_voices() === 0, 'letting go of a looped note ends it');
+    const fl = []; host.post = m => { if (m.fl) fl.push(...m.fl); };
+    host.msg({ t: 'arp', pad: 21, tag: 9, notes: [0, 3, 7].map(semi => ({ semi, vel: .9 })), pat: 'up', rate: 24, oct: 2, gate: .5 }); run(Math.round(2 * 48000 / 128)); host.msg({ t: 'arpStop', tag: 9 });
+    const steps = fl.filter(x => x === 21).length; ok(steps >= 22 && steps <= 24, `the arpeggiator plays 1/16 steps at 174 BPM while stopped (${steps} in 2 s)`);
+    run(20); const n0 = fl.filter(x => x === 21).length; run(200); ok(fl.filter(x => x === 21).length === n0, 'stopping the arpeggiator stops its steps');
+    const r = await H.tfRenderOffline(wasm, M.jungleProject(), jk, { order: [{ scene: 0, reps: 1 }, { scene: 1, reps: 1 }], tail: 2 }), st = stats(r.L, r.R);
+    ok(st.bad === 0 && st.pk <= 1 && st.rms > .03, `the Liquid jungle starter renders cleanly (peak ${(20 * Math.log10(st.pk)).toFixed(1)} dBFS)`);
+  }
   console.log('metronome');
   { const run = (count, click) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, () => {}), Q = M.demoProject();
       Q.chans.forEach((c, i) => { if (i < 64) c.mute = i !== 0; }); host.msg({ t: 'project', P: Q });
