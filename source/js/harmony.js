@@ -221,25 +221,26 @@ function shapesFor(style, iv, anchorPc) {
     default: return closeShapes(pcs.length > 5 ? pcs.filter(x => x !== 7) : pcs);   // close: a six-note chord drops its fifth to fit
   }
 }
-// pick the shape and octave: nearest the last chord when voice leading, else the first shape nearest the centre
+// pick the shape and octave. The register is pinned: the upper voices stay within a fixed window around the centre (voice leading only
+// chooses the inversion inside it, so a run of chords never drifts), and a left hand or bass voice always sits in its own fixed octave.
+const LH_KEEP = { piano: 2, wide: 2, shell: 1 }, RH_LIFT = { piano: 5, wide: 9, stab: 9 };
 function voiceChord(chord, style, prev, opt = {}) {
-  const centre = (opt.centre == null ? 5 : opt.centre) + (style === 'stab' ? 9 : 0), lead = opt.lead !== false && prev && prev.length;
-  const root = chord.root, anchor = chord.bass != null ? mod12(chord.bass - root) : 0;
-  const shapes = shapesFor(style, chord.iv, anchor), cands = [];
-  shapes.forEach((sh, si) => { for (let k = -3; k <= 3; k++) { const notes = sh.map(x => x + root + 12 * k).sort((a, b) => a - b), lo = notes[0], hi = notes[notes.length - 1], mean = notes.reduce((a, b) => a + b, 0) / notes.length;
-    if (lo < centre - 26 || hi > centre + 26) continue; cands.push({ notes, si, mean, lo, hi }); } });
-  if (!cands.length) return shapes[0].map(x => x + root);
-  let best = null, bc = 1e9;
+  const centre = opt.centre == null ? 5 : opt.centre, keep = LH_KEEP[style] || 0, rc = centre + (RH_LIFT[style] || 0), lead = opt.lead !== false && prev && prev.length > keep;
+  const root = chord.root, anchor = chord.bass != null ? mod12(chord.bass - root) : 0, shapes = shapesFor(style, chord.iv, anchor), cands = [];
+  shapes.forEach((sh, si) => {
+    let lh = sh.slice(0, keep).map(x => x + root); if (lh.length) { const lo = centre - 19, sh0 = lo + mod12(lh[0] - lo) - lh[0]; lh = lh.map(x => x + sh0); }   // bass in [centre-19, centre-7)
+    const top = lh.length ? Math.max(...lh) : -99;
+    for (let k = -3; k <= 3; k++) { const rh = sh.slice(keep).map(x => x + root + 12 * k).sort((x, y) => x - y); if (!rh.length) continue;
+      const mean = rh.reduce((x, y) => x + y, 0) / rh.length; if (Math.abs(mean - rc) > 6.5 || rh[0] <= top) continue; cands.push({ lh, rh, si, mean }); } });
+  if (!cands.length) { const sh = shapes[0]; return [...new Set(sh.map(x => x + root))].sort((x, y) => x - y); }
+  const pr = lead ? prev.slice(keep) : null; let best = null, bc = 1e9;
   for (const c of cands) {
     let cost;
-    if (lead) { const keep = style === 'piano' || style === 'wide' ? 2 : style === 'shell' ? 1 : 0;   // a moving bass is fine; judge the upper voices
-      const a = c.notes.slice(keep), b = prev.slice(prev.length > keep + 1 ? keep : 0); let mv = 0;
-      for (const x of a) mv += Math.min(...b.map(y => Math.abs(x - y)));
-      for (const y of b) mv += Math.min(...a.map(x => Math.abs(x - y))) * .5;
-      cost = mv / a.length + Math.abs(c.mean - centre) * .35 + (c.hi - c.lo > 30 ? 4 : 0); }
-    else cost = c.si * 3 + Math.abs(c.mean - centre);
+    if (pr) { let mv = 0; for (const x of c.rh) mv += Math.min(...pr.map(y => Math.abs(x - y))); for (const y of pr) mv += Math.min(...c.rh.map(x => Math.abs(x - y))) * .5;
+      cost = mv / c.rh.length + Math.abs(c.mean - rc) * .2; }
+    else cost = c.si * 3 + Math.abs(c.mean - rc);
     if (cost < bc) { bc = cost; best = c; } }
-  return [...new Set(best.notes)];
+  return [...new Set(best.lh.concat(best.rh))].sort((x, y) => x - y);
 }
 function addBass(notes, chord, mode) {
   if (mode === 'off' || !notes.length) return notes;
