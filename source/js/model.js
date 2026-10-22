@@ -241,7 +241,7 @@ function defaultChan(c) {
 }
 // tempo: the sound's own tempo in BPM (0 = off); when set, it is repitched to follow the project tempo.
 // chop: slices of the sound. Notes on a chopped pad carry the slice number in 'p' instead of a pitch.
-function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08 }; }
+function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null }; }
 
 /* ---------- chopping ---------- */
 const MAX_SLICES = 16;
@@ -275,7 +275,7 @@ function rechop(pad, s) { const c = pad.chop; if (!c || !s) return; if (c.by ===
 function sliceRange(pad, k) { const p = pad.chop.pts, n = p.length; k = Math.max(0, Math.min(n - 1, k)); return [p[k], k + 1 < n ? p[k + 1] : pad.end]; }
 function emptyScene() { return { name: '', bars: 4, repeat: 1, notes: {}, auto: {} }; }
 function newProject(blank) {
-  const p = { v: PROJECT_VERSION, name: 'Untitled', bpm: 96, swing: 0,
+  const p = { v: PROJECT_VERSION, name: 'Untitled', bpm: 96, swing: 0, key: { root: 0, scale: 5 },
     pads: Array.from({ length: NPADS }, (_, i) => defaultPad(i)), chans: Array.from({ length: NCHANS }, (_, c) => defaultChan(c)),
     scenes: Array.from({ length: NSCENES }, emptyScene) };
   if (!blank) KIT.forEach(([k, name, col, mode, rel], i) => Object.assign(p.pads[i], { name, sample: 'b:' + k, color: col, mode, rel }));
@@ -305,10 +305,14 @@ function migrate(src) {
   return normalize(p);
 }
 function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : (v === v ? v : 0); }
+// harmony helpers live in harmony.js (one script with this file in the app; a require in the tests)
+const HMN = () => typeof normalizeKx === 'function' ? { normalizeKx, normalizeKey } : require('./harmony.js');
 function normalize(p) {
   const n = newProject(true); Object.assign(n, p); n.v = PROJECT_VERSION;
+  n.key = HMN().normalizeKey(p.key);
   n.pads = Array.from({ length: NPADS }, (_, i) => { const d = Object.assign(defaultPad(i), (p.pads || [])[i] || {});
     d.tempo = +d.tempo > 0 ? Math.min(300, Math.max(20, +d.tempo)) : 0;
+    d.kx = d.kx ? HMN().normalizeKx(d.kx) : null;   // Keys view settings: notes, scale or chords (null until first changed)
     d.voice = ['poly', 'mono', 'legato'].includes(d.voice) ? d.voice : 'poly'; d.poly = Math.max(1, Math.min(16, Math.round(+d.poly) || 8)); d.glide = Math.max(0, Math.min(1, +d.glide || 0));
     if (d.chop) { const c = Object.assign(newChop(), d.chop); c.by = ['t', 'e', 'm'].includes(c.by) ? c.by : 't'; c.div = Math.max(2, Math.min(MAX_SLICES, Math.round(+c.div) || 16)); c.sens = clamp01(+c.sens);
       c.on = !!c.on; c.choke = !!c.choke; c.pts = (Array.isArray(c.pts) ? c.pts : []).map(Number).filter(v => v >= 0 && v <= 1).sort((x, y) => x - y).filter((v, k, a) => !k || v - a[k - 1] > 1e-6).slice(0, MAX_SLICES); d.chop = c; }

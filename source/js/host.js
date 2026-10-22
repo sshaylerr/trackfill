@@ -138,7 +138,7 @@ class TFHost {
       case 'pending': this.pending = m.scene; break;
       case 'loop': this.loop = m.v; break;
       case 'hit': this.hit(m); break;
-      case 'rel': this.ex.tf_voice_release(m.tag, m.rel); break;
+      case 'rel': this.ex.tf_voice_release(m.tag, m.rel); for (const e of this.heap.a) if (e.k === 5 && e.tag === m.tag) e.dead = 1; break;
       case 'live': if (m.on) this.live.add(m.key); else this.live.delete(m.key); break;
       case 'param': tfSetBase(P, m.key, m.v); this.applyKey(m.key, m.v); break;
       case 'preview': this.preview(m.key); break;
@@ -206,7 +206,7 @@ class TFHost {
     if (id) this.sm.set(key, { id, frames, sr }); else ex.tf_free(ptr);
   }
   removeSample(key) { const e = this.sm.get(key); if (e) { this.ex.tf_sample_remove(e.id); this.sm.delete(key); } }
-  voice(pi, off, semi, vel, gateSec, tag) {
+  voice(pi, off, semi, vel, gateSec, tag, chordN = 0) {
     const pad = this.P.pads[pi]; if (!pad || !pad.sample) return;
     const e = this.sm.get(pad.sample); if (!e) return;
     const ex = this.ex, ch = pad.chop, chopped = ch && ch.on && ch.pts.length, gate = pad.mode === 'gate' ? gateSec : -1; let start = pad.start, end = pad.end, vm = pad.voice || 'poly';
@@ -217,12 +217,17 @@ class TFHost {
     let rate = Math.pow(2, (pad.pitch + pad.fine / 100 + semi) / 12);
     if (pad.tempo > 0) rate *= this.P.bpm / pad.tempo;   // follow the project tempo by repitching
     // voicing: mono cuts the last note; legato hands a held note the new pitch (gliding) without restarting; poly keeps up to pad.poly notes
+    if (chordN) vm = 'poly';   // a chord played live always sounds whole, whatever the pad's voicing
     if (vm === 'legato' && ex.tf_voice_legato(pi, rate, pad.glide || 0, gate, pad.rel, tag)) return;
-    if (vm !== 'poly') ex.tf_ch_release(pi, 0.004); else ex.tf_ch_limit(pi, Math.max(0, (pad.poly || 8) - 1), 0.004);
+    if (vm !== 'poly') ex.tf_ch_release(pi, 0.004); else ex.tf_ch_limit(pi, Math.max(0, Math.max(pad.poly || 8, chordN) - 1), 0.004);
     ex.tf_voice_start(pi, e.id, off, rate, start, end, pad.reverse ? 1 : 0, vel, Math.max(0.0005, pad.atk), pad.rel, gate, tag, 0);
   }
   hit(m) {
-    this.voice(m.pad, 0, m.semi || 0, m.vel == null ? 0.9 : m.vel, m.gate == null ? 3600 : m.gate, m.tag || 0);
+    if (m.notes) {   // a chord: notes may be strummed (ms after now); a release before a late note starts cancels it
+      const n = m.notes.length;
+      for (const x of m.notes) { if (!(x.ms > 0)) this.voice(m.pad, 0, x.semi, x.vel, 3600, m.tag || 0, n);
+        else this.heap.push({ time: this.now + x.ms * this.sr / 1000, k: 5, pi: m.pad, semi: x.semi, vel: x.vel, tag: m.tag || 0, n }); }
+    } else this.voice(m.pad, 0, m.semi || 0, m.vel == null ? 0.9 : m.vel, m.gate == null ? 3600 : m.gate, m.tag || 0);
     const d = this.duck[m.pad]; if (d) for (const x of d) this.ex.tf_duck_trigger(x.c, x.s, 0);
   }
   preview(key) {
@@ -328,6 +333,7 @@ class TFHost {
       if (this.post && this.flashes.length < 64) { const c = this.P.pads[e.pi].chop, n = c && c.on ? c.pts.length : 0;   // pad | (slice + 1) << 8
         this.flashes.push(n ? e.pi | ((Math.max(0, Math.min(n - 1, Math.round(e.semi) || 0)) + 1) << 8) : e.pi); } }
     else if (e.k === 1) ex.tf_duck_trigger(e.c, e.s, off);
+    else if (e.k === 5) { if (!e.dead) this.voice(e.pi, off, e.semi, e.vel, 3600, e.tag, e.n); }
     else if (e.k === 2) { const s = this.sm.get(e.key); if (s) ex.tf_voice_start(e.pi, s.id, off, 1, 0, 1, 0, 1, 0.0005, 0.01, -1, TF.FRZ_TAG + e.pi, 1); }
     else if (e.k === 3) ex.tf_voice_release(e.tag, 0.03);
     else if (e.k === 4) { const s = this.sm.get(e.acc ? 'click:hi' : 'click:lo'); if (s) ex.tf_voice_start(TF.MASTER, s.id, off, 1, 0, 1, 0, (e.acc ? 1 : .6) * (this.click.vol || .5), 0.0005, 0.005, -1, TF.CLICK_TAG, 1); }

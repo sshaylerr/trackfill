@@ -1,7 +1,7 @@
 // Trackfill automated tests: node tests/run.cjs [--update-golden]
 // Renders projects through the real WASM engine + host and checks safety, determinism and behavior.
 const fs = require('fs'), path = require('path');
-const H = require('../js/host.js'), M = require('../js/model.js');
+const H = require('../js/host.js'), M = require('../js/model.js'), HM = require('../js/harmony.js');
 const wasm = new WebAssembly.Module(fs.readFileSync(path.join(__dirname, '../build/engine.wasm')));
 const GOLD = path.join(__dirname, 'golden.json');
 let fails = 0; const ok = (c, msg) => { console.log((c ? '  ✓ ' : '  ✗ ') + msg); if (!c) fails++; };
@@ -95,6 +95,36 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(v.ex.tf_voices() === 1 && Math.abs(zc(b) / zc(a) - 2) < .15, `Legato moves the held note up an octave without a second voice (×${(zc(b) / zc(a)).toFixed(2)} pitch)`);
     v.host.msg({ t: 'rel', tag: 1, rel: .05 }); v.run(40); ok(v.ex.tf_voices() === 1, 'releasing the first key does not stop a legato note now owned by the second');
     v.host.msg({ t: 'rel', tag: 2, rel: .05 }); v.run(40); ok(v.ex.tf_voices() === 0, 'releasing the second key ends it');
+  }
+  console.log('scales and chords');
+  { // every key, scale, progression and colour fills 16 named pads, and every voicing stays playable
+    let short = 0, unnamed = 0, wild = 0, dup = 0;
+    for (let r = 0; r < 12; r++) for (let s = 0; s < HM.SCALES.length; s++) for (let pr = 0; pr <= HM.PROGS.length; pr += r % 3 ? 7 : 1) for (const c of ['triad', 'seventh', 'rich']) {
+      const pads = HM.chordPads({ root: r, scale: s }, HM.normalizeKx({ scale: s, prog: pr, colour: c })); if (pads.length < 16) short++; if (pads.some(x => x.name.includes('*'))) unnamed++;
+      for (const [v] of HM.VOICINGS) { let prev = null; for (const ch of pads) { const n = HM.voiceChord(ch, v, prev, { centre: 5 }); prev = n; if (new Set(n).size !== n.length) dup++; if (n[0] < -26 || n[n.length - 1] > 34 || n[n.length - 1] - n[0] > 36) wild++; } } }
+    ok(!short && !unnamed, `every key, scale, progression and colour gives 16 named chords (${short} short, ${unnamed} unnamed)`);
+    ok(!wild && !dup, `every voicing stays in a playable range with no doubled notes (${wild} out of range, ${dup} doubled)`);
+    const cm = HM.chordPads({ root: 0, scale: 5 }, HM.normalizeKx({ colour: 'seventh' })).slice(0, 7).map(x => x.name).join(' ');
+    ok(cm === 'Cm7 Dø7 E♭maj7 Fm7 Gm7 A♭maj7 B♭7', 'C minor sevenths are spelled right: ' + cm);
+    const gm = HM.chordPads({ root: 7, scale: 0 }, HM.normalizeKx({ colour: 'rich' })).slice(0, 7).map(x => x.name).join(' ');
+    ok(gm === 'Gmaj9 Am9 Bm7(add11) Cmaj9♯11 D13 Em9 F♯ø11 '.trim(), 'G major rich chords avoid clashing extensions: ' + gm);
+    const sc = HM.scalePads({ root: 9, scale: 16 }, HM.normalizeKx({}), 0).slice(0, 6).map(x => HM.noteLabel(x.semi, false)).join(' ');
+    ok(sc === 'A2 C3 D3 E3 G3 A3', 'Scale mode lays A minor pentatonic up from the root: ' + sc);
+    // voice leading: the Liquid roll in A minor moves less with smooth voice leading than in fixed shapes
+    const lr = HM.chordPads({ root: 9, scale: 5 }, HM.normalizeKx({ prog: 1 })).slice(0, 4), move = lead => { let prev = null, m = 0; for (let k = 0; k < 8; k++) { const n = HM.voiceChord(lr[k % 4], 'close', prev, { lead, centre: 5 }); if (prev) m += Math.abs(n.reduce((a, b) => a + b) / n.length - prev.reduce((a, b) => a + b) / prev.length); prev = n; } return m; };
+    ok(move(true) < move(false), `smooth voice leading moves less than fixed shapes (${move(true).toFixed(1)} vs ${move(false).toFixed(1)} semitones)`);
+    let x = 1; const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647, hz = HM.humanize([0, 4, 7, 11], { strum: 30, dir: 'up', feel: .5 }, rnd, false);
+    ok(hz.every((n, i) => !i || n.ms > hz[i - 1].ms) && hz[3].ms > 80 && hz[3].vel > hz[1].vel, 'an upward strum plays low to high, and the top note sings');
+    // the engine: a strummed chord starts its notes over time; letting go early cancels notes not yet started
+    const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject();
+    Object.assign(Q.pads[11], { voice: 'mono', mode: 'gate' }); host.msg({ t: 'project', P: Q });
+    for (const [key, s] of kit) host.msg({ t: 'sample', key, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr });
+    const L = new Float32Array(128), R = new Float32Array(128), run = n => { for (let i = 0; i < n; i++) host.render(128, L, R); };
+    host.msg({ t: 'hit', pad: 11, tag: 7, notes: [0, 3, 7, 10, 14].map((semi, i) => ({ semi, vel: .9, ms: i * 40 })) });
+    run(1); const v0 = ex.tf_voices(); run(60); const v1 = ex.tf_voices();
+    ok(v0 === 1 && v1 === 5, `a strummed chord on a mono pad starts one note, then all five (${v0} → ${v1})`);
+    host.msg({ t: 'hit', pad: 11, tag: 8, notes: [0, 3, 7, 10, 14].map((semi, i) => ({ semi: semi + 2, vel: .9, ms: i * 60 })) }); run(2); host.msg({ t: 'rel', tag: 8, rel: .02 }); run(80);
+    ok(ex.tf_voices() === 5, `letting go mid-strum releases what started and cancels the rest (${ex.tf_voices()} voices left, the first chord's)`);
   }
   console.log('metronome');
   { const run = (count, click) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, () => {}), Q = M.demoProject();
