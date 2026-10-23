@@ -40,6 +40,10 @@ function renderSeq(V) {
   const wrap = h('div', 'scr tlwrap'), cv = h('canvas', 'navc'); cv.setAttribute('aria-label', 'Timeline'); wrap.append(cv); w.append(bar, wrap); V.append(w);
   TL.cv = cv; TL.cx = cv.getContext('2d'); bindTL(cv); sizeTL();
 }
+// switch the bank the timeline shows (from the lane menu, a vertical swipe, or Shift + ↑↓); keeps the same row selected
+function tlBank(b, why) { b = clamp(b, 0, 3); const tl = UI.tl; if (b === UI.bank && tl.mode === 'bank' && tl.lane === 'notes' && !tl.target) return false;
+  UI.bank = b; UI.pad = b * 16 + UI.pad % 16; tl.target = null; tl.lane = 'notes'; tl.mode = 'bank'; tl.sel = null; tl.selPt = -1; tl.cursor.row = UI.pad % 16;
+  if (why) haptic(); savePrefs(); if (UI.view !== 'seq') setView('seq'); else renderView(); updatePanel(); return true; }
 function chanUsed(c) { return P.chans.some((C, i) => i !== c && tfDest(P, i) === c); }
 function openLaneSheet(c) {
   const sc = P.scenes[UI.scene];
@@ -49,7 +53,14 @@ function openLaneSheet(c) {
       for (const [key, name, sub] of items) { const has = key !== 'notes' && sc.auto[key] && sc.auto[key].length, li = h('div', 'li' + (UI.tl.lane === key && tlTarget() === c ? ' on' : ''));
         li.innerHTML = `<div class="lt"><b>${esc(name)}</b><span>${esc(sub)}</span></div>` + (has ? '<span class="dot" title="Automated in this scene"></span>' : ''); li.onclick = () => pick(key); l.append(li); }
       card.append(l); };
-    if (c < G0) list('Pattern', [['notes', 'Notes', 'what this scene plays']]);
+    if (c < G0) { card.append(h('div', 'sec', 'Notes')); const l = h('div', 'list');
+      for (let b = 0; b < 4; b++) { const used = [...Array(16)].reduce((a, _, i) => a + ((sc.notes[b * 16 + i] || []).length ? 1 : 0), 0);
+        const li = h('div', 'li' + (UI.tl.lane === 'notes' && UI.tl.mode === 'bank' && UI.bank === b ? ' on' : ''));
+        li.innerHTML = `<div class="lt"><b>Bank ${BANKS[b]}</b><span>${used ? used + ' pad' + (used > 1 ? 's' : '') + ' playing in this scene' : 'nothing in this scene yet'}</span></div>`;
+        li.onclick = () => { closeSheet(); tlBank(b); }; l.append(li); }
+      const ki = h('div', 'li' + (UI.tl.lane === 'notes' && UI.tl.mode === 'keys' ? ' on' : '')); ki.innerHTML = `<div class="lt"><b>Keys · ${esc(chanLabel(c) + ' ' + chanName(c))}</b><span>this pad's notes by pitch</span></div>`;
+      ki.onclick = () => { UI.pad = c; UI.bank = Math.floor(c / 16); UI.tl.target = null; UI.tl.lane = 'notes'; UI.tl.mode = 'keys'; UI.tl.sel = null; UI.tl.sy = null; UI.tl.cursor.row = chopOf(c) ? 0 : KEY_HI; closeSheet(); if (UI.view !== 'seq') setView('seq'); else renderView(); };
+      l.append(ki); card.append(l); }
     const strip = [0, 1, 2, 3].filter(i => i < 2 || c < R0).map(i => [c + '.-1.' + i, STRIP[i].label, 'channel']);
     if (c < G0) strip.push([c + '.-2.2', 'Pitch bend', '± ' + (P.pads[c].bendR || 2) + ' semitones'], [c + '.-2.0', 'Cutoff', 'pad filter'], [c + '.-2.1', 'Resonance', 'pad filter']);
     list('Channel', strip);

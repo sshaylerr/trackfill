@@ -2652,6 +2652,8 @@ function bindTL(cv) {
   cv.addEventListener('pointermove', e => {
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; const { x, y } = tlLocal(e), tl = UI.tl, len = tlLen();
     if (!d.moved && Math.hypot(x - d.x0, y - d.y0) > 7) d.moved = true; if (!d.moved) return;
+    if ((d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') && tl.lane === 'notes' && tl.mode === 'bank' && d.axis == null && d.y0 >= RULER_H) d.axis = Math.abs(y - d.y0) > Math.abs(x - d.x0) * 1.3 ? 'v' : 'h';
+    if (d.axis === 'v') return;   // a vertical swipe in Bank view flips banks (on release), like the mixer's pages
     if (d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') { if (d.kind !== 'label') d.kind = 'pan'; tl.sx = d.sx0 - (x - d.x0) / tl.zoom; if (tl.mode === 'keys' && tl.lane === 'notes') tl.sy = d.sy0 - (y - d.y0); drawTL(); return; }
     if (d.kind === 'move' || d.kind === 'resize') { if (!d.pushed) { pushUndo('scene:' + UI.scene); touchPad(d.hit.pi); d.pushed = true; } const n = d.hit.n, dt = (x - d.x0) / tl.zoom;
       if (d.kind === 'move') { n.t = clamp(snapT(d.t0 + dt), 0, len - .01); const dr = y2row(y) - d.row0;
@@ -2668,6 +2670,7 @@ function bindTL(cv) {
   });
   const up = e => {
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; TL.drag = null; const tl = UI.tl, { x, y } = tlLocal(e), now = Date.now();
+    if (d.axis === 'v') { const dy = y - d.y0; if (Math.abs(dy) > 40) tlBank(UI.bank + (dy < 0 ? 1 : -1), 'swipe'); else drawTL(); return; }
     if (d.kind === 'label' && !d.moved) { const r = y2row(y); if (r >= 0 && r <= maxRow()) { if (tl.mode === 'bank') { UI.pad = UI.bank * 16 + r; UI.tl.target = null; audition(UI.pad); } else audition(UI.pad, KR.p(r)); } drawTL(); updatePanel(); return; }
     if (d.kind === 'empty' && !d.moved) {
       if (tl.lane === 'notes') { const r = y2row(y); if (r >= 0 && r <= maxRow()) { const s = tl.snap, t = s ? Math.floor(x2t(x) / s) * s : fixT(x2t(x)); if (t < tlLen()) addNoteAt(t, r); } }
@@ -2791,6 +2794,10 @@ function renderSeq(V) {
   const wrap = h('div', 'scr tlwrap'), cv = h('canvas', 'navc'); cv.setAttribute('aria-label', 'Timeline'); wrap.append(cv); w.append(bar, wrap); V.append(w);
   TL.cv = cv; TL.cx = cv.getContext('2d'); bindTL(cv); sizeTL();
 }
+// switch the bank the timeline shows (from the lane menu, a vertical swipe, or Shift + ↑↓); keeps the same row selected
+function tlBank(b, why) { b = clamp(b, 0, 3); const tl = UI.tl; if (b === UI.bank && tl.mode === 'bank' && tl.lane === 'notes' && !tl.target) return false;
+  UI.bank = b; UI.pad = b * 16 + UI.pad % 16; tl.target = null; tl.lane = 'notes'; tl.mode = 'bank'; tl.sel = null; tl.selPt = -1; tl.cursor.row = UI.pad % 16;
+  if (why) haptic(); savePrefs(); if (UI.view !== 'seq') setView('seq'); else renderView(); updatePanel(); return true; }
 function chanUsed(c) { return P.chans.some((C, i) => i !== c && tfDest(P, i) === c); }
 function openLaneSheet(c) {
   const sc = P.scenes[UI.scene];
@@ -2800,7 +2807,14 @@ function openLaneSheet(c) {
       for (const [key, name, sub] of items) { const has = key !== 'notes' && sc.auto[key] && sc.auto[key].length, li = h('div', 'li' + (UI.tl.lane === key && tlTarget() === c ? ' on' : ''));
         li.innerHTML = `<div class="lt"><b>${esc(name)}</b><span>${esc(sub)}</span></div>` + (has ? '<span class="dot" title="Automated in this scene"></span>' : ''); li.onclick = () => pick(key); l.append(li); }
       card.append(l); };
-    if (c < G0) list('Pattern', [['notes', 'Notes', 'what this scene plays']]);
+    if (c < G0) { card.append(h('div', 'sec', 'Notes')); const l = h('div', 'list');
+      for (let b = 0; b < 4; b++) { const used = [...Array(16)].reduce((a, _, i) => a + ((sc.notes[b * 16 + i] || []).length ? 1 : 0), 0);
+        const li = h('div', 'li' + (UI.tl.lane === 'notes' && UI.tl.mode === 'bank' && UI.bank === b ? ' on' : ''));
+        li.innerHTML = `<div class="lt"><b>Bank ${BANKS[b]}</b><span>${used ? used + ' pad' + (used > 1 ? 's' : '') + ' playing in this scene' : 'nothing in this scene yet'}</span></div>`;
+        li.onclick = () => { closeSheet(); tlBank(b); }; l.append(li); }
+      const ki = h('div', 'li' + (UI.tl.lane === 'notes' && UI.tl.mode === 'keys' ? ' on' : '')); ki.innerHTML = `<div class="lt"><b>Keys · ${esc(chanLabel(c) + ' ' + chanName(c))}</b><span>this pad's notes by pitch</span></div>`;
+      ki.onclick = () => { UI.pad = c; UI.bank = Math.floor(c / 16); UI.tl.target = null; UI.tl.lane = 'notes'; UI.tl.mode = 'keys'; UI.tl.sel = null; UI.tl.sy = null; UI.tl.cursor.row = chopOf(c) ? 0 : KEY_HI; closeSheet(); if (UI.view !== 'seq') setView('seq'); else renderView(); };
+      l.append(ki); card.append(l); }
     const strip = [0, 1, 2, 3].filter(i => i < 2 || c < R0).map(i => [c + '.-1.' + i, STRIP[i].label, 'channel']);
     if (c < G0) strip.push([c + '.-2.2', 'Pitch bend', '± ' + (P.pads[c].bendR || 2) + ' semitones'], [c + '.-2.0', 'Cutoff', 'pad filter'], [c + '.-2.1', 'Resonance', 'pad filter']);
     list('Channel', strip);
@@ -4416,6 +4430,8 @@ function navArrow(dir, sh) {
     const d = dir === 'right' ? 1 : -1, syn = P.pads[UI.pad].src === 'synth' && P.pads[UI.pad].syn;
     if (syn) SYN_ST.pg = (SYN_ST.pg + d + SYN_PAGES.length) % SYN_PAGES.length; else UI.snd = (UI.snd + d + SND_PAGES.length) % SND_PAGES.length;
     renderView(); updatePanel(); return; }
+  if (UI.shift && NAV.mode === 'nav' && UI.view === 'seq' && UI.tl.lane === 'notes' && UI.tl.mode === 'bank' && (dir === 'up' || dir === 'down')) {   // Shift + ↑↓ flips banks on the timeline
+    tlBank(UI.bank + (dir === 'down' ? 1 : -1), 'dpad'); return; }
   if (NAV.mode === 'canvas') { canvasCtl()[dir](sh || NAV.held, sh); return; }
   if (NAV.mode === 'edit' && NAV.el && NAV.el._reg) { NAV.el._reg.step(dir === 'up' || dir === 'right' ? 1 : -1, sh); return; }
   navMove(dir);
