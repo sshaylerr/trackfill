@@ -323,14 +323,14 @@ class TFHost {
     if (pad0 && pad0.choke) this.P.pads.forEach((q, qi) => { if (qi !== pi && q && q.choke === pad0.choke) this.ex.tf_ch_release(qi, 0.004); });   // choke group: a closed hat cuts the open one
     if (pad0 && pad0.src === 'synth' && pad0.syn) { this.ex.tf_syn_note(pi, off, semi + (pad0.pitch || 0) + (pad0.fine || 0) / 100, vel, gateSec, tag, chordN); return; }
     const pad = pad0; if (!pad || !pad.sample) return;
-    const e = this.sm.get(pad.sample); if (!e) return;
+    const st = pad.wm && pad.wm !== 'Repitch' && pad.stx ? this.sm.get(pad.stx) : null, e = st || this.sm.get(pad.sample); if (!e) return;   // stretched: the render already has tempo and pitch baked in
     const ex = this.ex, ch = pad.chop, chopped = ch && ch.on && ch.pts.length, loop = pad.mode === 'loop' && !chopped, gate = pad.mode === 'gate' || loop ? gateSec : -1; let start = pad.start, end = pad.end, vm = pad.voice || 'poly';
     if (chopped) {   // chopped: the note number picks a slice; choke cuts the slice before it
       const n = ch.pts.length, k = Math.max(0, Math.min(n - 1, Math.round(semi) || 0)); start = ch.pts[k]; end = k + 1 < n ? ch.pts[k + 1] : pad.end; semi = 0;
       if (ch.choke) ex.tf_ch_release(pi, 0.004); if (vm === 'legato') vm = 'mono';   // a new slice is a new sound, so legato acts as mono
     }
-    let rate = Math.pow(2, (pad.pitch + pad.fine / 100 + semi) / 12);
-    if (pad.tempo > 0) rate *= this.P.bpm / pad.tempo;   // follow the project tempo by repitching
+    let rate = Math.pow(2, ((st ? 0 : pad.pitch + pad.fine / 100) + semi) / 12);
+    if (!st && pad.tempo > 0) rate *= this.P.bpm / pad.tempo;   // follow the project tempo by repitching (or while a stretch is still rendering)
     // voicing: mono cuts the last note; legato hands a held note the new pitch (gliding) without restarting; poly keeps up to pad.poly notes
     if (chordN) vm = 'poly';   // a chord played live always sounds whole, whatever the pad's voicing
     if (vm === 'legato' && ex.tf_voice_legato(pi, rate, pad.glide || 0, gate, pad.rel, tag)) return;
