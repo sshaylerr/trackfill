@@ -320,6 +320,7 @@ class TFHost {
   }
   voice(pi, off, semi, vel, gateSec, tag, chordN = 0) {
     const pad0 = this.P.pads[pi];
+    if (pad0 && pad0.choke) this.P.pads.forEach((q, qi) => { if (qi !== pi && q && q.choke === pad0.choke) this.ex.tf_ch_release(qi, 0.004); });   // choke group: a closed hat cuts the open one
     if (pad0 && pad0.src === 'synth' && pad0.syn) { this.ex.tf_syn_note(pi, off, semi + (pad0.pitch || 0) + (pad0.fine || 0) / 100, vel, gateSec, tag, chordN); return; }
     const pad = pad0; if (!pad || !pad.sample) return;
     const e = this.sm.get(pad.sample); if (!e) return;

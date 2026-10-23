@@ -152,7 +152,7 @@ function renderSynthSound(w, pi, head) {
   g.addEventListener('click', e => { if (UI.map && e.target.closest('[data-syn]')) { e.stopPropagation(); e.preventDefault(); } }, true);
   dev.append(disp, g); w.append(dev); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
 }
-function synHeadKey(pi) { const pad = P.pads[pi], k = btn(pad.src === 'synth' ? 'Synth' : 'Sample', () => openSynthSource(pi), 'key sm srcKey' + (pad.src === 'synth' ? ' on' : '')); return k; }
+function synHeadKey(pi) { const pad = P.pads[pi], k = btn(pad.src === 'synth' ? 'Synth' : pad.src === 'drum' ? 'Drum' : 'Sample', () => openSynthSource(pi), 'key sm srcKey' + (pad.src !== 'sample' ? ' on' : '')); return k; }
 function mapKey(pi) { return btn('Map', () => { UI.map = UI.map ? null : { target: null, route: -1, armed: -1 }; renderView(); }, 'key sm mapKey' + (UI.map ? ' on' : '')); }
 
 /* ----- source and presets ----- */
@@ -167,9 +167,11 @@ function applySynthPreset(pi, pr) {
 function openSynthSource(pi) {
   const pad = P.pads[pi], smp = pad.sample ? (SAMPLES.get(pad.sample) || {}).name || 'Sound' : 'none loaded';
   openSheet('Sound source · ' + padLabel(pi), card => { const st = h('div', 'stack');
-    st.append(btn(`Sample <span class="lsub">${esc(smp)}</span>`, () => { if (pad.src !== 'synth') { closeSheet(); return; } pushUndo('pad:' + pi); pad.src = 'sample'; syncPad(pi); markDirty(); closeSheet(); renderAll(); }, 'btn' + (pad.src !== 'synth' ? ' on' : '')),
+    st.append(btn(`Sample <span class="lsub">${esc(smp)}</span>`, () => { if (pad.src === 'sample') { closeSheet(); return; } pushUndo('pad:' + pi); pad.src = 'sample'; syncPad(pi); markDirty(); closeSheet(); renderAll(); }, 'btn' + (pad.src === 'sample' ? ' on' : '')),
       btn(`Synth <span class="lsub">${pad.syn ? (TF_ENGS[pad.syn.eng] || 'Analog') + ' · ' + esc(pad.syn.name || 'Init') : 'Analog · Init'}</span>`, () => { closeSheet(); if (pad.src === 'synth' && pad.syn) return; if (pad.syn) { pushUndo('pad:' + pi); pad.src = 'synth'; pad.mode = 'gate'; syncPad(pi); markDirty(); renderAll(); } else applySynthPreset(pi, SYN_INIT); }, 'btn' + (pad.src === 'synth' ? ' on' : '')));
-    st.append(h('p', 'note', 'Switching keeps both, so nothing is lost. On a synth, the preset name on the faceplate opens its presets.')); card.append(st); });
+    st.append(btn(`Drum <span class="lsub">${pad.drum ? esc(DRUM_MODS[pad.drum.mod].n + ' · ' + pad.drum.type) : 'Kick, snare, clap, hats, perc · or a whole kit'}</span>`, () => { closeSheet(); if (pad.src === 'drum') return;
+      if (pad.drum) { pushUndo('pad:' + pi); pad.src = 'drum'; pad.mode = 'one'; refreshDrum(pi); renderAll(); } else { makeDrumPad(pi, 'kick', 'DnB Punch'); UI.snd = 0; renderAll(); } }, 'btn' + (pad.src === 'drum' ? ' on' : '')));
+    st.append(h('p', 'note', 'Switching keeps all three, so nothing is lost. On a synth, the preset name on the faceplate opens its presets; on a drum, Kit builds a whole bank.')); card.append(st); });
 }
 /* ----- presets: factory ones per engine, plus your own (kept on this device for every project) ----- */
 let USER_PRESETS = [];
@@ -370,7 +372,7 @@ function pickTableFile(pi, o) {
     openSheet('Frame size for ' + name, card => { const g2 = h('div', 'g2'); for (const n of [256, 512, 1024, 2048, 4096]) g2.append(btn(n + ' samples', () => { closeSheet(); finish(n); })); card.append(g2, h('p', 'note', 'Each frame is one cycle. Most wavetable files use 2048.')); }); };
   inp.click(); }
 function openTableFromSound(pi, o) {
-  openSheet('Make a table from a sound', card => { const l = h('div', 'list'), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt).sort((a, b) => (b.added || 0) - (a.added || 0));
+  openSheet('Make a table from a sound', card => { const l = h('div', 'list'), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt && !s.drum).sort((a, b) => (b.added || 0) - (a.added || 0));
     for (const smp of all.slice(0, 60)) { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(smp.name)}</b><span>${(smp.frames / smp.sr).toFixed(2)} s</span></div>`;
       li.onclick = () => { closeSheet(); const mono = new Float32Array(smp.frames); for (let i = 0; i < smp.frames; i++) { let a = 0; for (let c = 0; c < smp.ch; c++) a += smp.data[i * smp.ch + c]; mono[i] = a / smp.ch / 32767; }
         const t = wtFromSample(mono, smp.sr); if (!t) { toast('Could not find a steady pitch in that sound'); return; } const id = saveUserTable(smp.name.slice(0, 16) + ' table', t.raw, t.F); setTable(pi, o, id); toast(`Made a ${t.F}-frame table from "${smp.name}"`); };
@@ -413,7 +415,7 @@ function bindGrain(cv, pi) {
 function openGrainSource(pi) {
   const S = synOf(pi), cur = S.gr && S.gr.src, pick = k => { closeSheet(); if (k.startsWith('b:')) buildBuiltin(k.slice(2)); pushUndo('pad:' + pi); touchPad(pi); S.gr = { src: k }; GRPEAK.clear(); syncPad(pi); markDirty(); renderView(); audition(pi); };
   openSheet('Grain source', card => { const st = h('div', 'stack'); card.append(st);
-    const onPads = [...new Set(P.pads.map(p => p.sample).filter(Boolean))], mine = [...SAMPLES.values()].filter(x => !x.frz && !x.wt && !x.builtin).sort((a, b) => (b.added || 0) - (a.added || 0)).map(x => x.id);
+    const onPads = [...new Set(P.pads.map(p => p.sample).filter(k => k && !k.startsWith('d:')))], mine = [...SAMPLES.values()].filter(x => !x.frz && !x.wt && !x.drum && !x.builtin).sort((a, b) => (b.added || 0) - (a.added || 0)).map(x => x.id);
     const sec = (title, keys) => { if (!keys.length) return; st.append(h('div', 'sec', title)); const l = h('div', 'list'); for (const k of keys) { const li = h('div', 'li' + (k === cur ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${esc(soundName(k))}</b></div>`; li.onclick = () => pick(k); l.append(li); } st.append(l); };
     sec('On pads', onPads); sec('Your sounds', mine.filter(k => !onPads.includes(k)).slice(0, 40));
     for (const [title, keys] of PACKS) sec(title, keys.map(k => 'b:' + k).filter(k => !onPads.includes(k)));

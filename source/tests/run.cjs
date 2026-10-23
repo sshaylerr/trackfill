@@ -1,7 +1,7 @@
 // Trackfill automated tests: node tests/run.cjs [--update-golden]
 // Renders projects through the real WASM engine + host and checks safety, determinism and behavior.
 const fs = require('fs'), path = require('path');
-const H = require('../js/host.js'), M = require('../js/model.js'), HM = require('../js/harmony.js'), SP = require('../js/synthpresets.js'), WT = require('../js/wavetables.js');
+const H = require('../js/host.js'), M = require('../js/model.js'), HM = require('../js/harmony.js'), SP = require('../js/synthpresets.js'), WT = require('../js/wavetables.js'), DR = require('../js/drums.js');
 const wasm = new WebAssembly.Module(fs.readFileSync(path.join(__dirname, '../build/engine.wasm')));
 const GOLD = path.join(__dirname, 'golden.json');
 let fails = 0; const ok = (c, msg) => { console.log((c ? '  ✓ ' : '  ✗ ') + msg); if (!c) fails++; };
@@ -239,6 +239,27 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     { const s = mk(SP.synPatch({ eng: 'gr', gr: { src: 'b:jstrings' }, p: { flt: 'Off', gsz: .2, gde: 60, gsp: .4, gst: .9 } }), 'b:jstrings'); for (let k = 0; k < 16; k++) s.host.msg({ t: 'hit', pad: 20, semi: k - 8, vel: .8, tag: k + 1 });
       s.run(20); const t0 = Date.now(); s.run(375 * 2); const ms = Date.now() - t0; console.log(`    16 granular notes (60 grains/s, 200 ms grains, up to the shared ceiling): ${(ms / 20).toFixed(1)}% of real time on this machine`); ok(ms < 2000, 'granular processing stays well within real time'); }
   }
+  console.log('drum synth');
+  { let bad = 0, n = 0, lv = [], longest = 0; for (const mod in DR.DRUM_MODS) for (const type in DR.DRUM_MODS[mod].types) { const r = DR.drumRender(DR.drumDefault(mod, type, 3), { key: { root: 0 } }); n++;
+      let pk = 0; for (let i = 0; i < r.L.length; i++) { if (!(r.L[i] === r.L[i]) || !(r.R[i] === r.R[i])) bad++; pk = Math.max(pk, Math.abs(r.L[i]), Math.abs(r.R[i])); } lv.push(pk); longest = Math.max(longest, r.L.length / r.sr); }
+    ok(!bad && lv.every(p => p > .5 && p <= .9) && longest <= 4, `all ${n} drum types render cleanly at a matched level (peaks ${Math.min(...lv).toFixed(2)}–${Math.max(...lv).toFixed(2)}, longest ${longest.toFixed(1)} s)`); }
+  { const d = DR.drumDefault('kick', 'Deep 808', 1); d.key = 'Root'; const k = DR.drumEffective(d, null), hz = 35 * Math.pow(2, k.tune * 1.25), a = DR.keySnap(hz, 'Root', { root: 7 }), b = DR.keySnap(hz, 'Fifth', { root: 0 });
+    const m = x => ((Math.round(12 * Math.log2(x / 440) + 69) % 12) + 12) % 12; ok(m(a) === 7 && m(b) === 7, `tuned drums lock to the key (root G → ${a.toFixed(1)} Hz, fifth of C → ${b.toFixed(1)} Hz)`); }
+  { const d = DR.drumDefault('snare', 'DnB Crack', 1); d.locks = ['tune', 'tone']; const v = DR.drumVariation(d, 12345); const moved = Object.keys(d.k).filter(id => Math.abs(v.k[id] - d.k[id]) > 1e-9);
+    ok(!moved.includes('tune') && !moved.includes('tone') && moved.length >= 3, `More like this moves the unlocked knobs (${moved.join(', ')}) and leaves locked ones alone`); }
+  { const K = DR.drumKit('Jungle', 7), roles = K.pieces.map(p => p.d.mod + '/' + p.d.type); const again = DR.drumKit('Jungle', 7), same = JSON.stringify(K) === JSON.stringify(again);
+    const bright = DR.drumRender(K.pieces[1].d, { kit: Object.assign({}, K.kit, { bright: 1 }) }), dark = DR.drumRender(K.pieces[1].d, { kit: Object.assign({}, K.kit, { bright: 0 }) });
+    const hf = r => { let d = 0, e = 0; for (let i = 1; i < r.L.length; i++) { d += (r.L[i] - r.L[i - 1]) ** 2; e += r.L[i] ** 2; } return d / e; };
+    ok(K.pieces.length === 9 && same && hf(bright) > hf(dark) * 1.3, `a vibe builds a 9-piece kit (${roles.slice(0, 5).join(', ')}…), the same seed builds the same kit, and Dark ↔ Bright works (×${(hf(bright) / hf(dark)).toFixed(1)})`); }
+  { // choke group: an open hat rings, then a closed hat in the same group cuts it
+    const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; }); Q.scenes.forEach(s => { s.notes = {}; s.auto = {}; });
+    const mkS = (d) => { const r = DR.drumRender(d, {}); const n = r.L.length, o = new Int16Array(n * 2); for (let i = 0; i < n; i++) { o[i * 2] = r.L[i] * 32767; o[i * 2 + 1] = r.R[i] * 32767; } return { data: o, frames: n }; };
+    const op = mkS(DR.drumDefault('hats', 'Open', 1)), cl = mkS(DR.drumDefault('hats', 'Closed', 1));
+    for (const [pi, key, s] of [[30, 'd:o', op], [31, 'd:c', cl]]) { Object.assign(Q.pads[pi], { sample: key, mode: 'one', choke: 1, src: 'sample' }); }
+    host.msg({ t: 'project', P: Q }); host.msg({ t: 'sample', key: 'd:o', data: op.data, frames: op.frames, ch: 2, sr: 48000 }); host.msg({ t: 'sample', key: 'd:c', data: cl.data, frames: cl.frames, ch: 2, sr: 48000 });
+    const L = new Float32Array(128), R = new Float32Array(128); host.msg({ t: 'hit', pad: 30, semi: 0, vel: .9, tag: 1 }); for (let i = 0; i < 40; i++) host.render(128, L, R); const v1 = ex.tf_voices();
+    host.msg({ t: 'hit', pad: 31, semi: 0, vel: .9, tag: 2 }); for (let i = 0; i < 8; i++) host.render(128, L, R); const v2 = ex.tf_voices();
+    ok(v1 === 1 && v2 === 1, `choke groups: the closed hat cuts the ringing open hat (voices ${v1} → ${v2})`); }
   console.log('pitch bend');
   { // a sustained sample and a synth, bent up a full range of 12: both play an octave higher; automation drives it
     const zc = (x, a) => { let n = 0; for (let i = a + 1; i < x.length; i++) if ((x[i - 1] < 0) !== (x[i] < 0)) n++; return n; };

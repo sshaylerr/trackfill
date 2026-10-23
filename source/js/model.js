@@ -402,7 +402,7 @@ function defaultChan(c) {
 }
 // tempo: the sound's own tempo in BPM (0 = off); when set, it is repitched to follow the project tempo.
 // chop: slices of the sound. Notes on a chopped pad carry the slice number in 'p' instead of a pitch.
-function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08, src: 'sample', syn: null, bend: .5, bendR: 2 }; }
+function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08, src: 'sample', drum: null, choke: 0, syn: null, bend: .5, bendR: 2 }; }
 
 /* ---------- chopping ---------- */
 const MAX_SLICES = 16;
@@ -467,16 +467,20 @@ function migrate(src) {
 }
 function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : (v === v ? v : 0); }
 // harmony helpers live in harmony.js (one script with this file in the app; a require in the tests)
+const c01 = (v, d) => typeof v === 'number' && v === v ? Math.max(0, Math.min(1, v)) : d;
+const DRN = () => typeof drumNormalize === 'function' ? { drumNormalize } : require('./drums.js');
 const SPN = () => typeof normalizeSyn === 'function' ? { normalizeSyn, SYN_PRESETS, FM_PRESETS, synPatch } : require('./synthpresets.js');
 const HMN = () => typeof normalizeKx === 'function' ? { normalizeKx, normalizeKey, PROGS, chordPads, voiceChord } : require('./harmony.js');
 function normalize(p) {
   const n = newProject(true); Object.assign(n, p); n.v = PROJECT_VERSION;
   n.key = HMN().normalizeKey(p.key);
+  n.drumKits = {}; if (p.drumKits && typeof p.drumKits === 'object') for (const b of ['0', '1', '2', '3']) { const k = p.drumKits[b]; if (k && typeof k === 'object') n.drumKits[b] = { vibe: String(k.vibe || ''), seed: k.seed | 0, tune: c01(k.tune, .5), len: c01(k.len, .5), bright: c01(k.bright, .5), drive: c01(k.drive, .3), room: c01(k.room, .2) }; }
   n.pads = Array.from({ length: NPADS }, (_, i) => { const d = Object.assign(defaultPad(i), (p.pads || [])[i] || {});
     d.tempo = +d.tempo > 0 ? Math.min(300, Math.max(20, +d.tempo)) : 0;
     d.kx = d.kx ? HMN().normalizeKx(d.kx) : null;
     d.bend = d.bend == null ? .5 : clamp01(+d.bend); d.bendR = [1, 2, 3, 5, 7, 12, 24].includes(+d.bendR) ? +d.bendR : 2;
-    d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : 'sample';
+    d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.drum = d.drum ? DRN().drumNormalize(d.drum) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : d.src === 'drum' && d.drum ? 'drum' : 'sample';
+    d.choke = Math.max(0, Math.min(4, d.choke | 0));
     d.mode = ['one', 'gate', 'loop'].includes(d.mode) ? d.mode : 'one'; d.loopS = clamp01(+d.loopS || 0); d.xf = Math.max(0, Math.min(1, d.xf == null ? .08 : +d.xf || 0));   // Keys view settings: notes, scale or chords (null until first changed)
     d.voice = ['poly', 'mono', 'legato'].includes(d.voice) ? d.voice : 'poly'; d.poly = Math.max(1, Math.min(16, Math.round(+d.poly) || 8)); d.glide = Math.max(0, Math.min(1, +d.glide || 0));
     if (d.chop) { const c = Object.assign(newChop(), d.chop); c.by = ['t', 'e', 'm'].includes(c.by) ? c.by : 't'; c.div = Math.max(2, Math.min(MAX_SLICES, Math.round(+c.div) || 16)); c.sens = clamp01(+c.sens);

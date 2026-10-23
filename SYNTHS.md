@@ -2,7 +2,7 @@
 
 Everything agreed for the synths, before building. One pass, designed together. Names in the app stay generic; inspirations are listed here only.
 
-**Status:** copy, paste and duplicate: done. Shared frame + Analog engine: first pass in the app. FM engine: first pass in the app (4 operators, 5 modes on any operator, 12 algorithms, 10 waves, 30 presets). Not yet in this pass: 2× oversampling for Analog sync and FM (they run at 1×; FM's saw, triangle and square use band-limited tables), the Unison spread modulation source, global (shared) envelopes, custom FM algorithms; LFOs already offer a shared free-running mode.
+**Status:** all five engines have a first pass in the app: Analog, FM (4 operators, 5 modes, 12 algorithms, 30 presets), Wavetable (2 oscillators, 20 factory tables, 8 warps, import, tools, 17 presets), Granular (Cloud and Stretch, tempo lock, 8 presets) and the Drum synth (5 modules, 31 types, More like this with A–D slots, key lock, kit builder with 26 vibes, choke groups). Not yet: 2× oversampling for Analog sync and FM; Wavetable harmonics editor, frame drawing and morph fill; Granular live capture; the Unison spread modulation source; global envelopes; custom FM algorithms.
 
 Build order: copy, paste and duplicate first, then the synth frame with the Analog engine, then FM, Wavetable, Granular, then the Drum synth. Later: multisampled instruments, vocal tracks.
 
