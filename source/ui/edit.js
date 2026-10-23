@@ -15,7 +15,7 @@ function putPad(pi, src) {
 }
 function pastePad(pi) { if (!clipIs('pad')) return; pushUndo('all'); putPad(pi, CLIP.data); renderAll(); toast(`Pasted onto ${padLabel(pi)}`); }
 function duplicatePad(pi) {
-  let to = -1; for (let k = 1; k < NPADS; k++) { const j = (pi + k) % NPADS; if (!P.pads[j].sample && !Object.values(P.scenes).some(s => s.notes[j] && s.notes[j].length)) { to = j; break; } }
+  let to = -1; for (let k = 1; k < NPADS; k++) { const j = (pi + k) % NPADS; if (!hasSound(P.pads[j]) && !Object.values(P.scenes).some(s => s.notes[j] && s.notes[j].length)) { to = j; break; } }
   if (to < 0) { toast('No empty pad left to duplicate into'); return; }
   pushUndo('all'); putPad(to, { pad: P.pads[pi], chan: P.chans[pi] }); P.pads[to].name = (P.pads[pi].name || 'Sound').slice(0, 10) + ' 2';
   UI.pad = to; UI.bank = Math.floor(to / 16); renderAll(); toast(`Duplicated to ${padLabel(to)}`);
@@ -113,7 +113,7 @@ function openEdit() {
     const draw = () => { body.innerHTML = '';
       body.append(h('p', 'note clipline', CLIP ? `Clipboard: <b>${esc(CLIP.label)}</b>` : 'Clipboard is empty'));
       if (ctx === 'pad') { const pi = UI.view === 'mix' ? UI.mixSel : UI.pad; body.append(h('div', 'sec', `Pad ${padLabel(pi)} · ${esc(P.pads[pi].name || 'Empty')}`));
-        row(act('Copy', () => copyPad(pi)), act('Paste', () => pastePad(pi), clipIs('pad')), act('Duplicate', () => duplicatePad(pi), !!P.pads[pi].sample));
+        row(act('Copy', () => copyPad(pi)), act('Paste', () => pastePad(pi), clipIs('pad')), act('Duplicate', () => duplicatePad(pi), hasSound(P.pads[pi])));
         row(act('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap the pad to swap ${padLabel(pi)} with (Back cancels)`); }), confirmBtn('Clear sound', 'Tap again to clear', () => { closeSheet(); clearPad(pi); }));
         body.append(h('p', 'note', 'A pad copies with its whole channel: sound, settings, voicing, keys, effects and sends. Duplicate puts a copy on the next empty pad.')); }
       if (ctx === 'chan') { const c = UI.mixSel; body.append(h('div', 'sec', `Channel ${esc(chanName(c))}`));

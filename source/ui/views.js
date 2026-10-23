@@ -59,7 +59,7 @@ function openLaneSheet(c) {
 }
 function openChannelPicker() {
   openSheet('Automate another channel', card => {
-    const groups = [['Pads in bank ' + BANKS[UI.bank], [...Array(16)].map((_, i) => UI.bank * 16 + i).filter(i => P.pads[i].sample)], ['Groups', [...Array(8)].map((_, i) => G0 + i)], ['Buses', [...Array(8)].map((_, i) => B0 + i)], ['Returns & master', [R0, R0 + 1, MASTER]]];
+    const groups = [['Pads in bank ' + BANKS[UI.bank], [...Array(16)].map((_, i) => UI.bank * 16 + i).filter(i => hasSound(P.pads[i]))], ['Groups', [...Array(8)].map((_, i) => G0 + i)], ['Buses', [...Array(8)].map((_, i) => B0 + i)], ['Returns & master', [R0, R0 + 1, MASTER]]];
     for (const [title, chs] of groups) { const l = h('div', 'list');
       for (const c of chs) { const C = P.chans[c]; if (c >= G0 && c < R0 && !C.fx.length && !chanUsed(c)) continue;
         const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(chanLabel(c) + ' · ' + chanName(c))}</b><span>${esc(C.fx.map(f => FX_DEFS[f.type].name).join(' · ') || 'no effects')}</span></div>`;
@@ -77,7 +77,8 @@ function renderSound(V) {
   const head = h('div', 'shead'), nm = h('input'); nm.maxLength = 12; nm.value = pad.name; nm.placeholder = 'NAME THIS PAD'; nm.setAttribute('aria-label', 'Pad name');
   nm.onfocus = () => pushUndo('pad:' + pi); nm.oninput = () => { pad.name = nm.value; markDirty(); }; nm.onblur = () => renderScenes();
   const badge = h('div', 'lcdbox', padLabel(pi)); badge.style.flex = '0 0 50px';
-  head.append(btn(IC.left, () => go(-1), 'key ic'), badge, nm, btn(IC.right, () => go(1), 'key ic'));
+  head.append(btn(IC.left, () => go(-1), 'key ic'), badge, nm, synHeadKey(pi)); if (pad.src === 'synth') head.append(mapKey(pi)); head.append(btn(IC.right, () => go(1), 'key ic'));
+  if (pad.src === 'synth' && pad.syn) { renderSynthSound(w, pi, head); V.append(w); return; }
   const pages = seg(SND_PAGES, UI.snd, i => { UI.snd = i; renderView(); }); pages.style.display = 'grid'; pages.style.gridTemplateColumns = 'repeat(5,1fr)'; pages.querySelectorAll('.key').forEach(k => k.style.width = '100%');
   if (UI.snd === PG.CHOP) { w.append(head, pages, chopView(pi)); V.append(w); requestAnimationFrame(drawChop); return; }
   const disp = h('div', 'scr disp'), cv = h('canvas'); disp.append(cv); dispCv = cv; bindWave(cv);
@@ -284,7 +285,7 @@ function openKeyPicker(c, s) {
     const add = (k, title, sub) => { const li = h('div', 'li' + ((f.key ?? null) === k ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${esc(title)}</b><span>${esc(sub)}</span></div>`;
       li.onclick = () => { pushUndo('chan:' + c); f.key = k; syncChan(c); markDirty(); closeSheet(); }; list.append(li); };
     add(null, gate ? 'Itself' : 'None', gate ? 'the gate listens to its own channel' : 'the ducker does nothing in audio mode');
-    for (let k = 0; k < NCHANS; k++) { if (k === c) continue; if (k < G0 && !P.pads[k].sample) continue; if (k >= G0 && k < R0 && !chanUsed(k) && !P.chans[k].fx.length) continue;
+    for (let k = 0; k < NCHANS; k++) { if (k === c) continue; if (k < G0 && !hasSound(P.pads[k])) continue; if (k >= G0 && k < R0 && !chanUsed(k) && !P.chans[k].fx.length) continue;
       add(k, chanLabel(k) + ' · ' + chanName(k), k < G0 ? 'pad' : chanKind(k)); }
     card.append(list, h('p', 'note', 'The source is heard after its effects and before its fader, so its volume automation does not change the ducking. To duck from notes instead, set Trigger to Notes.')); });
 }

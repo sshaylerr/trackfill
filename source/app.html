@@ -78,6 +78,17 @@ body{font-variant-numeric:tabular-nums}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .btn:disabled{opacity:.32;pointer-events:none} .clipline b{color:var(--accent);font-weight:600} .lcdbox.edr{display:flex;align-items:center;justify-content:center;height:36px;font:500 12px var(--font-lcd);color:var(--accent)}
 .grid.swapping .pad:not(.sel){animation:swapPulse 1s ease-in-out infinite alternate} @keyframes swapPulse{from{box-shadow:0 3px 0 #050506,inset 0 0 0 1px transparent}to{box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)}}
+.synPages{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))} .synPages .key{width:100%;padding:0 2px;font-size:12px;white-space:nowrap} @media (max-width:400px){.synPages .key{font-size:10.5px;letter-spacing:-.02em}}
+.synTabs{display:flex;gap:4px;height:30px;flex:none} .synTabs .key{flex:1;height:30px;padding:0 4px;font-size:12px;min-width:0} .synInfo{flex:1;display:flex;align-items:center;padding:0 10px;font:500 11.5px var(--font-lcd);color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srcKey{flex:none;padding:0 8px} .mapKey{flex:none;padding:0 8px}
+.mapBar{display:flex;flex-direction:column;gap:4px;flex:none} .mapRow{display:flex;gap:4px;height:34px;align-items:stretch;min-width:0} .mapRow::-webkit-scrollbar{display:none}
+.mapLab{flex:0 0 auto;min-width:96px;display:flex;align-items:center;padding:0 8px;font:500 12px var(--font-lcd);color:var(--accent);white-space:nowrap}
+.mchip{flex:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap} .mchip i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.msrcs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0} .msrcs::-webkit-scrollbar{display:none} .mdone{margin-left:auto;flex:none}
+.mapAmt{flex:1;min-width:0;height:34px} .mapAmt .prow{font-size:11px} .mapRow .key.mx{color:var(--rec)}
+.knob .km{fill:none;stroke-width:2.2;stroke-linecap:round;opacity:.95}
+.synGrid .modded .klab::after{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:1px}
+.synGrid .maptgt{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px}
 .g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px} .g4 .btn{padding:0 6px;min-width:0}
 .btn.theme{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px} .btn.theme.on{background:linear-gradient(180deg,var(--on1),var(--on2));color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-ring)}
 .swd{width:12px;height:12px;border-radius:50%;flex:none;background:var(--sa);box-shadow:0 0 0 2px var(--sb),0 0 6px var(--sa)}
@@ -464,7 +475,8 @@ const PAD_COLORS = ['#e8916c', '#e6c162', '#a3d27d', '#6fcac1', '#78a9ea', '#ab8
 const SNAPS = [{ t: 96, l: '1/4' }, { t: 48, l: '1/8' }, { t: 24, l: '1/16' }, { t: 12, l: '1/32' }, { t: 0, l: 'Off' }];
 const KEY_HI = 24, KEY_ROWS = 49, KEY_H = 24, LABEL_W = 50, RULER_H = 20, STRIP_H = 28;
 // a chopped pad's notes carry a slice number; in Keys mode its rows (and the 16 pads) become its slices
-const chopOf = pi => { const p = P.pads[pi]; return p && p.sample && p.chop && p.chop.on && p.chop.pts.length ? p.chop : null; };
+const hasSound = p => !!(p && (p.src === 'synth' ? p.syn : p.sample));   // a pad makes sound: a sample, or a synth patch
+const chopOf = pi => { const p = P.pads[pi]; return p && p.src !== 'synth' && p.sample && p.chop && p.chop.on && p.chop.pts.length ? p.chop : null; };
 // where a slice starts: in beats of the original loop when its tempo is known, otherwise in seconds
 function sliceName(pi, k) { const p = P.pads[pi], s = SAMPLES.get(p.sample); if (!s) return ''; const sec = (p.chop.pts[k] - p.start) * s.frames / s.sr;
   let bt = sec * p.tempo / 60 + 1; const q = Math.round(bt * 4) / 4; if (Math.abs(bt - q) < .04) bt = q;   // a hit cut a hair early still reads as its beat
@@ -656,7 +668,7 @@ async function renderOffline(order, tail, tap, onProgress) {
   for (const id of usedSampleIds()) { const s = SAMPLES.get(id); if (s) samples.set(id, s); }
   return tfRenderOffline(mod, P, samples, { sr: 48000, order, tail, tap, onProgress });
 }
-function audition(pi, semi = 0) { if (!ENG.node) return; const pad = P.pads[pi]; if (pad.sample) { ensureSample(pad.sample); send({ t: 'hit', pad: pi, semi, vel: .8, gate: .25, tag: 0 }); } }
+function audition(pi, semi = 0) { if (!ENG.node) return; const pad = P.pads[pi]; if (hasSound(pad)) { if (pad.sample) ensureSample(pad.sample); send({ t: 'hit', pad: pi, semi, vel: .8, gate: .25, tag: 0 }); } }
 function previewSample(id) { ensureAudio(); ensureSample(id); send({ t: 'preview', key: id }); }
 
 /* ================= transport ================= */
@@ -714,7 +726,7 @@ function doCapture() {
 /* ================= chop: spread slices onto their own pads ================= */
 function spreadSlices(pi) {
   const pad = P.pads[pi], c = chopOf(pi); if (!c) return; const n = c.pts.length, free = [];
-  for (let i = 1; i < NPADS && free.length < n; i++) { const j = (pi + i) % NPADS; if (!P.pads[j].sample) free.push(j); }
+  for (let i = 1; i < NPADS && free.length < n; i++) { const j = (pi + i) % NPADS; if (!hasSound(P.pads[j])) free.push(j); }
   if (free.length < n) { toast(`Spreading needs ${n} empty pads and there are ${free.length}. Clear some pads, or remove slices first.`); return; }
   touchPad(pi); pushUndo('all'); const S = P.chans[pi], tpl = JSON.parse(JSON.stringify(pad));
   free.forEach((j, k) => { const [a, b] = sliceRange(pad, k);
@@ -845,9 +857,9 @@ function refreshPadDots() {
     let pn = null, kc = null;
     if (UI.keys) { pi = UI.pad; if (chop) name = cell < chop.pts.length ? sliceName(UI.pad, cell) : '—'; else { kc = keyCell(cell); name = kc.name; pn = kc.pn; }
       pd.classList.add('kp'); pd.classList.remove('sel', 'has', 'frz'); }
-    else { pi = UI.bank * 16 + cell; const p = P.pads[pi]; name = p.sample ? (p.name || 'Sound') : 'Empty'; pd.classList.remove('kp');
+    else { pi = UI.bank * 16 + cell; const p = P.pads[pi]; name = hasSound(p) ? (p.name || (p.src === 'synth' ? 'Synth' : 'Sound')) : 'Empty'; pd.classList.remove('kp');
       pd.classList.toggle('sel', UI.pad === pi); pd.classList.toggle('has', !!(sc.notes[pi] && sc.notes[pi].length)); pd.classList.toggle('frz', !!p.frz); }
-    const p = P.pads[pi]; pd.style.setProperty('--pc', chop ? sliceCol(cell) : PAD_COLORS[p.color]); if (chop) pd.classList.toggle('sel', cell === UI.slice); pd.classList.toggle('empty', !p.sample || (chop && cell >= chop.pts.length)); pd.classList.toggle('cursor', UI.panel && UI.keys && cell === UI.keyCell);
+    const p = P.pads[pi]; pd.style.setProperty('--pc', chop ? sliceCol(cell) : PAD_COLORS[p.color]); if (chop) pd.classList.toggle('sel', cell === UI.slice); pd.classList.toggle('empty', !hasSound(p) || (chop && cell >= chop.pts.length)); pd.classList.toggle('cursor', UI.panel && UI.keys && cell === UI.keyCell);
     pd.classList.toggle('klatch', !!(kc && KEYS.latch && KEYS.latch.pi === pi && KEYS.latch.cell === cell)); pd.classList.toggle('kroot', !!(kc && kc.root)); pd.classList.toggle('kout', !!(kc && kc.out)); pd.classList.toggle('kchord', !!(kc && kc.chord)); pd.classList.toggle('kprog', !!(kc && kc.prog)); if (kc && kc.none) pd.classList.add('empty');
     const html = `<span class="pn">${chop ? cell + 1 : pn != null ? esc(pn) : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; } });
   const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; }
@@ -877,8 +889,8 @@ function padDown(cell) {
   if (UI.keys) { pi = UI.pad; UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flashCell(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flashCell(cell); return; } semi = kc.semi; } }
   else if (UI.swapFrom != null) { const a = UI.swapFrom; UI.swapFrom = null; pi = UI.bank * 16 + cell; if (a === pi) { refreshPadDots(); toast('Swap cancelled'); } else { swapPads(a, pi); UI.pad = pi; } return; }
   else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; refreshPadDots(); updatePanel(); } }
-  const pad = P.pads[pi]; flashCell(cell); if (!pad.sample) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return; }
-  const tag = tagSeq++; ensureSample(pad.sample);
+  const pad = P.pads[pi]; flashCell(cell); if (!hasSound(pad)) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return; }
+  const tag = tagSeq++; if (pad.sample) ensureSample(pad.sample);
   if (kc && kc.chord && kxOf(pi).arp) {   // arpeggiator: the engine plays the chord's notes in time; latch keeps it going after you let go
     const kx = kxOf(pi), notes = playChord(pi, kc.chord), lt = KEYS.latch;
     if (lt) { send({ t: 'arpStop', tag: lt.tag }); KEYS.latch = null; if (kx.latch && lt.pi === pi && lt.cell === cell) { refreshPadDots(); return; } }
@@ -898,7 +910,7 @@ function padDown(cell) {
 function padUp(cell) {
   const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
   if (hd.arp) { send({ t: 'arpStop', tag: hd.tag }); return; }
-  if (pad.mode === 'gate' || pad.mode === 'loop') { send({ t: 'rel', tag: hd.tag, rel: pad.rel }); const s = UI.tl.snap || 6, held = ((ctx ? ctx.currentTime : 0) - hd.start) / spt();
+  if (pad.mode === 'gate' || pad.mode === 'loop' || pad.src === 'synth') { send({ t: 'rel', tag: hd.tag, rel: pad.rel }); const s = UI.tl.snap || 6, held = ((ctx ? ctx.currentTime : 0) - hd.start) / spt();
     const len = k => Math.max(s, Math.round((held - (hd.ms[k] || 0) / 1000 / spt()) / s) * s);
     hd.cap.forEach((c, k) => { c.len = len(k); }); hd.rec.forEach((r, k) => { r.n.len = len(k); });
     if (hd.rec.length) { syncScene(hd.rec[0].scene); markDirty(); } }
@@ -1283,7 +1295,7 @@ const NAV = { el: null, mode: 'nav', orig: null, undoAt: -1, last: null, selUndo
 const NAV_SEL = 'button:not(:disabled), .knob:not(.blank), .fader, .selr, .param, .pad, input, canvas.navc';
 const tlCtl = () => UI.tl.lane === 'notes' ? noteCtl : autoCtl;
 // the d-pad drives one canvas per screen: the timeline, or the slice editor on the Sound view's Chop page
-const canvasCtl = () => UI.view === 'seq' ? tlCtl() : chopCtl, canvasDraw = () => UI.view === 'seq' ? drawTL() : drawChop();
+const canvasCtl = () => (NAV.el && NAV.el._ctl) || (UI.view === 'seq' ? tlCtl() : chopCtl), canvasDraw = () => NAV.el && NAV.el._draw ? NAV.el._draw() : UI.view === 'seq' ? drawTL() : drawChop();
 function navRoot() { return UI.sheet ? $('#sheet .card') : $('#app'); }
 function navItems() { return [...navRoot().querySelectorAll(NAV_SEL)].filter(el => { if (el.closest('#panel')) return false;
   const box = el.parentElement && el.parentElement.closest('.knob,.fader,.selr,.param,.pad'); if (box) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }); }
@@ -1318,6 +1330,7 @@ function navOk(down) {
   if (UI.shift && down && !UI.sheet) { UI.shift = false; $('#pShift').classList.remove('on'); openEdit(); return; }   // Shift + OK: Edit (copy, paste, duplicate)
   if (UI.shift && !down && UI.sheet) return;
   const el = navEnsure(); if (!el) return;
+  if (UI.map && el.dataset && el.dataset.syn) { if (down) { mapPick(UI.pad, el.dataset.syn); } return; }   // Map mode: OK on a control picks it
   if (NAV.mode === 'canvas') {
     const ctl = canvasCtl();   // hold OK: the arrows switch to their alternate job (note length, point curve, slice start)
     if (down) { NAV.okHadSel = ctl.hasSel(); if (!NAV.okHadSel || ctl.okOnDown) ctl.ok(); clearTimeout(NAV.holdT);
@@ -1341,6 +1354,10 @@ function navEndEdit(commit) {
   if (!commit || reg.get() === NAV.orig) while (UNDO.length > NAV.undoAt) UNDO.pop();   // nothing changed: drop the undo step
 }
 function navArrow(dir, sh) {
+  if (UI.shift && NAV.mode === 'nav' && UI.view === 'sound' && (dir === 'left' || dir === 'right')) {   // Shift + ←→ flips the Sound pages from anywhere
+    const d = dir === 'right' ? 1 : -1, syn = P.pads[UI.pad].src === 'synth' && P.pads[UI.pad].syn;
+    if (syn) SYN_ST.pg = (SYN_ST.pg + d + SYN_PAGES.length) % SYN_PAGES.length; else UI.snd = (UI.snd + d + SND_PAGES.length) % SND_PAGES.length;
+    renderView(); updatePanel(); return; }
   if (NAV.mode === 'canvas') { canvasCtl()[dir](sh || NAV.held, sh); return; }
   if (NAV.mode === 'edit' && NAV.el && NAV.el._reg) { NAV.el._reg.step(dir === 'up' || dir === 'right' ? 1 : -1, sh); return; }
   navMove(dir);

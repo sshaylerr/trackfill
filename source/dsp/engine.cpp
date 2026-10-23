@@ -202,9 +202,10 @@ EX void tf_voice_loop(i32 i, float ls, float xf, float gate, float rel) {
   const double relS = sane(rel, 0.f, 20.f, 0.05f) * SR, g = gate >= 0.f ? gate * SR : 1e12;
   v->relStart = maxd(v->atkN, g); v->relEnd = v->relStart + maxd(0.008 * SR, relS); v->relFrom = envAt(v, v->relStart);
 }
-EX void tf_voice_release(i32 tag, float rel) { for (i32 i = 0; i < NVOICE; i++) if (vc[i].on && vc[i].tag == tag) voiceRelease(&vc[i], rel); }
+static void synTagRelease(i32 tag); static void synChRelease(i32 pad); static void synReleaseAll(); static i32 synVoices(); static void synReset(); static void renderSynth(i32 n);
+EX void tf_voice_release(i32 tag, float rel) { for (i32 i = 0; i < NVOICE; i++) if (vc[i].on && vc[i].tag == tag) voiceRelease(&vc[i], rel); synTagRelease(tag); }
 // choke: release every playing pad voice on a channel (frozen clips and previews are left alone)
-EX void tf_ch_release(i32 ch, float rel) { for (i32 i = 0; i < NVOICE; i++) if (vc[i].on && vc[i].ch == ch && !vc[i].post) voiceRelease(&vc[i], rel); }
+EX void tf_ch_release(i32 ch, float rel) { for (i32 i = 0; i < NVOICE; i++) if (vc[i].on && vc[i].ch == ch && !vc[i].post) voiceRelease(&vc[i], rel); synChRelease(ch); }
 // voice limit per channel: release the oldest held voices so at most 'keep' remain
 EX void tf_ch_limit(i32 ch, i32 keep, float rel) {
   for (;;) { i32 n = 0, old = -1; u32 oa = 0xffffffffu;
@@ -226,8 +227,8 @@ EX i32 tf_voice_legato(i32 ch, float rate, float glide, float gate, float rel, i
   if (rs < t) rs = t; if (re < rs + 1.0) re = rs + 1.0;
   b->relStart = rs; b->relEnd = re; b->relFrom = envAt(b, rs); b->tag = tag; return 1;
 }
-EX void tf_release_all(float rel) { for (i32 i = 0; i < NVOICE; i++) if (vc[i].on) voiceRelease(&vc[i], rel); }
-EX i32 tf_voices() { i32 n = 0; for (i32 i = 0; i < NVOICE; i++) n += vc[i].on; return n; }
+EX void tf_release_all(float rel) { for (i32 i = 0; i < NVOICE; i++) if (vc[i].on) voiceRelease(&vc[i], rel); synReleaseAll(); }
+EX i32 tf_voices() { i32 n = 0; for (i32 i = 0; i < NVOICE; i++) n += vc[i].on; return n + synVoices(); }
 
 /* ================= channels ================= */
 struct Fx { i32 type, mode, on, key, fresh, ntrig; float p[NPARAM], s[NPARAM], last[NPARAM]; i32 trig[8]; void* st; u32 stBytes; float vis[4]; };   // vis: live gain changes in dB for the display
@@ -595,6 +596,7 @@ static void fx_util(Fx* f, float* L, float* R, i32 n) {
   for (i32 i = 0; i < n; i++) { float m = (L[i] + R[i]) * 0.5f, sd = (L[i] - R[i]) * 0.5f * w; L[i] = (m + sd) * gl; R[i] = (m - sd) * gr; }
 }
 #include "fx_modes.inc"
+#include "synth.inc"
 static u32 fxStateBytes(i32 t, i32 m) {
   if (m == 0 && t < FX_LIMIT) return fxStateBytes0(t);
   switch (t) {
@@ -674,7 +676,7 @@ static void resetChan(i32 c) {
   Chan* C = &chs[c]; C->fz1[0] = C->fz1[1] = C->fz2[0] = C->fz2[1] = 0;
   for (i32 s = 0; s < NSLOT; s++) fxReset(&C->fx[s]);
 }
-EX void tf_reset_all() { for (i32 c = 0; c < NCH; c++) { resetChan(c); chs[c].quiet = 0; } for (i32 v = 0; v < NVOICE; v++) vc[v].on = 0; runaway = 0; }
+EX void tf_reset_all() { for (i32 c = 0; c < NCH; c++) { resetChan(c); chs[c].quiet = 0; } for (i32 v = 0; v < NVOICE; v++) vc[v].on = 0; synReset(); runaway = 0; }
 
 static void processChan(i32 c, i32 n) {
   Chan* C = &chs[c]; float *L = inL[c], *R = inR[c];
@@ -721,7 +723,7 @@ EX void tf_render(i32 n) {
   for (i32 c = 0; c < NCH; c++) { zero(inL[c], n * 4); zero(inR[c], n * 4); }
   for (i32 c = 0; c < NPAD; c++) { zero(pstL[c], n * 4); zero(pstR[c], n * 4); }
   zero(oL, n * 4); zero(oR, n * 4);
-  renderVoices(n);
+  renderVoices(n); renderSynth(n);
   for (i32 c = 0; c < NCH; c++) processChan(c, n);
   // master safety guard + hard clip. Transparent below 0 dBFS.
   i32 big = 0, bad = 0;

@@ -1,7 +1,7 @@
 // Trackfill automated tests: node tests/run.cjs [--update-golden]
 // Renders projects through the real WASM engine + host and checks safety, determinism and behavior.
 const fs = require('fs'), path = require('path');
-const H = require('../js/host.js'), M = require('../js/model.js'), HM = require('../js/harmony.js');
+const H = require('../js/host.js'), M = require('../js/model.js'), HM = require('../js/harmony.js'), SP = require('../js/synthpresets.js');
 const wasm = new WebAssembly.Module(fs.readFileSync(path.join(__dirname, '../build/engine.wasm')));
 const GOLD = path.join(__dirname, 'golden.json');
 let fails = 0; const ok = (c, msg) => { console.log((c ? '  ✓ ' : '  ✗ ') + msg); if (!c) fails++; };
@@ -145,6 +145,35 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     run(20); const n0 = fl.filter(x => x === 21).length; run(200); ok(fl.filter(x => x === 21).length === n0, 'stopping the arpeggiator stops its steps');
     const r = await H.tfRenderOffline(wasm, M.jungleProject(), jk, { order: [{ scene: 0, reps: 1 }, { scene: 1, reps: 1 }], tail: 2 }), st = stats(r.L, r.R);
     ok(st.bad === 0 && st.pk <= 1 && st.rms > .03, `the Liquid jungle starter renders cleanly (peak ${(20 * Math.log10(st.pk)).toFixed(1)} dBFS)`);
+  }
+  console.log('synth');
+  { const mk = (patch, pad = {}) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject();
+      Q.chans.forEach(c => { c.fx = []; }); Object.assign(Q.pads[20], { src: 'synth', syn: patch, mode: 'gate', voice: 'poly', poly: 8, glide: 0 }, pad); host.msg({ t: 'project', P: Q });
+      const L = new Float32Array(128), R = new Float32Array(128), run = (n, f) => { let e = 0, bad = 0, pk = 0; const blocks = []; for (let i = 0; i < n; i++) { host.render(128, L, R); let b = 0; for (let j = 0; j < 128; j++) { const v = L[j]; if (!(v === v)) bad++; b += v * v; pk = Math.max(pk, Math.abs(v)); } e += b; blocks.push(b); } return { e: e / (n * 128), bad, pk, blocks }; };
+      return { ex, host, run, Q }; };
+    // parameter maps: the engine and the app agree on every parameter
+    { const { ex } = mk(SP.synPatch()); let worst = 0; for (const p of H.TFSYN) if (p.k !== 'opt') for (const n of [0, .13, .5, .77, 1]) { const a = ex.tf_syn_map(p.i, n), b = p.k === 'db' ? Math.pow(10, H.tfSynPhys(p, n) / 20) : H.tfSynPhys(p, n); worst = Math.max(worst, Math.abs(a - b) / Math.max(1, Math.abs(b))); }
+      ok(worst < 2e-3, `engine and app read all ${H.TFSYN.length} synth parameters the same way (worst ${worst.toExponential(1)})`); }
+    // every preset plays cleanly and lets go
+    { let bad = 0, silent = [], stuck = []; for (const pr of [SP.SYN_INIT, ...SP.SYN_PRESETS]) { const s = mk(SP.synPatch(pr), { voice: pr.voice || 'poly', glide: pr.glide || 0 });
+        [0, 4, 7].forEach((semi, i) => s.host.msg({ t: 'hit', pad: 20, semi, vel: .85, tag: 10 + i })); const a = s.run(375); [0, 1, 2].forEach(i => s.host.msg({ t: 'rel', tag: 10 + i, rel: .1 })); s.run(375 * 4);
+        bad += a.bad; if (a.e < 1e-7) silent.push(pr.n); if (s.ex.tf_voices()) stuck.push(pr.n); }
+      ok(!bad && !silent.length && !stuck.length, `all ${SP.SYN_PRESETS.length} presets play, stay finite and release (${silent.length ? 'silent: ' + silent.join(', ') : ''}${stuck.length ? ' stuck: ' + stuck.join(', ') : ''})`); }
+    // sub split: a sine engine at C2 loses its fundamental with Split on, and keeps it for notes above "Split below"
+    { const sine = SP.synPatch({ p: { o1w: 'Sine', o1o: -1, flt: 'Off', dri: 0, spl: .5 } }), a = mk(sine), off = mk(SP.synPatch({ p: { o1w: 'Sine', o1o: -1, flt: 'Off', dri: 0 } }));
+      a.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); off.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); a.run(40); off.run(40); const ea = a.run(200).e, eo = off.run(200).e;
+      const hi = mk(SP.synPatch({ p: { o1w: 'Sine', o1o: -1, flt: 'Off', dri: 0, spl: .5, spn: 40 } })); hi.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); hi.run(40); const eh = hi.run(200).e;
+      ok(10 * Math.log10(ea / eo) < -20 && Math.abs(10 * Math.log10(eh / eo)) < .5, `sub split removes the engine's fundamental (${(10 * Math.log10(ea / eo)).toFixed(1)} dB) and skips notes above "Split below" (${(10 * Math.log10(eh / eo)).toFixed(2)} dB)`); }
+    // Map: LFO 1 on the cutoff makes the level move; without the route it's steady
+    { const base = { o1w: 'Saw', flt: 'Ladder', cut: 400, res: .1, dri: 0, l1y: 'Free', l1r: 4 }, var_ = s => { s.host.msg({ t: 'hit', pad: 20, semi: 12, vel: 1, tag: 1 }); s.run(60); const b = s.run(375).blocks, k = []; for (let i = 0; i < b.length; i += 12) k.push(b.slice(i, i + 12).reduce((x, y) => x + y, 0)); const m = k.reduce((x, y) => x + y, 0) / k.length; return Math.sqrt(k.reduce((x, y) => x + (y - m) * (y - m), 0) / k.length) / m; };
+      const withR = var_(mk(SP.synPatch({ p: base, mods: [{ s: 3, d: 'cut', a: .4, c: 0 }] }))), without = var_(mk(SP.synPatch({ p: base })));
+      ok(withR > without * 5, `a mapped LFO moves the filter (level wobble ${withR.toFixed(2)} vs ${without.toFixed(2)} unmapped)`); }
+    // voicing: mono and legato keep one voice; poly keeps up to its limit; a chord sounds whole on a mono pad
+    { const v = (voice, n, chord) => { const s = mk(SP.synPatch(), { voice, poly: 4 }); if (chord) s.host.msg({ t: 'hit', pad: 20, tag: 1, notes: [0, 4, 7, 11, 14].map(semi => ({ semi, vel: .8, ms: 0 })) }); else for (let k = 0; k < n; k++) { s.host.msg({ t: 'hit', pad: 20, semi: k, vel: .8, tag: k + 1 }); s.run(4); } s.run(20); return s.ex.tf_voices(); };
+      ok(v('mono', 3) === 1 && v('legato', 3) === 1 && v('poly', 6) === 4 && v('mono', 0, true) === 5, 'synth voicing: mono and legato hold one note, poly keeps its limit, chords sound whole'); }
+    // processing: 16 notes of a 2-oscillator ladder patch with 3-voice unison, measured here
+    { const s = mk(SP.synPatch({ p: { o2l: .7, uni: 3, spr: .5 } }), { poly: 16 }); for (let k = 0; k < 16; k++) s.host.msg({ t: 'hit', pad: 20, semi: k - 8, vel: .8, tag: k + 1 });
+      s.run(20); const t0 = Date.now(); s.run(375 * 2); const ms = Date.now() - t0; console.log(`    16 synth notes (2 osc, ladder, 3× unison): ${(ms / 20).toFixed(1)}% of real time on this machine`); ok(ms < 2000, 'synth processing stays well within real time'); }
   }
   console.log('metronome');
   { const run = (count, click) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, () => {}), Q = M.demoProject();
