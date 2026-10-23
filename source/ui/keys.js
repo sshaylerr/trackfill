@@ -17,7 +17,7 @@ function openKeysSheet(pi = UI.pad) {
         change({ mode: v }); });
       body.append(h('p', 'note', kx.mode === 'chords' ? 'Every pad is a chord in the key. Pick a progression to put it on the first pads, in order.' : kx.mode === 'scale' ? 'Only notes in the key, from the root upward. The lit pads are the root.' : 'Every note, one semitone per pad. Notes outside the key are dimmed.'));
       sec('Project key');
-      const roots = h('div', 'g6'); for (let r = 0; r < 12; r++) roots.append(btn(spell(r, useFlats(r, scaleOf(P.key.scale)[1])), () => { pushUndo('song'); P.key = Object.assign({}, P.key, { root: r }); KEYS.prev = {}; markDirty(); draw(); refreshPadDots(); }, 'btn sm' + (P.key.root === r ? ' on' : '')));
+      const roots = h('div', 'g6'); for (let r = 0; r < 12; r++) roots.append(btn(spell(r, useFlats(r, scaleOf(P.key.scale)[1])), () => { pushUndo('song'); P.key = Object.assign({}, P.key, { root: r }); KEYS.prev = {}; drumsFollowKey(); markDirty(); draw(); refreshPadDots(); }, 'btn sm' + (P.key.root === r ? ' on' : '')));
       body.append(roots);
       const sg = h('div', 'g2'); sg.append(btn('Scale: ' + scaleOf(P.key.scale)[0], () => openScalePicker(pi, true)), btn(kx.scale >= 0 ? 'This pad: ' + scaleOf(kx.scale)[0] : 'This pad: same as project', () => openScalePicker(pi, false), 'btn' + (kx.scale >= 0 ? ' on' : '')));
       body.append(sg, h('p', 'note', `The whole project is in ${keyName(P.key)}. A pad can use its own scale on the same root, for example a pentatonic lead.`));

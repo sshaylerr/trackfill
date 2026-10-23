@@ -91,7 +91,8 @@ function renderSound(V) {
   const badge = h('div', 'lcdbox', padLabel(pi)); badge.style.flex = '0 0 50px';
   head.append(btn(IC.left, () => go(-1), 'key ic'), badge, nm, synHeadKey(pi)); if (pad.src === 'synth') head.append(mapKey(pi)); head.append(btn(IC.right, () => go(1), 'key ic'));
   if (pad.src === 'synth' && pad.syn) { renderSynthSound(w, pi, head); V.append(w); return; }
-  const pages = seg(SND_PAGES, UI.snd, i => { UI.snd = i; renderView(); }); pages.style.display = 'grid'; pages.style.gridTemplateColumns = 'repeat(5,1fr)'; pages.querySelectorAll('.key').forEach(k => k.style.width = '100%');
+  const pages = seg(pad.src === 'drum' && pad.drum ? ['Drum', ...SND_PAGES.slice(1)] : SND_PAGES, UI.snd, i => { UI.snd = i; renderView(); }); pages.style.display = 'grid'; pages.style.gridTemplateColumns = 'repeat(5,1fr)'; pages.querySelectorAll('.key').forEach(k => k.style.width = '100%');
+  if (UI.snd === PG.SAMPLE && pad.src === 'drum' && pad.drum) { renderDrumPage(w, pi, head, pages); V.append(w); return; }
   if (UI.snd === PG.CHOP) { w.append(head, pages, chopView(pi)); V.append(w); requestAnimationFrame(drawChop); return; }
   const disp = h('div', 'scr disp'), cv = h('canvas'); disp.append(cv); dispCv = cv; bindWave(cv);
   const g = h('div', 'kgrid'), redraw = { after: () => drawDisp() };
@@ -112,7 +113,8 @@ function renderSound(V) {
       padParam(pi, 'glide', { label: 'Glide', max: 1, step: .001, coarse: .01, big: .1, def: .08, fmt: v => Math.round(v * 1000) + ' ms' }),
       pad.mode === 'loop' ? padParam(pi, 'xf', { label: 'Loop fade', max: 1, step: .001, coarse: .01, big: .05, def: .08, fmt: v => Math.round(v * 1000) + ' ms' }) : blankCell());
   } else if (UI.snd === PG.FILTER) {
-    g.append(keyParam(pi + '.-2.0', redraw), keyParam(pi + '.-2.1', redraw), keyParam(pi + '.-2.2', redraw), bendRangeSel(pi), blankCell(), blankCell(), blankCell(), blankCell());
+    g.append(keyParam(pi + '.-2.0', redraw), keyParam(pi + '.-2.1', redraw), keyParam(pi + '.-2.2', redraw), bendRangeSel(pi),
+      selEl('Choke', ['Off', 'Group 1', 'Group 2', 'Group 3', 'Group 4'], () => pad.choke || 0, i => { pushUndo('pad:' + pi); touchPad(pi); pad.choke = i; syncPad(pi); markDirty(); }), blankCell(), blankCell(), blankCell());
   } else {
     for (let i = 0; i < 4; i++) g.append(keyParam(pi + '.-1.' + i, Object.assign({ label: STRIP[i].label }, redraw)));
     g.append(cellBtn('Output', destName(pi), () => openOutputPicker(pi)), cellBtn('Effects', C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'None', () => openFx(pi, 'sound')),

@@ -85,6 +85,8 @@ body{font-variant-numeric:tabular-nums}
 .synDev .pstep{flex:none;width:28px;min-width:28px;height:28px;padding:0}
 .saveRow{display:flex;gap:6px;align-items:center} .saveRow .textin{flex:1} .saveRow .btn{flex:none;height:34px}
 .lsub{margin-left:auto;font:400 12px var(--font-lcd);color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%} .lsub.warn{color:var(--rec)}
+/* drum faceplate: same frame as the synths, with the More like this / slots row in the tabs' place */
+.drumRow{display:grid!important;grid-template-columns:2.2fr repeat(4,1fr)} .drumRow .key{width:100%;padding:0 4px} .drumRow .likeKey{color:var(--d-ring)} .drumRow .slotKey.empty{opacity:.35} .drumDev .knob.locked .klab::after{content:' 🔒';font-size:9px}
 .dev.synDev{flex:1 1 auto;min-height:0;padding:8px 8px 6px;gap:6px;border-radius:5px} .synDev::before,.synDev::after{display:none}
 .synDev[data-eng="analog"]{border-left:9px solid #5b3418;border-right:9px solid #5b3418;border-image:linear-gradient(180deg,#7a4a26,#4a2a14 40%,#6b3f20 70%,#3e2310) 1;border-top:1px solid #000;border-bottom:1px solid #000}
 .synDev .devHead{height:26px;padding:0 2px} .synDev .disp{background:var(--d-scr)} .synDev .synTabs .key{background:linear-gradient(180deg,#2a2826,#1d1c1a)} .synDev .synTabs .key.on{color:var(--d-ring)}
@@ -606,7 +608,8 @@ function newJungle() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toa
 function newStress() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the stress test…');
   setTimeout(async () => { const np = stressProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Stress test: 53 pads, 29 synths, 266 effects. Press Play and watch CPU in the top bar.'); }, 60); }
 const grSrc = p => p && p.src === 'synth' && p.syn && p.syn.eng === 'gr' && p.syn.gr && p.syn.gr.src || null;   // a granular pad's source sound
-function ensureBuiltinsFor(proj) { for (const p of proj.pads) { if (p.sample && p.sample.startsWith('b:')) buildBuiltin(p.sample.slice(2)); const g = grSrc(p); if (g && g.startsWith('b:')) buildBuiltin(g.slice(2)); } }
+function ensureBuiltinsFor(proj) { if (proj === P) P.pads.forEach((p, i) => { if (p.drum && (p.src === 'drum' || (p.sample && p.sample.startsWith('d:')))) { p.sample = null; p.sample = drumSampleId(i); } });   // drums are rendered again from their settings
+  for (const p of proj.pads) { if (p.sample && p.sample.startsWith('b:')) buildBuiltin(p.sample.slice(2)); const g = grSrc(p); if (g && g.startsWith('b:')) buildBuiltin(g.slice(2)); } }
 function addUserSample(name, sr, ch, data, extra) {
   const id = 'u:' + uid(), s = Object.assign({ id, name, sr, ch, frames: data.length / ch, data, added: Date.now() }, extra || {});
   SAMPLES.set(id, s); DB.put('samples', id, s); return id;
@@ -1222,7 +1225,7 @@ function openLibrary() {
     const top = h('div', 'row'), q = h('input', 'textin'); q.placeholder = 'Search sounds'; q.style.flex = '1'; top.append(q, btn('Import', () => { closeSheet(); pickAudio(UI.pad); }, 'btn on')); card.append(top);
     const box = h('div', 'stack'); box.style.marginTop = '10px'; card.append(box);
     const used = usedSampleIds();
-    const draw = () => { box.innerHTML = ''; const f = q.value.trim().toLowerCase(), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt && (!f || s.name.toLowerCase().includes(f)));
+    const draw = () => { box.innerHTML = ''; const f = q.value.trim().toLowerCase(), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt && !s.drum && (!f || s.name.toLowerCase().includes(f)));
       const mine = all.filter(s => !s.builtin).sort((a, b) => (b.added || 0) - (a.added || 0));
       // built-ins are listed by pack and only synthesized when you preview or use one
       const packs = PACKS.map(([title, keys]) => [title, keys.map(k => ALL_BUILTINS.find(x => x[0] === k)).filter(k => k && (!f || k[1].toLowerCase().includes(f) || title.toLowerCase().includes(f))).map(k => ({ id: 'b:' + k[0], name: k[1].replace(/ \((classic|jungle)\)$/, ''), builtin: true, kit: k }))]);
