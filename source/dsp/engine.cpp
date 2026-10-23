@@ -242,6 +242,8 @@ static Chan chs[NCH];
 static float inL[NCH][MAXN], inR[NCH][MAXN], keyL[NCH][MAXN], keyR[NCH][MAXN], pstL[NPAD][MAXN], pstR[NPAD][MAXN];
 static float oL[MAXN], oR[MAXN];
 static float pkL = 0, pkR = 0;
+static float chBend[NPAD], chBendS[NPAD], chBendN[NPAD];   // pitch bend per pad: target and smoothed semitones, and -1..1 for the synth's Bend source
+EX void tf_ch_bend(i32 c, float semis, float norm) { if (c >= 0 && c < NPAD) { chBend[c] = sane(semis, -48.f, 48.f, 0.f); chBendN[c] = sane(norm, -1.f, 1.f, 0.f); } }
 static float chPk[NCH];   // post-fader peak per channel since the host last read it (mixer meters)
 static i32 tripCh = -1, tripWhy = 0;
 static u32 runaway = 0;
@@ -656,6 +658,7 @@ static void renderVoices(i32 n) {
     if (v->post && v->ch < NPAD) { L = pstL[v->ch]; R = pstR[v->ch]; } else { L = inL[v->ch]; R = inR[v->ch]; }
     const i16* d = S->d; const i32 st = S->ch; const double first = v->first, span = v->last - v->first;
     const i32 lo = (i32)first, hi = (i32)v->last;
+    const double bm = (v->ch < NPAD && !v->post && chBendS[v->ch] != 0.f) ? (double)fexp(chBendS[v->ch] * 0.0577622650f) : 1.0;   // pitch bend
     for (i32 i = 0; i < n; i++) {
       if (v->delay >= 1.0) { v->delay -= 1.0; continue; }
       if (v->t >= v->relEnd || v->pos >= span) { v->on = 0; break; }
@@ -666,7 +669,7 @@ static void renderVoices(i32 n) {
         float w = (float)((v->pos - (v->lpE - v->xfN)) / v->xfN), al, ar; readAt(d, st, f - (v->lpE - v->lpS), lo, hi, al, ar);
         const float ga = sqrtf_(1.f - w), gb = sqrtf_(w); yl = yl * ga + al * gb; yr = yr * ga + ar * gb; }
       L[i] += yl * e; R[i] += yr * e;
-      v->pos += v->inc; v->t += 1.0; if (v->lpE > 0 && v->pos >= v->lpE) v->pos -= v->lpE - v->lpS;
+      v->pos += v->inc * bm; v->t += 1.0; if (v->lpE > 0 && v->pos >= v->lpE) v->pos -= v->lpE - v->lpS;
       if (v->gl > 0.f) { v->inc += (v->incT - v->inc) * v->gl;
         if (v->lpE <= 0 && v->t < v->relStart && span - v->pos < v->inc * 0.004 * SR) voiceRelease(v, 0.003f); }   // a glide sped it up: fade before the sample runs out
     }
@@ -723,6 +726,7 @@ EX void tf_render(i32 n) {
   for (i32 c = 0; c < NCH; c++) { zero(inL[c], n * 4); zero(inR[c], n * 4); }
   for (i32 c = 0; c < NPAD; c++) { zero(pstL[c], n * 4); zero(pstR[c], n * 4); }
   zero(oL, n * 4); zero(oR, n * 4);
+  for (i32 c = 0; c < NPAD; c++) { float d = chBend[c] - chBendS[c]; chBendS[c] = fabsf_(d) < 1e-4f ? chBend[c] : chBendS[c] + d * 0.3f; }   // ~1 ms smoothing
   renderVoices(n); renderSynth(n);
   for (i32 c = 0; c < NCH; c++) processChan(c, n);
   // master safety guard + hard clip. Transparent below 0 dBFS.

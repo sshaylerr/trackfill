@@ -175,6 +175,18 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     { const s = mk(SP.synPatch({ p: { o2l: .7, uni: 3, spr: .5 } }), { poly: 16 }); for (let k = 0; k < 16; k++) s.host.msg({ t: 'hit', pad: 20, semi: k - 8, vel: .8, tag: k + 1 });
       s.run(20); const t0 = Date.now(); s.run(375 * 2); const ms = Date.now() - t0; console.log(`    16 synth notes (2 osc, ladder, 3× unison): ${(ms / 20).toFixed(1)}% of real time on this machine`); ok(ms < 2000, 'synth processing stays well within real time'); }
   }
+  console.log('pitch bend');
+  { // a sustained sample and a synth, bent up a full range of 12: both play an octave higher; automation drives it
+    const zc = (x, a) => { let n = 0; for (let i = a + 1; i < x.length; i++) if ((x[i - 1] < 0) !== (x[i] < 0)) n++; return n; };
+    const run = (pad, bend, auto) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; });
+      Object.assign(Q.pads[20], pad, { bendR: 12, bend: .5 }); if (auto) { Q.scenes[0].notes = {}; Q.scenes[0].auto = { '20.-2.2': [{ t: 0, v: 1, c: 0 }] }; }
+      host.msg({ t: 'project', P: Q }); for (const [key, s] of kit) host.msg({ t: 'sample', key, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr });
+      if (auto) host.msg({ t: 'play', scene: 0, loop: 'scene' }); if (bend != null) host.msg({ t: 'param', key: '20.-2.2', v: bend });
+      host.msg({ t: 'hit', pad: 20, semi: 0, vel: .9, tag: 3 }); const L = new Float32Array(128), R = new Float32Array(128), out = []; for (let i = 0; i < 300; i++) { host.render(128, L, R); out.push(...L); } return zc(out, 4800); };
+    const smp = { sample: 'b:jsub', mode: 'loop', loopS: .2, xf: .005 }, syn = { src: 'synth', syn: SP.synPatch({ p: { o1w: 'Sine', flt: 'Off', dri: 0 } }), mode: 'gate' };
+    const a = run(smp, null) , b = run(smp, 1), c = run(syn, null), d = run(syn, 1), e = run(syn, null, true);
+    ok(Math.abs(b / a - 2) < .05 && Math.abs(d / c - 2) < .05, `full bend up (±12) plays an octave higher on a sample (×${(b / a).toFixed(2)}) and a synth (×${(d / c).toFixed(2)})`);
+    ok(Math.abs(e / c - 2) < .08, `a pitch bend automation lane bends the synth (×${(e / c).toFixed(2)})`); }
   console.log('metronome');
   { const run = (count, click) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, () => {}), Q = M.demoProject();
       Q.chans.forEach((c, i) => { if (i < 64) c.mute = i !== 0; }); host.msg({ t: 'project', P: Q });

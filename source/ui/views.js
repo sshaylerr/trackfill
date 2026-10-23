@@ -51,8 +51,9 @@ function openLaneSheet(c) {
       card.append(l); };
     if (c < G0) list('Pattern', [['notes', 'Notes', 'what this scene plays']]);
     const strip = [0, 1, 2, 3].filter(i => i < 2 || c < R0).map(i => [c + '.-1.' + i, STRIP[i].label, 'channel']);
-    if (c < G0) strip.push([c + '.-2.0', 'Cutoff', 'pad filter'], [c + '.-2.1', 'Resonance', 'pad filter']);
+    if (c < G0) strip.push([c + '.-2.2', 'Pitch bend', '± ' + (P.pads[c].bendR || 2) + ' semitones'], [c + '.-2.0', 'Cutoff', 'pad filter'], [c + '.-2.1', 'Resonance', 'pad filter']);
     list('Channel', strip);
+    if (c < G0 && P.pads[c].src === 'synth' && P.pads[c].syn) list('Synth', SYN_AUTO.map(id => [c + '.-3.' + TFSYN_ID[id].i, TFSYN_ID[id].l, id[0] === 'm' ? 'macro' : 'synth']));
     P.chans[c].fx.forEach((f, s) => list(`Insert ${s + 1} · ${FX_DEFS[f.type].name}`, fxParams(f).map((p, i) => p.opts ? null : [`${c}.${s}.${i}`, p.n, FX_DEFS[f.type].name]).filter(Boolean)));
     card.append(h('div', 'sec', 'Elsewhere')); card.append(btn('Another channel…', () => openChannelPicker(), 'btn'));
   });
@@ -100,7 +101,7 @@ function renderSound(V) {
       padParam(pi, 'glide', { label: 'Glide', max: 1, step: .001, coarse: .01, big: .1, def: .08, fmt: v => Math.round(v * 1000) + ' ms' }),
       pad.mode === 'loop' ? padParam(pi, 'xf', { label: 'Loop fade', max: 1, step: .001, coarse: .01, big: .05, def: .08, fmt: v => Math.round(v * 1000) + ' ms' }) : blankCell());
   } else if (UI.snd === PG.FILTER) {
-    g.append(keyParam(pi + '.-2.0', redraw), keyParam(pi + '.-2.1', redraw), blankCell(), blankCell(), blankCell(), blankCell(), blankCell(), blankCell());
+    g.append(keyParam(pi + '.-2.0', redraw), keyParam(pi + '.-2.1', redraw), keyParam(pi + '.-2.2', redraw), bendRangeSel(pi), blankCell(), blankCell(), blankCell(), blankCell());
   } else {
     for (let i = 0; i < 4; i++) g.append(keyParam(pi + '.-1.' + i, Object.assign({ label: STRIP[i].label }, redraw)));
     g.append(cellBtn('Output', destName(pi), () => openOutputPicker(pi)), cellBtn('Effects', C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'None', () => openFx(pi, 'sound')),

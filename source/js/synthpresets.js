@@ -2,7 +2,7 @@
 /* Trackfill synth presets (Analog engine). Patches store physical values by parameter id (see TFSYN in host.js);
    anything not listed uses the parameter's default. Every preset puts something useful on Macro 1 ("open it up")
    and Macro 2 ("movement"). Shared by the app and the tests. */
-const SYN_SRC = ['Amp env', 'Env 2', 'Env 3', 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4', 'Velocity', 'Note', 'Random', 'Alternate', 'Osc 3', 'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4'];
+const SYN_SRC = ['Amp env', 'Env 2', 'Env 3', 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4', 'Velocity', 'Note', 'Random', 'Alternate', 'Osc 3', 'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4', 'Bend'];
 const synSrcIdx = n => SYN_SRC.indexOf(n);
 // LFO shapes as drawn points (x, y in 0..1; c bends the segment to the next point)
 const LFO_SHAPES = {

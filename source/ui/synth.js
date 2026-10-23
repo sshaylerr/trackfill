@@ -10,13 +10,17 @@ const SYN_PAGES = [
   { n: 'Mix', tabs: [['mx', 'Channel']] }];
 const SYN_CELLS = {
   o1: ['o1w', 'o1o', 'o1s', 'o1f', 'o1l', 'o1p', 'ret', 'dri'], o2: ['o2w', 'o2o', 'o2s', 'o2f', 'o2l', 'o2p', 'o2y', 'o2m'], o3: ['o3w', 'o3o', 'o3s', 'o3f', 'o3l', 'o3p', 'o3x', 'o3r'],
-  vo: ['uni', 'det', 'spr', 'fbk', 'pit', 'gan', '#glide', '#poly'], sb: ['sbl', 'sbo', 'sbw', 'spl', 'spn'], nz: ['nzn', 'nzt', 'nzb', 'nzd', 'nzh', 'nzl', 'nzo', 'nzk'],
-  fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'vel', '#voice'], e2: ['2a', '2d', '2s', '2r', '2c', '2k'], e3: ['3a', '3d', '3s', '3r', '3c', '3k'],
+  vo: ['uni', 'det', 'spr', 'pit', '#bendr', 'gan', '#glide', '#poly'], sb: ['sbl', 'sbo', 'sbw', 'spl', 'spn'], nz: ['nzn', 'nzt', 'nzb', 'nzd', 'nzh', 'nzl', 'nzo', 'nzk'],
+  fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp', 'fbk'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'vel', '#voice'], e2: ['2a', '2d', '2s', '2r', '2c', '2k'], e3: ['3a', '3d', '3s', '3r', '3c', '3k'],
   mc: ['m1', 'm2', 'm3', 'm4'] };
 for (let k = 1; k <= 4; k++) SYN_CELLS['l' + k] = ['l' + k + 'y', 'l' + k + '@', 'l' + k + 'm', 'l' + k + 'o', 'l' + k + 'p', '#shape', '#snap'];
 // colours for modulation sources: envelopes green, LFOs pink, performance sources gold, macros the theme accent
-const SRC_COL = i => i <= 2 ? '#7fd49a' : i <= 6 ? '#ff7ac8' : i <= 11 ? '#e6c162' : 'var(--accent)';
+const SRC_COL = i => i <= 2 ? '#7fd49a' : i <= 6 ? '#ff7ac8' : i <= 11 || i === 16 ? '#e6c162' : 'var(--accent)';
 const SYN_ST = { pg: 0, tab: {}, snap: 0 };
+// synth controls offered as automation lanes (the timeline): macros first, then the ones most often moved in a track
+const SYN_AUTO = ['m1', 'm2', 'm3', 'm4', 'cut', 'res', 'drv', 'fen', 'pit', 'o1l', 'o2l', 'o2m', 'det', 'sbl', 'nzl', 'gan'];
+const BEND_RANGES = [1, 2, 3, 5, 7, 12, 24];
+function bendRangeSel(pi) { const pad = P.pads[pi]; return selEl('Bend range', BEND_RANGES.map(r => '±' + r + ' st'), () => Math.max(0, BEND_RANGES.indexOf(pad.bendR || 2)), i => { pushUndo('pad:' + pi); pad.bendR = BEND_RANGES[i]; syncPad(pi); markDirty(); }); }
 const synOf = pi => P.pads[pi].syn;
 const synTab = () => SYN_ST.tab[SYN_ST.pg] || SYN_PAGES[SYN_ST.pg].tabs[0][0];
 
@@ -54,8 +58,8 @@ function synCtl(pi, id) {
     const intish = p.k === 'int' || /^o\ds$/.test(id), step = intish ? 1 / (p.b - p.a) : .001;
     el = makeCtl({ label: p.l, min: 0, max: 1, step, coarse: intish ? step : .02, big: intish ? step * 4 : .1, def: tfSynNorm(p, p.d), bipolar: p.k === 'bip' || /^o\d[sf]$/.test(id) || id === 'pit' || id === 'gan',
       key: 'syn:' + pi + ':' + id, scope: 'pad:' + pi, fmt: n => synFmt(p, tfSynPhys(p, n)),
-      get: () => tfSynNorm(p, cur()), set: n => { let v = tfSynPhys(p, n); if (intish) v = Math.round(v); synSet(pi, id, v); },
-      onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); } }, 'knob');
+      get: () => tfSynNorm(p, cur()), set: n => { let v = tfSynPhys(p, n); if (intish) v = Math.round(v); synSet(pi, id, v); if (T.playing && T.rec) recAuto(pi + '.-3.' + p.i, tfSynNorm(p, v)); },
+      onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); send({ t: 'live', key: pi + '.-3.' + p.i, on: true }); }, onEnd: () => { send({ t: 'live', key: pi + '.-3.' + p.i, on: false }); UI.autoRec = null; } }, 'knob');
   }
   el.dataset.syn = id; return el;
 }
@@ -64,6 +68,7 @@ function synSpecial(pi, what) {
   if (what === 'voice') return selEl('Voicing', ['Poly', 'Mono', 'Legato'], () => ['poly', 'mono', 'legato'].indexOf(pad.voice), i => { pushUndo('pad:' + pi); pad.voice = ['poly', 'mono', 'legato'][i]; resync(); });
   if (what === 'poly') return padParam(pi, 'poly', { label: 'Voices', min: 1, max: 16, step: 1, coarse: 1, big: 4, def: 8, fmt: v => String(v) });
   if (what === 'glide') return padParam(pi, 'glide', { label: 'Glide', max: 1, step: .001, coarse: .01, big: .1, def: .08, fmt: v => Math.round(v * 1000) + ' ms' });
+  if (what === 'bendr') return bendRangeSel(pi);
   if (what === 'shape') return cellBtn('Shape', 'Pick', () => openLfoShapes(pi, +synTab()[1] - 1));
   if (what === 'snap') return selEl('Snap', ['Off', '1/4', '1/8', '1/16'], () => SYN_ST.snap, i => { SYN_ST.snap = i; drawSynDisp(); });
   return blankCell();
@@ -135,6 +140,7 @@ function openSynthSource(pi) {
 function drawSynDisp() {
   const cv = synCv; if (!cv || !cv.isConnected) return; const pi = UI.pad, S = synOf(pi); if (!S) return;
   const r = cv.parentNode.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
+  cv.parentNode.classList.toggle('gone', H < 34); if (H < 34) return;   // too small to read: the screen steps aside until there's room
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
   const v = id => S.p[id] ?? TFSYN_ID[id].d, tab = synTab(), col = PAD_COLORS[P.pads[pi].color];
@@ -257,7 +263,7 @@ function mapPick(pi, id) {
     M.target = id; M.route = S.mods.findIndex(m => m.d === id && m.s === M.armed); renderView(); return; }
   M.target = id; const rs = routesFor(pi, id); M.route = rs.length ? rs[rs.length - 1][1] : -1; renderView();
 }
-const SRC_SHORT = ['Amp', 'Env 2', 'Env 3', 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4', 'Vel', 'Note', 'Rand', 'Alt', 'Osc 3', 'M1', 'M2', 'M3', 'M4'];
+const SRC_SHORT = ['Amp', 'Env 2', 'Env 3', 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4', 'Vel', 'Note', 'Rand', 'Alt', 'Osc 3', 'M1', 'M2', 'M3', 'M4', 'Bend'];
 // Map bar (two fixed rows, nothing scrolls): ① the control and the selected connection's amount ② its connections and +
 function mapBar(pi) {
   const M = UI.map, S = synOf(pi), bar = { querySelector: s => r2.querySelector(s) }, r1 = h('div', 'mapRow'), r2 = h('div', 'mapRow');
@@ -279,7 +285,7 @@ function mapBar(pi) {
 function openSourcePicker(pi) {
   const M = UI.map, S = synOf(pi), t = M.target;
   openSheet(t ? 'Modulate ' + TFSYN_ID[t].l + ' with…' : 'Pick a source, then tap controls', card => { const st = h('div', 'stack');
-    for (const [title, ids] of [['Envelopes', [0, 1, 2]], ['LFOs', [3, 4, 5, 6, 11]], ['Playing', [7, 8, 9, 10]], ['Macros', [12, 13, 14, 15]]]) {
+    for (const [title, ids] of [['Envelopes', [0, 1, 2]], ['LFOs', [3, 4, 5, 6, 11]], ['Playing', [7, 8, 9, 10, 16]], ['Macros', [12, 13, 14, 15]]]) {
       st.append(h('div', 'sec', title)); const g = h('div', 'g3');
       for (const s of ids) { const used = t && routesFor(pi, t).some(([q]) => q.s === s);
         g.append(btn(`<i class="sdot" style="background:${SRC_COL(s)}"></i>${esc(TF_SRC[s])}`, () => { closeSheet();
