@@ -54,6 +54,10 @@ const TFSYN = (() => {
   for (const o of ['a', 'b']) { const w = 'w' + o, t = 'w' + o;
     L.push([w + 'p', 'Position', 'lin', 0, 1, 0, t], [w + 'o', 'Octave', 'int', -3, 3, 0, t], [w + 's', 'Semi', 'lin', -12, 12, 0, t], [w + 'f', 'Fine', 'lin', -100, 100, o === 'b' ? 7 : 0, t],
       [w + 'l', 'Level', 'lin', 0, 1, o === 'a' ? .8 : 0, t], [w + 'w', 'Warp', 'opt', TF_WARPS, 0, 'Off', t], [w + 'x', 'Warp amt', 'lin', 0, 1, 0, t], [w + 'h', 'Fundamental', 'opt', ['Keep', 'Remove'], 0, 'Keep', t]); }
+  // Granular engine: grains read from a sound (named in the patch as gr.src)
+  L.push(['gpo', 'Position', 'lin', 0, 1, .25, 'gr'], ['gsc', 'Scan', 'lin', -2, 2, 0, 'gr'], ['gsz', 'Size', 'exp', .01, .5, .08, 'gr'], ['gde', 'Density', 'exp', 2, 120, 24, 'gr'],
+    ['gsp', 'Spray', 'lin', 0, 1, .1, 'gr'], ['gps', 'Pitch spread', 'lin', 0, 12, 0, 'gr'], ['gst', 'Stereo', 'lin', 0, 1, .5, 'gr'], ['gsh', 'Shape', 'lin', 0, 1, .3, 'gr'],
+    ['gmo', 'Mode', 'opt', ['Cloud', 'Stretch'], 0, 'Cloud', 'g2'], ['grv', 'Reverse', 'lin', 0, 1, 0, 'g2'], ['gtl', 'Tempo lock', 'opt', ['Off', '1/8', '1/16', '1/32'], 0, 'Off', 'g2'], ['gkt', 'Key track', 'opt', ['Off', 'On'], 0, 'On', 'g2']);
   return L.map(([id, l, k, a, b, d, tab], i) => ({ i, id, l, k, a, b, d, tab }));
 })();
 const TFSYN_ID = Object.fromEntries(TFSYN.map(p => [p.id, p]));
@@ -289,6 +293,7 @@ class TFHost {
     new Int16Array(ex.memory.buffer, ptr, data.length).set(data);
     const id = ex.tf_sample_add(ptr, frames, ch, sr);
     if (id) this.sm.set(key, { id, frames, sr }); else ex.tf_free(ptr);
+    if (id && this.P) this.P.pads.forEach((p, pi) => { if (p && p.src === 'synth' && p.syn && p.syn.eng === 'gr' && p.syn.gr && p.syn.gr.src === key) this.syncSynth(pi); });   // a granular source arrived
   }
   /* ---------- wavetables (prepared on the main thread): copied into the engine once, shared by every pad that uses them ---------- */
   addTable(key, F, lv, fund) {
@@ -305,6 +310,7 @@ class TFHost {
     const on = !!(pad && pad.src === 'synth' && pad.syn); if (!on) { if (this.synOn && this.synOn[pi]) ex.tf_syn_on(pi, 0); if (this.synOn) this.synOn[pi] = 0; return; }
     (this.synOn = this.synOn || [])[pi] = 1; const S = pad.syn;
     for (const p of TFSYN) ex.tf_syn_param(pi, p.i, tfSynNorm(p, p.id === 'eng' ? (TF_ENGS[S.eng] || 'Analog') : S.p ? S.p[p.id] : undefined));
+    if (ex.tf_syn_gr) { const g = S.gr && S.gr.src && this.sm.get(S.gr.src); ex.tf_syn_gr(pi, S.eng === 'gr' && g ? g.id : 0); }
     if (ex.tf_syn_wt) { const W = S.wt || {}, id = k => (k && this.wtm && this.wtm.get(k)) || 0; ex.tf_syn_wt(pi, 0, id(W.a)); ex.tf_syn_wt(pi, 1, id(W.b)); }
     for (let k = 0; k < 4; k++) { const ptr = ex.tf_syn_lfo(pi, k); if (ptr) new Float32Array(ex.memory.buffer, ptr, 256).set(tfLfoTable(S.lfo && S.lfo[k])); }
     const mods = (S.mods || []).filter(r => TFSYN_ID[r.d] && r.s >= 0 && r.s < TF_SRC.length).slice(0, 32); ex.tf_syn_routes(pi, mods.length);

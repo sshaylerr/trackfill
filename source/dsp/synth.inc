@@ -10,7 +10,10 @@
 
 enum { NSV = 32, NROUTE = 32, LFOT = 256, MAXUNI = 7, CMB = 2048 };
 struct Route { i32 src, dst, curve, via; float amt; };
+struct Grain { double pos; float inc, t, len, gl, gr; i32 on; };
+enum { NGRAIN = 24, GRAIN_CAP = 128 };
 struct Patch {
+  i32 gsrc;    // granular source (an engine sample id; 0: none)
   i32 wt[2];   // wavetable ids for oscillators A and B (0: none)
   float p[NSP]; float lfo[4][LFOT]; Route r[NROUTE]; i32 nr, on, mode, poly; float glide;
   float gph[4], gval[4];            // free-running LFOs: one shared phase per pad
@@ -29,7 +32,8 @@ struct SVoice {
   float nzlp, nzhp[2], nzx1, fb[2], fmz;                    // crunch tone, crunch high-pass (svf), ADAA memory, feedback, FM smoothing
   // FM engine: operator phases, sample-and-hold noise, op 4 feedback memory, filter-mode state, operator envelopes
   float fph[4][MAXUNI], fnz[4][MAXUNI], ffm[MAXUNI][2], fsv[4][MAXUNI][2];
-  float wph[2][MAXUNI], wlast[2][MAXUNI];   // wavetable: phases, last outputs (for FM, AM and Ring between the oscillators)
+  float wph[2][MAXUNI], wlast[2][MAXUNI];
+  Grain gr[NGRAIN]; double gph; float gtm; u32 grng;   // granular: grains, playhead (source frames), time to the next grain   // wavetable: phases, last outputs (for FM, AM and Ring between the oscillators)
   i32 ost[4]; float oev[4], oet[4], oef[4], oamp[4];
   float cmb[2][CMB]; i32 cw;
 };
@@ -90,6 +94,7 @@ EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 ta
   for (i32 o = 0; o < 3; o++) { for (i32 u = 0; u < MAXUNI; u++) v->ph[o][u] = retrig ? 0.f : (frnd(&svRng) + 1.f) * 0.5f; v->dr[o] = v->drT[o] = 0.f; }
   if (!retrig) { for (i32 o = 0; o < 2; o++) for (i32 u = 0; u < MAXUNI; u++) v->wph[o][u] = (frnd(&svRng) + 1.f) * 0.5f; v->sph = (frnd(&svRng) + 1.f) * 0.5f; for (i32 k = 0; k < 4; k++) for (i32 u = 0; u < MAXUNI; u++) v->fph[k][u] = (frnd(&svRng) + 1.f) * 0.5f; }
   for (i32 k = 0; k < 4; k++) { v->lph[k] = P->p[SP_L1P + k * 6]; v->ldone[k] = 0; }
+  v->gtm = 0.f; v->grng = 0x9e3779b9u ^ (svAge * 2654435761u); v->gph = -1.0;
   v->ampPrev = 0.f;   // sequencer offsets within a 16-sample block start at the block (under 0.4 ms)
   return slot;
 }
@@ -167,6 +172,7 @@ EX float* tf_wt_lv(i32 id, i32 l) { return id > 0 && id < NWT && wtab[id].F && l
 EX float* tf_wt_fund(i32 id) { return id > 0 && id < NWT && wtab[id].F ? wtab[id].fund : 0; }
 EX void tf_wt_free(i32 id) { if (id <= 0 || id >= NWT || !wtab[id].F) return; for (i32 p = 0; p < NPAD; p++) if (pat[p]) for (i32 o = 0; o < 2; o++) if (pat[p]->wt[o] == id) pat[p]->wt[o] = 0;
   for (i32 l = 0; l < WTLV; l++) tf_free(wtab[id].lv[l]); tf_free(wtab[id].fund); wtab[id].F = 0; }
+EX void tf_syn_gr(i32 pad, i32 sid) { Patch* P = patch(pad); if (P) P->gsrc = sid > 0 && sid < NSAMP && samp[sid].d ? sid : 0; }
 EX void tf_syn_wt(i32 pad, i32 osc, i32 id) { Patch* P = patch(pad); if (P && osc >= 0 && osc < 2) P->wt[osc] = id > 0 && id < NWT && wtab[id].F ? id : 0; }
 static inline float wtRead(const float* t, i32 len, float ph) { float x = ph * len; i32 i = (i32)x; float fr = x - i; i &= len - 1; return t[i] + (t[(i + 1) & (len - 1)] - t[i]) * fr; }
 // warp the phase (Sync, Bend, PWM, Mirror, Quantize); FM, AM and Ring are applied by the caller with the other oscillator
@@ -301,12 +307,32 @@ static void renderSynth(i32 n) {
         const float fi = clampf(m[b], 0.f, 1.f) * (T->F - 1); i32 i0 = (i32)fi; if (i0 > T->F - 2) i0 = T->F > 1 ? T->F - 2 : 0; wFr[o] = T->F > 1 ? fi - i0 : 0.f; const i32 i1 = T->F > 1 ? i0 + 1 : 0;
         wLen[o] = wtLenL(l); wT0[o] = T->lv[l] + i0 * wLen[o]; wT1[o] = T->lv[l] + i1 * wLen[o]; wFd0[o] = T->fund + i0 * 2; wFd1[o] = T->fund + i1 * 2; wF[o] = T->F;
         wW[o] = disc(m[b + 5], NWARP); wAmt[o] = m[b + 6]; wNoF[o] = disc(m[b + 7], 2); wOn |= 1 << o; } }
+    // Granular engine: spawn grains for this block (density or tempo lock; Stretch keeps them evenly overlapped)
+    const i32 isGR = disc(m[SP_ENG], NENG) == 3; const Samp* GS = 0; float gNorm = 0, gShape = 0; if (isGR) nOn = 0;   // no source yet: silent, never the analog oscillators
+    if (isGR && P->gsrc && samp[P->gsrc].d) { GS = &samp[P->gsrc]; nOn = 1; fmInit();
+      const i32 stretch = disc(m[SP_GMO], 2), lock = disc(m[SP_GTL], 4); const float size = spPhys(SP_GSZ, m[SP_GSZ]), dens = spPhys(SP_GDE, m[SP_GDE]), scan = spPhys(SP_GSC, m[SP_GSC]);
+      const float fr = (float)GS->frames, ssr = GS->sr, keyR = disc(m[SP_GKT], 2) ? f0 / 130.8128f : f0 / 130.8128f / fexp(v->semi * 0.0577622650f);
+      if (v->gph < 0.0) v->gph = m[SP_GPO] * fr;                                     // the playhead starts at Position, then scans
+      v->gph += scan * dt * ssr; if (v->gph >= fr) v->gph -= fr * (i32)(v->gph / fr); if (v->gph < 0.0) v->gph += fr * (1 + (i32)(-v->gph / fr));
+      const float interval = stretch ? size * 0.25f : lock ? (lock == 1 ? 0.5f : lock == 2 ? 0.25f : 0.125f) * 60.f / BPM : 1.f / dens;
+      i32 live = 0; for (i32 k = 0; k < NSV; k++) if (sv[k].on) for (i32 g = 0; g < NGRAIN; g++) live += sv[k].gr[g].on;
+      v->gtm -= dt;
+      while (v->gtm <= 0.f) { v->gtm += interval * (stretch || lock ? 1.f : 0.8f + 0.4f * (frnd(&v->grng) * 0.5f + 0.5f));
+        if (live >= GRAIN_CAP) continue;   // past the shared ceiling the cloud thins instead of overloading
+        i32 slot = -1; for (i32 g = 0; g < NGRAIN; g++) if (!v->gr[g].on) { slot = g; break; } if (slot < 0) continue;
+        Grain* G = &v->gr[slot]; const float rp = frnd(&v->grng), rs = frnd(&v->grng), rr = frnd(&v->grng) * 0.5f + 0.5f, rpn = frnd(&v->grng);
+        float inc = keyR * ssr / SR; if (m[SP_GPS] > 0.001f && !stretch) inc *= fexp(rs * spPhys(SP_GPS, m[SP_GPS]) * 0.0577622650f);
+        const float len = size * SR; double pos = v->gph + (stretch ? 0.0 : (double)(rp * m[SP_GSP] * 0.5f * ssr));
+        if (rr < m[SP_GRV]) { inc = -inc; pos += (double)(len * -inc); }
+        while (pos < 0.0) pos += fr; while (pos >= fr) pos -= fr;
+        const float pn = rpn * m[SP_GST]; G->gl = sqrtf_(0.5f * (1.f - pn)); G->gr = sqrtf_(0.5f * (1.f + pn)); G->pos = pos; G->inc = inc; G->t = 0.f; G->len = len; G->on = 1; live++; }
+      gNorm = 1.4f / sqrtf_(maxf(1.f, (stretch ? 4.f : (lock ? size / interval : dens * size)))); gShape = 0.5f * (1.f - m[SP_GSH]) + 0.01f; }
     const i32 sync = disc(m[SP_O2Y], 2); const float fm = m[SP_O2M];
     const i32 U = (i32)spPhys(SP_UNI, m[SP_UNI]); const float det = m[SP_DET], spr = U > 1 ? m[SP_SPR] : 0.f, ug = 1.f / sqrtf_((float)U);
     float dm[MAXUNI], panL[MAXUNI], panR[MAXUNI];
     for (i32 u = 0; u < U; u++) { float x = U > 1 ? (2.f * u / (U - 1) - 1.f) : 0.f; dm[u] = fexp(x * det * det * 0.6f * 0.0577622650f * (1.f + 0.4f * fabsf_(x)));   // JP-style: outer voices spread further
       float pn = x * spr; panL[u] = sqrtf_(0.5f * (1.f - pn)) * 1.41421356f * ug; panR[u] = sqrtf_(0.5f * (1.f + pn)) * 1.41421356f * ug; }
-    const i32 stereo = spr > 0.001f;
+    const i32 stereo = spr > 0.001f || isGR;
     // filter
     const i32 ftype = disc(m[SP_FLT], 7);
     float fc = spPhys(SP_CUT, m[SP_CUT]) * fexp((m[SP_KEY] * v->semi / 12.f + linmap(m[SP_FEN], -1, 1) * 5.f * v->ev[1]) * 0.693147181f);
@@ -331,7 +357,16 @@ static void renderSynth(i32 n) {
     const i32 chans = stereo ? 2 : 1;
     for (i32 i = 0; i < n; i++) {
       float amp = a0 + da * (i + 1), sL = 0, sR = 0;
-      if (isWT) for (i32 u = 0; u < U; u++) {   // B first (A can take it for FM/AM/Ring), then A; B's cross-modulation uses A's last sample
+      if (GS) {   // grains: windowed reads of the source, each with its own pitch, direction and pan
+        const i16* d = GS->d; const i32 ch = GS->ch, fr = (i32)GS->frames; const float* sn = fmTab[0][0];
+        for (i32 g = 0; g < NGRAIN; g++) { Grain* G = &v->gr[g]; if (!G->on) continue;
+          const float x = G->t / G->len; float w = 1.f; if (x < gShape) w = 0.5f - 0.5f * fmLook(sn, x / gShape * 0.5f + 0.25f); else if (x > 1.f - gShape) w = 0.5f - 0.5f * fmLook(sn, (1.f - x) / gShape * 0.5f + 0.25f);
+          i32 i0 = (i32)G->pos; const float f = (float)(G->pos - i0); i32 i1 = i0 + 1; if (i1 >= fr) i1 = 0; if (i0 < 0 || i0 >= fr) { G->on = 0; continue; }
+          float a = d[i0 * ch], b = d[i1 * ch]; if (ch == 2) { a = (a + d[i0 * 2 + 1]) * 0.5f; b = (b + d[i1 * 2 + 1]) * 0.5f; }
+          const float y = (a + (b - a) * f) * 3.0517578e-5f * w * gNorm; sL += y * G->gl; sR += y * G->gr;
+          G->pos += G->inc; if (G->pos >= fr) G->pos -= fr; else if (G->pos < 0.0) G->pos += fr; G->t += 1.f; if (G->t >= G->len) G->on = 0; }
+      }
+      else if (isWT) for (i32 u = 0; u < U; u++) {   // B first (A can take it for FM/AM/Ring), then A; B's cross-modulation uses A's last sample
         float x = 0;
         for (i32 oo = 1; oo >= 0; oo--) { if (!((wOn >> oo) & 1)) { v->wlast[oo][u] = 0.f; continue; } const i32 o = oo, w = wW[o]; float& ph = v->wph[o][u]; const float other = v->wlast[1 - o][u], a = wAmt[o];
           float p = ph; if (w >= 1 && w <= 5) p = wtWarp(w, a, p); else if (w == 6) { p += other * a * 1.5f; p -= floorf_(p); }

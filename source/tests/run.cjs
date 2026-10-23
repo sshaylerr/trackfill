@@ -222,6 +222,23 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     { const s = mk(pt({ wap: .5, wbl: .6, uni: 3, det: .3, waw: 'FM', wax: .3 }, { a: 'w:Growl', b: 'w:Basic Shapes' })); for (let k = 0; k < 16; k++) s.host.msg({ t: 'hit', pad: 20, semi: k - 8, vel: .8, tag: k + 1 });
       s.run(20); const t0 = Date.now(); s.run(375 * 2); const ms = Date.now() - t0; console.log(`    16 wavetable notes (A + B, 3× unison, FM warp): ${(ms / 20).toFixed(1)}% of real time on this machine`); ok(ms < 2000, 'wavetable processing stays well within real time'); }
   }
+  console.log('granular synth');
+  { const mk = (patch, src) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject();
+      Q.chans.forEach(c => { c.fx = []; }); Object.assign(Q.pads[20], { src: 'synth', syn: patch, mode: 'gate', voice: 'poly', poly: 16, glide: 0 }); host.msg({ t: 'project', P: Q });
+      if (src) { const k = src.slice(2), b = M.ALL_BUILTINS.find(x => x[0] === k), sm = M.buildKitSample(k, b[1]); host.msg({ t: 'sample', key: src, data: sm.data, frames: sm.frames, ch: sm.ch, sr: sm.sr }); }
+      const L = new Float32Array(128), R = new Float32Array(128), run = n => { let e = 0, bad = 0, side = 0; for (let i = 0; i < n; i++) { host.render(128, L, R); for (let j = 0; j < 128; j++) { if (!(L[j] === L[j])) bad++; e += L[j] * L[j]; side += (L[j] - R[j]) * (L[j] - R[j]); } } return { e: e / (n * 128), bad, side: side / (n * 128) }; };
+      return { ex, host, run }; };
+    { let bad = 0, silent = [], stuck = []; for (const pr of [SP.SYN_GR_INIT, ...SP.GR_PRESETS]) { const pt = SP.synPatch(pr), s = mk(pt, pt.gr.src);
+        [0, 4, 7].forEach((semi, i) => s.host.msg({ t: 'hit', pad: 20, semi, vel: .85, tag: 10 + i })); const a = s.run(375 * 3); [0, 1, 2].forEach(i => s.host.msg({ t: 'rel', tag: 10 + i, rel: .1 })); s.run(375 * 8);
+        bad += a.bad; if (a.e < 1e-7) silent.push(pr.n); if (s.ex.tf_voices()) stuck.push(pr.n); }
+      ok(!bad && !silent.length && !stuck.length, `all ${SP.GR_PRESETS.length} granular presets play, stay finite and release (${silent.length ? 'silent: ' + silent.join(', ') : ''}${stuck.length ? ' stuck: ' + stuck.join(', ') : ''})`); }
+    { const none = mk(SP.synPatch({ eng: 'gr', p: { flt: 'Off' } }), null); none.host.msg({ t: 'hit', pad: 20, semi: 0, vel: .9, tag: 1 }); const z = none.run(200).e;
+      const mono = mk(SP.synPatch({ eng: 'gr', gr: { src: 'b:jvox' }, p: { flt: 'Off', gst: 0 } }), 'b:jvox'), wide = mk(SP.synPatch({ eng: 'gr', gr: { src: 'b:jvox' }, p: { flt: 'Off', gst: 1 } }), 'b:jvox');
+      for (const s of [mono, wide]) s.host.msg({ t: 'hit', pad: 20, semi: 0, vel: .9, tag: 1 }); const m = mono.run(300), w = wide.run(300);
+      ok(z === 0 && m.e > 1e-5 && w.side > m.side * 20, `granular: silent until it has a source, Stereo spreads the grains (side ${w.side.toExponential(1)} vs ${m.side.toExponential(1)})`); }
+    { const s = mk(SP.synPatch({ eng: 'gr', gr: { src: 'b:jstrings' }, p: { flt: 'Off', gsz: .2, gde: 60, gsp: .4, gst: .9 } }), 'b:jstrings'); for (let k = 0; k < 16; k++) s.host.msg({ t: 'hit', pad: 20, semi: k - 8, vel: .8, tag: k + 1 });
+      s.run(20); const t0 = Date.now(); s.run(375 * 2); const ms = Date.now() - t0; console.log(`    16 granular notes (60 grains/s, 200 ms grains, up to the shared ceiling): ${(ms / 20).toFixed(1)}% of real time on this machine`); ok(ms < 2000, 'granular processing stays well within real time'); }
+  }
   console.log('pitch bend');
   { // a sustained sample and a synth, bent up a full range of 12: both play an octave higher; automation drives it
     const zc = (x, a) => { let n = 0; for (let i = a + 1; i < x.length; i++) if ((x[i - 1] < 0) !== (x[i] < 0)) n++; return n; };

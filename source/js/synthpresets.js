@@ -163,11 +163,26 @@ const WT_PRESETS = [
   wtPreset('Laser', 'FX', { wap: .4, '2d': .3, '2s': 0, ad: .35, as: 0, ar: .1 }, { a: 'w:Squash' }, [synMod('Env 2', 'pit', .5), synMod('Env 2', 'wap', -.8), synMod('Macro 1', 'pit', .2), synMod('Macro 2', '2d', .4)], { voice: 'mono' }),
 ];
 const SYN_WT_INIT = { n: 'Init', g: 'Init', eng: 'wt', p: { flt: 'Off' }, wt: { a: 'w:Basic Shapes', b: 'w:Basic Shapes' }, mods: [] };
+/* ----- Granular presets (sources are built-in sounds, so they work everywhere); Macro 1 = Position, Macro 2 = Size ----- */
+function grPreset(n, g, src, p, mods, x) { return Object.assign({ n, g, eng: 'gr', gr: { src }, p: Object.assign({ flt: 'Off', aa: .02, ar: .6 }, p), mods: mods || [] }, x || {}); }
+const GR_M = [synMod('Macro 1', 'gpo', .4), synMod('Macro 2', 'gsz', .4)];
+const GR_PRESETS = [
+  grPreset('Vox Cloud', 'Textures', 'b:jvox', { gpo: .3, gsc: .1, gsz: .12, gde: 30, gsp: .3, gst: .8, aa: .3, ar: 1.5 }, GR_M, { fx: [{ type: 5, mode: 2 }] }),
+  grPreset('Frozen Piano', 'Textures', 'b:jpiano', { gpo: .22, gsz: .2, gde: 20, gsp: .05, gst: .6, aa: .2, ar: 1.8 }, GR_M, { fx: [{ type: 5, mode: 2 }] }),
+  grPreset('Break Shimmer', 'Rhythmic', 'b:jbreak', { gpo: .4, gsc: .5, gsz: .06, gde: 40, gsp: .2, gps: 12, gst: .9, grv: .3, gtl: '1/16' }, GR_M),
+  grPreset('Granular Pad', 'Textures', 'b:jstrings', { gpo: .35, gsc: .05, gsz: .3, gde: 16, gsp: .4, gst: .9, aa: .8, ar: 2 }, [...GR_M, synMod('LFO 1', 'gpo', .1)], { fx: [{ type: 5, mode: 2 }] }),
+  grPreset('Glass Drone', 'Textures', 'b:bell', { gpo: .15, gsc: .02, gsz: .25, gde: 25, gsp: .2, gps: 7, gst: .8, aa: 1, ar: 2.5, l1y: 'Free', l1r: .1 }, [...GR_M, synMod('LFO 1', 'gsp', .15)], { fx: [{ type: 5, mode: 2 }] }),
+  grPreset('Reverse Swell', 'Textures', 'b:jatmos', { gpo: .5, gsz: .4, gde: 10, gsp: .3, gst: .7, grv: 1, aa: 1.5, ar: 2 }, GR_M),
+  grPreset('Glitch Stutter', 'Rhythmic', 'b:jbreak', { gpo: .3, gsc: .2, gsz: .03, gsp: .5, gst: .6, grv: .5, gsh: .9, gtl: '1/32', ar: .2 }, [synMod('Macro 1', 'gpo', .5), synMod('Macro 2', 'gsp', .4)]),
+  grPreset('Time Stretch', 'Stretch', 'b:jvox', { gmo: 'Stretch', gpo: 0, gsc: .5, gsz: .08, gst: .3, ar: .4 }, [synMod('Macro 1', 'gsc', .25), synMod('Macro 2', 'gsz', .3)]),
+];
+const SYN_GR_INIT = { n: 'Init', g: 'Init', eng: 'gr', gr: { src: 'b:jvox' }, p: { flt: 'Off' }, mods: [] };
 const SYN_FM_INIT = { n: 'Init', g: 'Init', eng: 'fm', p: { flt: 'Off', ad: 2, as: 1, ar: .35 }, mods: [] };
 // output level per preset (dB), measured so every preset plays at about the same loudness
 const SYN_LEVELS = {"Moog Bass":-1.5,"Sub":-4.5,"Reese":1,"Acid Line":-16,"Juno Bass":-4.5,"Hoover Bass":0,"Wobble":0.5,"Rubber":-2.5,"Garage Organ Bass":0,"Sync Lead":-1.5,"Supersaw":-11.5,"Brass Lead":-1,"80s Solo Lead":-2,"Chip Square":-3.5,"Trance Lead":-13.5,"G-Funk Whistle":-2.5,"Juno Strings":-10,"Warm Pad":-3,"Dark Pad":-3,"Sweep Pad":-4.5,"Trance Pad":-6.5,"Ambient Drift":-8.5,"Pluck":6,"Trance Pluck":-4.5,"Poly Stab":1.5,"Brass Stab":-3,"80s Poly Keys":-4.5,"Rave Stab":0.5,"House Chord":1,"Noise Sweep":1.5,"Laser Zap":-3};
 Object.assign(SYN_LEVELS, {"E. Piano":-3.5,"Glass Keys":-4,"Clav":6,"Drawbar Organ":-9,"Lately Bass":-6,"Bells":-0.5,"Marimba":6,"Kalimba":6,"Metallic Pluck":6,"Folded Bass":-5,"FM Sub":-9.5,"Ring Bass":-5.5,"Neuro Growl":-7.5,"Reese FM":-6,"Jump Up Wobble":-9.5,"Foghorn":-6,"Donk":5,"Tech Stab":6,"Ring Lead":-5,"Digital Brass":-10,"Chip Lead":-7.5,"Filter-FM Snarl":-5.5,"Glass Pad":-7,"Breath Pad":-4,"Dark Drone":-3.5,"FM Pluck":6,"FM Kick":6,"FM Snare":6,"Metal Hit":6,"FM Laser":6});
 Object.assign(SYN_LEVELS, {"wt:Neuro Growl": -7, "wt:Riddim Wub": -9.5, "wt:Reese Table": -7, "wt:Hollow Bass": -5.5, "wt:Talking Bass": -5.5, "wt:Future Lead": -9, "wt:Digital Lead": -2.5, "wt:Sync Sweep": -6, "wt:Evolving Pad": -4, "wt:Vocal Pad": -3.5, "wt:Glass Pad": -1.5, "wt:Dark Drone": 0, "wt:Future Bass Chords": -5.5, "wt:Wavetable Pluck": 6, "wt:Bell Pluck": 6, "wt:Riser Sweep": -3, "wt:Laser": 6});   // slow-attack Dark Drone set by ear: the 1.2 s measurement misses most of it
+Object.assign(SYN_LEVELS, {"gr:Vox Cloud": -10, "gr:Frozen Piano": -4.5, "gr:Break Shimmer": 0.5, "gr:Granular Pad": -1, "gr:Glass Drone": 1, "gr:Reverse Swell": 4.5, "gr:Glitch Stutter": 1.5, "gr:Time Stretch": -11.5});
 const SYN_INIT = { n: 'Init', g: 'Init', p: {}, mods: [] };
 // a new patch from a preset: physical values, routes, drawn LFOs (missing ones get a sine), macros
 function synPatch(pr) {
@@ -175,13 +190,15 @@ function synPatch(pr) {
   const p = Object.assign({}, pr.p); if (pr.m) for (const k in pr.m) p[k] = pr.m[k]; if (p.gan == null) { const lv = SYN_LEVELS[(pr.eng || 'analog') + ':' + pr.n] ?? (pr.eng === 'wt' ? undefined : SYN_LEVELS[pr.n]); if (lv != null) p.gan = lv; }
   const o = { eng: pr.eng || 'analog', name: pr.n, p, mods: (pr.mods || []).map(m => Object.assign({}, m)), lfo };
   if (o.eng === 'wt') o.wt = Object.assign({ a: 'w:Basic Shapes', b: 'w:Basic Shapes' }, pr.wt || {});
+  if (o.eng === 'gr') o.gr = Object.assign({ src: null }, pr.gr || {});
   return o;
 }
 function normalizeSyn(s) {
   if (!s || typeof s !== 'object') return null;
   const o = { eng: ['fm', 'wt', 'gr'].includes(s.eng) ? s.eng : 'analog', sig: typeof s.sig === 'number' ? s.sig : undefined, name: String(s.name || ''), p: Object.assign({}, s.p || {}), mods: Array.isArray(s.mods) ? s.mods.filter(m => m && typeof m.d === 'string' && m.s >= 0 && m.s < SYN_SRC.length).slice(0, 32).map(m => ({ s: m.s | 0, d: m.d, a: Math.max(-1, Math.min(1, +m.a || 0)), c: Math.max(0, Math.min(3, m.c | 0)), v: m.v == null ? undefined : m.v | 0 })) : [] };
+  if (o.eng === 'gr' || s.gr) o.gr = { src: typeof (s.gr && s.gr.src) === 'string' ? s.gr.src : null };
   if (o.eng === 'wt' || s.wt) o.wt = { a: typeof (s.wt && s.wt.a) === 'string' ? s.wt.a : 'w:Basic Shapes', b: typeof (s.wt && s.wt.b) === 'string' ? s.wt.b : 'w:Basic Shapes' };
   o.lfo = [0, 1, 2, 3].map(k => Array.isArray(s.lfo && s.lfo[k]) && s.lfo[k].length ? s.lfo[k].slice(0, 32).map(q => ({ x: Math.max(0, Math.min(1, +q.x || 0)), y: Math.max(0, Math.min(1, +q.y || 0)), c: Math.max(-.97, Math.min(.97, +q.c || 0)) })) : LFO_SHAPES.Sine.map(q => Object.assign({}, q)));
   return o;
 }
-if (typeof module !== 'undefined') module.exports = { WT_PRESETS, SYN_WT_INIT, FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };
+if (typeof module !== 'undefined') module.exports = { GR_PRESETS, SYN_GR_INIT, WT_PRESETS, SYN_WT_INIT, FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };

@@ -605,7 +605,8 @@ function newJungle() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toa
   setTimeout(async () => { const np = jungleProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Liquid jungle: drums and break on bank A, keys and pads on bank B (set up for Chords). F minor, 174 BPM.'); }, 60); }
 function newStress() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the stress test…');
   setTimeout(async () => { const np = stressProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Stress test: 53 pads, 29 synths, 266 effects. Press Play and watch CPU in the top bar.'); }, 60); }
-function ensureBuiltinsFor(proj) { for (const p of proj.pads) if (p.sample && p.sample.startsWith('b:')) buildBuiltin(p.sample.slice(2)); }
+const grSrc = p => p && p.src === 'synth' && p.syn && p.syn.eng === 'gr' && p.syn.gr && p.syn.gr.src || null;   // a granular pad's source sound
+function ensureBuiltinsFor(proj) { for (const p of proj.pads) { if (p.sample && p.sample.startsWith('b:')) buildBuiltin(p.sample.slice(2)); const g = grSrc(p); if (g && g.startsWith('b:')) buildBuiltin(g.slice(2)); } }
 function addUserSample(name, sr, ch, data, extra) {
   const id = 'u:' + uid(), s = Object.assign({ id, name, sr, ch, frames: data.length / ch, data, added: Date.now() }, extra || {});
   SAMPLES.set(id, s); DB.put('samples', id, s); return id;
@@ -618,7 +619,7 @@ function upgradeSampleRecord(s) {   // v1 stored Float32 channel arrays; v2 stor
   if (s.chans) { const data = interleave(s.chans, s.chans[0].length); return { id: s.id, name: s.name, sr: s.sr, ch: s.chans.length, frames: s.chans[0].length, data, added: 0 }; }
   return null;
 }
-const usedSampleIds = () => { const u = new Set(); for (const p of P.pads) { if (p.sample) u.add(p.sample); if (p.frz) for (const k in p.frz) u.add(p.frz[k]); } for (const k of tableKeys()) if (!k.startsWith('w:')) u.add(k); return u; };   // your own wavetables travel with the project like samples
+const usedSampleIds = () => { const u = new Set(); for (const p of P.pads) { if (p.sample) u.add(p.sample); if (p.frz) for (const k in p.frz) u.add(p.frz[k]); } for (const k of tableKeys()) if (!k.startsWith('w:')) u.add(k); for (const p of P.pads) { const g = grSrc(p); if (g) u.add(g); } return u; };   // your own wavetables travel with the project like samples
 
 /* ================= storage ================= */
 const DB = { db: null, ok: false,
@@ -665,7 +666,7 @@ function ensureTable(key) { if (!key || ENG.sent.has('T' + key) || !ENG.node) re
 function ensureSample(id) { if (!id || ENG.sent.has(id) || !ENG.node) return; const s = SAMPLES.get(id); if (!s || s.wt) return;
   send({ t: 'sample', key: id, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr }); ENG.sent.add(id); }
 function syncScene(i) { const sc = P.scenes[i]; send({ t: 'scene', i, v: sc }); for (const k in sc.notes) for (const n of sc.notes[k]) if (n.f) delete n.f; }
-function syncPad(i) { const p = P.pads[i]; ensureSample(p.sample); for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
+function syncPad(i) { const p = P.pads[i]; ensureSample(p.sample); const gs = grSrc(p); if (gs) { if (gs.startsWith('b:')) buildBuiltin(gs.slice(2)); ensureSample(gs); } for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
 function syncChan(c) { send({ t: 'chan', i: c, v: P.chans[c] }); }
 function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing } }); updateTransport(); }
 function syncProject() { if (!ENG.node) return; for (const id of usedSampleIds()) ensureSample(id); for (const k of tableKeys()) ensureTable(k); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
