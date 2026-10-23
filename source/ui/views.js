@@ -37,11 +37,12 @@ function renderSeq(V) {
   bar.append(btn('−', () => zoomTL(1 / 1.5), 'key sm ic'), btn('+', () => zoomTL(1.5), 'key sm ic'));
   if (!isNotes) bar.append(btn(IC.draw, () => { tl.draw = !tl.draw; renderView(); }, 'key sm ic' + (tl.draw ? ' on' : '')), btn(IC.shapes, openShapes, 'key sm ic'));
   const del = btn(IC.del, () => isNotes ? deleteSelNote() : autoCtl.del(), 'key sm ic warn'); del.setAttribute('aria-label', 'Delete'); bar.append(del);
-  const wrap = h('div', 'scr tlwrap'), cv = h('canvas', 'navc'); cv.setAttribute('aria-label', 'Timeline'); wrap.append(cv); w.append(bar, wrap); V.append(w);
+  const wrap = h('div', 'scr tlwrap' + (UI.tlSlide ? ' slide' + UI.tlSlide : '')), cv = h('canvas', 'navc'); UI.tlSlide = 0; cv.setAttribute('aria-label', 'Timeline'); wrap.append(cv); w.append(bar, wrap); V.append(w);
   TL.cv = cv; TL.cx = cv.getContext('2d'); bindTL(cv); sizeTL();
 }
 // switch the bank the timeline shows (from the lane menu, a vertical swipe, or Shift + ↑↓); keeps the same row selected
 function tlBank(b, why) { b = clamp(b, 0, 3); const tl = UI.tl; if (b === UI.bank && tl.mode === 'bank' && tl.lane === 'notes' && !tl.target) return false;
+  if (b !== UI.bank && UI.view === 'seq') UI.tlSlide = b > UI.bank ? 'U' : 'D';   // the same short slide as the mixer's pages, vertically
   UI.bank = b; UI.pad = b * 16 + UI.pad % 16; tl.target = null; tl.lane = 'notes'; tl.mode = 'bank'; tl.sel = null; tl.selPt = -1; tl.cursor.row = UI.pad % 16;
   if (why) haptic(); savePrefs(); if (UI.view !== 'seq') setView('seq'); else renderView(); updatePanel(); return true; }
 function chanUsed(c) { return P.chans.some((C, i) => i !== c && tfDest(P, i) === c); }
