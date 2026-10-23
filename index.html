@@ -2061,11 +2061,11 @@ class TFProc extends AudioWorkletProcessor {
     const fail = e => this.port.postMessage({ t: 'err', msg: String(e && e.message || e) });
     try { const inst = new WebAssembly.Instance(new WebAssembly.Module(o.processorOptions.wasm), {});
       this.host = new TFHost(inst.exports, sampleRate, m => this.port.postMessage(m));
-      this.port.onmessage = e => { try { this.host && this.host.msg(e.data); } catch (err) { fail(err); } };
+      this.port.onmessage = e => { try { this.host && this.host.msg(e.data); } catch (err) { this.port.postMessage({ t: 'err', msg: 'while handling "' + (e.data && e.data.t) + '": ' + String(err && err.message || err) + ((err && err.stack || '').split('\\n')[1] || '') }); } };
       this.port.postMessage({ t: 'ready' });
     } catch (err) { this.host = null; fail(err); } }
   process(ins, outs) { const o = outs[0]; if (!this.host || !o || !o[0]) return true; const t0 = Date.now();
-    try { this.host.render(o[0].length, o[0], o[1] || o[0]); } catch (err) { this.port.postMessage({ t: 'err', msg: String(err && err.message || err) }); this.host = null; return true; }
+    try { this.host.render(o[0].length, o[0], o[1] || o[0]); } catch (err) { this.port.postMessage({ t: 'err', msg: 'while rendering: ' + String(err && err.message || err) + ((err && err.stack || '').split('\\n')[1] || '') }); this.host = null; return true; }
     this.host.cpuMs += Date.now() - t0; this.host.cpuBlocks++; return true; }
 }
 registerProcessor('tf-engine', TFProc);`;
@@ -2245,7 +2245,8 @@ function newContext() { const AC = window.AudioContext || window.webkitAudioCont
    background, still suspended, so the first tap wakes the fresh one. Engine check has a button for doing it by hand. */
 const AUD = { hiddenAt: 0, dirty: false, restarting: false };
 async function restartAudio(manual) {
-  if (AUD.restarting || !ctx) return; AUD.restarting = true; AUD.dirty = false;
+  if (AUD.restarting || !ctx) return; if (!manual && Date.now() - (AUD.last || 0) < 20000) return;   // automatic restarts: at most one every 20 s
+  AUD.restarting = true; AUD.dirty = false; AUD.last = Date.now();
   const was = T.playing; if (was) stop(); KEYS.latch = null; for (const k in HELD) delete HELD[k];
   const old = ctx; ctx = null; ENG.node = null; ENG.ready = false; ENG.slept = false; ENG.sent.clear();
   try { old.onstatechange = null; await old.close(); } catch (e) {}
@@ -2258,10 +2259,10 @@ async function restartAudio(manual) {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { AUD.hiddenAt = Date.now(); return; }
   if (ctx && (AUD.dirty || Date.now() - AUD.hiddenAt > 8000)) restartAudio(false); });
-try { navigator.mediaDevices && navigator.mediaDevices.addEventListener('devicechange', () => { if (!ctx) return; if (document.hidden) AUD.dirty = true; else restartAudio(false); }); } catch (e) {}
 async function startEngine() {
+  const c0 = ctx;
   try {
-    const c0 = ctx; if (!ctx.audioWorklet) throw new Error('this browser has no AudioWorklet');
+    if (!ctx.audioWorklet) throw new Error('this browser has no AudioWorklet');
     await c0.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' })));
     if (ctx !== c0) return;
     const node = new AudioWorkletNode(c0, 'tf-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { wasm: WASM_BYTES } });
@@ -2270,7 +2271,8 @@ async function startEngine() {
     if (ctx !== c0) return;   // restarted while this one was loading
     node.port.onmessage = e => onEngine(e.data);
     ENG.node = node; ENG.sent.clear(); syncProject(); sendClick();
-  } catch (e) { ENG.err = e.message || String(e); console.error(e); toast('The audio engine could not start: ' + ENG.err); }
+  } catch (e) { if (ctx !== c0) return;   // this one was replaced by a restart while it loaded: not a real failure
+    ENG.err = e.message || String(e); ENG.errLog = (ENG.errLog || []).concat('start: ' + ENG.err).slice(-5); console.error(e); toast('The audio engine could not start: ' + ENG.err); }
 }
 let lastTrip = 0;
 function onEngine(m) {
@@ -2287,7 +2289,7 @@ function onEngine(m) {
     if (m.ch === MASTER) { T.playing = false; updateTransport(); }
     toast(`Safety mute on ${who}: ${m.why === 1 ? 'it produced invalid audio' : 'levels ran away'}. It has been reset.` + (n - lastTrip < 4000 ? ' Check feedback, resonance and drive.' : ''));
     lastTrip = n;
-  } else if (m.t === 'err') { ENG.err = m.msg; toast('Audio engine error: ' + m.msg); }
+  } else if (m.t === 'err') { ENG.err = m.msg; ENG.errLog = (ENG.errLog || []).concat(m.msg).slice(-5); toast('Audio engine error: ' + m.msg + ' · Engine check has the details'); }
   else if (m.t === 'oom') toast('The audio engine is out of memory. Remove unused sounds or effects, or freeze heavy pads.');
 }
 async function getModule() { if (!wasmModule) wasmModule = await WebAssembly.compile(WASM_BYTES); return wasmModule; }
@@ -4464,6 +4466,7 @@ async function runChecks() {
   const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   add('ok', 'Device', `${ios ? 'iOS' : 'other'} · ${navigator.hardwareConcurrency || '?'} cores · ${screen.width}×${screen.height} @${devicePixelRatio}x`);
   add(ctx && ctx.state === 'running' ? 'ok' : 'warn', 'Audio', ctx ? `${ctx.state} · ${ctx.sampleRate} Hz · base ${((ctx.baseLatency || 0) * 1000).toFixed(1)} ms · output ${((ctx.outputLatency || 0) * 1000).toFixed(1)} ms` : 'not started');
+  if (ENG.errLog && ENG.errLog.length) add('fail', 'Engine errors', ENG.errLog.join(' | '));
   add(ENG.ready ? 'ok' : 'fail', 'Audio engine', ENG.ready ? `running · CPU ${Math.round(REP.cpu * 100)}% · ${REP.voices} voices` : (ENG.err || 'starting…'));
   const as = navigator.audioSession; add(as && as.type === 'playback' ? 'ok' : 'warn', 'Silent switch override', as ? 'audioSession = ' + as.type + (as.type === 'playback' ? '' : ' (not playback yet: tap a pad, then check again)') : 'audioSession not available; using the media-element workaround');
   let wasmMain; try { await WebAssembly.compile(WASM_BYTES); wasmMain = 'ok'; } catch (e) { wasmMain = 'blocked: ' + e.message; } add(wasmMain === 'ok' ? 'ok' : 'fail', 'WebAssembly (main thread, for exports)', wasmMain);
