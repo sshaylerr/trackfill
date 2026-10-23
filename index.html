@@ -2232,18 +2232,42 @@ function ensureAudio() {
   if (ctx && ctx.state === 'running' && ENG.node) { unmuteIOS(); return true; }
   try {
     unmuteIOS();
-    if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; ctx = new AC({ latencyHint: 'interactive' }); ctx.onstatechange = updateSoundChip; startEngine(); }
+    if (!ctx) newContext();
     if (ctx.state !== 'running') ctx.resume().catch(() => {});
     setTimeout(updateSoundChip, 80); return true;
   } catch (e) { console.error(e); toast('Sound could not start on this device'); return false; }
 }
+function newContext() { const AC = window.AudioContext || window.webkitAudioContext; const c = ctx = new AC({ latencyHint: 'interactive' });
+  c.onstatechange = () => { if (c.state === 'interrupted' && c === ctx) AUD.dirty = true; updateSoundChip(); }; startEngine(); }
+/* ---------- audio restart: a fresh audio engine, like closing and reopening the app ----------
+   iOS shares one audio setup between apps: another app playing sound, a call, or a change of headphones can leave this page
+   on a slower path until it starts over. Coming back after a while (or after any of those), the engine is rebuilt in the
+   background, still suspended, so the first tap wakes the fresh one. Engine check has a button for doing it by hand. */
+const AUD = { hiddenAt: 0, dirty: false, restarting: false };
+async function restartAudio(manual) {
+  if (AUD.restarting || !ctx) return; AUD.restarting = true; AUD.dirty = false;
+  const was = T.playing; if (was) stop(); KEYS.latch = null; for (const k in HELD) delete HELD[k];
+  const old = ctx; ctx = null; ENG.node = null; ENG.ready = false; ENG.slept = false; ENG.sent.clear();
+  try { old.onstatechange = null; await old.close(); } catch (e) {}
+  try { unmuteIOS(); newContext(); if (manual) ctx.resume().catch(() => {}); } catch (e) { AUD.restarting = false; toast('Sound could not restart: ' + (e.message || e)); return; }
+  const t0 = Date.now(); while (!ENG.ready && !ENG.err && Date.now() - t0 < 4000) await new Promise(r => setTimeout(r, 50));
+  AUD.restarting = false; scopeWant(); updateSoundChip();
+  if (manual) { await new Promise(r => setTimeout(r, 250)); toast(ENG.ready ? `Audio restarted · ${ctx.sampleRate} Hz · base ${((ctx.baseLatency || 0) * 1000).toFixed(1)} ms · output ${((ctx.outputLatency || 0) * 1000).toFixed(1)} ms` : 'Audio could not restart: ' + (ENG.err || 'no answer')); }
+  if (was && ENG.ready && ctx.state === 'running') play();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { AUD.hiddenAt = Date.now(); return; }
+  if (ctx && (AUD.dirty || Date.now() - AUD.hiddenAt > 8000)) restartAudio(false); });
+try { navigator.mediaDevices && navigator.mediaDevices.addEventListener('devicechange', () => { if (!ctx) return; if (document.hidden) AUD.dirty = true; else restartAudio(false); }); } catch (e) {}
 async function startEngine() {
   try {
-    if (!ctx.audioWorklet) throw new Error('this browser has no AudioWorklet');
-    await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' })));
-    const node = new AudioWorkletNode(ctx, 'tf-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { wasm: WASM_BYTES } });
+    const c0 = ctx; if (!ctx.audioWorklet) throw new Error('this browser has no AudioWorklet');
+    await c0.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' })));
+    if (ctx !== c0) return;
+    const node = new AudioWorkletNode(c0, 'tf-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { wasm: WASM_BYTES } });
     const clip = ctx.createWaveShaper(); clip.curve = new Float32Array([-1, 1]); clip.oversample = 'none';   // second hard clip, belt and braces
     node.connect(clip); clip.connect(ctx.destination);
+    if (ctx !== c0) return;   // restarted while this one was loading
     node.port.onmessage = e => onEngine(e.data);
     ENG.node = node; ENG.sent.clear(); syncProject(); sendClick();
   } catch (e) { ENG.err = e.message || String(e); console.error(e); toast('The audio engine could not start: ' + ENG.err); }
@@ -4458,7 +4482,8 @@ function openDiag() {
     for (const r of rows) { const d = h('div', 'drow'); d.innerHTML = `<span class="st ${r.st}">${sym[r.st]}</span><div><b>${esc(r.name)}</b><span>${esc(r.detail)}</span></div>`; box.append(d); }
     const text = rows.map(r => `${sym[r.st]} ${r.name}: ${r.detail}`).join('\n'), ta = h('textarea', 'textin'); ta.value = text; ta.readOnly = true; ta.style.height = '90px'; ta.style.paddingBlock = '8px'; ta.style.fontSize = '11px';
     const cp = btn('Copy results', () => { const f = () => { ta.select(); toast('Selected. Use Copy from the menu.'); }; try { navigator.clipboard.writeText(text).then(() => toast('Copied'), f); } catch (e) { f(); } }, 'btn on'); cp.style.width = '100%';
-    box.append(cp, ta); });
+    const rs = btn('Restart audio', () => { closeSheet(); restartAudio(true); }, 'btn'); rs.style.width = '100%';
+    box.append(rs, h('p', 'note', 'Like closing and reopening the app: use it if sound feels late after switching apps or headphones. It also happens by itself when you come back to the app.'), cp, ta); });
 }
 
 /* ---------- export, backup ---------- */
