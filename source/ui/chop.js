@@ -174,12 +174,12 @@ function openChopTools(pi) {
     const top = h('div', 'g2');
     top.append(btn(c ? 'Chop: on' : 'Chop: off', () => { closeSheet(); setChop(pi, !c); }, 'btn' + (c ? ' on' : '')));
     if (c) top.append(btn(c.choke ? 'Choke: on' : 'Choke: off', () => { pushUndo('pad:' + pi); c.choke = !c.choke; syncPad(pi); markDirty(); closeSheet(); drawChop(); }, 'btn' + (c.choke ? ' on' : '')));
-    card.append(top, h('p', 'note', 'Choke: each slice cuts off the one before it, like one drummer playing the break.'));
+    card.append(top);
     const dur = (pad.end - pad.start) * s.frames / s.sr; card.append(h('div', 'sec', 'Fit to tempo: how long is this sound?'));
     const fit = h('div', 'g2'); fit.append(btn('Off', () => { pushUndo('pad:' + pi); pad.tempo = 0; syncPad(pi); markDirty(); closeSheet(); renderView(); }, 'btn' + (pad.tempo ? '' : ' on')));
     for (const [beats, l] of [[1, '1 beat'], [2, '2 beats'], [4, '1 bar'], [8, '2 bars'], [16, '4 bars'], [32, '8 bars']]) { const bpm = beats * 60 / dur; if (bpm < 20 || bpm > 300) continue;
       fit.append(btn(`${l} · ${bpm.toFixed(1)} BPM`, () => { pushUndo('pad:' + pi); touchPad(pi); pad.tempo = Math.round(bpm * 10) / 10; syncPad(pi); markDirty(); closeSheet(); renderView(); toast(pad.wm && pad.wm !== 'Repitch' ? `Stretches (${pad.wm}) from ${pad.tempo} to ${P.bpm} BPM` : `Plays at ${P.bpm} BPM by repitching from ${pad.tempo}`); }, 'btn' + (Math.abs(pad.tempo - bpm) < .06 ? ' on' : ''))); }
-    card.append(fit, h('p', 'note', pad.wm && pad.wm !== 'Repitch' ? `It keeps time with the song by stretching (${pad.wm}).` : 'The sound is sped up or slowed down (and its pitch moves with it) so it keeps time with the song. Stretch keeps the pitch instead.'));
+    card.append(fit);
     { const sb = h('div', 'g2'); sb.append(btn('Stretch: ' + (pad.wm || 'Repitch'), () => { closeSheet(); openStretch(pi); }, 'btn' + (pad.wm && pad.wm !== 'Repitch' ? ' on' : ''))); card.append(sb); }
     if (!c) return;
     card.append(h('div', 'sec', 'Slices'));
@@ -188,6 +188,6 @@ function openChopTools(pi) {
     const add = btn(`Split slice ${k + 1}`, manual(() => { const [a, b] = sliceRange(pad, k); c.pts.splice(k + 1, 0, (a + b) / 2); UI.slice = k + 1; })); add.disabled = n >= MAX_SLICES;
     const rem = btn(`Remove slice ${k + 1}`, manual(() => { c.pts.splice(k, 1); UI.slice = Math.max(0, k - 1); })); rem.disabled = n < 2;
     g.append(add, rem, btn('Spread to pads', () => { closeSheet(); spreadSlices(pi); }));
-    card.append(g, h('p', 'note', `Spread copies the ${n} slices onto empty pads, each with this pad's settings, and moves its notes with them.`));
+    card.append(g);
   });
 }

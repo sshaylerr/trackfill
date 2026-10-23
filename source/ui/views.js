@@ -275,7 +275,7 @@ function renderFx(V) {
     if (notesDuck) g.append(cellBtn('Triggers', f.trig.length ? f.trig.map(chanName).join(', ') : 'none', () => openTriggers(c, s)));
     if ((f.type === FX_TYPES.DUCK && !notesDuck) || f.type === FX_TYPES.GATE) g.append(cellBtn('Listens to', f.key == null ? (f.type === FX_TYPES.GATE ? 'Itself' : 'None') : chanLabel(f.key) + ' ' + chanName(f.key), () => openKeyPicker(c, s)));
     dev.append(g); panel.append(fh, dev);
-    if (c < G0 && P.pads[c].frz) panel.append(h('p', 'note', 'This pad is frozen. Changing its effects unfreezes it.'));
+    if (c < G0 && P.pads[c].frz) panel.append(h('p', 'note', 'Frozen: changing effects unfreezes it.'));
   } else {
     panel.append(h('div', 'sec', 'Add a device to insert ' + (s + 1)));
     // one device per line, grouped, like every other menu: colour dot (the device's faceplate), name, and its modes or what it does
@@ -289,7 +289,7 @@ function renderFx(V) {
         const li = h('div', 'li fxli' + (full ? ' off' : '')); li.innerHTML = `<span class="sdot" style="background:${lk.ring}"></span><div class="lt"><b>${esc(d.name)}</b><span>${esc(full ? 'all 8 duckers in use' : d.modes.length > 1 ? d.modes.map(m => m.n).join(' · ') : ABOUT[d.name] || '')}</span></div>`;
         if (!full) li.onclick = () => add(t); l.append(li); }
       if (l.children.length) panel.append(h('div', 'sec', title), l); }
-    panel.append(h('p', 'note', 'Every pad, group, bus, return and the master has 8 insert slots. Most devices have several modes; switch them on the device. Up to 8 duckers per project.'));
+    panel.append('');
   }
   w.append(head, slots, panel); V.append(w);
 }
@@ -298,7 +298,7 @@ function openTriggers(c, s) {
   openSheet('Duck on notes from', card => { const top = h('div', 'row'), grid = h('div', 'tgrid'); grid.style.marginTop = '10px';
     const draw = () => { top.innerHTML = ''; top.append(seg(['A', 'B', 'C', 'D'], bank, i => { bank = i; draw(); })); grid.innerHTML = '';
       for (const i of padOrder(16)) { const pi = bank * 16 + i, p = P.pads[pi], b = btn(esc(p.name || padLabel(pi)), () => { pushUndo('chan:' + c); const k = f.trig.indexOf(pi); if (k >= 0) f.trig.splice(k, 1); else f.trig.push(pi); syncChan(c); markDirty(); draw(); }, f.trig.includes(pi) ? 'on' : ''); grid.append(b); } };
-    draw(); card.append(top, grid, h('p', 'note', 'Pick any pads. Kick and snare on separate duckers, or together on one, both work.')); });
+    draw(); card.append(top, grid); });
 }
 function openKeyPicker(c, s) {
   const f = P.chans[c].fx[s];
@@ -309,7 +309,7 @@ function openKeyPicker(c, s) {
     add(null, gate ? 'Itself' : 'None', gate ? 'the gate listens to its own channel' : 'the ducker does nothing in audio mode');
     for (let k = 0; k < NCHANS; k++) { if (k === c) continue; if (k < G0 && !hasSound(P.pads[k])) continue; if (k >= G0 && k < R0 && !chanUsed(k) && !P.chans[k].fx.length) continue;
       add(k, chanLabel(k) + ' · ' + chanName(k), k < G0 ? 'pad' : chanKind(k)); }
-    card.append(list, h('p', 'note', 'The source is heard after its effects and before its fader, so its volume automation does not change the ducking. To duck from notes instead, set Trigger to Notes.')); });
+    card.append(list); });
 }
 
 function openSoundTools(pi) {

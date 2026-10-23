@@ -72,7 +72,7 @@ function openAnalyzer(c) {
   SCOPE.sheet = c; scopeWant();
   openSheet('Analyzer · ' + chanLabel(c) + ' ' + chanName(c), card => {
     const box = h('div', 'scr anbox'), cv = h('canvas'); box.append(cv); const read = h('div', 'anread lcd');
-    card.append(box, read, h('p', 'note', 'Shows this channel after its effects and before its fader. Peak hold falls back after 1.5 s.'));
+    card.append(box, read);
     scopeView(cv, () => { const { g, W, H } = prepCanvas(cv); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
       drawSpectrum(g, 0, 4, W - 62, H - 8, { grid: true, labels: true }); drawMeters(g, W - 56, 4, 56, H - 8, { scale: true });
       read.textContent = `Peak ${dbStr(SCOPE.hold[0])} / ${dbStr(SCOPE.hold[1])} dB · RMS ${dbStr(SCOPE.rms[0])} / ${dbStr(SCOPE.rms[1])} dB`; });

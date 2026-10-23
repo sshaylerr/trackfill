@@ -279,7 +279,7 @@ const defaultKx = () => ({ mode: 'notes', scale: -1, prog: 0, voicing: 'open', c
   arp: false, apat: 'up', arate: 24, aoct: 1, agate: .6, latch: false });
 function normalizeKx(k) {
   const d = defaultKx(); if (!k || typeof k !== 'object') return d; const o = Object.assign(d, k);
-  if (!['notes', 'scale', 'chords'].includes(o.mode)) o.mode = 'notes';
+  if (!['notes', 'scale', 'chords', 'levels'].includes(o.mode)) o.mode = 'notes'; if (!['vel', 'tune'].includes(o.lv)) o.lv = 'vel';
   o.scale = Math.max(-1, Math.min(SCALES.length - 1, Math.round(+o.scale) || 0)); if (k.scale == null || k.scale < 0) o.scale = -1;
   o.prog = Math.max(0, Math.min(PROGS.length, Math.round(+o.prog) || 0));
   if (!VOICINGS.some(v => v[0] === o.voicing)) o.voicing = 'open'; if (!COLOURS.some(v => v[0] === o.colour)) o.colour = 'rich';

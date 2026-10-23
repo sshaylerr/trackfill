@@ -61,11 +61,10 @@ function openStretch(pi) {
       if (w.preserve === 'Transients') st.append(paramEl({ label: 'Sensitivity', min: 0, max: 1, step: .01, coarse: .05, big: .2, def: .5, fmt: v => Math.round(v * 100) + '%', get: () => w.sens, set: v => set('sens', v), onStart: () => pushUndo('pad:' + pi) }));
       st.append(paramEl({ label: 'Transient Envelope', min: 0, max: 100, step: 1, coarse: 2, big: 10, def: 100, fmt: v => v >= 100 ? 'Off (100)' : String(Math.round(v)), get: () => w.env, set: v => set('env', v), onStart: () => pushUndo('pad:' + pi) }));
       const lp = h('div', 'g3'); for (const o of BEATS_LOOP) lp.append(btn(o, () => { pushUndo('pad:' + pi); set('loop', o); closeSheet(); openStretch(pi); }, 'btn' + (w.loop === o ? ' on' : ''))); st.append(h('div', 'sec', 'When a slice runs out (slowed down)'), lp);
-      st.append(h('p', 'note', 'Transient Envelope fades every slice: lower it to tighten a slowed-down break so the gaps are clean. Grid choices (1/16, 1/8, 1/4) need the sound\'s tempo.')); }
+      st.append(''); }
     if (pad.wm === 'Vintage') { st.append(h('div', 'sec', 'Vintage'),
       paramEl({ label: 'Window', min: 10, max: 120, step: 1, coarse: 2, big: 10, def: 40, fmt: v => Math.round(v) + ' ms', get: () => w.win, set: v => set('win', v), onStart: () => pushUndo('pad:' + pi) }),
-      paramEl({ label: 'Grit', min: 0, max: 1, step: .01, coarse: .05, big: .2, def: 0, fmt: v => v < .01 ? 'Off' : Math.round(v * 100) + '%', get: () => w.grit, set: v => set('grit', v), onStart: () => pushUndo('pad:' + pi) }),
-      h('p', 'note', 'Small windows buzz and ring (the classic jungle vocal stretch); big ones stutter. Grit takes it down to about 10-bit and a lower sample rate.')); }
-    if (pad.wm !== 'Repitch') st.append(h('p', 'note', 'Stretching is rendered when something changes (a second or less), then plays as lightly as any sample. Pitch and Fine are kept in the render, so the tempo stays put.'));
+      paramEl({ label: 'Grit', min: 0, max: 1, step: .01, coarse: .05, big: .2, def: 0, fmt: v => v < .01 ? 'Off' : Math.round(v * 100) + '%', get: () => w.grit, set: v => set('grit', v), onStart: () => pushUndo('pad:' + pi) })); }
+    if (pad.wm !== 'Repitch') st.append('');
   });
 }
