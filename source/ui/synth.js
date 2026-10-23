@@ -10,8 +10,10 @@ const SYN_PAGES = [
   { n: 'Mix', tabs: [['mx', 'Channel']] }];
 // FM swaps the Osc page for its own: the algorithm overview, one tab per operator (tone or envelope view), and Voice
 const SYN_OSC_PAGE = SYN_PAGES[0], SYN_FM_PAGE = { n: 'FM', tabs: [['fa', 'Algo'], ['f1', 'Op 1'], ['f2', 'Op 2'], ['f3', 'Op 3'], ['f4', 'Op 4'], ['vo', 'Voice']] };
-const isFmPad = pi => { const S = P.pads[pi] && P.pads[pi].syn; return !!(S && S.eng === 'fm'); };
-function synEngPages(pi) { SYN_PAGES[0] = isFmPad(pi) ? SYN_FM_PAGE : SYN_OSC_PAGE; }
+const SYN_WT_PAGE = { n: 'Osc', tabs: [['wa', 'Osc A'], ['wb', 'Osc B'], ['vo', 'Voice']] };
+const engOf = pi => { const S = P.pads[pi] && P.pads[pi].syn; return S ? S.eng || 'analog' : 'analog'; };
+const isFmPad = pi => engOf(pi) === 'fm', isWtPad = pi => engOf(pi) === 'wt';
+function synEngPages(pi) { SYN_PAGES[0] = isFmPad(pi) ? SYN_FM_PAGE : isWtPad(pi) ? SYN_WT_PAGE : SYN_OSC_PAGE; }
 const OPMODE_COL = { FM: '#4fd1c5', Ring: '#f2b544', Filter: '#7aa8ff', 'Filter FM': '#c58bff', Fold: '#ff7a7a' };
 function synCells(tab) {
   if (/^f\d$/.test(tab)) { const f = tab; return SYN_ST.opv ? [f + 'a', f + 'd', f + 's', f + 'r', f + 'x', f + 'z', f + 'l', '#opv'] : [f + 'm', f + 'w', f + 'c', f + 'f', f + 'l', f + 't', f + 'q', '#opv']; }
@@ -20,7 +22,7 @@ const SYN_CELLS = {
   o1: ['o1w', 'o1o', 'o1s', 'o1f', 'o1l', 'o1p', 'ret', 'dri'], o2: ['o2w', 'o2o', 'o2s', 'o2f', 'o2l', 'o2p', 'o2y', 'o2m'], o3: ['o3w', 'o3o', 'o3s', 'o3f', 'o3l', 'o3p', 'o3x', 'o3r'],
   vo: ['uni', 'det', 'spr', 'pit', '#bendr', 'gan', '#glide', '#poly'], sb: ['sbl', 'sbo', 'sbw', 'spl', 'spn'], nz: ['nzn', 'nzt', 'nzb', 'nzd', 'nzh', 'nzl', 'nzo', 'nzk'],
   fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp', 'fbk'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'vel', '#voice'], e2: ['2a', '2d', '2s', '2r', '2c', '2k'], e3: ['3a', '3d', '3s', '3r', '3c', '3k'],
-  mc: ['m1', 'm2', 'm3', 'm4'], fa: ['alg', 'fmd', 'ffb', 'ret', 'f1l', 'f2l', 'f3l', 'f4l'] };
+  mc: ['m1', 'm2', 'm3', 'm4'], wa: ['#tableA', 'wap', 'wal', 'wao', 'was', 'waf', 'waw', 'wax'], wb: ['#tableB', 'wbp', 'wbl', 'wbo', 'wbs', 'wbf', 'wbw', 'wbx'], fa: ['alg', 'fmd', 'ffb', 'ret', 'f1l', 'f2l', 'f3l', 'f4l'] };
 for (let k = 1; k <= 4; k++) SYN_CELLS['l' + k] = ['l' + k + 'y', 'l' + k + '@', 'l' + k + 'm', 'l' + k + 'o', 'l' + k + 'p', '#shape', '#snap'];
 // colours for modulation sources: envelopes green, LFOs pink, performance sources gold, macros the theme accent
 const SRC_COL = i => i <= 2 ? '#7fd49a' : i <= 6 ? '#ff7ac8' : i <= 11 || i === 16 ? '#e6c162' : 'var(--accent)';
@@ -28,7 +30,8 @@ const SYN_ST = { pg: 0, tab: {}, snap: 0, opv: 0 };
 // synth controls offered as automation lanes (the timeline): macros first, then the ones most often moved in a track
 const SYN_AUTO = ['m1', 'm2', 'm3', 'm4', 'cut', 'res', 'drv', 'fen', 'pit', 'o1l', 'o2l', 'o2m', 'det', 'sbl', 'nzl', 'gan'];
 const SYN_AUTO_FM = ['m1', 'm2', 'm3', 'm4', 'fmd', 'ffb', 'f1l', 'f2l', 'f3l', 'f4l', 'f1t', 'f2t', 'cut', 'res', 'pit', 'gan'];
-const synAutoIds = pi => isFmPad(pi) ? SYN_AUTO_FM : SYN_AUTO;
+const SYN_AUTO_WT = ['m1', 'm2', 'm3', 'm4', 'wap', 'wbp', 'wax', 'wbx', 'wal', 'wbl', 'cut', 'res', 'drv', 'pit', 'det', 'gan'];
+const synAutoIds = pi => isFmPad(pi) ? SYN_AUTO_FM : isWtPad(pi) ? SYN_AUTO_WT : SYN_AUTO;
 const BEND_RANGES = [1, 2, 3, 5, 7, 12, 24];
 function bendRangeSel(pi) { const pad = P.pads[pi]; return selEl('Bend range', BEND_RANGES.map(r => '±' + r + ' st'), () => Math.max(0, BEND_RANGES.indexOf(pad.bendR || 2)), i => { pushUndo('pad:' + pi); pad.bendR = BEND_RANGES[i]; syncPad(pi); markDirty(); }); }
 const synOf = pi => P.pads[pi].syn;
@@ -48,6 +51,11 @@ function synFmt(p, v) {
   if (/^f\dc$/.test(id)) { const S = synOf(UI.pad), fine = S ? S.p[id[0] + id[1] + 'f'] ?? 0 : 0, r = (v < .5 ? .5 : v) * (1 + fine); return '×' + (+r.toFixed(r < 10 ? 3 : 2)); }
   if (/^f\df$/.test(id)) return '+' + Math.round(v * 1000) / 10 + '%';
   if (/^f\dz$/.test(id)) return hzStr(v);
+  if (/^w[ab]o$/.test(id)) return sg(v) + ' oct';
+  if (/^w[ab]s$/.test(id)) return sg(Math.round(v)) + ' st';
+  if (/^w[ab]f$/.test(id)) return sg(Math.round(v)) + ' ct';
+  if (/^w[ab]p$/.test(id)) { const S = synOf(UI.pad), t = S && S.wt && tableFor(S.wt[id[1]]); return t && t.F > 1 ? 'Frame ' + (1 + Math.round(v * (t.F - 1))) + '/' + t.F : pct(v); }
+  if (/^w[ab]x$/.test(id)) { const S = synOf(UI.pad), w = S ? S.p[id.slice(0, 2) + 'w'] ?? 'Off' : 'Off'; return w === 'Off' ? '—' : pct(v); }
   if (/^f\dt$/.test(id)) { const S = synOf(UI.pad), md = S ? S.p[id[0] + id[1] + 'm'] ?? 'FM' : 'FM'; if (md === 'FM') return '—';
     if (md === 'Filter') return v < .2 ? 'Low-pass' : v < .4 ? 'Low → band' : v < .6 ? 'Band-pass' : v < .8 ? 'Band → high' : 'High-pass'; return pct(v); }
   if (/^[a23][ck]$/.test(id)) return sg(+v.toFixed(2));
@@ -71,10 +79,10 @@ function synCtl(pi, id) {
   if (/^f\dl$/.test(id) && synTab() === 'fa') p = Object.assign({}, p0, { l: 'Op ' + id[1] });
   const cur = () => S.p[id] ?? p.d;
   if (p.k === 'opt') {
-    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id)) setTimeout(renderView); });
+    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); });
   } else {
-    const intish = p.k === 'int' || /^o\ds$/.test(id), step = intish ? 1 / (p.b - p.a) : .001;
-    el = makeCtl({ label: p.l, min: 0, max: 1, step, coarse: intish ? step : .02, big: intish ? step * 4 : .1, def: tfSynNorm(p, p.d), bipolar: p.k === 'bip' || /^o\d[sf]$/.test(id) || id === 'pit' || id === 'gan',
+    const intish = p.k === 'int' || /^o\ds$/.test(id) || /^w[ab]s$/.test(id), step = intish ? 1 / (p.b - p.a) : .001;
+    el = makeCtl({ label: p.l, min: 0, max: 1, step, coarse: intish ? step : .02, big: intish ? step * 4 : .1, def: tfSynNorm(p, p.d), bipolar: p.k === 'bip' || /^o\d[sf]$/.test(id) || /^w[ab][sf]$/.test(id) || id === 'pit' || id === 'gan',
       key: 'syn:' + pi + ':' + id, scope: 'pad:' + pi, fmt: n => synFmt(p, tfSynPhys(p, n)),
       get: () => tfSynNorm(p, cur()), set: n => { let v = tfSynPhys(p, n); if (intish) v = Math.round(v); synSet(pi, id, v); if (T.playing && T.rec) recAuto(pi + '.-3.' + p.i, tfSynNorm(p, v)); },
       onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); send({ t: 'live', key: pi + '.-3.' + p.i, on: true }); }, onEnd: () => { send({ t: 'live', key: pi + '.-3.' + p.i, on: false }); UI.autoRec = null; } }, 'knob');
@@ -88,6 +96,8 @@ function synSpecial(pi, what) {
   if (what === 'glide') return padParam(pi, 'glide', { label: 'Glide', max: 1, step: .001, coarse: .01, big: .1, def: .08, fmt: v => Math.round(v * 1000) + ' ms' });
   if (what === 'bendr') return bendRangeSel(pi);
   if (what === 'shape') return cellBtn('Shape', 'Pick', () => openLfoShapes(pi, +synTab()[1] - 1));
+  if (what === 'tableA' || what === 'tableB') { const o = what === 'tableA' ? 'a' : 'b', S = synOf(pi), key = S.wt && S.wt[o];
+    return cellBtn('Table ' + o.toUpperCase(), tableName(key) + ((S.p['w' + o + 'h'] ?? 'Keep') === 'Remove' ? ' −F' : ''), () => openTablePicker(pi, o)); }
   if (what === 'opv') return cellBtn('Showing', SYN_ST.opv ? 'Envelope' : 'Tone', () => { SYN_ST.opv = SYN_ST.opv ? 0 : 1; renderView(); });
   if (what === 'snap') return selEl('Snap', ['Off', '1/4', '1/8', '1/16'], () => SYN_ST.snap, i => { SYN_ST.snap = i; drawSynDisp(); });
   return blankCell();
@@ -97,7 +107,7 @@ function synSpecial(pi, what) {
 let synCv = null;
 // engines: one faceplate each
 const SYN_ENGINES = [{ id: 'analog', n: 'Analog', blurb: 'Three oscillators into a ladder: basses, leads, pads', look: { face: '#1b1a19', face2: '#121212', cap: '#e6dcc6', ind: '#1a1714', ring: '#f2b544', track: '#050505', ink: '#ece5d4', ink2: '#a59c88', scr: '#0c0d0e', sw: '#0b0b0c', swInk: '#f0c35a', tex: 'none' } },
-  { id: 'fm', n: 'FM', blurb: 'Four operators with modes: keys, bells, growls', look: { face: '#15171a', face2: '#0c0d0f', cap: '#2b2f35', ind: '#e9edf0', ring: '#4fd1c5', track: '#050607', ink: '#e4e8eb', ink2: '#87909a', scr: '#06090a', sw: '#1b1e23', swInk: '#4fd1c5', tex: 'none' } }, { id: 'wt', n: 'Wavetable', blurb: 'Two morphing wavetable oscillators', soon: true },
+  { id: 'fm', n: 'FM', blurb: 'Four operators with modes: keys, bells, growls', look: { face: '#15171a', face2: '#0c0d0f', cap: '#2b2f35', ind: '#e9edf0', ring: '#4fd1c5', track: '#050607', ink: '#e4e8eb', ink2: '#87909a', scr: '#06090a', sw: '#1b1e23', swInk: '#4fd1c5', tex: 'none' } }, { id: 'wt', n: 'Wavetable', blurb: 'Two morphing wavetable oscillators: growls, pads, leads', look: { face: '#17161d', face2: '#0e0d12', cap: '#2c2a36', ind: '#ece9ff', ring: '#9b8cff', track: '#060509', ink: '#e8e6f2', ink2: '#8d89a3', scr: '#07060b', sw: '#1c1a24', swInk: '#9b8cff', tex: 'none' } },
   { id: 'gr', n: 'Granular', blurb: 'Clouds of grains from any sound', soon: true }, { id: 'dr', n: 'Drum', blurb: 'Kick, snare, clap, hats and percussion', soon: true }];
 function openEnginePicker(pi) {
   openSheet('Synth engine', card => { const st = h('div', 'stack');
@@ -105,7 +115,7 @@ function openEnginePicker(pi) {
     st.append(h('p', 'note', 'Switching engines keeps everything in the shared frame: sub, noise crunch, filter, envelopes, LFOs, macros and modulation.')); card.append(st); });
 }
 // a new engine keeps the shared frame (sub, noise, filter, envelopes, LFOs, macros, modulation) and starts from its own Init
-function setEngine(pi, id) { const S = synOf(pi); if ((S.eng || 'analog') === id) return; pushUndo('pad:' + pi); touchPad(pi); S.eng = id; S.name = 'Init'; S.sig = patchSig(S); SYN_ST.pg = 0;
+function setEngine(pi, id) { const S = synOf(pi); if ((S.eng || 'analog') === id) return; pushUndo('pad:' + pi); touchPad(pi); S.eng = id; S.name = 'Init'; if (id === 'wt' && !S.wt) S.wt = { a: 'w:Basic Shapes', b: 'w:Basic Shapes' }; S.sig = patchSig(S); SYN_ST.pg = 0;
   syncPad(pi); markDirty(); renderView(); audition(pi); }
 function renderSynthSound(w, pi, head) {
   synEngPages(pi); const pad = P.pads[pi], pg = SYN_PAGES[SYN_ST.pg], tab = synTab(), eng = SYN_ENGINES.find(e => e.id === (synOf(pi).eng || 'analog')) || SYN_ENGINES[0];
@@ -141,8 +151,8 @@ function mapKey(pi) { return btn('Map', () => { UI.map = UI.map ? null : { targe
 /* ----- source and presets ----- */
 function applySynthPreset(pi, pr) {
   pushUndo('all'); const pad = P.pads[pi]; touchPad(pi); pad.src = 'synth'; pad.syn = synPatch(pr); pad.syn.sig = patchSig(pad.syn); pad.mode = 'gate';
-  if (pr.voice) pad.voice = pr.voice; else if (pr !== SYN_INIT && pr !== SYN_FM_INIT) pad.voice = 'poly'; pad.glide = pr.glide != null ? pr.glide : pad.glide; pad.poly = Math.max(pad.poly || 8, 8);
-  if (!pad.name || SYN_PRESETS.some(x => x.n === pad.name) || FM_PRESETS.some(x => x.n === pad.name) || pad.name === 'Init' || pad.name === 'Synth') pad.name = pr.n.slice(0, 12);
+  if (pr.voice) pad.voice = pr.voice; else if (pr !== SYN_INIT && pr !== SYN_FM_INIT && pr !== SYN_WT_INIT) pad.voice = 'poly'; pad.glide = pr.glide != null ? pr.glide : pad.glide; pad.poly = Math.max(pad.poly || 8, 8);
+  if (!pad.name || SYN_PRESETS.some(x => x.n === pad.name) || FM_PRESETS.some(x => x.n === pad.name) || WT_PRESETS.some(x => x.n === pad.name) || pad.name === 'Init' || pad.name === 'Synth') pad.name = pr.n.slice(0, 12);
   const C = P.chans[pi]; if (pr.fx && !C.fx.length) { C.fx = pr.fx.map(f => newFx(f.type, null, f.mode || 0)); syncChan(pi); }
   syncPad(pi); markDirty(); renderAll(); audition(pi);
 }
@@ -151,16 +161,17 @@ function openSynthSource(pi) {
   const pad = P.pads[pi], smp = pad.sample ? (SAMPLES.get(pad.sample) || {}).name || 'Sound' : 'none loaded';
   openSheet('Sound source · ' + padLabel(pi), card => { const st = h('div', 'stack');
     st.append(btn(`Sample <span class="lsub">${esc(smp)}</span>`, () => { if (pad.src !== 'synth') { closeSheet(); return; } pushUndo('pad:' + pi); pad.src = 'sample'; syncPad(pi); markDirty(); closeSheet(); renderAll(); }, 'btn' + (pad.src !== 'synth' ? ' on' : '')),
-      btn(`Synth <span class="lsub">${pad.syn ? (pad.syn.eng === 'fm' ? 'FM' : 'Analog') + ' · ' + esc(pad.syn.name || 'Init') : 'Analog · Init'}</span>`, () => { closeSheet(); if (pad.src === 'synth' && pad.syn) return; if (pad.syn) { pushUndo('pad:' + pi); pad.src = 'synth'; pad.mode = 'gate'; syncPad(pi); markDirty(); renderAll(); } else applySynthPreset(pi, SYN_INIT); }, 'btn' + (pad.src === 'synth' ? ' on' : '')));
+      btn(`Synth <span class="lsub">${pad.syn ? (TF_ENGS[pad.syn.eng] || 'Analog') + ' · ' + esc(pad.syn.name || 'Init') : 'Analog · Init'}</span>`, () => { closeSheet(); if (pad.src === 'synth' && pad.syn) return; if (pad.syn) { pushUndo('pad:' + pi); pad.src = 'synth'; pad.mode = 'gate'; syncPad(pi); markDirty(); renderAll(); } else applySynthPreset(pi, SYN_INIT); }, 'btn' + (pad.src === 'synth' ? ' on' : '')));
     st.append(h('p', 'note', 'Switching keeps both, so nothing is lost. On a synth, the preset name on the faceplate opens its presets.')); card.append(st); });
 }
 /* ----- presets: factory ones per engine, plus your own (kept on this device for every project) ----- */
 let USER_PRESETS = [];
 async function loadUserPresets() { const v = await DB.get('kv', 'synPresets'); USER_PRESETS = Array.isArray(v) ? v.filter(x => x && x.n && x.syn) : []; }
 function saveUserPresets() { DB.put('kv', 'synPresets', USER_PRESETS); }
-const patchSig = s => { const j = JSON.stringify([s.p, s.mods, s.lfo]); let hsh = 0; for (let i = 0; i < j.length; i++) hsh = (hsh * 31 + j.charCodeAt(i)) | 0; return hsh; };
-const engPresets = pi => isFmPad(pi) ? [SYN_FM_INIT, ...FM_PRESETS] : [SYN_INIT, ...SYN_PRESETS];
-function presetList(pi) { const fm = isFmPad(pi); return [engPresets(pi)[0], ...USER_PRESETS.filter(u => (u.eng === 'fm') === fm).map(u => Object.assign({ user: true }, u)), ...engPresets(pi).slice(1)]; }
+const patchSig = s => { const j = JSON.stringify([s.p, s.mods, s.lfo, s.wt || null]); let hsh = 0; for (let i = 0; i < j.length; i++) hsh = (hsh * 31 + j.charCodeAt(i)) | 0; return hsh; };
+const engPresets = pi => isFmPad(pi) ? [SYN_FM_INIT, ...FM_PRESETS] : isWtPad(pi) ? [SYN_WT_INIT, ...WT_PRESETS] : [SYN_INIT, ...SYN_PRESETS];
+const sameEng = (u, pi) => (u.eng || 'analog') === engOf(pi);
+function presetList(pi) { return [engPresets(pi)[0], ...USER_PRESETS.filter(u => sameEng(u, pi)).map(u => Object.assign({ user: true }, u)), ...engPresets(pi).slice(1)]; }
 function loadPresetEntry(pi, pr) { if (pr.user) applyUserPreset(pi, pr); else applySynthPreset(pi, pr); }
 function applyUserPreset(pi, u) {
   pushUndo('all'); const pad = P.pads[pi]; touchPad(pi); pad.src = 'synth'; pad.mode = 'gate'; pad.syn = normalizeSyn(JSON.parse(JSON.stringify(u.syn))); pad.syn.name = u.n; pad.syn.sig = patchSig(pad.syn);
@@ -169,7 +180,7 @@ function applyUserPreset(pi, u) {
 function stepPreset(pi, d) { const L = presetList(pi), cur = synOf(pi).name, i = L.findIndex(x => x.n === cur); loadPresetEntry(pi, L[(i < 0 ? 0 : i + d + L.length) % L.length]); }
 function savePresetAs(pi, name) {
   const pad = P.pads[pi], S = synOf(pi); name = (name || '').trim().slice(0, 24); if (!name) { toast('Give the preset a name'); return false; }
-  const ex = USER_PRESETS.findIndex(x => x.n === name), rec = { n: name, g: 'Yours', eng: S.eng || 'analog', voice: pad.voice, glide: pad.glide, syn: JSON.parse(JSON.stringify({ eng: S.eng, p: S.p, mods: S.mods, lfo: S.lfo })), t: Date.now() };
+  const ex = USER_PRESETS.findIndex(x => x.n === name), rec = { n: name, g: 'Yours', eng: S.eng || 'analog', voice: pad.voice, glide: pad.glide, syn: JSON.parse(JSON.stringify({ eng: S.eng, p: S.p, mods: S.mods, lfo: S.lfo, wt: S.wt })), t: Date.now() };
   if (ex >= 0) USER_PRESETS[ex] = rec; else USER_PRESETS.unshift(rec); saveUserPresets();
   S.name = name; S.sig = patchSig(S); markDirty(); toast(ex >= 0 ? `Updated preset "${name}"` : `Saved preset "${name}"`); return true;
 }
@@ -181,7 +192,7 @@ function openPresetBrowser(pi) {
       const sv = h('div', 'saveRow'), inp = h('input', 'textin'); inp.value = S.name && S.name !== 'Init' ? S.name : ''; inp.placeholder = 'Name your sound'; inp.maxLength = 24;
       const go = () => { if (savePresetAs(pi, inp.value)) { closeSheet(); renderView(); } }; inp.onkeydown = e => { if (e.key === 'Enter') go(); };
       sv.append(inp, btn('Save', go, 'btn on')); st.append(h('div', 'sec', changed ? 'Save · this sound has changes' : 'Save'), sv);
-      const mine = USER_PRESETS.filter(u => (u.eng === 'fm') === isFmPad(pi));
+      const mine = USER_PRESETS.filter(u => sameEng(u, pi));
       if (mine.length) { st.append(h('div', 'sec', 'Yours')); const l = h('div', 'g2');
         for (const u of mine) l.append(btn(editing ? `${esc(u.n)} <span class="lsub warn">remove</span>` : esc(u.n), () => { if (editing) { USER_PRESETS = USER_PRESETS.filter(x => x !== u); saveUserPresets(); draw(); return; } closeSheet(); applyUserPreset(pi, u); }, 'btn' + (S.name === u.n ? ' on' : '')));
         l.append(btn(editing ? 'Done removing' : 'Remove presets…', () => { editing = !editing; draw(); }, 'btn warn')); st.append(l); }
@@ -203,6 +214,7 @@ function drawSynDisp() {
   const line = (fn, c = col, lw = 2) => { g.beginPath(); for (let x = 0; x <= W; x++) { const y = fn(x / W); x ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = c; g.lineWidth = lw; g.stroke(); };
   const wave = (w, ph, pw) => { ph -= Math.floor(ph); switch (w) { case 'Sine': return Math.sin(ph * 2 * Math.PI); case 'Triangle': return ph < .5 ? 4 * ph - 1 : 3 - 4 * ph; case 'Saw': return 2 * ph - 1; case 'Square': return ph < .5 ? 1 : -1; default: return ph < pw ? 1 : -1; } };
   if (isFmPad(pi) && (tab === 'fa' || /^f\d$/.test(tab) || tab === 'vo')) { drawFmDisp(g, W, H, v, tab, txt, grid, col); return; }
+  if (isWtPad(pi) && (tab === 'wa' || tab === 'wb' || tab === 'vo')) { drawWtDisp(g, W, H, v, tab, txt, grid, col, S); return; }
   if (/^o\d$/.test(tab) || tab === 'vo') {   // the oscillator mix: two cycles of what the three oscillators add up to
     grid(); const oscs = [1, 2, 3].map(k => ({ w: v('o' + k + 'w'), r: Math.pow(2, v('o' + k + 'o') + v('o' + k + 's') / 12), l: k === 3 && v('o3x') === 'LFO' ? 0 : v('o' + k + 'l'), pw: v('o' + k + 'p') }));
     const r0 = oscs[0].r, cyc = 2, N = Math.max(400, W * 2);   // osc 1 shows two cycles; the others are drawn relative to it
@@ -304,6 +316,58 @@ function drawFmDisp(g, W, H, v, tab, txt, grid, col) {
   const feeds = [0, 1, 2, 3].filter(t => (tg[k - 1] >> t) & 1).map(t => 'Op ' + (t + 1)), heard = (car >> (k - 1)) & 1, lv = v(f + 'l');
   const fq = v(f + 'x') === 'On' ? hzStr(v(f + 'z')) : '×' + (+((v(f + 'c') < .5 ? .5 : v(f + 'c')) * (1 + v(f + 'f'))).toFixed(3));
   txt(lv < .001 ? `Op ${k} is off: raise its Level` : `Op ${k} · ${md}${md === 'Filter' ? '' : ' · ' + w} · ${fq} · ` + (heard ? 'heard' : feeds.length ? '→ ' + feeds.join(', ') : 'not connected'), 8, 11, lv < .001 ? COL.dim : COL.mute);
+}
+
+/* ----- Wavetable: the table as stacked frames (the current position lit), and the table picker with import and one-tap tools ----- */
+const tableName = key => !key ? 'None' : key.startsWith('w:') ? key.slice(2) : (SAMPLES.get(key) || {}).name || 'Missing';
+function drawWtDisp(g, W, H, v, tab, txt, grid, col, S) {
+  if (tab === 'vo') { grid(); const U = v('uni'), det = v('det'), spr = v('spr');
+    if (U > 1) for (let u = 0; u < U; u++) { const x = (2 * u / (U - 1) - 1); g.fillStyle = COL.accent; g.fillRect(W / 2 + x * spr * W * .42 - 1, H - 14 - Math.abs(x) * det * 30, 3, 8); }
+    txt(U > 1 ? `${U} voices · both oscillators stacked · detune ${Math.round(det * 100)}%` : 'Voice: unison, pitch, level, glide', 8, 12); return; }
+  const o = tab[1], key = S.wt && S.wt[o], t = tableFor(key), pos = v('w' + o + 'p'), lv = v('w' + o + 'l');
+  if (!t) { txt('Table missing: tap Table to pick one', 8, 12, COL.dim); return; }
+  const len = wtLen(3), rows = Math.min(t.F, 16), dx = W * .22 / Math.max(1, rows - 1), dy = Math.min(H * .45, 90) / Math.max(1, rows - 1), w0 = W * .7, h0 = Math.min(H * .22, 40), x0 = 10, y0 = H - h0 - 10;
+  const frame = (fi, x, y, c, a, lw) => { const f0 = Math.floor(fi), fr = fi - f0, f1 = Math.min(t.F - 1, f0 + 1), A = t.lv[3]; g.beginPath();
+    for (let i = 0; i <= 96; i++) { const k = Math.floor(i / 96 * (len - 1)), yv = A[f0 * len + k] + (A[f1 * len + k] - A[f0 * len + k]) * fr; const px = x + i / 96 * w0, py = y - yv * h0; i ? g.lineTo(px, py) : g.moveTo(px, py); }
+    g.globalAlpha = a; g.strokeStyle = c; g.lineWidth = lw; g.stroke(); g.globalAlpha = 1; };
+  for (let r = rows - 1; r >= 0; r--) { const fi = r / Math.max(1, rows - 1) * (t.F - 1); frame(fi, x0 + r * dx, y0 - r * dy, COL.mute, .35, 1); }
+  const cr = pos * (rows - 1); frame(pos * (t.F - 1), x0 + cr * dx, y0 - cr * dy, col, lv < .001 ? .4 : 1, 2.2);
+  txt(`Osc ${o.toUpperCase()} · ${tableName(key)} · frame ${1 + Math.round(pos * (t.F - 1))}/${t.F}` + ((S.p['w' + o + 'h'] ?? 'Keep') === 'Remove' ? ' · no fundamental' : '') + (lv < .001 ? ' · off: raise Level' : ''), 8, 11, lv < .001 ? COL.dim : COL.mute);
+}
+function setTable(pi, o, key) { const S = synOf(pi); pushUndo('pad:' + pi); touchPad(pi); S.wt = Object.assign({ a: 'w:Basic Shapes', b: 'w:Basic Shapes' }, S.wt || {}, { [o]: key }); syncPad(pi); markDirty(); renderView(); audition(pi); }
+function saveUserTable(name, raw, F) { const id = addUserSample(name, 48000, 1, interleave([raw], raw.length), { wt: F }); return id; }
+function openTablePicker(pi, o) {
+  const S = synOf(pi), cur = S.wt && S.wt[o], fid = 'w' + o + 'h';
+  openSheet('Table · Osc ' + o.toUpperCase(), card => { const st = h('div', 'stack'); card.append(st);
+    st.append(h('div', 'sec', 'Factory')); let l = h('div', 'g2'); for (const n of WT_NAMES) l.append(btn(esc(n), () => { closeSheet(); setTable(pi, o, 'w:' + n); }, 'btn' + (cur === 'w:' + n ? ' on' : ''))); st.append(l);
+    const mine = [...SAMPLES.values()].filter(x => x.wt).sort((a, b) => (b.added || 0) - (a.added || 0));
+    if (mine.length) { st.append(h('div', 'sec', 'Yours')); l = h('div', 'g2'); for (const x of mine) l.append(btn(esc(x.name), () => { closeSheet(); setTable(pi, o, x.id); }, 'btn' + (cur === x.id ? ' on' : ''))); st.append(l); }
+    st.append(h('div', 'sec', 'Make a table')); l = h('div', 'g2');
+    l.append(btn('Import wavetable file…', () => { closeSheet(); pickTableFile(pi, o); }), btn('From a sound…', () => { closeSheet(); openTableFromSound(pi, o); })); st.append(l);
+    st.append(h('div', 'sec', 'This table')); l = h('div', 'g2');
+    const noF = (S.p[fid] ?? 'Keep') === 'Remove';
+    l.append(btn(noF ? 'Fundamental: removed' : 'Fundamental: kept', () => { pushUndo('pad:' + pi); synSet(pi, fid, noF ? 'Keep' : 'Remove'); closeSheet(); renderView(); }, 'btn' + (noF ? ' on' : '')));
+    for (const [tool, label] of [['nolow', 'Remove low harmonics'], ['smooth', 'Smooth'], ['align', 'Phase align'], ['normalize', 'Normalize']])
+      l.append(btn(label, () => { const t0 = tableRaw(cur); if (!t0) return; closeSheet(); const id = saveUserTable(tableName(cur).slice(0, 16) + ' · ' + label.split(' ')[0].toLowerCase(), wtTool(t0.raw, t0.F, tool), t0.F); setTable(pi, o, id); toast(`Made "${SAMPLES.get(id).name}" in your tables`); }));
+    st.append(l, h('p', 'note', 'Tools make a new table in Yours, so the original stays. Remove fundamental is a switch: it takes out the lowest harmonic while playing (great with Sub split). Wavetable files: Serum-style WAVs and other single-cycle sets; tables you import stay on this device for every project.')); });
+}
+function tableRaw(key) { if (!key) return null; if (key.startsWith('w:')) return tfWtFactoryRaw(key.slice(2)); const s = SAMPLES.get(key); if (!s || !s.wt) return null; const raw = new Float32Array(s.data.length); for (let i = 0; i < raw.length; i++) raw[i] = s.data[i] / 32767; return { raw, F: s.wt }; }
+function pickTableFile(pi, o) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.wav,audio/wav,audio/x-wav';
+  inp.onchange = async () => { const f = inp.files && inp.files[0]; if (!f) return; const r = wtParseWav(await f.arrayBuffer()); if (!r) { toast('That file is not a WAV this can read'); return; }
+    const mono = r.data, name = f.name.replace(/\.[^.]+$/, '').slice(0, 20);
+    const finish = size => { const t = wtFromFrames(mono, size); if (!t) { toast('Too short for that frame size'); return; } const id = saveUserTable(name, t.raw, t.F); setTable(pi, o, id); toast(`Imported "${name}": ${t.F} frames`); };
+    if (r.frameSize) return finish(r.frameSize);
+    if (mono.length % 2048 === 0) return finish(2048);
+    openSheet('Frame size for ' + name, card => { const g2 = h('div', 'g2'); for (const n of [256, 512, 1024, 2048, 4096]) g2.append(btn(n + ' samples', () => { closeSheet(); finish(n); })); card.append(g2, h('p', 'note', 'Each frame is one cycle. Most wavetable files use 2048.')); }); };
+  inp.click(); }
+function openTableFromSound(pi, o) {
+  openSheet('Make a table from a sound', card => { const l = h('div', 'list'), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt).sort((a, b) => (b.added || 0) - (a.added || 0));
+    for (const smp of all.slice(0, 60)) { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(smp.name)}</b><span>${(smp.frames / smp.sr).toFixed(2)} s</span></div>`;
+      li.onclick = () => { closeSheet(); const mono = new Float32Array(smp.frames); for (let i = 0; i < smp.frames; i++) { let a = 0; for (let c = 0; c < smp.ch; c++) a += smp.data[i * smp.ch + c]; mono[i] = a / smp.ch / 32767; }
+        const t = wtFromSample(mono, smp.sr); if (!t) { toast('Could not find a steady pitch in that sound'); return; } const id = saveUserTable(smp.name.slice(0, 16) + ' table', t.raw, t.F); setTable(pi, o, id); toast(`Made a ${t.F}-frame table from "${smp.name}"`); };
+      l.append(li); }
+    card.append(all.length ? l : h('p', 'note', 'Import a sound first (Sound › Load files), then turn it into a table here. Steady, pitched sounds work best: a held note, a vocal, a synth.')); });
 }
 
 /* ----- LFO editor: drag points, tap to add, double-tap to remove, drag a line to bend it ----- */

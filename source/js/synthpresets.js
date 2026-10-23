@@ -130,21 +130,58 @@ const FM_PRESETS = [
 ];
 const FM_GROUPS = ['Keys', 'Bells and mallets', 'Bass', 'Drum & bass', 'Leads', 'Pads', 'Drums and FX'];
 FM_PRESETS.sort((a, b) => FM_GROUPS.indexOf(a.g) - FM_GROUPS.indexOf(b.g));
+/* ----- Wavetable presets: tables are named in 'wt' (A and B); Macro 1 = Position, Macro 2 = Warp or movement ----- */
+function wtPreset(n, g, p, wt, mods, x) { return Object.assign({ n, g, eng: 'wt', p: Object.assign({ flt: 'Off' }, p), wt, mods: mods || [] }, x || {}); }
+const WT_M1 = [synMod('Macro 1', 'wap', .45)];
+const WT_PRESETS = [
+  wtPreset('Neuro Growl', 'Drum & bass', { wap: .3, wbp: .66, wbo: -1, wbl: .4, sbl: .6, spl: .5, flt: 'Ladder', cut: 2600, res: .3, drv: .4, l1d: '1/8', ar: .08 }, { a: 'w:Growl', b: 'w:Basic Shapes' },
+    [...WT_M1, synMod('LFO 1', 'wap', .5, 0, 'Macro 2'), synMod('LFO 1', 'cut', .2, 0, 'Macro 2')], { voice: 'mono', m: { m2: .7 }, lfo: [LFO_SHAPES['Saw down']] }),
+  wtPreset('Riddim Wub', 'Drum & bass', { wap: .2, waw: 'Bend', wax: .5, sbl: .7, spl: .55, drv: .3, l1d: '1/8 T', ar: .06 }, { a: 'w:Riddim' },
+    [synMod('LFO 1', 'wap', .6, 0, 'Macro 2'), synMod('Macro 1', 'wax', .45)], { voice: 'mono', m: { m2: .8 }, lfo: [LFO_SHAPES.Triangle] }),
+  wtPreset('Reese Table', 'Drum & bass', { wap: .5, wbp: .5, wbf: 12, wbl: .8, uni: 2, det: .2, spr: .4, sbl: .6, spl: .45, flt: 'Ladder', cut: 900, res: .2, drv: .35, l1y: 'Free', l1r: .15 }, { a: 'w:Phase Saw', b: 'w:Phase Saw' },
+    [synMod('LFO 1', 'wap', .3, 0, 'Macro 2'), synMod('Macro 1', 'cut', .35)], { voice: 'legato', glide: .06, m: { m2: .6 } }),
+  wtPreset('Hollow Bass', 'Bass', { wap: .6, wah: 'Remove', sbl: .85, spl: .5, ad: .4, as: .8, ar: .08 }, { a: 'w:Hollow' }, [...WT_M1, synMod('Macro 2', 'sbl', -.4)], { voice: 'mono' }),
+  wtPreset('Talking Bass', 'Bass', { wap: .1, waw: 'Bend', wax: .5, sbl: .5, spl: .5, '2d': .45, '2s': .2, ar: .1 }, { a: 'w:Talk' },
+    [synMod('Env 2', 'wap', .7), ...WT_M1, synMod('Macro 2', 'wax', .4)], { voice: 'legato', glide: .05 }),
+  wtPreset('Future Lead', 'Leads', { wap: .66, uni: 5, det: .3, spr: .7, wbp: .4, wbo: 1, wbl: .35, flt: 'Clean', cut: 8000, ...SYN_VIBP }, { a: 'w:Basic Shapes', b: 'w:Harmonic Sweep' },
+    [...SYN_VIB, synMod('Macro 1', 'wbp', .5), synMod('Macro 2', 'det', .3)], { voice: 'legato', glide: .04 }),
+  wtPreset('Digital Lead', 'Leads', { wap: .2, waw: 'Sync', wax: .25, '2d': .5, '2s': .1, ...SYN_VIBP }, { a: 'w:Digital' }, [synMod('Env 2', 'wax', .45), ...SYN_VIB, synMod('Macro 1', 'wap', .5), synMod('Macro 2', 'wax', .4)], { voice: 'legato', glide: .03 }),
+  wtPreset('Sync Sweep', 'Leads', { wap: 0, flt: 'Clean', cut: 9000, l1d: '2 bars', ar: .3 }, { a: 'w:Sync Saw' }, [synMod('LFO 1', 'wap', .9, 0, 'Macro 2'), ...WT_M1], { m: { m2: .8 }, lfo: [LFO_SHAPES.Triangle] }),
+  wtPreset('Evolving Pad', 'Pads', { wap: .2, wbp: .3, wbo: 1, wbl: .4, uni: 3, det: .2, spr: .7, aa: .8, ar: 2, l1y: 'Free', l1r: .08, l2y: 'Free', l2r: .13 }, { a: 'w:Harmonic Sweep', b: 'w:Glass' },
+    [synMod('LFO 1', 'wap', .6), synMod('LFO 2', 'wbp', .5), synMod('Macro 1', 'wap', .3), synMod('Macro 2', 'wbl', .4)], { fx: [{ type: 5, mode: 2 }] }),
+  wtPreset('Vocal Pad', 'Pads', { wap: .1, wbp: .3, wbf: 9, wbl: .7, uni: 2, det: .15, spr: .8, aa: .6, ar: 1.8, l1y: 'Free', l1r: .1 }, { a: 'w:Vowels', b: 'w:Vowels' },
+    [synMod('LFO 1', 'wap', .8), synMod('LFO 1', 'wbp', -.6), synMod('Macro 1', 'wap', .4), synMod('Macro 2', 'det', .3)], { fx: [{ type: 5, mode: 2 }] }),
+  wtPreset('Glass Pad', 'Pads', { wap: .5, wbp: .2, wbo: 1, wbl: .3, uni: 2, det: .12, spr: .8, aa: 1, ar: 2.5, l1y: 'Free', l1r: .2 }, { a: 'w:Glass', b: 'w:Organ' },
+    [synMod('LFO 1', 'wap', .3), ...WT_M1, synMod('Macro 2', 'wbl', .4)], { fx: [{ type: 5, mode: 2 }] }),
+  wtPreset('Dark Drone', 'Pads', { wap: .7, wbp: .4, wbo: -1, wbl: .5, flt: 'Ladder', cut: 600, res: .3, aa: 1.5, ar: 3, l1y: 'Free', l1r: .05 }, { a: 'w:Noise Cycles', b: 'w:Fold' },
+    [synMod('LFO 1', 'wbp', .5), synMod('Macro 1', 'cut', .4), synMod('Macro 2', 'wap', -.5)]),
+  wtPreset('Future Bass Chords', 'Keys and plucks', { wap: .7, uni: 5, det: .35, spr: .8, wbp: .4, wbl: .5, flt: 'Clean', cut: 4000, aa: .01, ad: .6, as: .7, ar: .3, l1d: '1/4' }, { a: 'w:Basic Shapes', b: 'w:Pulse Width' },
+    [synMod('Macro 1', 'cut', .35), synMod('LFO 1', 'gan', .35, 0, 'Macro 2')], { m: { m2: .6 }, lfo: [LFO_SHAPES['Saw up']] }),
+  wtPreset('Wavetable Pluck', 'Keys and plucks', { wap: .9, '2d': .25, '2s': 0, ad: .5, as: 0, ar: .3 }, { a: 'w:Harmonic Sweep' }, [synMod('Env 2', 'wap', -.8), synMod('Macro 1', 'wap', -.4), synMod('Macro 2', '2d', .3)]),
+  wtPreset('Bell Pluck', 'Keys and plucks', { wap: .6, wbp: .5, wbo: 1, wbl: .3, ad: 1.5, as: 0, ar: 1 }, { a: 'w:Glass', b: 'w:Metallic' }, [...WT_M1, synMod('Macro 2', 'wbl', .4)], { fx: [{ type: 5, mode: 2 }] }),
+  wtPreset('Riser Sweep', 'FX', { wap: 0, uni: 5, det: .3, spr: .8, nzl: .3, nzh: 2000, '2a': 4, '2s': 1, aa: .5, ar: 1 }, { a: 'w:Sync Saw' }, [synMod('Env 2', 'wap', 1), synMod('Env 2', 'pit', .3), synMod('Macro 1', 'det', .3), synMod('Macro 2', 'nzl', .4)]),
+  wtPreset('Laser', 'FX', { wap: .4, '2d': .3, '2s': 0, ad: .35, as: 0, ar: .1 }, { a: 'w:Squash' }, [synMod('Env 2', 'pit', .5), synMod('Env 2', 'wap', -.8), synMod('Macro 1', 'pit', .2), synMod('Macro 2', '2d', .4)], { voice: 'mono' }),
+];
+const SYN_WT_INIT = { n: 'Init', g: 'Init', eng: 'wt', p: { flt: 'Off' }, wt: { a: 'w:Basic Shapes', b: 'w:Basic Shapes' }, mods: [] };
 const SYN_FM_INIT = { n: 'Init', g: 'Init', eng: 'fm', p: { flt: 'Off', ad: 2, as: 1, ar: .35 }, mods: [] };
 // output level per preset (dB), measured so every preset plays at about the same loudness
 const SYN_LEVELS = {"Moog Bass":-1.5,"Sub":-4.5,"Reese":1,"Acid Line":-16,"Juno Bass":-4.5,"Hoover Bass":0,"Wobble":0.5,"Rubber":-2.5,"Garage Organ Bass":0,"Sync Lead":-1.5,"Supersaw":-11.5,"Brass Lead":-1,"80s Solo Lead":-2,"Chip Square":-3.5,"Trance Lead":-13.5,"G-Funk Whistle":-2.5,"Juno Strings":-10,"Warm Pad":-3,"Dark Pad":-3,"Sweep Pad":-4.5,"Trance Pad":-6.5,"Ambient Drift":-8.5,"Pluck":6,"Trance Pluck":-4.5,"Poly Stab":1.5,"Brass Stab":-3,"80s Poly Keys":-4.5,"Rave Stab":0.5,"House Chord":1,"Noise Sweep":1.5,"Laser Zap":-3};
 Object.assign(SYN_LEVELS, {"E. Piano":-3.5,"Glass Keys":-4,"Clav":6,"Drawbar Organ":-9,"Lately Bass":-6,"Bells":-0.5,"Marimba":6,"Kalimba":6,"Metallic Pluck":6,"Folded Bass":-5,"FM Sub":-9.5,"Ring Bass":-5.5,"Neuro Growl":-7.5,"Reese FM":-6,"Jump Up Wobble":-9.5,"Foghorn":-6,"Donk":5,"Tech Stab":6,"Ring Lead":-5,"Digital Brass":-10,"Chip Lead":-7.5,"Filter-FM Snarl":-5.5,"Glass Pad":-7,"Breath Pad":-4,"Dark Drone":-3.5,"FM Pluck":6,"FM Kick":6,"FM Snare":6,"Metal Hit":6,"FM Laser":6});
+Object.assign(SYN_LEVELS, {"wt:Neuro Growl": -7, "wt:Riddim Wub": -9.5, "wt:Reese Table": -7, "wt:Hollow Bass": -5.5, "wt:Talking Bass": -5.5, "wt:Future Lead": -9, "wt:Digital Lead": -2.5, "wt:Sync Sweep": -6, "wt:Evolving Pad": -4, "wt:Vocal Pad": -3.5, "wt:Glass Pad": -1.5, "wt:Dark Drone": 0, "wt:Future Bass Chords": -5.5, "wt:Wavetable Pluck": 6, "wt:Bell Pluck": 6, "wt:Riser Sweep": -3, "wt:Laser": 6});   // slow-attack Dark Drone set by ear: the 1.2 s measurement misses most of it
 const SYN_INIT = { n: 'Init', g: 'Init', p: {}, mods: [] };
 // a new patch from a preset: physical values, routes, drawn LFOs (missing ones get a sine), macros
 function synPatch(pr) {
   pr = pr || SYN_INIT; const lfo = [0, 1, 2, 3].map(k => (pr.lfo && pr.lfo[k] || LFO_SHAPES.Sine).map(q => Object.assign({ c: 0 }, q)));
-  const p = Object.assign({}, pr.p); if (pr.m) for (const k in pr.m) p[k] = pr.m[k]; if (p.gan == null && SYN_LEVELS[pr.n] != null) p.gan = SYN_LEVELS[pr.n];
-  return { eng: pr.eng || 'analog', name: pr.n, p, mods: (pr.mods || []).map(m => Object.assign({}, m)), lfo };
+  const p = Object.assign({}, pr.p); if (pr.m) for (const k in pr.m) p[k] = pr.m[k]; if (p.gan == null) { const lv = SYN_LEVELS[(pr.eng || 'analog') + ':' + pr.n] ?? (pr.eng === 'wt' ? undefined : SYN_LEVELS[pr.n]); if (lv != null) p.gan = lv; }
+  const o = { eng: pr.eng || 'analog', name: pr.n, p, mods: (pr.mods || []).map(m => Object.assign({}, m)), lfo };
+  if (o.eng === 'wt') o.wt = Object.assign({ a: 'w:Basic Shapes', b: 'w:Basic Shapes' }, pr.wt || {});
+  return o;
 }
 function normalizeSyn(s) {
   if (!s || typeof s !== 'object') return null;
-  const o = { eng: s.eng === 'fm' ? 'fm' : 'analog', sig: typeof s.sig === 'number' ? s.sig : undefined, name: String(s.name || ''), p: Object.assign({}, s.p || {}), mods: Array.isArray(s.mods) ? s.mods.filter(m => m && typeof m.d === 'string' && m.s >= 0 && m.s < SYN_SRC.length).slice(0, 32).map(m => ({ s: m.s | 0, d: m.d, a: Math.max(-1, Math.min(1, +m.a || 0)), c: Math.max(0, Math.min(3, m.c | 0)), v: m.v == null ? undefined : m.v | 0 })) : [] };
+  const o = { eng: ['fm', 'wt', 'gr'].includes(s.eng) ? s.eng : 'analog', sig: typeof s.sig === 'number' ? s.sig : undefined, name: String(s.name || ''), p: Object.assign({}, s.p || {}), mods: Array.isArray(s.mods) ? s.mods.filter(m => m && typeof m.d === 'string' && m.s >= 0 && m.s < SYN_SRC.length).slice(0, 32).map(m => ({ s: m.s | 0, d: m.d, a: Math.max(-1, Math.min(1, +m.a || 0)), c: Math.max(0, Math.min(3, m.c | 0)), v: m.v == null ? undefined : m.v | 0 })) : [] };
+  if (o.eng === 'wt' || s.wt) o.wt = { a: typeof (s.wt && s.wt.a) === 'string' ? s.wt.a : 'w:Basic Shapes', b: typeof (s.wt && s.wt.b) === 'string' ? s.wt.b : 'w:Basic Shapes' };
   o.lfo = [0, 1, 2, 3].map(k => Array.isArray(s.lfo && s.lfo[k]) && s.lfo[k].length ? s.lfo[k].slice(0, 32).map(q => ({ x: Math.max(0, Math.min(1, +q.x || 0)), y: Math.max(0, Math.min(1, +q.y || 0)), c: Math.max(-.97, Math.min(.97, +q.c || 0)) })) : LFO_SHAPES.Sine.map(q => Object.assign({}, q)));
   return o;
 }
-if (typeof module !== 'undefined') module.exports = { FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };
+if (typeof module !== 'undefined') module.exports = { WT_PRESETS, SYN_WT_INIT, FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };
