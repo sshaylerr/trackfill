@@ -607,9 +607,9 @@ async function warmBuiltins(proj) {
     await new Promise(r => setTimeout(r, 0)); }   // let the screen breathe between sounds
 }
 function newJungle() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the Liquid jungle kit…');
-  setTimeout(async () => { const np = jungleProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Liquid jungle: drums and break on bank A, keys and pads on bank B (set up for Chords). F minor, 174 BPM.'); }, 60); }
+  setTimeout(async () => { const np = jungleProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Liquid jungle · F minor · 174 BPM'); }, 60); }
 function newStress() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the stress test…');
-  setTimeout(async () => { const np = stressProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Stress test: 53 pads, 29 synths, 266 effects. Press Play and watch CPU in the top bar.'); }, 60); }
+  setTimeout(async () => { const np = stressProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Stress test loaded'); }, 60); }
 const grSrc = p => p && p.src === 'synth' && p.syn && p.syn.eng === 'gr' && p.syn.gr && p.syn.gr.src || null;   // a granular pad's source sound
 function ensureBuiltinsFor(proj) { if (proj === P) P.pads.forEach((p, i) => { if (p.drum && (p.src === 'drum' || (p.sample && p.sample.startsWith('d:')))) { p.sample = null; p.sample = drumSampleId(i); } });   // drums are rendered again from their settings
   for (const p of proj.pads) { if (p.sample && p.sample.startsWith('b:')) buildBuiltin(p.sample.slice(2)); const g = grSrc(p); if (g && g.startsWith('b:')) buildBuiltin(g.slice(2)); } }
@@ -749,7 +749,7 @@ function onEngine(m) {
     toast(`Safety mute on ${who}: ${m.why === 1 ? 'it produced invalid audio' : 'levels ran away'}. It has been reset.` + (n - lastTrip < 4000 ? ' Check feedback, resonance and drive.' : ''));
     lastTrip = n;
   } else if (m.t === 'err') { ENG.err = m.msg; ENG.errLog = (ENG.errLog || []).concat(m.msg).slice(-5); toast('Audio engine error: ' + m.msg + ' · Engine check has the details'); }
-  else if (m.t === 'oom') toast('The audio engine is out of memory. Remove unused sounds or effects, or freeze heavy pads.');
+  else if (m.t === 'oom') toast('Out of memory: remove unused sounds or effects, or freeze pads');
 }
 async function getModule() { if (!wasmModule) wasmModule = await WebAssembly.compile(WASM_BYTES); return wasmModule; }
 async function renderOffline(order, tail, tap, onProgress) {
@@ -817,7 +817,7 @@ function doCapture() {
 function spreadSlices(pi) {
   const pad = P.pads[pi], c = chopOf(pi); if (!c) return; const n = c.pts.length, free = [];
   for (let i = 1; i < NPADS && free.length < n; i++) { const j = (pi + i) % NPADS; if (!hasSound(P.pads[j])) free.push(j); }
-  if (free.length < n) { toast(`Spreading needs ${n} empty pads and there are ${free.length}. Clear some pads, or remove slices first.`); return; }
+  if (free.length < n) { toast(`Needs ${n} empty pads (${free.length} free)`); return; }
   touchPad(pi); pushUndo('all'); const S = P.chans[pi], tpl = JSON.parse(JSON.stringify(pad));
   free.forEach((j, k) => { const [a, b] = sliceRange(pad, k);
     P.pads[j] = Object.assign(JSON.parse(JSON.stringify(tpl)), { name: ((pad.name || 'Slice').slice(0, 8) + ' ' + (k + 1)).slice(0, 12), start: a, end: b, chop: null, frz: null });
@@ -826,7 +826,7 @@ function spreadSlices(pi) {
     for (const nn of arr) { const j = free[clamp(Math.round(nn.p) || 0, 0, n - 1)]; (sc.notes[j] = sc.notes[j] || []).push(Object.assign({}, nn, { p: 0 })); } delete sc.notes[pi]; }
   for (const C of P.chans) for (const f of C.fx) if (f.type === FX_TYPES.DUCK && f.trig.includes(pi)) for (const j of free) if (!f.trig.includes(j)) f.trig.push(j);
   syncProject(); markDirty(); UI.keys = false; KEYS.latch = null; renderAll();
-  toast(`${n} slices are now on pads ${padLabel(free[0])}–${padLabel(free[n - 1])}, with this pad's notes.`);
+  toast(`${n} slices on ${padLabel(free[0])}–${padLabel(free[n - 1])}`);
 }
 
 /* ================= freeze ================= */
@@ -933,6 +933,9 @@ function keyChords(pi) { const kx = kxOf(pi), sig = JSON.stringify([P.key, kx]);
 function keyCell(cell) {
   const pi = UI.pad, kx = kxOf(pi), fl = keyFlats(pi);
   if (kx.mode === 'chords') { const c = keyChords(pi)[cell]; return c ? { chord: c, pn: c.roman, name: c.name, prog: c.prog != null } : { pn: '', name: '—', none: true }; }
+  if (kx.mode === 'levels') { const n = cell + 1;   // 16 Levels: one sound, pad 1 (bottom left) to 16 — softest to loudest, or −8 to +7 semitones
+    if (kx.lv === 'tune') { const st = n - 9 + UI.oct * 12; return { semi: st, pn: String(n), name: (st > 0 ? '+' : '') + st, root: st === 0 }; }
+    return { semi: UI.oct * 12, vel: n / 16, pn: String(n), name: String(Math.round(n / 16 * 127)), root: n === 16 }; }
   if (kx.mode === 'scale') { const s = scalePads(P.key, kx, UI.oct)[cell]; return { semi: s.semi, pn: String(s.deg), name: noteLabel(s.semi, fl), root: s.root }; }
   const semi = cellSemi(cell); return { semi, pn: String(cell + 1), name: noteLabel(semi, fl), root: mod12(semi - P.key.root) === 0, out: !inScale(semi, P.key, kx) };
 }
@@ -968,6 +971,7 @@ function arpPlayed(list) {
   if (touched.size) { touched.forEach(si => syncScene(si)); markDirty(); if (touched.has(UI.scene)) { refreshPadDots(); if (UI.view === 'seq') drawTL(); } renderScenes(); }
 }
 function keysStatus(pi) { const kx = kxOf(pi), oc = UI.oct ? ` · Oct ${UI.oct > 0 ? '+' : ''}${UI.oct}` : '';
+  if (kx.mode === 'levels') return '16 Levels · ' + (kx.lv === 'tune' ? 'Tune' : 'Velocity') + oc;
   return (kx.mode === 'chords' ? (kx.prog ? PROGS[kx.prog - 1].n : 'Chords') + (kx.arp ? ' · Arp' : '') + ' · ' : kx.mode === 'scale' ? 'Scale · ' : '') + keyName(padKey(pi)) + oc; }
 function flashCell(cell) { const pd = document.querySelector(`.grid .pad[data-cell="${cell}"]`); if (!pd) return; pd.classList.add('hit'); clearTimeout(pd._f); pd._f = setTimeout(() => pd.classList.remove('hit'), 90); }
 // sequenced notes light the pads; for a chopped pad the slice number comes along (k), so its slice lights and the playhead runs
@@ -998,8 +1002,9 @@ function padDown(cell, hk = cell) {   // hk: the key this press is held under (t
     for (const x of notes) { if (live) { const r = recordNote(pi, x.semi, x.vel, x.ms); if (r) rec.push(r); } else cap.push(capHit(pi, x.semi, x.vel, x.ms)); }
     HELD[hk] = { tag, rec, cap: live ? [] : cap, pi, start: ctx ? ctx.currentTime : 0, ms: notes.map(x => x.ms) }; return;
   }
-  send({ t: 'hit', pad: pi, semi, vel: .9, tag }); if (chop) { selectSlice(cell); slicePlayed(pi, cell, 0); }
-  const rec = (T.playing && T.rec) ? recordNote(pi, semi) : null, cap = rec ? null : capHit(pi, semi, .9);
+  const vel = kc && kc.vel != null ? kc.vel : .9;
+  send({ t: 'hit', pad: pi, semi, vel, tag }); if (chop) { selectSlice(cell); slicePlayed(pi, cell, 0); }
+  const rec = (T.playing && T.rec) ? recordNote(pi, semi, vel) : null, cap = rec ? null : capHit(pi, semi, vel);
   HELD[hk] = { tag, rec: rec ? [rec] : [], cap: cap ? [cap] : [], pi, start: ctx ? ctx.currentTime : 0, ms: [0] };
 }
 function padUp(cell) {
@@ -1196,7 +1201,7 @@ function openShapes() {
     ['Pan sweep', () => { const a = []; for (let t = 0; t <= len; t += BAR) a.push({ t, v: (t / BAR) % 2 ? .85 : .15, c: 0 }); return a; }], ['Clear lane', () => []]];
   openSheet(keyMeta(key).label + ' shapes', card => { const g = h('div', 'g2');
     for (const [l, fn] of shapes) g.append(btn(l, () => { pushUndo('scene:' + UI.scene); const pts = lanePts(true); pts.length = 0; pts.push(...fn()); if (!pts.length) cleanLane(); UI.tl.selPt = -1; syncScene(UI.scene); markDirty(); closeSheet(); }, 'btn' + (l === 'Clear lane' ? ' warn' : '')));
-    card.append(g, h('p', 'note', 'Shapes replace this lane in the current scene. Drag any point afterwards, or grab the line between two points (the diamond marks the middle) and drag to bend it.')); });
+    card.append(g); });
 }
 
 /* ---------- import & library ---------- */
@@ -1244,7 +1249,7 @@ function openLibrary() {
         box.append(list); }
       if (!box.children.length) box.append(h('p', 'note', 'No sounds match.')); };
     q.oninput = draw; draw();
-    card.append(h('p', 'note', 'Imported sounds stay in your library for every project. Pick several files at once and they fill the next empty pads.'));
+    card.append('');
   });
 }
 
@@ -1271,7 +1276,7 @@ function openSceneSheet(i) {
     const a = h('div', 'g2');
     a.append(btn('Copy, paste, move…', () => { closeSheet(); if (UI.scene !== i) selectScene(i); openEdit(); }));
     a.append(confirmBtn('Clear scene', 'Tap again to clear', () => { pushUndo('scene:' + i); P.scenes[i] = Object.assign(emptyScene(), { bars: sc.bars }); syncScene(i); markDirty(); closeSheet(); }));
-    st.append(a, h('p', 'note', 'Song mode plays scenes 1 to 16 in order and skips empty ones. Duplicate a scene (in Edit) to make a variation right after it.')); card.append(st);
+    st.append(a); card.append(st);
   });
 }
 let taps = [];
@@ -1280,22 +1285,22 @@ function openTempo() {
     const tp = paramEl({ label: 'Tempo', min: 40, max: 220, step: .1, coarse: 1, big: 10, get: () => P.bpm, set: v => { P.bpm = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 96, fmt: v => (+v.toFixed(1)) + ' BPM', noFocus: true });
     g.append(tp, paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, get: () => P.swing, set: v => { P.swing = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 0, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
     const tap = btn('Tap tempo', () => { const n = performance.now(); taps = taps.filter(t => n - t < 2500); taps.push(n); if (taps.length >= 3) { const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); P.bpm = clamp(Math.round(60000 / iv), 40, 220); tp._upd(); syncSong(); markDirty(); } });
-    tap.style.height = '56px'; tap.style.width = '100%'; tap.style.marginTop = '10px'; card.append(g, tap, h('p', 'note', 'Tap at least three times in time with the beat.'));
+    tap.style.height = '56px'; tap.style.width = '100%'; tap.style.marginTop = '10px'; card.append(g, tap);
     const ck = h('div', 'g2'), pick = (title, opts, cur, set) => { card.append(h('div', 'sec', title)); const row = h('div', 'g3');
       opts.forEach(([v, l]) => row.append(btn(l, () => { set(v); savePrefs(); sendClick(); closeSheet(); openTempo(); }, 'btn' + (cur === v ? ' on' : '')))); card.append(row); };
     pick('Click', [['off', 'Off'], ['rec', 'Recording'], ['always', 'Always']], UI.click, v => UI.click = v);
     pick('Count-in when recording', [[0, 'Off'], [1, '1 bar'], [2, '2 bars']], UI.countIn, v => UI.countIn = v);
     const cv = paramEl({ label: 'Click volume', min: 0, max: 1, step: .05, coarse: .1, get: () => UI.clickVol, set: v => { UI.clickVol = v; sendClick(); savePrefs(); }, def: .5, fmt: v => Math.round(v * 100) + '%', noFocus: true }); cv.style.marginTop = '14px';
-    card.append(cv, h('p', 'note', 'The click plays from the master output but never goes into exports, bounces or freezes. The BPM key shows a dot while it is on.')); });
+    card.append(cv, h('p', 'note', 'Not included in exports.')); });
 }
 function openMenu() {
   openSheet(P.name || 'Project', card => { const st = h('div', 'stack');
-    const pg = h('div', 'g2'); pg.append(btn('Panic: stop all sound', () => { closeSheet(); panic(); }, 'btn warn'), btn('Engine check', () => { closeSheet(); openDiag(); })); st.append(pg, h('p', 'note', 'Tapping Stop twice quickly also triggers Panic.'));
+    const pg = h('div', 'g2'); pg.append(btn('Panic: stop all sound', () => { closeSheet(); panic(); }, 'btn warn'), btn('Engine check', () => { closeSheet(); openDiag(); })); st.append(pg);
     const inp = h('input', 'textin'); inp.value = P.name; inp.maxLength = 30; inp.setAttribute('aria-label', 'Project name'); inp.onfocus = () => pushUndo('song'); inp.oninput = () => { P.name = inp.value; markDirty(); }; st.append(inp);
     st.append(h('div', 'sec', 'Export')); let g = h('div', 'g2'); g.append(btn('Export song', () => exportAudio('song')), btn('Export scene ' + (UI.scene + 1), () => exportAudio('scene'))); st.append(g);
-    st.append(h('p', 'note', (window.claude ? 'Exports are 48 kHz 16-bit WAV files inside a .zip. Song export plays scenes in order with their repeats.' : 'Exports are 48 kHz 16-bit WAV files. Song export plays scenes in order with their repeats.')));
+    st.append('');
     st.append(h('div', 'sec', 'Backup')); g = h('div', 'g2'); g.append(btn('Save backup file', saveBackup), btn('Open backup file', () => $('#fileProj').click())); st.append(g);
-    st.append(h('p', 'note', DB.ok ? 'Your work saves automatically on this device. A backup file keeps it safe and moves it to another device.' : 'This browser is not keeping your work between visits. Save a backup file before you leave.'));
+    st.append((DB.ok ? '' : h('p', 'note', 'This browser isn\'t keeping your work: save a backup.')));
     st.append(h('div', 'sec', 'Look')); const tg = h('div', 'g4');
     for (const th of THEMES) { const b = btn(`<i class="swd" style="--sa:${th.accent};--sb:${th.body ? th.body[2] : '#3b3b41'}"></i>${th.name}`, () => { UI.theme = th.id; applyTheme(); savePrefs(); closeSheet(); openMenu(); }, 'btn theme' + (UI.theme === th.id ? ' on' : '')); tg.append(b); }
     st.append(tg); g = h('div', 'g3'); for (const [v, l] of [['dark', 'Pads: dark'], ['tint', 'Pads: tinted'], ['bright', 'Pads: colour']]) g.append(btn(l, () => { UI.padStyle = v; applyTheme(); savePrefs(); closeSheet(); openMenu(); }, 'btn' + ((UI.padStyle || 'dark') === v ? ' on' : '')));
@@ -1335,7 +1340,7 @@ function openDiag() {
     const text = rows.map(r => `${sym[r.st]} ${r.name}: ${r.detail}`).join('\n'), ta = h('textarea', 'textin'); ta.value = text; ta.readOnly = true; ta.style.height = '90px'; ta.style.paddingBlock = '8px'; ta.style.fontSize = '11px';
     const cp = btn('Copy results', () => { const f = () => { ta.select(); toast('Selected. Use Copy from the menu.'); }; try { navigator.clipboard.writeText(text).then(() => toast('Copied'), f); } catch (e) { f(); } }, 'btn on'); cp.style.width = '100%';
     const rs = btn('Restart audio', () => { closeSheet(); restartAudio(true); }, 'btn'); rs.style.width = '100%';
-    box.append(rs, h('p', 'note', 'Like closing and reopening the app: use it if sound feels late after switching apps or headphones. It also happens by itself when you come back to the app.'), cp, ta); });
+    box.append(rs, cp, ta); });
 }
 
 /* ---------- export, backup ---------- */
@@ -1361,7 +1366,7 @@ function shareFile(filename, data) {
     try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); closeSheet(); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
     const a = document.createElement('a'), u = URL.createObjectURL(blob); a.href = u; a.download = filename; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); closeSheet(); };
   openSheet('Ready to save', card => { const b = btn('Save or share ' + filename, go, 'btn on'); b.style.width = '100%'; b.style.height = '56px';
-    card.append(b, h('p', 'note', 'Choose Save to Files to keep it on this iPhone, or send it with AirDrop or another app.')); });
+    card.append(b, h('p', 'note', 'Save to Files keeps it on this iPhone.')); });
   return true;
 }
 async function saveFile(filename, data) { const dl = await capDownloads(); if (!dl) return shareFile(filename, data);

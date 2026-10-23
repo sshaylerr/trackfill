@@ -118,7 +118,7 @@ const SYN_ENGINES = [{ id: 'analog', n: 'Analog', blurb: 'Three oscillators into
 function openEnginePicker(pi) {
   openSheet('Synth engine', card => { const st = h('div', 'stack');
     for (const e of SYN_ENGINES) { const b = btn(`<b>${e.n}</b><span>${e.soon ? 'Coming next' : 'Built'}</span><i>${esc(e.blurb)}</i>`, () => { if (e.soon) return; closeSheet(); setEngine(pi, e.id); }, 'btn prow' + (e.id === (synOf(pi).eng || 'analog') ? ' on' : '')); if (e.soon) b.disabled = true; st.append(b); }
-    st.append(h('p', 'note', 'Switching engines keeps everything in the shared frame: sub, noise crunch, filter, envelopes, LFOs, macros and modulation.')); card.append(st); });
+    st.append(''); card.append(st); });
 }
 // a new engine keeps the shared frame (sub, noise, filter, envelopes, LFOs, macros, modulation) and starts from its own Init
 function setEngine(pi, id) { const S = synOf(pi); if ((S.eng || 'analog') === id) return; pushUndo('pad:' + pi); touchPad(pi); S.eng = id; S.name = 'Init'; if (id === 'wt' && !S.wt) S.wt = { a: 'w:Basic Shapes', b: 'w:Basic Shapes' }; if (id === 'gr' && !(S.gr && S.gr.src)) S.gr = { src: P.pads[pi].sample || 'b:jvox' }; S.sig = patchSig(S); SYN_ST.pg = 0;
@@ -171,7 +171,7 @@ function openSynthSource(pi) {
       btn(`Synth <span class="lsub">${pad.syn ? (TF_ENGS[pad.syn.eng] || 'Analog') + ' · ' + esc(pad.syn.name || 'Init') : 'Analog · Init'}</span>`, () => { closeSheet(); if (pad.src === 'synth' && pad.syn) return; if (pad.syn) { pushUndo('pad:' + pi); pad.src = 'synth'; pad.mode = 'gate'; syncPad(pi); markDirty(); renderAll(); } else applySynthPreset(pi, SYN_INIT); }, 'btn' + (pad.src === 'synth' ? ' on' : '')));
     st.append(btn(`Drum <span class="lsub">${pad.drum ? esc(DRUM_MODS[pad.drum.mod].n + ' · ' + pad.drum.type) : 'Kick, snare, clap, hats, perc · or a whole kit'}</span>`, () => { closeSheet(); if (pad.src === 'drum') return;
       if (pad.drum) { pushUndo('pad:' + pi); pad.src = 'drum'; pad.mode = 'one'; refreshDrum(pi); renderAll(); } else { makeDrumPad(pi, 'kick', 'DnB Punch'); UI.snd = 0; renderAll(); } }, 'btn' + (pad.src === 'drum' ? ' on' : '')));
-    st.append(h('p', 'note', 'Switching keeps all three, so nothing is lost. On a synth, the preset name on the faceplate opens its presets; on a drum, Kit builds a whole bank.')); card.append(st); });
+    st.append(''); card.append(st); });
 }
 /* ----- presets: factory ones per engine, plus your own (kept on this device for every project) ----- */
 let USER_PRESETS = [];
@@ -359,7 +359,7 @@ function openTablePicker(pi, o) {
     l.append(btn(noF ? 'Fundamental: removed' : 'Fundamental: kept', () => { pushUndo('pad:' + pi); synSet(pi, fid, noF ? 'Keep' : 'Remove'); closeSheet(); renderView(); }, 'btn' + (noF ? ' on' : '')));
     for (const [tool, label] of [['nolow', 'Remove low harmonics'], ['smooth', 'Smooth'], ['align', 'Phase align'], ['normalize', 'Normalize']])
       l.append(btn(label, () => { const t0 = tableRaw(cur); if (!t0) return; closeSheet(); const id = saveUserTable(tableName(cur).slice(0, 16) + ' · ' + label.split(' ')[0].toLowerCase(), wtTool(t0.raw, t0.F, tool), t0.F); setTable(pi, o, id); toast(`Made "${SAMPLES.get(id).name}" in your tables`); }));
-    st.append(l, h('p', 'note', 'Tools make a new table in Yours, so the original stays. Remove fundamental is a switch: it takes out the lowest harmonic while playing (great with Sub split). Wavetable files: Serum-style WAVs and other single-cycle sets; tables you import stay on this device for every project.')); });
+    st.append(l); });
 }
 function tableRaw(key) { if (!key) return null; if (key.startsWith('w:')) return tfWtFactoryRaw(key.slice(2)); const s = SAMPLES.get(key); if (!s || !s.wt) return null; const raw = new Float32Array(s.data.length); for (let i = 0; i < raw.length; i++) raw[i] = s.data[i] / 32767; return { raw, F: s.wt }; }
 function pickTableFile(pi, o) {
@@ -369,7 +369,7 @@ function pickTableFile(pi, o) {
     const finish = size => { const t = wtFromFrames(mono, size); if (!t) { toast('Too short for that frame size'); return; } const id = saveUserTable(name, t.raw, t.F); setTable(pi, o, id); toast(`Imported "${name}": ${t.F} frames`); };
     if (r.frameSize) return finish(r.frameSize);
     if (mono.length % 2048 === 0) return finish(2048);
-    openSheet('Frame size for ' + name, card => { const g2 = h('div', 'g2'); for (const n of [256, 512, 1024, 2048, 4096]) g2.append(btn(n + ' samples', () => { closeSheet(); finish(n); })); card.append(g2, h('p', 'note', 'Each frame is one cycle. Most wavetable files use 2048.')); }); };
+    openSheet('Frame size for ' + name, card => { const g2 = h('div', 'g2'); for (const n of [256, 512, 1024, 2048, 4096]) g2.append(btn(n + ' samples', () => { closeSheet(); finish(n); })); card.append(g2, h('p', 'note', 'Most files use 2048.')); }); };
   inp.click(); }
 function openTableFromSound(pi, o) {
   openSheet('Make a table from a sound', card => { const l = h('div', 'list'), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt && !s.drum).sort((a, b) => (b.added || 0) - (a.added || 0));
@@ -377,7 +377,7 @@ function openTableFromSound(pi, o) {
       li.onclick = () => { closeSheet(); const mono = new Float32Array(smp.frames); for (let i = 0; i < smp.frames; i++) { let a = 0; for (let c = 0; c < smp.ch; c++) a += smp.data[i * smp.ch + c]; mono[i] = a / smp.ch / 32767; }
         const t = wtFromSample(mono, smp.sr); if (!t) { toast('Could not find a steady pitch in that sound'); return; } const id = saveUserTable(smp.name.slice(0, 16) + ' table', t.raw, t.F); setTable(pi, o, id); toast(`Made a ${t.F}-frame table from "${smp.name}"`); };
       l.append(li); }
-    card.append(all.length ? l : h('p', 'note', 'Import a sound first (Sound › Load files), then turn it into a table here. Steady, pitched sounds work best: a held note, a vocal, a synth.')); });
+    card.append(all.length ? l : h('p', 'note', 'Import a sound first.')); });
 }
 
 /* ----- Granular: the source with the playhead, spray and grain size; drag (or the d-pad) to move Position and widen Spray ----- */
@@ -419,7 +419,7 @@ function openGrainSource(pi) {
     const sec = (title, keys) => { if (!keys.length) return; st.append(h('div', 'sec', title)); const l = h('div', 'list'); for (const k of keys) { const li = h('div', 'li' + (k === cur ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${esc(soundName(k))}</b></div>`; li.onclick = () => pick(k); l.append(li); } st.append(l); };
     sec('On pads', onPads); sec('Your sounds', mine.filter(k => !onPads.includes(k)).slice(0, 40));
     for (const [title, keys] of PACKS) sec(title, keys.map(k => 'b:' + k).filter(k => !onPads.includes(k)));
-    st.append(h('p', 'note', 'Long, evolving sounds make the richest clouds: vocals, pads, piano, breaks. Middle C plays the source at its own pitch.')); });
+    st.append(''); });
 }
 
 /* ----- LFO editor: drag points, tap to add, double-tap to remove, drag a line to bend it ----- */
@@ -462,7 +462,7 @@ const lfoCtl = {
 function openLfoShapes(pi, k) {
   openSheet('LFO ' + (k + 1) + ' shape', card => { const g = h('div', 'g2');
     for (const n in LFO_SHAPES) g.append(btn(n, () => { pushUndo('pad:' + pi); synOf(pi).lfo[k] = LFO_SHAPES[n].map(q => Object.assign({ c: 0 }, q)); LFOED.sel = 0; lfoChanged(pi); closeSheet(); }));
-    card.append(g, h('p', 'note', 'A starting point: drag points on the screen to reshape it, tap a line to add a point, double-tap a point to remove it, drag a line up or down to bend it.')); });
+    card.append(g); });
 }
 
 /* ----- Map mode: tap a control, pick a source, set the amount ----- */
@@ -503,7 +503,7 @@ function openSourcePicker(pi) {
           if (t) { const ex = S.mods.findIndex(q => q.d === t && q.s === s); if (ex >= 0) M.route = ex; else { pushUndo('pad:' + pi); S.mods.push({ s, d: t, a: .25, c: 0 }); M.route = S.mods.length - 1; syncPad(pi); markDirty(); } }
           else M.armed = M.armed === s ? -1 : s; renderView(); }, 'btn srcbtn' + (used || M.armed === s ? ' on' : ''))); }
       st.append(g); }
-    st.append(h('p', 'note', t ? 'The new connection starts at +25%: set the amount in the bar. Up to four sources per control.' : 'Then every control you tap gets this source at +25%. Tap Done when finished.')); card.append(st); });
+    st.append(''); card.append(st); });
 }
 function openRouteMore(pi, ri) {
   const S = synOf(pi), m = S.mods[ri]; if (!m) return;
@@ -513,7 +513,7 @@ function openRouteMore(pi, ri) {
     st.append(h('div', 'sec', 'Via: scale this by another source')); g = h('div', 'g4');
     g.append(btn('None', () => { pushUndo('pad:' + pi); delete m.v; syncPad(pi); markDirty(); closeSheet(); openRouteMore(pi, ri); }, 'btn' + (m.v == null ? ' on' : '')));
     TF_SRC.forEach((n, s) => { if (s !== m.s) g.append(btn(esc(n), () => { pushUndo('pad:' + pi); m.v = s; syncPad(pi); markDirty(); closeSheet(); openRouteMore(pi, ri); }, 'btn' + (m.v === s ? ' on' : ''))); });
-    st.append(g, h('p', 'note', 'Via multiplies this connection by a second source: for example LFO 1 → Cutoff via Macro 2 lets one knob fade the wobble in and out.'));
+    st.append(g);
     const rm = h('div', 'g2'); rm.append(btn('Remove connection', () => { pushUndo('pad:' + pi); S.mods.splice(ri, 1); if (UI.map) UI.map.route = -1; syncPad(pi); markDirty(); closeSheet(); }, 'btn warn')); st.append(rm); card.append(st); });
 }
 // rings on modulated knobs: the range the modulation can reach, in the first source's colour

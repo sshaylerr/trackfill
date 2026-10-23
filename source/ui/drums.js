@@ -65,13 +65,13 @@ function setDrumType(pi, type) { const pad = P.pads[pi], d = pad.drum; pushUndo(
 function pushSlot(d) { const snap = JSON.parse(JSON.stringify(Object.assign({}, d, { slots: [] }))); d.slots = [snap, ...d.slots].slice(0, 4); }
 function drumMoreLike(pi) { const pad = P.pads[pi], d = pad.drum; pushUndo('pad:' + pi); touchPad(pi); pushSlot(d); const v = drumVariation(d, Math.floor(Math.random() * 1e9)); v.slots = d.slots; pad.drum = v; refreshDrum(pi); renderView(); audition(pi); }
 function drumSwapSlot(pi, i) { const pad = P.pads[pi], d = pad.drum, s = d.slots[i]; if (!s) return; pushUndo('pad:' + pi); touchPad(pi); const cur = JSON.parse(JSON.stringify(Object.assign({}, d, { slots: [] })));
-  const slots = d.slots.slice(); slots[i] = cur; pad.drum = Object.assign(JSON.parse(JSON.stringify(s)), { slots }); refreshDrum(pi); renderView(); audition(pi); toast('Swapped with slot ' + 'ABCD'[i] + ': tap it again to go back'); }
+  const slots = d.slots.slice(); slots[i] = cur; pad.drum = Object.assign(JSON.parse(JSON.stringify(s)), { slots }); refreshDrum(pi); renderView(); audition(pi); toast('Slot ' + 'ABCD'[i]); }
 function openDrumModules(pi) {
   openSheet('Drum module', card => { const st = h('div', 'stack');
     for (const mod in DRUM_MODS) { const M = DRUM_MODS[mod]; st.append(btn(`<b>${M.n}</b><span>${Object.keys(M.types).length} types</span><i>${esc(Object.keys(M.types).join(' · '))}</i>`, () => { closeSheet(); makeDrumPad(pi, mod, Object.keys(M.types)[0]); }, 'btn prow' + (drumOf(pi).mod === mod ? ' on' : ''))); }
     card.append(st); }); }
 function openDrumTypes(pi) { const d = drumOf(pi), M = DRUM_MODS[d.mod];
-  openSheet(M.n + ' types', card => { const g = h('div', 'g2'); for (const t in M.types) g.append(btn(esc(t), () => { closeSheet(); setDrumType(pi, t); }, 'btn' + (d.type === t ? ' on' : ''))); card.append(g, h('p', 'note', 'A type is a starting point: the knobs move from there. Locked knobs (in More) keep their place.')); }); }
+  openSheet(M.n + ' types', card => { const g = h('div', 'g2'); for (const t in M.types) g.append(btn(esc(t), () => { closeSheet(); setDrumType(pi, t); }, 'btn' + (d.type === t ? ' on' : ''))); card.append(g); }); }
 function openDrumMore(pi) {
   const pad = P.pads[pi], d = pad.drum, M = DRUM_MODS[d.mod];
   openSheet(M.n + ' · options', card => { const st = h('div', 'stack'); card.append(st);
@@ -82,7 +82,7 @@ function openDrumMore(pi) {
     g2.append(btn('Save to library', () => { const s = SAMPLES.get(pad.sample); if (!s) return; const id = addUserSample((pad.name || d.type).slice(0, 24), s.sr, s.ch, s.data); closeSheet(); toast(`Saved "${SAMPLES.get(id).name}" to your sounds`); }),
       btn('Reset to type', () => { closeSheet(); setDrumType(pi, d.type); }), btn('Clear slots', () => { d.slots = []; markDirty(); closeSheet(); renderView(); }),
       btn(d.kit ? 'Leave the kit' : 'Join the bank\'s kit', () => { pushUndo('pad:' + pi); d.kit = !d.kit; refreshDrum(pi); closeSheet(); renderView(); }));
-    st.append(g2, h('p', 'note', 'Tuned drums follow the project key (Keys › key). Every change renders the hit again; playback is a plain sample, so Chop, Pitch, Filter and Choke all work.')); }); }
+    st.append(g2); }); }
 
 /* ----- kit builder: a vibe fills the bank with matched drums; kit-wide knobs; reroll any piece ----- */
 function openKitBuilder(pi) {
@@ -98,12 +98,12 @@ function openKitBuilder(pi) {
     let grp = null, l = null;
     for (const V of DRUM_VIBES) { if (V[1] !== grp) { grp = V[1]; st.append(h('div', 'sec', grp)); l = h('div', 'g3'); st.append(l); }
       l.append(confirmBtn(V[0], 'Replace pads?', () => { closeSheet(); toast('Building the ' + V[0] + ' kit…'); setTimeout(() => buildKit(bank, V[0]), 30); }, 'btn' + (kit && kit.vibe === V[0] ? ' on' : ''))); }
-    st.append(h('p', 'note', 'Kick, snare, clap, closed and open hats (they choke each other), ride, two percs and a tom. The snare is tuned against the kick and the kick follows the key. Tap a vibe twice to replace those pads.')); }); }
+    st.append(''); }); }
 let kitT = 0; function scheduleKit(bank) { clearTimeout(kitT); kitT = setTimeout(() => { for (let i = 0; i < 16; i++) { const p = bank * 16 + i; if (P.pads[p].drum && P.pads[p].drum.kit) refreshDrum(p, true); } markDirty(); if (UI.view === 'sound') requestAnimationFrame(drawDrumDisp); }, 60); }
 function buildKit(bank, vibe) {
   pushUndo('all'); const seed = 1 + Math.floor(Math.random() * 99999), K = drumKit(vibe, seed); P.drumKits = P.drumKits || {}; P.drumKits[bank] = K.kit;
   K.pieces.forEach((pc, i) => { const pi = bank * 16 + i, pad = P.pads[pi]; touchPad(pi); Object.assign(pad, { src: 'drum', drum: pc.d, name: pc.role === 'Kick' || pc.role === 'Snare' || pc.role === 'Clap' ? pc.d.type.slice(0, 12) : pc.role, mode: 'one', choke: i === 3 || i === 4 ? 1 : 0, pitch: 0, fine: 0, start: 0, end: 1, reverse: false, chop: null });
     refreshDrum(pi, true); });
-  UI.bank = bank; UI.pad = bank * 16; markDirty(); renderAll(); audition(UI.pad); toast(`${vibe} kit on bank ${BANKS[bank]}: tweak it with the kit knobs, reroll any piece`); }
+  UI.bank = bank; UI.pad = bank * 16; markDirty(); renderAll(); audition(UI.pad); toast(`${vibe} kit · bank ${BANKS[bank]}`); }
 function rerollPiece(bank, i) { const pi = bank * 16 + i, kit = P.drumKits[bank]; pushUndo('pad:' + pi); const d = drumKitPiece(kit.vibe, i, 1 + Math.floor(Math.random() * 99999)); d.slots = P.pads[pi].drum ? [JSON.parse(JSON.stringify(Object.assign({}, P.pads[pi].drum, { slots: [] })))] : [];
-  P.pads[pi].drum = d; refreshDrum(pi); audition(pi); toast(KIT_ROLES[i][0] + ' rerolled (the old one is in slot A)'); }
+  P.pads[pi].drum = d; refreshDrum(pi); audition(pi); toast(KIT_ROLES[i][0] + ' rerolled · old one in slot A'); }

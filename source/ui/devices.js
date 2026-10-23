@@ -84,7 +84,7 @@ function openModePicker(c, s) {
     d.modes.forEach((md, i) => { const lk = fxLook(f.type, i), li = h('div', 'li' + ((f.mode | 0) === i ? ' on' : ''));
       li.innerHTML = `<span class="mswatch" style="background:linear-gradient(180deg,${lk.face},${lk.face2});border-bottom:3px solid ${lk.ring}"></span><div class="lt"><b>${esc(md.n)}</b><span>${esc(md.blurb || '')}</span></div>`;
       li.onclick = () => { closeSheet(); switchFxMode(c, s, i); }; list.append(li); });
-    card.append(list, h('p', 'note', 'Controls with the same name keep their settings when you switch. Automation follows them; lanes for controls the new mode doesn’t have are removed (undo brings them back).')); });
+    card.append(list); });
 }
 function switchFxMode(c, s, mode) {
   const f = P.chans[c].fx[s]; if (!f || (f.mode | 0) === mode) return; pushUndo('all');

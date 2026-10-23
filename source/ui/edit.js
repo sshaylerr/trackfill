@@ -115,7 +115,7 @@ function openEdit() {
       if (ctx === 'pad') { const pi = UI.view === 'mix' ? UI.mixSel : UI.pad; body.append(h('div', 'sec', `Pad ${padLabel(pi)} · ${esc(P.pads[pi].name || 'Empty')}`));
         row(act('Copy', () => copyPad(pi)), act('Paste', () => pastePad(pi), clipIs('pad')), act('Duplicate', () => duplicatePad(pi), hasSound(P.pads[pi])));
         row(act('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap the pad to swap ${padLabel(pi)} with (Back cancels)`); }), confirmBtn('Clear sound', 'Tap again to clear', () => { closeSheet(); clearPad(pi); }));
-        body.append(h('p', 'note', 'A pad copies with its whole channel: sound, settings, voicing, keys, effects and sends. Duplicate puts a copy on the next empty pad.')); }
+        body.append(''); }
       if (ctx === 'chan') { const c = UI.mixSel; body.append(h('div', 'sec', `Channel ${esc(chanName(c))}`));
         row(act('Copy', () => copyChan(c)), act('Paste', () => pasteChan(c), clipIs('chan')));
         row(act('Copy effects', () => copyChain(c), P.chans[c].fx.length > 0), act('Paste effects', () => pasteChain(c), clipIs('chain'))); }
@@ -130,8 +130,8 @@ function openEdit() {
         const lg = h('div', 'g4 hrow'); for (const n of [1, 2, 4, 8]) { const b = keep(act(n + (n > 1 ? ' bars' : ' bar'), () => { EDR.len = n; draw(); }, EDR.from + n <= sc.bars, 'btn' + (EDR.len === n ? ' on' : ''))); lg.append(b); } body.append(lg);
         row(act('Copy', copyBars), act('Paste here', pasteBars, clipIs('bars')), act('Duplicate', duplicateBars, EDR.from + EDR.len * 2 <= 16));
         if (UI.tl.sel) row(act('Duplicate note', duplicateNote), act('Copy note bar', () => { EDR.from = Math.floor(UI.tl.sel.n.t / BAR); EDR.len = 1; copyBars(); }));
-        body.append(h('p', 'note', UI.tl.lane !== 'notes' ? 'Copies this automation lane over the chosen bars.' : UI.tl.mode === 'bank' ? 'Copies the notes of all 16 pads in this bank, with their automation. Paste replaces what was there.' : 'Copies this pad\'s notes and automation. Paste onto another pad\'s Keys view to move a part between sounds.'));
-        body.append(h('p', 'note', 'Duplicate places the bars straight after themselves and grows the scene if needed: the quick way from 4 bars to 8.')); }
+        body.append('');
+        body.append(''); }
       const i = UI.scene; body.append(h('div', 'sec', `Scene ${i + 1}${P.scenes[i].name ? ' · ' + esc(P.scenes[i].name) : ''}`));
       row(act('Copy', () => copyScene(i)), act('Paste', () => pasteScene(i), clipIs('scene')), act('Duplicate', () => duplicateScene(i), i < NSCENES - 1));
       row(act('◀ Move', () => moveScene(i, -1), i > 0), act('Move ▶', () => moveScene(i, 1), i < NSCENES - 1), confirmBtn('Clear', 'Tap again', () => { closeSheet(); clearScene(i); }));
