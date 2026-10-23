@@ -23,7 +23,7 @@ function renderPads(V) {
 
 /* ---------- timeline ---------- */
 function laneTitle() {
-  const tl = UI.tl; if (tl.lane === 'notes') return 'Notes · ' + (tl.mode === 'keys' ? chanName(UI.pad) + (chopOf(UI.pad) ? ' slices' : '') : 'Bank ' + BANKS[UI.bank]);
+  const tl = UI.tl; if (tl.lane === 'notes') return 'Notes · ' + (tl.mode === 'keys' ? chanName(UI.pad) + (chopOf(UI.pad) ? ' slices' : '') : BANKS[UI.bank]);
   return keyMeta(tl.lane).label + ' · ' + chanName(tlTarget());
 }
 function renderSeq(V) {
@@ -34,7 +34,9 @@ function renderSeq(V) {
   lb.innerHTML = `<b>${esc(laneTitle())}</b><i>▾</i>`; lb.setAttribute('aria-label', 'Choose lane'); lb.onclick = () => openLaneSheet(tgt); bar.append(lb);
   if (isNotes) bar.append(btn(tl.mode === 'bank' ? 'Bank' : chopOf(UI.pad) ? 'Chop' : 'Keys', () => { const k = tl.mode === 'bank'; tl.mode = k ? 'keys' : 'bank'; tl.sel = null; tl.sy = null; tl.cursor.row = k ? (chopOf(UI.pad) ? 0 : KEY_HI) : UI.pad % 16; renderView(); }, 'key sm'));
   bar.append(btn(SNAPS.find(s => s.t === tl.snap).l, () => { const i = SNAPS.findIndex(s => s.t === tl.snap); tl.snap = SNAPS[(i + 1) % SNAPS.length].t; savePrefs(); renderView(); }, 'key sm'));
-  bar.append(btn('−', () => zoomTL(1 / 1.5), 'key sm ic'), btn('+', () => zoomTL(1.5), 'key sm ic'));
+  const zoom = f => { if (UI.shift && isNotes) zoomV(f); else zoomTL(f); };   // Shift + zoom: row height
+  bar.append(btn('−', () => zoom(1 / 1.5), 'key sm ic'), btn('+', () => zoom(1.5), 'key sm ic'));
+  if (isNotes) bar.append(btn('Select', () => { tl.selMode = !tl.selMode; tl.box = null; renderView(); }, 'key sm selKey' + (tl.selMode ? ' on' : '')));
   if (!isNotes) bar.append(btn(IC.draw, () => { tl.draw = !tl.draw; renderView(); }, 'key sm ic' + (tl.draw ? ' on' : '')), btn(IC.shapes, openShapes, 'key sm ic'));
   const del = btn(IC.del, () => isNotes ? deleteSelNote() : autoCtl.del(), 'key sm ic warn'); del.setAttribute('aria-label', 'Delete'); bar.append(del);
   const wrap = h('div', 'scr tlwrap' + (UI.tlSlide ? ' slide' + UI.tlSlide : '')), cv = h('canvas', 'navc'); UI.tlSlide = 0; cv.setAttribute('aria-label', 'Timeline'); wrap.append(cv); w.append(bar, wrap); V.append(w);
