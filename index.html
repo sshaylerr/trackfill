@@ -377,6 +377,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 .li .lt{flex:1;min-width:0;text-align:left}
 .li .lt b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .li .lt span{display:block;font-family:var(--font-lcd);font-size:11px;font-weight:400;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fxli .sdot{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.6)} .fxli.off{opacity:.45} .fxPanel>.list{margin-bottom:4px}
 .li.on{border-color:var(--accent)} .li .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none}
 .tgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .tgrid button{height:44px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);font:700 12px var(--font-ui);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
@@ -3540,12 +3541,18 @@ function renderFx(V) {
     if (c < G0 && P.pads[c].frz) panel.append(h('p', 'note', 'This pad is frozen. Changing its effects unfreezes it.'));
   } else {
     panel.append(h('div', 'sec', 'Add a device to insert ' + (s + 1)));
-    const g = h('div', 'tgrid devgrid');
-    FX_DEFS.forEach((d, t) => { const full = t === FX_TYPES.DUCK && duckerCount() >= MAX_DUCKERS, lk = fxLook(t, 0);
-      const b = btn(`<b>${esc(d.name)}</b><i>${d.modes.length > 1 ? d.modes.length + ' modes' : '&nbsp;'}</i>` + (full ? ' (8 max)' : ''), () => { pushUndo('chan:' + c); const nf = newFx(t); if (t === FX_TYPES.DUCK) { const kick = P.pads.findIndex(p => p.sample === 'b:dkick' || p.sample === 'b:kick'); if (kick >= 0 && kick !== c) nf.trig = [kick]; }
-        C.fx.push(nf); UI.fxSlot = C.fx.length - 1; fxChanged(c); });
-      b.style.background = `linear-gradient(180deg,${lk.face},${lk.face2})`; b.style.color = lk.ink; b.style.boxShadow = `inset 0 -3px 0 ${lk.ring}, 0 2px 0 #050506`; b.disabled = full; g.append(b); });
-    panel.append(g, h('p', 'note', 'Every pad, group, bus, return and the master has 8 insert slots. Most devices have several modes; switch them on the device. Up to 8 duckers per project.'));
+    // one device per line, grouped, like every other menu: colour dot (the device's faceplate), name, and its modes or what it does
+    const add = t => { pushUndo('chan:' + c); const nf = newFx(t); if (t === FX_TYPES.DUCK) { const kick = P.pads.findIndex(p => p.sample === 'b:dkick' || p.sample === 'b:kick'); if (kick >= 0 && kick !== c) nf.trig = [kick]; }
+      C.fx.push(nf); UI.fxSlot = C.fx.length - 1; fxChanged(c); };
+    const ABOUT = { Ducker: 'ducks this channel when a pad plays or a sound gets loud', Utility: 'gain, pan, width, bass mono', Transient: 'more or less attack and sustain', Gate: 'cuts the sound below a threshold', Disperser: 'smears a band in time: zaps and thicker hits' };
+    const GROUPS = [['Tone', ['EQ', 'Filter', 'Saturation', 'Clipper', 'Bitcrush', 'Tape']], ['Dynamics', ['Compressor', 'Limiter', 'Multiband', 'Transient', 'Gate', 'Ducker']], ['Space and movement', ['Delay', 'Reverb', 'Chorus', 'Phaser', 'Disperser']], ['Utility', ['Utility']]];
+    const seen = new Set();
+    for (const [title, names] of GROUPS.concat([['More', FX_DEFS.map(d => d.name)]])) { const l = h('div', 'list');
+      for (const n of names) { const t = FX_DEFS.findIndex(d => d.name === n); if (t < 0 || seen.has(t)) continue; seen.add(t); const d = FX_DEFS[t], full = t === FX_TYPES.DUCK && duckerCount() >= MAX_DUCKERS, lk = fxLook(t, 0);
+        const li = h('div', 'li fxli' + (full ? ' off' : '')); li.innerHTML = `<span class="sdot" style="background:${lk.ring}"></span><div class="lt"><b>${esc(d.name)}</b><span>${esc(full ? 'all 8 duckers in use' : d.modes.length > 1 ? d.modes.map(m => m.n).join(' · ') : ABOUT[d.name] || '')}</span></div>`;
+        if (!full) li.onclick = () => add(t); l.append(li); }
+      if (l.children.length) panel.append(h('div', 'sec', title), l); }
+    panel.append(h('p', 'note', 'Every pad, group, bus, return and the master has 8 insert slots. Most devices have several modes; switch them on the device. Up to 8 duckers per project.'));
   }
   w.append(head, slots, panel); V.append(w);
 }
