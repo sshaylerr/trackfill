@@ -534,5 +534,36 @@ function demoProject() {
   C[MASTER].fx = [newFx(FX_TYPES.CLIP, { 1: .985, 2: .5 })]; C[MASTER].vol = .6;
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
+/* A deliberately maxed-out project for measuring performance: all 64 pads in use (drums, the break, keys and pads on
+   bank B, two banks of synths), dense patterns and big chords in every bar, heavy effects on every channel (oversampled
+   saturation, multiband squash, 48-stage disperser, huge reverbs, limiters) and automation moving all the time. */
+function stressProject() {
+  const p = jungleProject(), SPM = SPN(), S = p.scenes, q = 24, F = FX_TYPES; p.name = 'Stress test';
+  const add = (s, pi, t, len, pp = 0, v = .85) => { (S[s].notes[pi] = S[s].notes[pi] || []).push({ t, len, p: pp, v }); };
+  const syn = ['Supersaw', 'Reese', 'Hoover Bass', 'Juno Strings', 'Warm Pad', 'Trance Pad', 'Sweep Pad', 'Acid Line', 'Sync Lead', 'Brass Lead', 'Poly Stab', 'Rave Stab', '80s Poly Keys', 'House Chord', 'Wobble', 'Moog Bass',
+    'Trance Pluck', 'Pluck', 'Dark Pad', 'Ambient Drift', 'Trance Lead', 'Juno Bass', 'Sub', 'Noise Sweep', 'Laser Zap'];
+  syn.forEach((n, k) => { const pi = 28 + k; if (pi >= NPADS) return; const pr = SPM.SYN_PRESETS.find(x => x.n === n); if (!pr) return;
+    Object.assign(p.pads[pi], { name: n.slice(0, 12), src: 'synth', syn: SPM.synPatch(pr), mode: 'gate', color: k % 8, voice: pr.voice || 'poly', glide: pr.glide || 0, poly: 8 }); });
+  for (const sc of [0, 1]) Object.assign(S[sc], { bars: 4, repeat: 1 });
+  S[0].name = 'Stress A'; S[1].name = 'Stress B';
+  const chords = [[0, 3, 7, 10, 14], [-4, 0, 3, 7, 11], [-7, -4, 0, 3, 7], [-2, 2, 5, 9, 12]];
+  for (const s of [0, 1]) for (let b = 0; b < 4; b++) { const o = b * BAR, ch = chords[b];
+    for (let i = 0; i < 16; i++) { add(s, 0, o + i * q * 4 % BAR, 24); add(s, 5, o + i * q, 12, 0, .5); add(s, 6, o + i * q, 12, 0, .4); if (i % 4 === 2) add(s, 1, o + i * q, 24); if (i % 2) add(s, 2, o + i * q, 12, 0, .4); }
+    for (const pi of [16, 17, 18, 19, 20, 21, 31, 33, 34, 40, 41, 43, 44, 46, 48]) for (const n of ch) add(s, pi, o, BAR - 12, n, .7);   // big held chords
+    for (const pi of [29, 30, 35, 36, 42, 43, 44, 49, 50]) for (let i = 0; i < 16; i += 2) add(s, pi, o + i * q, 40, ch[i % ch.length] - 12, .8);   // busy lines
+    for (let i = 0; i < 16; i++) add(s, 45, o + i * q, 18, ch[i % ch.length] + 12, .75); }
+  // heavy effects on everything
+  const heavy = c => [newFx(F.SAT, { 0: .4 }, 1), newFx(F.MBAND, null, 1), newFx(F.DISP, { 0: 1 }), newFx(F.EQ, null, 2), newFx(F.CHORUS, null, 2)];
+  for (let c = 0; c < NPADS; c++) if (p.pads[c].sample || p.pads[c].src === 'synth') p.chans[c].fx = heavy(c).slice(0, c % 2 ? 5 : 3);
+  for (let g = G0; g < R0; g++) p.chans[g].fx = [newFx(F.COMP, null, 3), newFx(F.TAPE, null, 1), newFx(F.LIMIT, null, 1)];
+  for (let c = 28; c < NPADS; c++) p.chans[c].out = B0 + 1 + (c % 6);
+  p.chans[R0].fx = [newFx(F.DELAY, null, 1), newFx(F.REVERB, { 0: 1 }, 4)]; p.chans[R0 + 1].fx = [newFx(F.REVERB, { 0: 1 }, 1), newFx(F.REVERB, { 0: 1 }, 3)];
+  for (let c = 0; c < NPADS; c++) { p.chans[c].sa = .15; p.chans[c].sb = .2; p.chans[c].vol = .35; }
+  p.chans[MASTER].fx = [newFx(F.MBAND, null, 1), newFx(F.LIMIT, null, 1), newFx(F.CLIP, null, 1)];
+  // automation on many lanes at once (filters, sends, synth macros)
+  const lane = pts => pts.map(([t, v]) => ({ t, v, c: 0 }));
+  for (const s of [0, 1]) for (const c of [16, 17, 28, 29, 30, 31, 32, 33]) { S[s].auto[c + '.-2.0'] = lane([[0, .3], [2 * BAR, 1], [4 * BAR - 24, .4]]); S[s].auto[c + '.-1.2'] = lane([[0, 0], [4 * BAR - 24, .5]]); }
+  return p;
+}
+if (typeof module !== 'undefined') module.exports = { stressProject, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
   buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };

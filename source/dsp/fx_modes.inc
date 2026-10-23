@@ -19,7 +19,10 @@ static void hbInit() {
 }
 struct OS2 { float u[32], d[32]; u32 ui, di; };
 static inline float hbConv(const float* b, u32 idx) { float a = 0; for (i32 i = 0; i < HBN; i += 2) a += HB[i] * b[(idx - i) & 31]; return a + HB[15] * b[(idx - 15) & 31]; }
-static inline void osUp(OS2* o, float x, float* a, float* b) { o->u[o->ui & 31] = x; *a = 2.f * hbConv(o->u, o->ui); o->ui++; o->u[o->ui & 31] = 0.f; *b = 2.f * hbConv(o->u, o->ui); o->ui++; }
+// upsampling: the zero-stuffed half never needs multiplying, so keep only the real inputs (one per sample):
+// the even phase is the 16 even taps over them, the odd phase is just the centre tap on the input 7 back
+static inline void osUp(OS2* o, float x, float* a, float* b) { const u32 n = o->ui; o->u[n & 31] = x; float s = 0; for (i32 j = 0; j < 16; j++) s += HB[2 * j] * o->u[(n - j) & 31];
+  *a = 2.f * s; *b = 2.f * HB[15] * o->u[(n - 7) & 31]; o->ui = n + 1; }
 static inline float osDown(OS2* o, float a, float b) { o->d[o->di & 31] = a; o->di++; o->d[o->di & 31] = b; float y = hbConv(o->d, o->di); o->di++; return y; }
 
 /* ---------- small biquad (direct form I, per channel) for the newer effects ---------- */
@@ -471,11 +474,13 @@ static void fx_limit(Fx* f, float* L, float* R, i32 n) {
 }
 
 /* ================= Multiband: three bands (Linkwitz-Riley 24 dB), Classic and OTT ================= */
-struct MbSt { BQ2 lp1[2], hp1[2], lp2[2], hp2[2], alp[2], ahp[2]; float env[3], lastF[2]; };
+struct MbSt { BQ2 lp1[2], hp1[2], lp2[2], hp2[2], ap; float env[3], lastF[2], g[3]; i32 init; };
 static void mbXover(MbSt* m, float f1, float f2) {
   if (m->lastF[0] == f1 && m->lastF[1] == f2) return; m->lastF[0] = f1; m->lastF[1] = f2;
-  for (i32 k = 0; k < 2; k++) { bq2Set(&m->lp1[k], BQ_LP, f1, 0.7071f, 0); bq2Set(&m->hp1[k], BQ_HP, f1, 0.7071f, 0); bq2Set(&m->lp2[k], BQ_LP, f2, 0.7071f, 0); bq2Set(&m->hp2[k], BQ_HP, f2, 0.7071f, 0);
-    bq2Set(&m->alp[k], BQ_LP, f2, 0.7071f, 0); bq2Set(&m->ahp[k], BQ_HP, f2, 0.7071f, 0); }
+  for (i32 k = 0; k < 2; k++) { bq2Set(&m->lp1[k], BQ_LP, f1, 0.7071f, 0); bq2Set(&m->hp1[k], BQ_HP, f1, 0.7071f, 0); bq2Set(&m->lp2[k], BQ_LP, f2, 0.7071f, 0); bq2Set(&m->hp2[k], BQ_HP, f2, 0.7071f, 0); }
+  // the low band's phase match: an LR4 low + high pair summed is exactly one 2nd-order allpass at the same corner
+  float w = 6.28318531f * clampf(f2, 10.f, 0.45f * SR) / SR, al = fsin(w) / (2.f * 0.70710678f), a0 = 1.f + al;
+  m->ap.a1 = -2.f * fcos(w) / a0; m->ap.a2 = (1.f - al) / a0; m->ap.b0 = m->ap.a2; m->ap.b1 = m->ap.a1; m->ap.b2 = 1.f;
 }
 // Classic params: Low xover, High xover, Threshold, Ratio, Below thr, Below ratio, Attack, Release, Low gain, Mid gain, High gain, Output
 // OTT params:     Low xover, High xover, Depth, Time, Upward, Downward, In gain, Low gain, Mid gain, High gain, Out gain
@@ -488,24 +493,30 @@ static void fx_mband(Fx* f, float* L, float* R, i32 n) {
     ing = db2lin(linmap(s[6], -24, 24)); for (i32 b = 0; b < 3; b++) gb[b] = db2lin(linmap(s[7 + b], -24, 24)); outg = db2lin(linmap(s[10], -24, 24)); }
   else { thrA = linmap(s[2], -60, 0); rA = expmap(s[3], 1, 20); thrB = linmap(s[4], -80, -20); rB = expmap(s[5], 1, 4); atk = expmap(s[6], 0.0005f, 0.1f); rel = expmap(s[7], 0.01f, 1.f);
     for (i32 b = 0; b < 3; b++) gb[b] = db2lin(linmap(s[8 + b], -24, 24)); outg = db2lin(linmap(s[11], -24, 24)); }
-  const float aA = fexp(-1.f / (atk * SR)), aR = fexp(-1.f / (rel * SR)), slA = 1.f / rA - 1.f, slB = 1.f - 1.f / rB; float vis[3] = { 0, 0, 0 };
-  for (i32 i = 0; i < n; i++) {
-    float band[3][2];
-    for (i32 c = 0; c < 2; c++) { float x = (c ? R[i] : L[i]) * ing;
-      float lo = bq2(&m->lp1[1], c, bq2(&m->lp1[0], c, x)), rest = bq2(&m->hp1[1], c, bq2(&m->hp1[0], c, x));
-      float mid = bq2(&m->lp2[1], c, bq2(&m->lp2[0], c, rest)), hi = bq2(&m->hp2[1], c, bq2(&m->hp2[0], c, rest));
-      lo = bq2(&m->alp[1], c, bq2(&m->alp[0], c, lo)) + bq2(&m->ahp[1], c, bq2(&m->ahp[0], c, lo));   // the same split again, summed: an allpass that keeps the low band in phase with the other two
-      band[0][c] = lo; band[1][c] = mid; band[2][c] = hi; }
-    float yl = 0, yr = 0;
-    for (i32 b = 0; b < 3; b++) { float lv = maxf(fabsf_(band[b][0]), fabsf_(band[b][1])); m->env[b] = lv > m->env[b] ? lv + (m->env[b] - lv) * aA : lv + (m->env[b] - lv) * aR;
+  const float aA = fexp(-1.f / (atk * SR)), aR = fexp(-1.f / (rel * SR)), slA = 1.f / rA - 1.f, slB = 1.f - 1.f / rB;
+  enum { MBN = 64 };
+  float bd[3][2][MBN];
+  for (i32 o = 0; o < n; o += MBN) { const i32 nn = n - o < MBN ? n - o : MBN;
+    // 1) split into bands and follow each band's level sample by sample
+    for (i32 i = 0; i < nn; i++) {
+      for (i32 c = 0; c < 2; c++) { float x = (c ? R[o + i] : L[o + i]) * ing;
+        float lo = bq2(&m->lp1[1], c, bq2(&m->lp1[0], c, x)), rest = bq2(&m->hp1[1], c, bq2(&m->hp1[0], c, x));
+        bd[1][c][i] = bq2(&m->lp2[1], c, bq2(&m->lp2[0], c, rest)); bd[2][c][i] = bq2(&m->hp2[1], c, bq2(&m->hp2[0], c, rest)); bd[0][c][i] = bq2(&m->ap, c, lo); }
+      for (i32 b = 0; b < 3; b++) { float lv = maxf(fabsf_(bd[b][0][i]), fabsf_(bd[b][1][i])); m->env[b] = lv > m->env[b] ? lv + (m->env[b] - lv) * aA : lv + (m->env[b] - lv) * aR; }
+    }
+    // 2) gain curve once per block (the logs and exps), ramped smoothly across it
+    for (i32 b = 0; b < 3; b++) {
       float ld = lin2db(m->env[b] + 1e-9f), gd = 0;
       if (ld > thrA) gd = slA * (ld - thrA);                                   // downward above the top threshold
       else if (ld < thrB && ld > -80.f) gd = minf(slB * (thrB - ld), 30.f);   // upward below the bottom one (never lifts true silence)
-      if (fabsf_(gd) > fabsf_(vis[b])) vis[b] = gd;
-      float g = db2lin(gd) * gb[b]; yl += band[b][0] * g; yr += band[b][1] * g; }
-    L[i] = yl * outg; R[i] = yr * outg;
+      f->vis[b] = gd;
+      float g1 = db2lin(gd) * gb[b] * outg, g0 = m->init ? m->g[b] : g1, dg = (g1 - g0) / nn; m->g[b] = g1;
+      float* bl = bd[b][0]; float* br = bd[b][1];
+      if (b == 0) for (i32 i = 0; i < nn; i++) { g0 += dg; L[o + i] = bl[i] * g0; R[o + i] = br[i] * g0; }
+      else for (i32 i = 0; i < nn; i++) { g0 += dg; L[o + i] += bl[i] * g0; R[o + i] += br[i] * g0; }
+    }
+    m->init = 1;
   }
-  for (i32 b = 0; b < 3; b++) f->vis[b] = vis[b];
 }
 
 /* ================= Tape: Studio, Cassette, Worn ================= */
@@ -552,17 +563,29 @@ static void fx_gate(Fx* f, float* L, float* R, i32 n, const float* kL, const flo
 
 /* ================= Disperser: a chain of identical allpasses smears a band in time (zaps, lasers, thicker transients) ================= */
 enum { DSPN = 48 };
-struct DispSt { float z1[DSPN][2], z2[DSPN][2]; };
+// h1/h2[k] is the input history of stage k, which is also the output history of stage k-1: one shared pair per link,
+// so each allpass costs two multiplies (y = a2(x - y2) + a1(x1 - y1) + x2). Both channels run side by side.
+struct DispSt { float h1[DSPN + 1][2], h2[DSPN + 1][2]; };
 // params: Amount, Frequency, Pinch, Mix
 static void fx_disp(Fx* f, float* L, float* R, i32 n) {
   DispSt* d = (DispSt*)f->st; float* s = f->s; float st = 1.f + s[0] * (DSPN - 1); i32 ns = (i32)st; float frac = st - ns; if (ns >= DSPN) { ns = DSPN; frac = 0; }
   float fc = expmap(s[1], 20, 20000), Q = expmap(s[2], 0.2f, 8.f), mix = s[3];
+  if (mix < 0.0005f) return;
   float w = 6.28318531f * clampf(fc, 20.f, 0.45f * SR) / SR, al = fsin(w) / (2.f * Q), a0 = 1.f + al, a1 = -2.f * fcos(w) / a0, a2 = (1.f - al) / a0;
-  for (i32 c = 0; c < 2; c++) { float* x = c ? R : L;
-    for (i32 i = 0; i < n; i++) { float v = x[i], prev = v;
-      for (i32 k = 0; k < ns + (frac > 0.f ? 1 : 0) && k < DSPN; k++) { float y = a2 * v + d->z1[k][c]; d->z1[k][c] = a1 * v - a1 * y + d->z2[k][c]; d->z2[k][c] = v - a2 * y; prev = v; v = y; }
-      if (frac > 0.f && ns < DSPN) v = prev + (v - prev) * frac;
-      x[i] += (v - x[i]) * mix; } }
+  const i32 K = ns + (frac > 0.f ? 1 : 0) > DSPN ? DSPN : ns + (frac > 0.f ? 1 : 0);
+  float (*h1)[2] = d->h1, (*h2)[2] = d->h2;
+  for (i32 i = 0; i < n; i++) {
+    float vl = L[i], vr = R[i], pl = vl, pr = vr;
+    for (i32 k = 0; k < K; k++) {
+      float yl = a2 * (vl - h2[k + 1][0]) + a1 * (h1[k][0] - h1[k + 1][0]) + h2[k][0];
+      float yr = a2 * (vr - h2[k + 1][1]) + a1 * (h1[k][1] - h1[k + 1][1]) + h2[k][1];
+      h2[k][0] = h1[k][0]; h1[k][0] = vl; h2[k][1] = h1[k][1]; h1[k][1] = vr;
+      pl = vl; pr = vr; vl = yl; vr = yr;
+    }
+    h2[K][0] = h1[K][0]; h1[K][0] = vl; h2[K][1] = h1[K][1]; h1[K][1] = vr;
+    if (frac > 0.f && ns < DSPN) { vl = pl + (vl - pl) * frac; vr = pr + (vr - pr) * frac; }
+    L[i] += (vl - L[i]) * mix; R[i] += (vr - R[i]) * mix;
+  }
 }
 
 /* ================= Utility: bass mono (added to the original; extra param 3) ================= */
