@@ -260,6 +260,7 @@ function humanize(notes, opt, rnd, flip) {
     let vel = .86 + (isTop ? .08 * feel + .02 : 0) + (isBass ? .04 : 0) - (!isTop && !isBass ? .07 * feel : 0) + (rnd() - .5) * .1 * feel;
     out.push({ semi, vel: Math.max(.3, Math.min(1, vel)), ms: Math.max(0, ms) });
   });
+  const first = Math.min(...out.map(x => x.ms)); for (const x of out) x.ms -= first;   // the earliest note lands on the tap itself: feel only spreads the rest
   return out;
 }
 
