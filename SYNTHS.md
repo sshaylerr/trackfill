@@ -2,7 +2,7 @@
 
 Everything agreed for the synths, before building. One pass, designed together. Names in the app stay generic; inspirations are listed here only.
 
-**Status:** copy, paste and duplicate: done. Shared frame + Analog engine: first pass in the app. Not yet in this pass: 2× oversampling for Analog sync and FM (they run at 1×), the Unison spread modulation source, and global (shared) envelopes; LFOs already offer a shared free-running mode.
+**Status:** copy, paste and duplicate: done. Shared frame + Analog engine: first pass in the app. FM engine: first pass in the app (4 operators, 5 modes on any operator, 12 algorithms, 10 waves, 30 presets). Not yet in this pass: 2× oversampling for Analog sync and FM (they run at 1×; FM's saw, triangle and square use band-limited tables), the Unison spread modulation source, global (shared) envelopes, custom FM algorithms; LFOs already offer a shared free-running mode.
 
 Build order: copy, paste and duplicate first, then the synth frame with the Analog engine, then FM, Wavetable, Granular, then the Drum synth. Later: multisampled instruments, vocal tracks.
 
@@ -86,6 +86,14 @@ Inspired by the Korg opsix ("altered FM") more than the DX7.
 - Frame filter after the operators (MS-20-style Screamer etc.).
 - Faceplate: modern, dark, four vertical operator faders with ratio knobs above and coloured mode lights; screen shows the algorithm or a live scope.
 - **Presets:** E. Piano, Glass Keys, Bells, Marimba, Clav, Lately Bass, Organ, Neuro Growl, Folded Bass, Ring Lead, Filter-FM Snarl, Metallic Pluck, Glass Pad, Digital Brass, FM Kick, Laser Zap.
+
+**As built (first pass):**
+- Per operator: Mode (FM, Ring, Filter, Filter FM, Fold, on any operator), Wave (Sine, Digital, Triangle, Saw, Square, Sine 1+2, Sine 1+3, Saw 3, Square 3, Noise), Ratio (×0.5 to ×16) + Fine, or Fixed frequency, Level (the faders), Amount (what it does depends on the mode: Ring blend, filter type, filter-FM depth, fold drive), Resonance (filter modes), and its own ADSR. The op tab flips between Tone and Envelope views so each stays at 8 controls.
+- Mode details: Filter = resonant state-variable filter on its input, cutoff at the operator's frequency (so ratio and fixed frequency set it), Amount morphs low-pass → band-pass → high-pass. Filter FM = low-pass on its input with the cutoff swept at audio rate by the operator's own wave. Ring = multiplies its own wave by its input. Fold = phase-modulated wave driven into a sine folder.
+- Algorithms (op 1 bottom, op 4 top with feedback): Stack, Y, Fork, Two pairs, One to three, Stack + sine, Two into one + sine, Pair + two, Additive, Diamond, Three into one, Chain to two.
+- Algo tab: algorithm, FM depth, feedback, retrig, and the four operator levels; the screen draws the algorithm, coloured by mode, brightness = level.
+- Presets (30): Keys: E. Piano, Glass Keys, Clav, Drawbar Organ, FM Pluck. Bells and mallets: Bells, Marimba, Kalimba, Metallic Pluck. Bass: Lately Bass, Folded Bass, FM Sub, Ring Bass. Drum & bass: Neuro Growl, Reese FM, Jump Up Wobble, Foghorn, Donk, Tech Stab. Leads: Ring Lead, Digital Brass, Chip Lead, Filter-FM Snarl. Pads: Glass Pad, Breath Pad, Dark Drone. Drums and FX: FM Kick, FM Snare, Metal Hit, FM Laser.
+- Cost: about 0.7% of a desktop core per 4-operator voice, about 1% with Fold and Filter FM; Analog is 0.5–0.85%.
 
 ## Engine 3: Wavetable
 

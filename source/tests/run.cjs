@@ -175,6 +175,26 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     { const s = mk(SP.synPatch({ p: { o2l: .7, uni: 3, spr: .5 } }), { poly: 16 }); for (let k = 0; k < 16; k++) s.host.msg({ t: 'hit', pad: 20, semi: k - 8, vel: .8, tag: k + 1 });
       s.run(20); const t0 = Date.now(); s.run(375 * 2); const ms = Date.now() - t0; console.log(`    16 synth notes (2 osc, ladder, 3× unison): ${(ms / 20).toFixed(1)}% of real time on this machine`); ok(ms < 2000, 'synth processing stays well within real time'); }
   }
+  console.log('fm synth');
+  { const mk = (p, pad = {}) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject();
+      Q.chans.forEach(c => { c.fx = []; }); Object.assign(Q.pads[20], { src: 'synth', syn: p.eng ? p : SP.synPatch({ eng: 'fm', p: Object.assign({ flt: 'Off', dri: 0 }, p) }), mode: 'gate', voice: 'poly', poly: 16, glide: 0 }, pad); host.msg({ t: 'project', P: Q });
+      const L = new Float32Array(128), R = new Float32Array(128), run = n => { let e = 0, bad = 0, zc = 0, d = 0, last = 0; for (let i = 0; i < n; i++) { host.render(128, L, R); for (let j = 0; j < 128; j++) { const v = L[j]; if (!(v === v)) bad++; e += v * v; d += (v - last) * (v - last); if ((v > 0) !== (last > 0)) zc++; last = v; } } return { e: e / (n * 128), bad, zc, bright: d / Math.max(e, 1e-12) }; };
+      return { ex, host, run }; };
+    const hit = (s, semi = 0) => { s.host.msg({ t: 'hit', pad: 20, semi, vel: .9, tag: 1 }); s.run(20); };
+    { let bad = 0, silent = [], stuck = []; for (const pr of [SP.SYN_FM_INIT, ...SP.FM_PRESETS]) { const s = mk(SP.synPatch(pr), { voice: pr.voice || 'poly', glide: pr.glide || 0 });
+        [0, 4, 7].forEach((semi, i) => s.host.msg({ t: 'hit', pad: 20, semi, vel: .85, tag: 10 + i })); const a = s.run(375); [0, 1, 2].forEach(i => s.host.msg({ t: 'rel', tag: 10 + i, rel: .1 })); s.run(375 * 6);
+        bad += a.bad; if (a.e < 1e-7) silent.push(pr.n); if (s.ex.tf_voices()) stuck.push(pr.n); }
+      ok(!bad && !silent.length && !stuck.length, `all ${SP.FM_PRESETS.length} FM presets play, stay finite and release (${silent.length ? 'silent: ' + silent.join(', ') : ''}${stuck.length ? ' stuck: ' + stuck.join(', ') : ''})`); }
+    { const a = mk({ f1c: 1 }), b = mk({ f1c: 2 }), c = mk({ f1c: 1, f1f: .5 }); hit(a); hit(b); hit(c); const za = a.run(375).zc, zb = b.run(375).zc, zcc = c.run(375).zc;
+      ok(Math.abs(zb / za - 2) < .03 && Math.abs(zcc / za - 1.5) < .03, `operator ratios set the pitch (×2 → ${(zb / za).toFixed(2)}, ×1.5 → ${(zcc / za).toFixed(2)})`); }
+    { const plain = mk({ alg: 'Stack' }), fmd = mk({ alg: 'Stack', f2l: .7 }), add = mk({ alg: 'Additive', f2l: .7, f2c: 1 }); hit(plain); hit(fmd); hit(add); const p0 = plain.run(200), p1 = fmd.run(200), p2 = add.run(200);
+      ok(p1.bright > p0.bright * 3 && p2.e > p0.e * 1.5 && p2.bright < p0.bright * 1.5, `algorithms route operators: a modulator brightens (×${(p1.bright / p0.bright).toFixed(1)}), an extra carrier just adds level (×${(p2.e / p0.e).toFixed(1)})`); }
+    { const base = { alg: 'Stack', f2l: .6, f2c: 2 }, out = {}; for (const m of H.TF_OPMODES) { const s = mk(Object.assign({}, base, { f1m: m, f1t: .7 })); hit(s); out[m] = s.run(200); }
+      const distinct = H.TF_OPMODES.every((m, i) => H.TF_OPMODES.every((n, j) => i >= j || Math.abs(out[m].bright / out[n].bright - 1) > .05 || Math.abs(out[m].e / out[n].e - 1) > .05));
+      ok(distinct && H.TF_OPMODES.every(m => out[m].e > 1e-6 && !out[m].bad), 'every operator mode (FM, Ring, Filter, Filter FM, Fold) sounds and sounds different'); }
+    { const s = mk({ alg: 'Stack', f2l: .6, f3l: .6, f4l: .6, ffb: .4, f2m: 'Fold', f3m: 'Filter FM' }); for (let k = 0; k < 16; k++) s.host.msg({ t: 'hit', pad: 20, semi: k - 8, vel: .8, tag: k + 1 });
+      s.run(20); const t0 = Date.now(); s.run(375 * 2); const ms = Date.now() - t0; console.log(`    16 FM notes (4 operators, fold, filter FM, feedback): ${(ms / 20).toFixed(1)}% of real time on this machine`); ok(ms < 2000, 'FM processing stays well within real time'); }
+  }
   console.log('pitch bend');
   { // a sustained sample and a synth, bent up a full range of 12: both play an octave higher; automation drives it
     const zc = (x, a) => { let n = 0; for (let i = a + 1; i < x.length; i++) if ((x[i - 1] < 0) !== (x[i] < 0)) n++; return n; };

@@ -26,6 +26,9 @@ struct SVoice {
   float fz[2][4], fhp[2], fs1[2], fs2[2];                   // filter
   float hp1[2][2], hp2[2][2], ap[2];                        // sub split high-pass (two biquads) per channel, sub all-pass
   float nzlp, nzhp[2], nzx1, fb[2], fmz;                    // crunch tone, crunch high-pass (svf), ADAA memory, feedback, FM smoothing
+  // FM engine: operator phases, sample-and-hold noise, op 4 feedback memory, filter-mode state, operator envelopes
+  float fph[4][MAXUNI], fnz[4][MAXUNI], ffm[MAXUNI][2], fsv[4][MAXUNI][2];
+  i32 ost[4]; float oev[4], oet[4], oef[4], oamp[4];
   float cmb[2][CMB]; i32 cw;
 };
 static Patch* pat[NPAD];
@@ -57,7 +60,7 @@ EX void tf_syn_route(i32 pad, i32 k, i32 src, i32 dst, float amt, i32 curve, i32
 EX float tf_syn_map(i32 i, float n) { return i >= 0 && i < NSP ? spPhys(i, n) : 0.f; }   // for the tests
 
 /* ---------- voices ---------- */
-static void svRelease(SVoice* v) { if (!v->on || !v->held) return; v->held = 0; for (i32 e = 0; e < 3; e++) { v->st[e] = 3; v->et[e] = 0; v->ef[e] = v->ev[e]; } }
+static void svRelease(SVoice* v) { if (!v->on || !v->held) return; v->held = 0; for (i32 e = 0; e < 3; e++) { v->st[e] = 3; v->et[e] = 0; v->ef[e] = v->ev[e]; } for (i32 k = 0; k < 4; k++) { v->ost[k] = 3; v->oet[k] = 0; v->oef[k] = v->oev[k]; } }
 static void svKill(SVoice* v) { if (!v->on) return; svRelease(v); v->ef[0] = v->ev[0]; v->st[0] = 4; v->et[0] = 0; }   // stage 4: quick 3 ms fade (stolen or replaced)
 EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 tag, i32 chordN) {
   Patch* P = patch(pad); if (!P || !P->on) return -1;
@@ -83,7 +86,7 @@ EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 ta
   for (i32 i = 0; i < NSP; i++) v->m[i] = P->p[i];
   const i32 retrig = disc(P->p[SP_RET], 2);
   for (i32 o = 0; o < 3; o++) { for (i32 u = 0; u < MAXUNI; u++) v->ph[o][u] = retrig ? 0.f : (frnd(&svRng) + 1.f) * 0.5f; v->dr[o] = v->drT[o] = 0.f; }
-  if (!retrig) { v->sph = (frnd(&svRng) + 1.f) * 0.5f; }
+  if (!retrig) { v->sph = (frnd(&svRng) + 1.f) * 0.5f; for (i32 k = 0; k < 4; k++) for (i32 u = 0; u < MAXUNI; u++) v->fph[k][u] = (frnd(&svRng) + 1.f) * 0.5f; }
   for (i32 k = 0; k < 4; k++) { v->lph[k] = P->p[SP_L1P + k * 6]; v->ldone[k] = 0; }
   v->ampPrev = 0.f;   // sequencer offsets within a 16-sample block start at the block (under 0.4 ms)
   return slot;
@@ -107,6 +110,45 @@ static inline float oscWave(i32 w, float ph, float dt, float pw) {
     case 2: return 2.f * ph - 1.f - blep(ph, dt);
     case 3: pw = 0.5f; /* fall through */
     default: { float y = ph < pw ? 1.f : -1.f; y += blep(ph, dt); float t2 = ph - pw; if (t2 < 0) t2 += 1.f; y -= blep(t2, dt); return y; }
+  }
+}
+
+/* ---------- FM operator waves: tables (1024 points), band-limited ones mip-mapped by octave ---------- */
+enum { FTL = 1024, FMIP = 8 };
+static float* fmTab[NFMWAVE][FMIP]; static i32 fmReady = 0;
+static void fmInit() {
+  if (fmReady) return; fmReady = 1;
+  for (i32 w = 0; w < NFMWAVE; w++) { const i32 mip = w >= 2 && w <= 4;   // triangle, saw, square: one table per octave of allowed harmonics
+    for (i32 l = 0; l < (mip ? FMIP : 1); l++) { float* t = (float*)tf_malloc((FTL + 1) * 4); if (!t) return; i32 maxH = 256 >> l; float pk = 0;
+      for (i32 i = 0; i <= FTL; i++) { const float ph = (float)(i % FTL) / FTL, a = 6.28318531f * ph; float y = 0;
+        switch (w) {
+          case 0: y = fsin(a); break;
+          case 1: y = floorf_(fsin(a) * 7.f + 0.5f) / 7.f; break;                                            // digital: 4-bit steps (deliberately gritty)
+          case 2: for (i32 h = 1; h <= maxH; h += 2) y += ((h >> 1) & 1 ? -1.f : 1.f) * fsin(a * h) / (float)(h * h); break;
+          case 3: for (i32 h = 1; h <= maxH; h++) y += fsin(a * h) / (float)h; break;
+          case 4: for (i32 h = 1; h <= maxH; h += 2) y += fsin(a * h) / (float)h; break;
+          case 5: y = fsin(a) + 0.5f * fsin(2.f * a); break;
+          case 6: y = fsin(a) + 0.5f * fsin(3.f * a); break;
+          case 7: y = fsin(a) + fsin(2.f * a) / 2.f + fsin(3.f * a) / 3.f; break;
+          case 8: y = fsin(a) + fsin(3.f * a) / 3.f + fsin(5.f * a) / 5.f; break;
+          default: y = 0.f; }
+        t[i] = y; if (fabsf_(y) > pk) pk = fabsf_(y); }
+      if (pk > 0.f) for (i32 i = 0; i <= FTL; i++) t[i] /= pk;
+      for (i32 l2 = l; l2 < FMIP; l2++) fmTab[w][l2] = t; } }   // single-table waves share one table for every level
+}
+static inline float fexp2Fast(float x) {   // 2^x, about 0.01% error: plenty for an audio-rate cutoff sweep
+  x = clampf(x, -30.f, 30.f); float fl = floorf_(x), f = x - fl; float p = 1.f + f * (0.69606564f + f * (0.22449433f + f * 0.07944023f));
+  union { float f; i32 i; } u; u.f = p; u.i += (i32)fl << 23; return u.f; }
+static inline float fmLook(const float* t, float ph) { float x = ph * FTL; i32 i = (i32)x; float fr = x - i; return t[i] + (t[i + 1] - t[i]) * fr; }
+static void opEnvStep(SVoice* v, i32 k, const float* m, i32 b, float dt) {
+  float A = spPhys(b + 9, m[b + 9]), D = spPhys(b + 10, m[b + 10]), S = m[b + 11], R = spPhys(b + 12, m[b + 12]);
+  float& x = v->oev[k]; float& t = v->oet[k]; i32& st = v->ost[k]; t += dt;
+  switch (st) {
+    case 0: if (t >= A) { st = 1; t -= A; x = 1.f; } else { x = v->oef[k] + (1.f - v->oef[k]) * (t / A); break; } /* fall through */
+    case 1: if (t >= D) { st = 2; x = S; } else x = 1.f + (S - 1.f) * curve_frac(t / D, -0.6f); break;
+    case 2: x = S; break;
+    case 3: x = t >= R ? 0.f : v->oef[k] * (1.f - curve_frac(t / R, -0.6f)); if (t >= R) st = 5; break;
+    default: x = 0.f;
   }
 }
 
@@ -209,6 +251,18 @@ static void renderSynth(i32 n) {
       float semis = spPhys(b + 1, m[b + 1]) * 12.f + spPhys(b + 2, m[b + 2]) + spPhys(b + 3, m[b + 3]) * 0.01f + v->dr[o] * drift * 0.1f;
       inc[o] = clampf(f0 * fexp(semis * 0.0577622650f) / SR, 0.f, 0.45f); lvl[o] = m[b + 4]; pw[o] = spPhys(b + 5, m[b + 5]);
       if (o == 2 && disc(m[SP_O3X], 2)) lvl[o] = 0.f; if (lvl[o] > 0.0005f) nOn++; }
+    // FM engine: per-block operator setup (frequency, table, envelope → amplitude ramp, filter coefficients)
+    const i32 isFM = disc(m[SP_ENG], 2) == 1;
+    i32 opOn = 0, oMode[4], alg = 0; const float* oT[4]; float oInc[4], oA0[4], oDA[4], oAmt[4], oG[4], oK[4], oFc[4], fmS = 0, fbA = 0; i32 oNz[4];
+    if (isFM) { fmInit(); nOn = 1; alg = disc(m[SP_ALG], NALG); fmS = m[SP_FMD] * 2.f; fbA = m[SP_FFB] * m[SP_FFB] * 0.9f;
+      for (i32 k = 0; k < 4; k++) { const i32 b = SP_F1M + k * FSTRIDE; const float lv = m[b + 6], l2 = lv * lv;
+        oMode[k] = disc(m[b], NOPMODE); i32 w = disc(m[b + 1], NFMWAVE); oNz[k] = w == 9;
+        float c = spPhys(b + 2, m[b + 2]), ratio = (c < 0.5f ? 0.5f : c) * (1.f + m[b + 3]);
+        float hz = disc(m[b + 4], 2) ? spPhys(b + 5, m[b + 5]) : f0 * ratio; oInc[k] = clampf(hz / SR, 0.f, 0.49f);
+        i32 lvl = 0; { float H = 0.45f * SR / maxf(hz, 1.f); while (lvl < FMIP - 1 && (256 >> lvl) > H) lvl++; } oT[k] = fmTab[w][lvl] ? fmTab[w][lvl] : fmTab[0][0];
+        float e = 0.f; if (l2 > 1e-7f) { opEnvStep(v, k, m, b, dt); e = v->oev[k]; } else v->oev[k] = 0.f;
+        const float a1o = e * l2; oA0[k] = v->oamp[k]; oDA[k] = (a1o - oA0[k]) / n; v->oamp[k] = a1o; if (a1o > 1e-7f || oA0[k] > 1e-7f) opOn |= 1 << k;
+        oAmt[k] = m[b + 7]; oFc[k] = clampf(hz, 20.f, 0.45f * SR); oG[k] = ftan(3.14159265f * oFc[k] / SR); oK[k] = 2.f - 1.96f * m[b + 8]; } }
     const i32 sync = disc(m[SP_O2Y], 2); const float fm = m[SP_O2M];
     const i32 U = (i32)spPhys(SP_UNI, m[SP_UNI]); const float det = m[SP_DET], spr = U > 1 ? m[SP_SPR] : 0.f, ug = 1.f / sqrtf_((float)U);
     float dm[MAXUNI], panL[MAXUNI], panR[MAXUNI];
@@ -239,7 +293,33 @@ static void renderSynth(i32 n) {
     const i32 chans = stereo ? 2 : 1;
     for (i32 i = 0; i < n; i++) {
       float amp = a0 + da * (i + 1), sL = 0, sR = 0;
-      if (nOn) for (i32 u = 0; u < U; u++) {
+      if (isFM) for (i32 u = 0; u < U; u++) {   // four operators, top (op 4) down: each feeds the ones its algorithm lists, carriers are heard
+        float in[4] = { 0, 0, 0, 0 }, x = 0;
+        for (i32 k = 3; k >= 0; k--) { float& ph = v->fph[k][u]; const float ik = in[k], inc = oInc[k] * dm[u];
+          if (!((opOn >> k) & 1)) { ph += inc; ph -= floorf_(ph); continue; }
+          const float amp = oA0[k] + oDA[k] * (i + 1); float y;
+          const i32 md = oMode[k];
+          if (md == 2) {   // Filter: a resonant filter on whatever feeds it (Amount: low-pass → band-pass → high-pass)
+            float* z = v->fsv[k][u]; const float g = oG[k], kq = oK[k], a1 = 1.f / (1.f + g * (g + kq)), a2 = g * a1, a3 = g * a2, v3 = ik - z[1], v1 = a1 * z[0] + a2 * v3, v2 = z[1] + a2 * z[0] + a3 * v3;
+            z[0] = 2.f * v1 - z[0]; z[1] = 2.f * v2 - z[1]; const float lp = v2, bp = v1, hp = ik - kq * bp - lp, sh = oAmt[k];
+            y = (sh < 0.5f ? lp + (bp - lp) * sh * 2.f : bp + (hp - bp) * (sh - 0.5f) * 2.f) * amp;
+          } else if (md == 3) {   // Filter FM: the operator's own wave sweeps a low-pass on its input at audio rate (Amount: depth)
+            const float o = oNz[k] ? v->fnz[k][u] : fmLook(oT[k], ph), fc = minf(oFc[k] * fexp2Fast(o * oAmt[k] * 3.f), 0.45f * SR), w = 3.14159265f * fc / SR, g = w * (1.f + w * w * 0.3333f);
+            float* z = v->fsv[k][u]; const float kq = oK[k], a1 = 1.f / (1.f + g * (g + kq)), a2 = g * a1, a3 = g * a2, v3 = ik - z[1], v1 = a1 * z[0] + a2 * v3, v2 = z[1] + a2 * z[0] + a3 * v3;
+            z[0] = 2.f * v1 - z[0]; z[1] = 2.f * v2 - z[1]; y = v2 * amp;
+          } else {   // FM, Ring and Fold: an oscillator (phase-modulated by its input, except in Ring)
+            float pm = md == 1 ? 0.f : ik * fmS; if (k == 3 && fbA > 0.f) pm += fbA * (v->ffm[u][0] + v->ffm[u][1]) * 0.5f;
+            float pp = ph + pm; pp -= floorf_(pp); float o = oNz[k] ? v->fnz[k][u] : fmLook(oT[k], pp);
+            if (md == 4) { float fp = o * (1.f + oAmt[k] * 7.f) * 0.25f; fp -= floorf_(fp); o = fmLook(fmTab[0][0], fp); }          // Fold: drive into a sine folder
+            else if (md == 1) o *= 1.f - oAmt[k] + oAmt[k] * ik * 2.f;                // Ring: multiply by the input (Amount: how much)
+            y = o * amp; }
+          if (k == 3) { v->ffm[u][1] = v->ffm[u][0]; v->ffm[u][0] = y; }
+          ph += inc; if (ph >= 1.f) { ph -= floorf_(ph); if (oNz[k]) v->fnz[k][u] = frnd(&svRng); }
+          const u8 tg = algTgt[alg][k]; if (tg) { if (tg & 1) in[0] += y; if (tg & 2) in[1] += y; if (tg & 4) in[2] += y; }
+          if ((algCar[alg] >> k) & 1) x += y; }
+        sL += x * panL[u]; sR += x * panR[u];
+      }
+      else if (nOn) for (i32 u = 0; u < U; u++) {
         float x = 0;
         // osc 2 first (it can modulate osc 1)
         float o2 = 0, ph1 = v->ph[0][u], i1 = inc[0] * dm[u], i2 = inc[1] * dm[u];
