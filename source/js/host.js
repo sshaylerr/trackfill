@@ -10,6 +10,63 @@
 const TF = { PPQ: 96, BAR: 384, NCH: 83, NPAD: 64, G0: 64, B0: 72, R0: 80, MASTER: 82, NSLOT: 8, SUB: 16,
   ARP_TAG: 1 << 24, FRZ_TAG: 1 << 20, PREVIEW_TAG: (1 << 20) - 1, CLICK_TAG: (1 << 20) - 2 };
 
+/* ---------- synth parameters: the single list the engine (generated header), host and UI all use ----------
+   [id, label, kind, a, b, default, tab]   kinds: lin a..b · exp a..b · int a..b · opt (a = labels) · bip -1..1 scaled to a..b · db (a..b dB, engine gets gain)
+   Patches store physical values by id; the engine works on 0..1 per parameter so modulation is uniform. */
+const TF_WAVES = ['Sine', 'Triangle', 'Saw', 'Square', 'Pulse'];
+const TF_LFO_DIVS = [['4 bars', 16], ['2 bars', 8], ['1 bar', 4], ['1/2', 2], ['1/2 D', 3], ['1/2 T', 4 / 3], ['1/4', 1], ['1/4 D', 1.5], ['1/4 T', 2 / 3], ['1/8', .5], ['1/8 D', .75], ['1/8 T', 1 / 3], ['1/16', .25], ['1/16 T', 1 / 6], ['1/32', .125]];
+const TFSYN = (() => {
+  const L = [], osc = (n, def) => { const o = 'o' + n;
+    L.push([o + 'w', 'Wave', 'opt', TF_WAVES, 0, def.w, o], [o + 'o', 'Octave', 'int', -2, 2, def.o || 0, o], [o + 's', 'Semi', 'lin', -12, 12, def.s || 0, o], [o + 'f', 'Fine', 'lin', -100, 100, def.f || 0, o],
+      [o + 'l', 'Level', 'lin', 0, 1, def.l, o], [o + 'p', 'Width', 'lin', .05, .95, .5, o]); };
+  osc(1, { w: 'Saw', l: .8 }); osc(2, { w: 'Saw', l: 0, f: 7 }); L.push(['o2y', 'Sync', 'opt', ['Off', 'On'], 0, 'Off', 'o2'], ['o2m', 'FM', 'lin', 0, 1, 0, 'o2']);
+  osc(3, { w: 'Square', l: 0, o: -1 }); L.push(['o3x', 'Mode', 'opt', ['Audio', 'LFO'], 0, 'Audio', 'o3'], ['o3r', 'LFO rate', 'exp', .05, 20, 2, 'o3']);
+  L.push(['dri', 'Drift', 'lin', 0, 1, .15, 'vo'], ['ret', 'Retrig', 'opt', ['Off', 'On'], 0, 'On', 'vo'], ['fbk', 'Feedback', 'lin', 0, 1, 0, 'vo'], ['uni', 'Unison', 'int', 1, 7, 1, 'vo'],
+    ['det', 'Detune', 'lin', 0, 1, .25, 'vo'], ['spr', 'Spread', 'lin', 0, 1, .6, 'vo'], ['vel', 'Velocity', 'lin', 0, 1, .5, 'vo'], ['pit', 'Pitch', 'lin', -24, 24, 0, 'vo'], ['gan', 'Level', 'db', -24, 6, 0, 'vo']);
+  L.push(['sbl', 'Sub', 'lin', 0, 1, 0, 'sb'], ['sbo', 'Octave', 'opt', ['−1 oct', '−2 oct'], 0, '−1 oct', 'sb'], ['sbw', 'Wave', 'opt', ['Sine', 'Triangle', 'Square'], 0, 'Sine', 'sb'],
+    ['spl', 'Split', 'lin', 0, 1, 0, 'sb'], ['spn', 'Split below', 'int', 24, 96, 96, 'sb']);
+  L.push(['nzn', 'Noise', 'lin', 0, 1, .7, 'nz'], ['nzt', 'Tone', 'lin', 0, 1, .6, 'nz'], ['nzb', 'Body', 'lin', 0, 1, .5, 'nz'], ['nzd', 'Drive', 'lin', 0, 1, .4, 'nz'],
+    ['nzh', 'High-pass', 'exp', 100, 12000, 1500, 'nz'], ['nzl', 'Level', 'lin', 0, 1, 0, 'nz'], ['nzo', 'Body oct', 'opt', ['0', '−1 oct', '−2 oct'], 0, '−1 oct', 'nz'], ['nzk', 'Track', 'opt', ['Off', 'On'], 0, 'Off', 'nz']);
+  L.push(['flt', 'Filter', 'opt', ['Off', 'Clean', 'Ladder', 'Diode', 'Screamer', 'Formant', 'Comb'], 0, 'Ladder', 'fl'], ['cut', 'Cutoff', 'exp', 20, 20000, 6000, 'fl'], ['res', 'Resonance', 'lin', 0, 1, .15, 'fl'],
+    ['drv', 'Drive', 'lin', 0, 1, 0, 'fl'], ['fen', 'Env 2', 'bip', -1, 1, 0, 'fl'], ['key', 'Key track', 'lin', 0, 1, .3, 'fl'], ['shp', 'Shape', 'lin', 0, 1, 0, 'fl']);
+  for (const [e, n, dA, dD, dS, dR] of [['a', 'Amp', .002, .4, 1, .25], ['2', 'Env 2', .002, .35, 0, .3], ['3', 'Env 3', .002, .5, 0, .5]])
+    L.push([e + 'a', 'Attack', 'exp', .0005, 10, dA, 'e' + e], [e + 'd', 'Decay', 'exp', .005, 10, dD, 'e' + e], [e + 's', 'Sustain', 'lin', 0, 1, dS, 'e' + e], [e + 'r', 'Release', 'exp', .005, 15, dR, 'e' + e],
+      [e + 'c', 'Att curve', 'bip', -1, 1, 0, 'e' + e], [e + 'k', 'Curve', 'bip', -1, 1, -.5, 'e' + e]);
+  for (let k = 1; k <= 4; k++) L.push(['l' + k + 'y', 'Sync', 'opt', ['Free', 'Sync'], 0, 'Sync', 'l' + k], ['l' + k + 'r', 'Rate', 'exp', .02, 40, 2, 'l' + k],
+    ['l' + k + 'd', 'Rate', 'opt', TF_LFO_DIVS.map(d => d[0]), 0, '1/4', 'l' + k], ['l' + k + 'm', 'Mode', 'opt', ['Retrig', 'Free', 'One-shot'], 0, 'Retrig', 'l' + k],
+    ['l' + k + 'o', 'Smooth', 'lin', 0, 1, 0, 'l' + k], ['l' + k + 'p', 'Phase', 'lin', 0, 1, 0, 'l' + k]);
+  for (let k = 1; k <= 4; k++) L.push(['m' + k, 'Macro ' + k, 'lin', 0, 1, 0, 'mc']);
+  return L.map(([id, l, k, a, b, d, tab], i) => ({ i, id, l, k, a, b, d, tab }));
+})();
+const TFSYN_ID = Object.fromEntries(TFSYN.map(p => [p.id, p]));
+// modulation sources, in engine order
+const TF_SRC = ['Amp env', 'Env 2', 'Env 3', 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4', 'Velocity', 'Note', 'Random', 'Alternate', 'Osc 3', 'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4'];
+function tfSynNorm(p, v) {
+  if (v == null) v = p.d;
+  switch (p.k) {
+    case 'opt': { const i = typeof v === 'number' ? v : p.a.indexOf(v); return p.a.length > 1 ? Math.max(0, i) / (p.a.length - 1) : 0; }
+    case 'exp': return Math.max(0, Math.min(1, Math.log(Math.max(p.a, Math.min(p.b, v)) / p.a) / Math.log(p.b / p.a)));
+    default: return Math.max(0, Math.min(1, (v - p.a) / (p.b - p.a)));
+  }
+}
+function tfSynPhys(p, n) {
+  n = Math.max(0, Math.min(1, n));
+  switch (p.k) {
+    case 'opt': return p.a[Math.round(n * (p.a.length - 1))];
+    case 'int': return Math.round(p.a + (p.b - p.a) * n);
+    case 'exp': return p.a * Math.pow(p.b / p.a, n);
+    default: return p.a + (p.b - p.a) * n;
+  }
+}
+// a drawn LFO shape: points {x, y, c} (x, y in 0..1, c = curve to the next point) → 256 values in -1..1
+function tfLfoTable(pts) {
+  const out = new Float32Array(256), P = (pts && pts.length ? pts : [{ x: 0, y: .5, c: 0 }, { x: .25, y: 1, c: 0 }, { x: .75, y: 0, c: 0 }]).slice().sort((a, b) => a.x - b.x);
+  for (let i = 0; i < 256; i++) { const x = i / 256; let a = P[P.length - 1], b = P[0], ax = a.x - 1, bx = b.x;
+    for (let k = 0; k < P.length; k++) { if (P[k].x <= x) { a = P[k]; ax = a.x; b = P[k + 1] || P[0]; bx = P[k + 1] ? b.x : b.x + 1; } }
+    const f = bx - ax > 1e-6 ? (x - ax) / (bx - ax) : 0; out[i] = (a.y + (b.y - a.y) * tfCurve(Math.max(0, Math.min(1, f)), a.c || 0)) * 2 - 1; }
+  return out;
+}
+
 /* ---------- shared math (must match engine.cpp) ---------- */
 function tfBezFast(x, w) {
   const k = 2 - 2 * w, A = x * k - 1, B = -x * k, C = x; let d = B * B - 4 * A * C; if (d < 0) d = 0;
@@ -140,6 +197,7 @@ class TFHost {
       case 'hit': this.hit(m); break;
       case 'arp': this.arpStart(m); break;
       case 'arpStop': this.arps.delete(m.tag); break;
+      case 'synp': { const pad = P.pads[m.pad], p = TFSYN_ID[m.id]; if (pad && pad.syn && p) { pad.syn.p[m.id] = m.v; this.ex.tf_syn_param(m.pad, p.i, tfSynNorm(p, m.v)); } break; }
       case 'rel': this.ex.tf_voice_release(m.tag, m.rel); for (const e of this.heap.a) if (e.k === 5 && e.tag === m.tag) e.dead = 1; break;
       case 'live': if (m.on) this.live.add(m.key); else this.live.delete(m.key); break;
       case 'param': tfSetBase(P, m.key, m.v); this.applyKey(m.key, m.v); break;
@@ -173,6 +231,7 @@ class TFHost {
     if (this.frozen(i)) { this.ex.tf_ch_set(i, 5, 20000); this.ex.tf_ch_set(i, 6, 0.707); }
     else { this.applyKey(i + '.-2.0', p.cut); this.applyKey(i + '.-2.1', p.res); }
     this.syncChan(i);
+    this.syncSynth(i);
   }
   syncMutes() {
     const P = this.P, C = P.chans, any = C.some(c => c.solo), keep = new Set();
@@ -208,8 +267,22 @@ class TFHost {
     if (id) this.sm.set(key, { id, frames, sr }); else ex.tf_free(ptr);
   }
   removeSample(key) { const e = this.sm.get(key); if (e) { this.ex.tf_sample_remove(e.id); this.sm.delete(key); } }
+  /* ---------- synth pads: push the patch into the engine (parameters 0..1, drawn LFOs as tables, routes) ---------- */
+  syncSynth(pi) {
+    const ex = this.ex, pad = this.P.pads[pi]; if (!ex.tf_syn_on) return;
+    const on = !!(pad && pad.src === 'synth' && pad.syn); if (!on) { if (this.synOn && this.synOn[pi]) ex.tf_syn_on(pi, 0); if (this.synOn) this.synOn[pi] = 0; return; }
+    (this.synOn = this.synOn || [])[pi] = 1; const S = pad.syn;
+    for (const p of TFSYN) ex.tf_syn_param(pi, p.i, tfSynNorm(p, S.p ? S.p[p.id] : undefined));
+    for (let k = 0; k < 4; k++) { const ptr = ex.tf_syn_lfo(pi, k); if (ptr) new Float32Array(ex.memory.buffer, ptr, 256).set(tfLfoTable(S.lfo && S.lfo[k])); }
+    const mods = (S.mods || []).filter(r => TFSYN_ID[r.d] && r.s >= 0 && r.s < TF_SRC.length).slice(0, 32); ex.tf_syn_routes(pi, mods.length);
+    mods.forEach((r, k) => ex.tf_syn_route(pi, k, r.s, TFSYN_ID[r.d].i, r.a || 0, r.c || 0, r.v == null ? -1 : r.v));
+    ex.tf_syn_voice(pi, ['poly', 'mono', 'legato'].indexOf(pad.voice || 'poly'), pad.poly || 8, pad.glide || 0);
+    ex.tf_syn_on(pi, 1);
+  }
   voice(pi, off, semi, vel, gateSec, tag, chordN = 0) {
-    const pad = this.P.pads[pi]; if (!pad || !pad.sample) return;
+    const pad0 = this.P.pads[pi];
+    if (pad0 && pad0.src === 'synth' && pad0.syn) { this.ex.tf_syn_note(pi, off, semi + (pad0.pitch || 0) + (pad0.fine || 0) / 100, vel, gateSec, tag, chordN); return; }
+    const pad = pad0; if (!pad || !pad.sample) return;
     const e = this.sm.get(pad.sample); if (!e) return;
     const ex = this.ex, ch = pad.chop, chopped = ch && ch.on && ch.pts.length, loop = pad.mode === 'loop' && !chopped, gate = pad.mode === 'gate' || loop ? gateSec : -1; let start = pad.start, end = pad.end, vm = pad.voice || 'poly';
     if (chopped) {   // chopped: the note number picks a slice; choke cuts the slice before it
@@ -294,7 +367,7 @@ class TFHost {
   }
   runArps(end) {
     for (const [tag, a] of this.arps) {
-      const pad = this.P.pads[a.pi]; if (!pad || !pad.sample) { this.arps.delete(tag); continue; }
+      const pad = this.P.pads[a.pi]; if (!pad || !(pad.sample || pad.src === 'synth')) { this.arps.delete(tag); continue; }
       while (a.next < end) {
         const T = a.next, off = Math.max(0, Math.min(end - this.now - 1, Math.floor(T - this.now))), pos = this.tickAt(T);
         const tps = pos ? pos.tps : this.P.bpm * TF.PPQ / 60 / this.sr, stepF = a.rate / tps, lenF = stepF * a.gate;
@@ -352,7 +425,7 @@ class TFHost {
       const { nt, pi, n } = ix[j], pad = this.P.pads[pi], ducks = this.duck[pi];
       if (n.f) { n.f = 0; if (freshOk) continue; }
       const time = time0 + (nt - t0) / tps;
-      if (!this.frozen(pi) && pad && pad.sample) this.heap.push({ time, k: 0, pi, semi: n.p, vel: n.v, gate: n.len / tps / this.sr });
+      if (!this.frozen(pi) && pad && (pad.sample || pad.src === 'synth')) this.heap.push({ time, k: 0, pi, semi: n.p, vel: n.v, gate: n.len / tps / this.sr });
       if (ducks) for (const d of ducks) this.heap.push({ time: time - d.la, k: 1, c: d.c, s: d.s });
     }
   }
@@ -433,4 +506,4 @@ async function tfRenderOffline(module, P, samples, opts) {
   }
   return { L, R, sr };
 }
-if (typeof module !== 'undefined') module.exports = { TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

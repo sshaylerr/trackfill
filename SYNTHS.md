@@ -2,6 +2,8 @@
 
 Everything agreed for the synths, before building. One pass, designed together. Names in the app stay generic; inspirations are listed here only.
 
+**Status:** copy, paste and duplicate: done. Shared frame + Analog engine: first pass in the app. Not yet in this pass: 2× oversampling for Analog sync and FM (they run at 1×), the Unison spread modulation source, and global (shared) envelopes; LFOs already offer a shared free-running mode.
+
 Build order: copy, paste and duplicate first, then the synth frame with the Analog engine, then FM, Wavetable, Granular, then the Drum synth. Later: multisampled instruments, vocal tracks.
 
 ## Design rules for every synth

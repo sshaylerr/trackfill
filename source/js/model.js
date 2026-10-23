@@ -253,6 +253,10 @@ function jungleProject() {
   Object.assign(C[19], { sb: .35, vol: .45 }); Object.assign(C[20], { sb: .3, vol: .42 }); Object.assign(C[21], { sa: .3, sb: .25, vol: .45 }); Object.assign(C[22], { sb: .35, sa: .2, vol: .5 }); Object.assign(C[23], { vol: .35 });
   Object.assign(C[12], { sb: .3, vol: .5 }); Object.assign(C[13], { sb: .3, vol: .5 }); Object.assign(C[15], { vol: .55 });
   C[R0 + 1].fx = [newFx(FX_TYPES.REVERB, { 0: 1, 2: .5 }, 2)];
+  // bank B, second row: a few synth pads to try (Analog engine)
+  const SPM = SPN(); if (SPM.SYN_PRESETS) [['Reese', 24, 3], ['Supersaw', 25, 4], ['Trance Pluck', 26, 0], ['Juno Strings', 27, 5]].forEach(([n, pi, col]) => { const pr = SPM.SYN_PRESETS.find(x => x.n === n); if (!pr) return;
+    Object.assign(p.pads[pi], { name: n.slice(0, 12), src: 'synth', syn: SPM.synPatch(pr), mode: 'gate', color: col, voice: pr.voice || 'poly', glide: pr.glide != null ? pr.glide : .08, poly: 8 });
+    if (pr.fx) C[pi].fx = pr.fx.map(f => newFx(f.type, null, f.mode || 0)); Object.assign(C[pi], { sb: .25, vol: .5 }); });
   C[MASTER].fx = [newFx(FX_TYPES.LIMIT, null, 0)]; C[MASTER].vol = .62;
   return p;
 }
@@ -398,7 +402,7 @@ function defaultChan(c) {
 }
 // tempo: the sound's own tempo in BPM (0 = off); when set, it is repitched to follow the project tempo.
 // chop: slices of the sound. Notes on a chopped pad carry the slice number in 'p' instead of a pitch.
-function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08 }; }
+function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08, src: 'sample', syn: null }; }
 
 /* ---------- chopping ---------- */
 const MAX_SLICES = 16;
@@ -463,6 +467,7 @@ function migrate(src) {
 }
 function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : (v === v ? v : 0); }
 // harmony helpers live in harmony.js (one script with this file in the app; a require in the tests)
+const SPN = () => typeof normalizeSyn === 'function' ? { normalizeSyn, SYN_PRESETS, synPatch } : require('./synthpresets.js');
 const HMN = () => typeof normalizeKx === 'function' ? { normalizeKx, normalizeKey, PROGS, chordPads, voiceChord } : require('./harmony.js');
 function normalize(p) {
   const n = newProject(true); Object.assign(n, p); n.v = PROJECT_VERSION;
@@ -470,6 +475,7 @@ function normalize(p) {
   n.pads = Array.from({ length: NPADS }, (_, i) => { const d = Object.assign(defaultPad(i), (p.pads || [])[i] || {});
     d.tempo = +d.tempo > 0 ? Math.min(300, Math.max(20, +d.tempo)) : 0;
     d.kx = d.kx ? HMN().normalizeKx(d.kx) : null;
+    d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : 'sample';
     d.mode = ['one', 'gate', 'loop'].includes(d.mode) ? d.mode : 'one'; d.loopS = clamp01(+d.loopS || 0); d.xf = Math.max(0, Math.min(1, d.xf == null ? .08 : +d.xf || 0));   // Keys view settings: notes, scale or chords (null until first changed)
     d.voice = ['poly', 'mono', 'legato'].includes(d.voice) ? d.voice : 'poly'; d.poly = Math.max(1, Math.min(16, Math.round(+d.poly) || 8)); d.glide = Math.max(0, Math.min(1, +d.glide || 0));
     if (d.chop) { const c = Object.assign(newChop(), d.chop); c.by = ['t', 'e', 'm'].includes(c.by) ? c.by : 't'; c.div = Math.max(2, Math.min(MAX_SLICES, Math.round(+c.div) || 16)); c.sens = clamp01(+c.sens);
