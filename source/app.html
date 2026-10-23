@@ -561,7 +561,7 @@ const duckerCount = () => P.chans.reduce((n, c) => n + c.fx.filter(f => f.type =
 /* ================= state ================= */
 let P = null;
 const UI = { theme: 'amber', padStyle: 'dark', view: 'pads', bank: 0, pad: 0, scene: 0, keys: false, oct: 0, keyCell: 0, panel: false, shift: false, fine: 0, mirror: false, sheet: false,
-  tl: { mode: 'bank', lane: 'notes', target: null, zoom: null, sx: 0, sy: null, snap: 24, sel: null, selPt: -1, draw: false, cursor: { t: 0, row: 0, v: .5 } },
+  tl: { mode: 'bank', lane: 'notes', target: null, zoom: null, sx: 0, sy: null, by: 0, rv: 16, kh: 24, snap: 24, sel: null, ms: null, selMode: false, box: null, selPt: -1, draw: false, cursor: { t: 0, row: 0, v: .5 } },
   snd: 0, slice: 0, click: 'rec', countIn: 1, clickVol: .5, mixPage: 0, mixSel: 0, fxCh: 0, fxSlot: 0, fxBack: 'mix', regs: [], autoRec: null, haptics: true };
 const T = { playing: false, rec: false, loop: 'scene' };
 let COL = {}, FONT_LCD = 'monospace', FONT_UI = 'sans-serif';
@@ -1020,12 +1020,13 @@ function padUp(cell) {
 const TL = { cv: null, cx: null, W: 0, H: 0, dpr: 1, drag: null, lastTap: { t: 0, o: null } };
 const tlLen = () => sceneLen(UI.scene);
 const tlTarget = () => UI.tl.target == null ? UI.pad : UI.tl.target;
-const rowH = () => UI.tl.mode === 'bank' ? Math.max(18, (TL.H - RULER_H) / 16) : KEY_H;
+const rowH = () => UI.tl.mode === 'bank' ? Math.max(18, (TL.H - RULER_H) / (UI.tl.rv || 16)) : (UI.tl.kh || KEY_H);   // vertical zoom: rows on screen (bank) or key height
 const maxRow = () => UI.tl.mode === 'bank' ? 15 : KR.rows() - 1;
 const t2x = t => LABEL_W + (t - UI.tl.sx) * UI.tl.zoom;
 const x2t = x => (x - LABEL_W) / UI.tl.zoom + UI.tl.sx;
-const row2y = r => RULER_H + r * rowH() - (UI.tl.mode === 'keys' ? UI.tl.sy : 0);
-const y2row = y => Math.floor((y - RULER_H + (UI.tl.mode === 'keys' ? UI.tl.sy : 0)) / rowH());
+const vOff = () => UI.tl.mode === 'keys' ? UI.tl.sy : (UI.tl.by || 0);
+const row2y = r => RULER_H + r * rowH() - vOff();
+const y2row = y => Math.floor((y - RULER_H + vOff()) / rowH());
 const snapT = t => { const s = UI.tl.snap; return s ? Math.round(t / s) * s : fixT(t); };
 const tlStep = () => UI.tl.snap || 6;
 const nudgeStep = () => UI.fine === 2 ? 0.001 / spt() : UI.fine === 1 ? 6 : tlStep();
@@ -1035,8 +1036,14 @@ function lanePts(create) { const sc = P.scenes[UI.scene], k = UI.tl.lane; if (!s
 function cleanLane() { const sc = P.scenes[UI.scene]; if (sc.auto[UI.tl.lane] && !sc.auto[UI.tl.lane].length) delete sc.auto[UI.tl.lane]; }
 function tlClamp() { const tl = UI.tl; if (!tl.zoom) tl.zoom = (TL.W - LABEL_W) / (Math.min(P.scenes[UI.scene].bars, 4) * BAR);
   const vis = (TL.W - LABEL_W) / tl.zoom; tl.sx = clamp(tl.sx, 0, Math.max(0, tlLen() - vis));
-  if (tl.mode === 'keys') { const ck = !!KR.chop(); if (tl.syChop !== ck) { tl.sy = null; tl.syChop = ck; }
-    const total = KR.rows() * KEY_H, viewH = TL.H - RULER_H; if (tl.sy == null) tl.sy = ck ? 0 : (KEY_HI - 6) * KEY_H - viewH / 2; tl.sy = clamp(tl.sy, 0, Math.max(0, total - viewH)); } }
+  const viewH = TL.H - RULER_H;
+  if (tl.mode === 'keys') { const ck = !!KR.chop(), kh = rowH(); if (tl.syChop !== ck) { tl.sy = null; tl.syChop = ck; }
+    const total = KR.rows() * kh; if (tl.sy == null) tl.sy = ck ? 0 : (KEY_HI - 6) * kh - viewH / 2; tl.sy = clamp(tl.sy, 0, Math.max(0, total - viewH)); }
+  else tl.by = clamp(tl.by || 0, 0, Math.max(0, 16 * rowH() - viewH)); }
+// vertical zoom (Shift + the zoom keys, or pinch): keeps the middle row in place
+function zoomV(f) { const tl = UI.tl, viewH = TL.H - RULER_H, mid = (vOff() + viewH / 2) / rowH();
+  if (tl.mode === 'bank') tl.rv = clamp(Math.round((tl.rv || 16) / f * 100) / 100, 4, 16); else tl.kh = clamp((tl.kh || KEY_H) * f, 14, 56);
+  const v = mid * rowH() - viewH / 2; if (tl.mode === 'bank') tl.by = v; else tl.sy = v; drawTL(); }
 function zoomTL(f) { const tl = UI.tl, mid = x2t(LABEL_W + (TL.W - LABEL_W) / 2); tl.zoom = clamp(tl.zoom * f, (TL.W - LABEL_W) / (tlLen() * 1.02), 3); tl.sx = mid - (TL.W - LABEL_W) / 2 / tl.zoom; drawTL(); }
 function sizeTL() { if (!TL.cv) return; const r = TL.cv.parentNode.getBoundingClientRect(); TL.dpr = window.devicePixelRatio || 1; TL.W = r.width; TL.H = r.height;
   TL.cv.width = Math.round(r.width * TL.dpr); TL.cv.height = Math.round(r.height * TL.dpr); drawTL(); }
@@ -1072,8 +1079,15 @@ function drawNotesLane(g) {
     if (g.roundRect) g.roundRect(x1, y + 2, w, rh - 4, 3); else g.rect(x1, y + 2, w, rh - 4); g.fill(); g.globalAlpha = 1;
     if (selected) { g.strokeStyle = NAV.held ? COL.accent : COL.ink; g.lineWidth = 2; g.stroke();
       if (NAV.held) { g.globalAlpha = .25; g.fillStyle = COL.accent; g.fill(); g.globalAlpha = 1; g.fillStyle = COL.accent; g.fillRect(x1 + w - 4, y + 1, 4, rh - 2); } } };
-  if (tl.mode === 'bank') { for (let r = 0; r < 16; r++) { const pi = UI.bank * 16 + r; for (const n of sc.notes[pi] || []) drawNote(n, pi, r, tl.sel && tl.sel.n === n); } }
-  else { const pi = UI.pad; for (const n of sc.notes[pi] || []) { const r = KR.row(n.p); if (r >= 0 && r < rows) drawNote(n, pi, r, tl.sel && tl.sel.n === n); } }
+  const SEL = new Set(selItems().map(x => x.n));
+  if (tl.mode === 'bank') { g.font = '600 9.5px ' + FONT_LCD; g.textBaseline = 'middle';
+    for (let r = 0; r < 16; r++) { const pi = UI.bank * 16 + r, arr = (sc.notes[pi] || []).slice().sort((a, b) => a.t - b.t); for (const n of arr) drawNote(n, pi, r, SEL.has(n));
+      for (let i = 0; i < arr.length;) { let j = i + 1; while (j < arr.length && arr[j].t - arr[i].t < STACK_T) j++;   // a chord stack: one block with a count
+        if (j - i > 1) { const x = t2x(arr[i].t), y = row2y(r); if (x > LABEL_W && x < W && y + rh > RULER_H && y < H && rh >= 14) { g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(x + 2, y + 3, 17, Math.min(12, rh - 6)); g.fillStyle = COL.ink; g.fillText('×' + (j - i), x + 4, y + 3 + Math.min(12, rh - 6) / 2); } }
+        i = j; } } }
+  else { const pi = UI.pad; for (const n of sc.notes[pi] || []) { const r = KR.row(n.p); if (r >= 0 && r < rows) drawNote(n, pi, r, SEL.has(n)); } }
+  const box = TL.drag && TL.drag.kind === 'box' ? [TL.drag.x0, TL.drag.y0, TL.drag.x, TL.drag.y] : tl.box ? [t2x(Math.min(tl.box.t, tl.cursor.t)), row2y(Math.min(tl.box.row, tl.cursor.row)), t2x(Math.max(tl.box.t, tl.cursor.t) + tlStep()), row2y(Math.max(tl.box.row, tl.cursor.row) + 1)] : null;
+  if (box) { const [a, b, c2, d2] = box; g.fillStyle = COL.accent; g.globalAlpha = .12; g.fillRect(Math.min(a, c2), Math.min(b, d2), Math.abs(c2 - a), Math.abs(d2 - b)); g.globalAlpha = 1; g.setLineDash([4, 3]); g.strokeStyle = COL.accent; g.lineWidth = 1.5; g.strokeRect(Math.min(a, c2) + .5, Math.min(b, d2) + .5, Math.abs(c2 - a), Math.abs(d2 - b)); g.setLineDash([]); }
   if (NAV.mode === 'canvas' && !tl.sel) { const c = tl.cursor, y = row2y(c.row), x = t2x(c.t); g.setLineDash([4, 3]); g.strokeStyle = COL.accent; g.lineWidth = 1.5; g.strokeRect(x + .5, y + 1.5, Math.max(6, tlStep() * tl.zoom) - 1, rh - 3); g.setLineDash([]); }
   g.fillStyle = COL.raised; g.fillRect(0, RULER_H, LABEL_W, H); g.font = '500 11px ' + FONT_LCD; g.textBaseline = 'middle';
   for (let r = 0; r < rows; r++) { const y = row2y(r); if (y + rh < RULER_H || y > H) continue;
@@ -1110,6 +1124,28 @@ function drawAutoLane(g) {
   if (tgt < G0) g.fillText('notes', 6, RULER_H + STRIP_H / 2);
   for (const v of [1, .5, 0]) g.fillText(String(meta.fmt(v)).replace(' dB', '').replace(' ', '').slice(0, 8), 4, v2y(v));
 }
+/* ---------- note selection: one note, a whole chord stack (bank view), or a group (Select) ----------
+   tl.sel is the anchor note; tl.ms holds the group when there is more than one. Every edit acts on selItems(). */
+const STACK_T = 12;   // notes on one pad starting within a 32nd are one stack (strummed chords included)
+function stackOf(pi, n) { return (P.scenes[UI.scene].notes[pi] || []).filter(m => Math.abs(m.t - n.t) < STACK_T).map(m => ({ pi, n: m })); }
+function selItems() { const tl = UI.tl; if (!tl.sel) return []; const sc = P.scenes[UI.scene], ok = x => (sc.notes[x.pi] || []).includes(x.n);
+  if (!ok(tl.sel)) { tl.sel = null; tl.ms = null; return []; } if (tl.ms && tl.ms.length) { tl.ms = tl.ms.filter(ok); if (tl.ms.length > 1) return tl.ms; tl.ms = null; } return [tl.sel]; }
+function selectNote(pi, n) { const tl = UI.tl; tl.ms = null; if (tl.mode === 'bank') { const st = stackOf(pi, n); if (st.length > 1) { tl.ms = st; tl.sel = st.find(x => x.n === n); return; } } tl.sel = { pi, n }; }
+function setGroup(items) { const tl = UI.tl; tl.ms = items.length > 1 ? items : null; tl.sel = items[0] || null; }
+function clearSel() { UI.tl.sel = null; UI.tl.ms = null; }
+function notesInBox(t0, t1, r0, r1) { const sc = P.scenes[UI.scene], tl = UI.tl, out = [], ta = Math.min(t0, t1), tb = Math.max(t0, t1), ra = Math.min(r0, r1), rb = Math.max(r0, r1);
+  if (tl.mode === 'bank') { for (let r = Math.max(0, ra); r <= Math.min(15, rb); r++) { const pi = UI.bank * 16 + r; for (const n of sc.notes[pi] || []) if (n.t + n.len > ta && n.t < tb) out.push({ pi, n }); } }
+  else { const pi = UI.pad; for (const n of sc.notes[pi] || []) { const r = KR.row(n.p); if (r >= ra && r <= rb && n.t + n.len > ta && n.t < tb) out.push({ pi, n }); } }
+  return out.sort((a, b) => a.n.t - b.n.t); }
+const selRowOf = s => UI.tl.mode === 'bank' ? s.pi - UI.bank * 16 : KR.row(s.n.p);
+function moveSelRows(d) { const tl = UI.tl, sc = P.scenes[UI.scene], items = selItems(); if (!items.length) return 0; const rows = items.map(selRowOf), max = tl.mode === 'bank' ? 15 : KR.rows() - 1;
+  d = clamp(d, -Math.min(...rows), max - Math.max(...rows)); if (!d) return 0;
+  for (const x of items) { if (tl.mode === 'bank') { const npi = x.pi + d, arr = sc.notes[x.pi]; arr.splice(arr.indexOf(x.n), 1); if (!arr.length) delete sc.notes[x.pi]; touchPad(npi); (sc.notes[npi] = sc.notes[npi] || []).push(x.n); x.pi = npi; }
+    else x.n.p = KR.p(KR.row(x.n.p) + d); }
+  if (tl.mode === 'bank') UI.pad = tl.sel.pi; audition(tl.sel.pi, tl.sel.n.p); return d; }
+function deleteSel() { const items = selItems(); if (!items.length) { toast('Select a note first'); return; } pushUndo('scene:' + UI.scene); const sc = P.scenes[UI.scene];
+  for (const x of items) { touchPad(x.pi); const arr = sc.notes[x.pi]; if (!arr) continue; const i = arr.indexOf(x.n); if (i >= 0) arr.splice(i, 1); if (!arr.length) delete sc.notes[x.pi]; }
+  clearSel(); afterEdit(); }
 function tlLocal(e) { const r = TL.cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
 function hitNote(x, y) {
   const sc = P.scenes[UI.scene], r = y2row(y), tl = UI.tl; if (r < 0 || r > maxRow()) return null;
@@ -1121,26 +1157,34 @@ function hitNote(x, y) {
 function addNoteAt(t, row) {
   const sc = P.scenes[UI.scene], len = tlLen(), tl = UI.tl; pushUndo('scene:' + UI.scene); let pi, p = 0;
   if (tl.mode === 'bank') pi = UI.bank * 16 + row; else { pi = UI.pad; p = KR.p(row); }
-  touchPad(pi); const n = { t: clamp(t, 0, len - 1), len: tl.snap || 24, p, v: .85 }; (sc.notes[pi] = sc.notes[pi] || []).push(n); tl.sel = { pi, n };
+  touchPad(pi); const n = { t: clamp(t, 0, len - 1), len: tl.snap || 24, p, v: .85 }; (sc.notes[pi] = sc.notes[pi] || []).push(n); tl.ms = null; tl.sel = { pi, n };
   if (tl.mode === 'bank') UI.pad = pi; audition(pi, p); afterEdit(); return n;
 }
-function deleteSelNote() { const s = UI.tl.sel; if (!s) { toast('Select a note first'); return; } pushUndo('scene:' + UI.scene); touchPad(s.pi);
-  const arr = P.scenes[UI.scene].notes[s.pi]; if (arr) { const i = arr.indexOf(s.n); if (i >= 0) arr.splice(i, 1); if (!arr.length) delete P.scenes[UI.scene].notes[s.pi]; } UI.tl.sel = null; afterEdit(); }
+const deleteSelNote = () => deleteSel();
 function moveNoteRow(s, d) { const tl = UI.tl, sc = P.scenes[UI.scene];
   if (tl.mode === 'bank') { const row = clamp(s.pi - UI.bank * 16 + d, 0, 15), npi = UI.bank * 16 + row; if (npi === s.pi) return; touchPad(npi);
     const arr = sc.notes[s.pi]; arr.splice(arr.indexOf(s.n), 1); if (!arr.length) delete sc.notes[s.pi]; (sc.notes[npi] = sc.notes[npi] || []).push(s.n); s.pi = npi; UI.pad = npi; audition(npi, s.n.p); }
   else { const np = KR.p(clamp(KR.row(s.n.p) + d, 0, KR.rows() - 1)); if (np !== s.n.p) { s.n.p = np; audition(s.pi, np); } } }
 function afterEdit() { syncScene(UI.scene); markDirty(); drawTL(); renderScenes(); updatePanel(); }
 function bindTL(cv) {
+  const ptrs = new Map();   // every finger on the timeline: one finger edits, two fingers zoom and scroll
+  const startPinch = () => { const d = TL.drag; if (d && d.pushed) { const e = UNDO.pop(); if (e) scopeSet(e.scope, JSON.parse(e.data)); }   // a one-finger edit that turned into a pinch is undone
+    TL.drag = null; const [a, b] = [...ptrs.values()], tl = UI.tl;
+    TL.pinch = { dx0: Math.abs(a.x - b.x), dy0: Math.abs(a.y - b.y), cx0: (a.x + b.x) / 2, cy0: (a.y + b.y) / 2, zoom0: tl.zoom, sx0: tl.sx, rh0: rowH(), v0: vOff(), rv0: tl.rv || 16, kh0: tl.kh || KEY_H }; };
   cv.addEventListener('pointerdown', e => {
-    if (TL.drag) return; e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} ensureAudio(); const { x, y } = tlLocal(e), tl = UI.tl;
-    const base = { id: e.pointerId, x0: x, y0: y, sx0: tl.sx, sy0: tl.sy, moved: false };
+    e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} ensureAudio(); const { x, y } = tlLocal(e), tl = UI.tl; ptrs.set(e.pointerId, { x, y });
+    if (ptrs.size === 2 && tl.lane === 'notes') { startPinch(); drawTL(); return; } if (ptrs.size > 1 || TL.pinch || TL.drag) return;
+    const base = { id: e.pointerId, x0: x, y0: y, x, y, sx0: tl.sx, sy0: tl.sy, by0: tl.by, moved: false };
     if (y < RULER_H) { TL.drag = Object.assign(base, { kind: 'pan' }); return; }
     if (tl.lane === 'notes') {
       if (x < LABEL_W) { TL.drag = Object.assign(base, { kind: 'label' }); return; }
-      const hit = hitNote(x, y);
-      if (hit) { tl.sel = { pi: hit.pi, n: hit.n }; if (tl.mode === 'bank') UI.pad = hit.pi; TL.drag = Object.assign(base, { kind: hit.edge ? 'resize' : 'move', hit, t0: hit.n.t, len0: hit.n.len, row0: y2row(y), p0: hit.n.p, pushed: false }); drawTL(); updatePanel(); return; }
-      TL.drag = Object.assign(base, { kind: 'empty' }); return;
+      const hit = hitNote(x, y), SEL = new Set(selItems().map(q => q.n));
+      if (hit) { const inSel = SEL.has(hit.n);
+        if (!inSel) { if (tl.selMode && tl.sel) setGroup([...selItems(), ...(tl.mode === 'bank' ? stackOf(hit.pi, hit.n) : [{ pi: hit.pi, n: hit.n }])]); else selectNote(hit.pi, hit.n); }
+        if (tl.mode === 'bank') UI.pad = hit.pi;
+        const items = selItems().map(q => ({ q, t: q.n.t, len: q.n.len }));
+        TL.drag = Object.assign(base, { kind: hit.edge ? 'resize' : 'move', hit, items, wasSel: inSel, t0: hit.edge ? hit.n.t : Math.min(...items.map(it => it.t)), len0: hit.n.len, row0: y2row(y), rowShift: 0, pushed: false }); drawTL(); updatePanel(); return; }
+      TL.drag = Object.assign(base, { kind: tl.selMode ? 'box' : 'empty' }); return;
     }
     if (x < LABEL_W) { TL.drag = Object.assign(base, { kind: 'pan' }); return; }
     const pts = lanePts(false) || []; let hi = -1, best = 20; pts.forEach((p, i) => { const d = Math.hypot(t2x(p.t) - x, v2y(p.v) - y); if (d < best) { best = d; hi = i; } });
@@ -1151,16 +1195,23 @@ function bindTL(cv) {
     TL.drag = Object.assign(base, { kind: 'empty' });
   });
   cv.addEventListener('pointermove', e => {
-    const d = TL.drag; if (!d || e.pointerId !== d.id) return; const { x, y } = tlLocal(e), tl = UI.tl, len = tlLen();
+    if (!ptrs.has(e.pointerId)) return; const { x, y } = tlLocal(e), tl = UI.tl; ptrs.set(e.pointerId, { x, y });
+    const pz = TL.pinch; if (pz) { if (ptrs.size < 2) return; const [a, b] = [...ptrs.values()], dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+      if (pz.dx0 > 40) { const z = clamp(pz.zoom0 * dx / pz.dx0, (TL.W - LABEL_W) / (tlLen() * 1.02), 3), tm = pz.sx0 + (pz.cx0 - LABEL_W) / pz.zoom0; tl.zoom = z; tl.sx = tm - (cx - LABEL_W) / z; }
+      else tl.sx = pz.sx0 - (cx - pz.cx0) / tl.zoom;
+      if (pz.dy0 > 40) { const f = dy / pz.dy0; if (tl.mode === 'bank') tl.rv = clamp(pz.rv0 / f, 4, 16); else tl.kh = clamp(pz.kh0 * f, 14, 56); }
+      const row = (pz.v0 + pz.cy0 - RULER_H) / pz.rh0, v = row * rowH() - (cy - RULER_H); if (tl.mode === 'bank') tl.by = v; else tl.sy = v; drawTL(); return; }
+    const d = TL.drag; if (!d || e.pointerId !== d.id) return; const len = tlLen(); d.x = x; d.y = y;
     if (!d.moved && Math.hypot(x - d.x0, y - d.y0) > 7) d.moved = true; if (!d.moved) return;
+    if (d.kind === 'box') { drawTL(); return; }
     if ((d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') && tl.lane === 'notes' && tl.mode === 'bank' && d.axis == null && d.y0 >= RULER_H) d.axis = Math.abs(y - d.y0) > Math.abs(x - d.x0) * 1.3 ? 'v' : 'h';
     if (d.axis === 'v') return;   // a vertical swipe in Bank view flips banks (on release), like the mixer's pages
     if (d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') { if (d.kind !== 'label') d.kind = 'pan'; tl.sx = d.sx0 - (x - d.x0) / tl.zoom; if (tl.mode === 'keys' && tl.lane === 'notes') tl.sy = d.sy0 - (y - d.y0); drawTL(); return; }
-    if (d.kind === 'move' || d.kind === 'resize') { if (!d.pushed) { pushUndo('scene:' + UI.scene); touchPad(d.hit.pi); d.pushed = true; } const n = d.hit.n, dt = (x - d.x0) / tl.zoom;
-      if (d.kind === 'move') { n.t = clamp(snapT(d.t0 + dt), 0, len - .01); const dr = y2row(y) - d.row0;
-        if (tl.mode === 'bank') { const cur = d.hit.pi - UI.bank * 16, want = clamp(d.row0 + dr, 0, 15); if (want !== cur) moveNoteRow(tl.sel, want - cur); d.hit.pi = tl.sel.pi; }
-        else { const np = KR.p(clamp(KR.row(d.p0) + dr, 0, KR.rows() - 1)); if (np !== n.p) { n.p = np; audition(d.hit.pi, np); } } }
-      else { const s = tl.snap || 1; n.len = clamp(snapT(d.t0 + d.len0 + dt) - n.t, s, len - n.t); }
+    if (d.kind === 'move' || d.kind === 'resize') { if (!d.pushed) { pushUndo('scene:' + UI.scene); d.items.forEach(it => touchPad(it.q.pi)); d.pushed = true; } const dt = (x - d.x0) / tl.zoom;
+      if (d.kind === 'move') { const shift = snapT(d.t0 + dt) - d.t0, lo = -Math.min(...d.items.map(it => it.t)), hi = Math.min(...d.items.map(it => len - .01 - it.t)), sh = clamp(shift, lo, hi);
+        for (const it of d.items) it.q.n.t = fixT(it.t + sh);
+        const want = y2row(y) - d.row0; if (want !== d.rowShift) d.rowShift += moveSelRows(want - d.rowShift); }
+      else { const st = tl.snap || 1, dl = snapT(d.t0 + d.len0 + dt) - (d.t0 + d.len0); for (const it of d.items) it.q.n.len = clamp(fixT(it.len + dl), st, len - it.q.n.t); }
       drawTL(); updatePanel(); return; }
     if (d.kind === 'pt') { if (!d.pushed) { pushUndo('scene:' + UI.scene); d.pushed = true; } const pts = lanePts(true), p = pts[d.i], lo = d.i > 0 ? pts[d.i - 1].t + .01 : 0, hi2 = d.i < pts.length - 1 ? pts[d.i + 1].t - .01 : len;
       p.t = clamp(snapT(x2t(x)), lo, hi2); p.v = Math.round(y2v(y) * 1000) / 1000; drawTL(); updatePanel(); return; }
@@ -1170,14 +1221,21 @@ function bindTL(cv) {
     if (d.kind === 'draw') { const t = clamp(x2t(x), 0, len), last = d.pts[d.pts.length - 1]; if (Math.abs(t2x(t) - t2x(last.t)) >= 3) d.pts.push({ t, v: y2v(y) }); drawTL(); }
   });
   const up = e => {
+    if (!ptrs.has(e.pointerId)) return; ptrs.delete(e.pointerId);
+    if (TL.pinch) { if (!ptrs.size) TL.pinch = null; return; }   // the pinch ends when every finger has lifted
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; TL.drag = null; const tl = UI.tl, { x, y } = tlLocal(e), now = Date.now();
+    if (d.kind === 'box') { if (!d.moved) { clearSel(); drawTL(); updatePanel(); return; }
+      setGroup(notesInBox(x2t(d.x0), x2t(x), y2row(d.y0), y2row(y))); if (tl.sel && tl.mode === 'bank') UI.pad = tl.sel.pi; drawTL(); updatePanel(); return; }
     if (d.axis === 'v') { const dy = y - d.y0; if (Math.abs(dy) > 40) tlBank(UI.bank + (dy < 0 ? 1 : -1), 'swipe'); else drawTL(); return; }
     if (d.kind === 'label' && !d.moved) { const r = y2row(y); if (r >= 0 && r <= maxRow()) { if (tl.mode === 'bank') { UI.pad = UI.bank * 16 + r; UI.tl.target = null; audition(UI.pad); } else audition(UI.pad, KR.p(r)); } drawTL(); updatePanel(); return; }
     if (d.kind === 'empty' && !d.moved) {
       if (tl.lane === 'notes') { const r = y2row(y); if (r >= 0 && r <= maxRow()) { const s = tl.snap, t = s ? Math.floor(x2t(x) / s) * s : fixT(x2t(x)); if (t < tlLen()) addNoteAt(t, r); } }
       else { const t = clamp(snapT(x2t(x)), 0, tlLen()); pushUndo('scene:' + UI.scene); const pts = lanePts(true); pts.push({ t, v: Math.round(y2v(y) * 1000) / 1000, c: 0 }); pts.sort((a, b) => a.t - b.t); tl.selPt = pts.findIndex(p => p.t === t); afterEdit(); }
       TL.lastTap = { t: now, o: null }; return; }
-    if ((d.kind === 'move' || d.kind === 'resize') && !d.moved) { if (TL.lastTap.o === d.hit.n && now - TL.lastTap.t < 350) { tl.sel = { pi: d.hit.pi, n: d.hit.n }; deleteSelNote(); TL.lastTap = { t: 0, o: null }; return; }
+    if ((d.kind === 'move' || d.kind === 'resize') && !d.moved) {
+      if (TL.lastTap.o === d.hit.n && now - TL.lastTap.t < 350) { deleteSel(); TL.lastTap = { t: 0, o: null }; return; }   // double tap deletes the selection
+      if (d.wasSel && tl.selMode && tl.ms) { setGroup(selItems().filter(q => tl.mode === 'bank' ? !stackOf(d.hit.pi, d.hit.n).some(z => z.n === q.n) : q.n !== d.hit.n)); drawTL(); updatePanel(); }   // Select: tap a selected note to drop it
+      else if (d.wasSel && !tl.selMode && tl.ms && tl.mode === 'keys') { selectNote(d.hit.pi, d.hit.n); drawTL(); }
       TL.lastTap = { t: now, o: d.hit.n }; audition(d.hit.pi, d.hit.n.p); return; }
     if (d.kind === 'pt' && !d.moved) { const pts = lanePts(false), p = pts && pts[d.i]; if (p && TL.lastTap.o === p && now - TL.lastTap.t < 350) { autoCtl.del(); TL.lastTap = { t: 0, o: null }; return; } TL.lastTap = { t: now, o: p }; return; }
     if (d.kind === 'draw') { finishDraw(d.pts); return; }
@@ -1549,28 +1607,40 @@ function noteAtCursor() { const c = UI.tl.cursor, st = tlStep(), sc = P.scenes[U
   let n = row.find(n => n.t >= c.t - 1e-6 && n.t < c.t + st);
   if (!n) n = row.filter(n => n.t < c.t + st && n.t + n.len > c.t + 1e-6).sort((a, b) => b.t - a.t)[0];
   return n ? { pi, n } : null; }
-function tlEnsure() { const tl = UI.tl, c = tl.cursor; let t = c.t, row = c.row; if (tl.sel) { t = tl.sel.n.t; row = tl.mode === 'bank' ? tl.sel.pi - UI.bank * 16 : KR.row(tl.sel.n.p); }
+function tlEnsure() { const tl = UI.tl, c = tl.cursor; let t = c.t, row = c.row; if (tl.sel) { t = tl.sel.n.t; row = tl.mode === 'bank' ? tl.sel.pi - UI.bank * 16 : KR.row(tl.sel.n.p); } else if (tl.box) { t = tl.cursor.t; row = tl.cursor.row; }
   if (tl.lane !== 'notes' && tl.selPt >= 0) { const pts = lanePts(false); if (pts && pts[tl.selPt]) t = pts[tl.selPt].t; }
   const x = t2x(t); if (x < LABEL_W + 8) tl.sx = t - 8 / tl.zoom; else if (x > TL.W - 30) tl.sx = t - (TL.W - LABEL_W - 40) / tl.zoom;
-  if (tl.mode === 'keys' && tl.lane === 'notes') { const y = row * KEY_H - tl.sy, vh = TL.H - RULER_H; if (y < 0) tl.sy = row * KEY_H; else if (y > vh - KEY_H) tl.sy = row * KEY_H - vh + KEY_H; } drawTL(); }
+  if (tl.lane === 'notes') { const rh = rowH(), y = row * rh - vOff(), vh = TL.H - RULER_H, set = v => { if (tl.mode === 'keys') tl.sy = v; else tl.by = v; };
+    if (y < 0) set(row * rh); else if (y > vh - rh) set(row * rh - vh + rh); } drawTL(); }
 const noteCtl = {
   hasSel() { return !!UI.tl.sel; },
-  heldInfo() { return `Length ${lenStr(UI.tl.sel ? UI.tl.sel.n.len : 0)} · ←→ length · ↑↓ vel`; },
-  info() { const s = UI.tl.sel, c = UI.tl.cursor;
-    if (s && s.n) return `${chanName(s.pi)} ${posStr(s.n.t)} · length ${lenStr(s.n.len)} · velocity ${Math.round(s.n.v * 100)}${UI.tl.mode === 'keys' ? ' · ' + KR.name(s.n.p) : ''} · ${offGrid(s.n.t)} · OK keep · Back cancel`;
-    const row = UI.tl.mode === 'bank' ? chanName(UI.bank * 16 + c.row) : KR.name(KR.p(c.row)); return `Cursor ${posStr(c.t)} · ${row} · ${noteAtCursor() ? 'OK selects' : 'OK adds a note'} · Back leaves`; },
-  hz(d, sh) { const s = UI.tl.sel, st = nudgeStep(), len = tlLen();
-    if (s) { if (NAV.selUndo < 0) undoGroup('n', 'scene:' + UI.scene); touchPad(s.pi); if (sh) s.n.len = fixT(clamp(s.n.len + d * st, Math.min(st, 6), len - s.n.t)); else s.n.t = fixT(clamp(s.n.t + d * st, 0, len - .01)); UI.tl.cursor.t = UI.fine ? s.n.t : Math.floor(s.n.t / st) * st; syncScene(UI.scene); markDirty(); }
-    else UI.tl.cursor.t = clamp(Math.floor(UI.tl.cursor.t / st) * st + d * st, 0, len - st); tlEnsure(); },
-  vt(d, sh) { const s = UI.tl.sel;
-    if (s) { if (NAV.selUndo < 0) undoGroup('n', 'scene:' + UI.scene); touchPad(s.pi); if (sh) s.n.v = clamp(Math.round((s.n.v - d * (UI.fine ? .01 : .05)) * 100) / 100, .01, 1); else moveNoteRow(s, d); UI.tl.cursor.row = UI.tl.mode === 'bank' ? s.pi - UI.bank * 16 : KR.row(s.n.p); syncScene(UI.scene); markDirty(); }
-    else UI.tl.cursor.row = clamp(UI.tl.cursor.row + d, 0, maxRow()); tlEnsure(); },
+  heldInfo() { const n = selItems().length; return `Length ${lenStr(UI.tl.sel ? UI.tl.sel.n.len : 0)}${n > 1 ? ' · ' + n + ' notes' : ''} · ←→ length · ↑↓ vel`; },
+  info() { const tl = UI.tl, s = tl.sel, c = tl.cursor, items = selItems();
+    if (tl.box) return `Select · arrows grow the box · OK selects · Back cancels`;
+    if (s && s.n) return items.length > 1 ? `${items.length} notes · ${posStr(s.n.t)} · arrows move · Shift ↑↓ velocity · OK keep · Back cancel`
+      : `${chanName(s.pi)} ${posStr(s.n.t)} · length ${lenStr(s.n.len)} · velocity ${Math.round(s.n.v * 100)}${tl.mode === 'keys' ? ' · ' + KR.name(s.n.p) : ''} · ${offGrid(s.n.t)} · OK keep · Back cancel`;
+    const row = tl.mode === 'bank' ? chanName(UI.bank * 16 + c.row) : KR.name(KR.p(c.row)); return `Cursor ${posStr(c.t)} · ${row} · ${tl.selMode ? 'OK starts a box' : noteAtCursor() ? 'OK selects' : 'OK adds a note'} · Back leaves`; },
+  hz(d, sh) { const tl = UI.tl, st = nudgeStep(), len = tlLen(), items = selItems();
+    if (items.length && !tl.box) { if (NAV.selUndo < 0) undoGroup('n', 'scene:' + UI.scene); items.forEach(x => touchPad(x.pi));
+      if (sh) for (const x of items) x.n.len = fixT(clamp(x.n.len + d * st, Math.min(st, 6), len - x.n.t));
+      else { const sh2 = clamp(d * st, -Math.min(...items.map(x => x.n.t)), Math.min(...items.map(x => len - .01 - x.n.t))); for (const x of items) x.n.t = fixT(x.n.t + sh2); }
+      tl.cursor.t = UI.fine ? tl.sel.n.t : Math.floor(tl.sel.n.t / st) * st; syncScene(UI.scene); markDirty(); }
+    else tl.cursor.t = clamp(Math.floor(tl.cursor.t / st) * st + d * st, 0, len - st); tlEnsure(); },
+  vt(d, sh) { const tl = UI.tl, items = selItems();
+    if (items.length && !tl.box) { if (NAV.selUndo < 0) undoGroup('n', 'scene:' + UI.scene); items.forEach(x => touchPad(x.pi));
+      if (sh) for (const x of items) x.n.v = clamp(Math.round((x.n.v - d * (UI.fine ? .01 : .05)) * 100) / 100, .01, 1); else moveSelRows(d);
+      tl.cursor.row = selRowOf(tl.sel); syncScene(UI.scene); markDirty(); }
+    else tl.cursor.row = clamp(tl.cursor.row + d, 0, maxRow()); tlEnsure(); },
   left(s) { this.hz(-1, s); }, right(s) { this.hz(1, s); }, up(s) { this.vt(-1, s); }, down(s) { this.vt(1, s); },
-  ok() { const tl = UI.tl; if (tl.sel) { tl.sel = null; NAV.selUndo = -1; afterEdit(); return; }
-    const hit = noteAtCursor(); if (hit) { selStart(); tl.sel = hit; audition(hit.pi, hit.n.p); drawTL(); return; }
+  ok() { const tl = UI.tl;
+    if (tl.box) { const b = tl.box; tl.box = null; tl.selMode = false; setGroup(notesInBox(b.t, tl.cursor.t + tlStep(), b.row, tl.cursor.row)); if (tl.sel) selStart();   // the box's notes, ready to move
+      const k = document.querySelector('.selKey'); if (k) k.classList.remove('on'); afterEdit(); return; }
+    if (tl.selMode) { clearSel(); tl.box = { t: tl.cursor.t, row: tl.cursor.row }; drawTL(); return; }
+    if (tl.sel) { clearSel(); NAV.selUndo = -1; afterEdit(); return; }
+    const hit = noteAtCursor(); if (hit) { selStart(); selectNote(hit.pi, hit.n); audition(hit.pi, hit.n.p); drawTL(); return; }
     addNoteAt(tl.cursor.t, tl.cursor.row); NAV.selUndo = UNDO.length - 1; },
-  back() { const tl = UI.tl; if (!tl.sel) return false; if (NAV.selUndo >= 0) selCancel(); tl.sel = null; drawTL(); return true; },
-  del() { NAV.selUndo = -1; deleteSelNote(); } };
+  back() { const tl = UI.tl; if (tl.box) { tl.box = null; drawTL(); return true; } if (!tl.sel) return false; if (NAV.selUndo >= 0) selCancel(); clearSel(); drawTL(); return true; },
+  del() { NAV.selUndo = -1; deleteSel(); } };
 const autoCtl = {
   pts() { return lanePts(false) || []; },
   hasSel() { return UI.tl.selPt >= 0; },

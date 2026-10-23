@@ -83,8 +83,11 @@ function duplicateBars() {
   pushUndo('scene:' + UI.scene); const d = grabBars(UI.scene, t0, t0 + len * BAR, s); if (need > sc.bars) { sc.bars = need; UI.tl.zoom = null; }
   putBars(UI.scene, at, d, null); EDR.from += len; afterEdit(); renderScenes(); toast(`Bars ${EDR.from - len + 1}–${EDR.from} copied to ${EDR.from + 1}–${EDR.from + len}`);
 }
-function duplicateNote() { const s = UI.tl.sel; if (!s) return; const sc = P.scenes[UI.scene], n = Object.assign({}, s.n, { t: fixT(s.n.t + s.n.len) }); if (n.t >= sceneLen(UI.scene)) { toast('No room after this note'); return; }
-  pushUndo('scene:' + UI.scene); touchPad(s.pi); sc.notes[s.pi].push(n); UI.tl.sel = { pi: s.pi, n }; afterEdit(); }
+// Duplicate the selection (a note, a chord stack or a group) right after itself
+function duplicateNote() { const items = selItems(); if (!items.length) return; const sc = P.scenes[UI.scene], lo = Math.min(...items.map(x => x.n.t)), hi = Math.max(...items.map(x => x.n.t + x.n.len)), span = fixT(hi - lo);
+  if (lo + span >= sceneLen(UI.scene)) { toast('No room after this'); return; } pushUndo('scene:' + UI.scene); const copies = [];
+  for (const x of items) { const n = Object.assign({}, x.n, { t: fixT(x.n.t + span) }); if (n.t >= sceneLen(UI.scene)) continue; touchPad(x.pi); (sc.notes[x.pi] = sc.notes[x.pi] || []).push(n); copies.push({ pi: x.pi, n }); }
+  setGroup(copies); afterEdit(); }
 
 /* ----- effect devices and channel strips ----- */
 function copyFx(c, s) { const f = P.chans[c].fx[s]; if (f) setClip('fx', `${FX_DEFS[f.type].name}${FX_DEFS[f.type].modes.length > 1 ? ' · ' + (FX_DEFS[f.type].modes[f.mode].n || '') : ''}`, f); }
@@ -129,7 +132,7 @@ function openEdit() {
         fr.append(keep(act('◀ Bar', () => { EDR.from = Math.max(0, EDR.from - 1); draw(); })), lab, keep(act('Bar ▶', () => { EDR.from = Math.min(sc.bars - 1, EDR.from + 1); EDR.len = Math.min(EDR.len, sc.bars - EDR.from); draw(); }))); body.append(fr);
         const lg = h('div', 'g4 hrow'); for (const n of [1, 2, 4, 8]) { const b = keep(act(n + (n > 1 ? ' bars' : ' bar'), () => { EDR.len = n; draw(); }, EDR.from + n <= sc.bars, 'btn' + (EDR.len === n ? ' on' : ''))); lg.append(b); } body.append(lg);
         row(act('Copy', copyBars), act('Paste here', pasteBars, clipIs('bars')), act('Duplicate', duplicateBars, EDR.from + EDR.len * 2 <= 16));
-        if (UI.tl.sel) row(act('Duplicate note', duplicateNote), act('Copy note bar', () => { EDR.from = Math.floor(UI.tl.sel.n.t / BAR); EDR.len = 1; copyBars(); }));
+        if (UI.tl.sel) row(act(selItems().length > 1 ? 'Duplicate notes' : 'Duplicate note', duplicateNote), act('Copy note bar', () => { EDR.from = Math.floor(UI.tl.sel.n.t / BAR); EDR.len = 1; copyBars(); }));
         body.append('');
         body.append(''); }
       const i = UI.scene; body.append(h('div', 'sec', `Scene ${i + 1}${P.scenes[i].name ? ' · ' + esc(P.scenes[i].name) : ''}`));
