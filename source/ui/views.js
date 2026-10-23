@@ -36,7 +36,8 @@ function renderSeq(V) {
   bar.append(btn(SNAPS.find(s => s.t === tl.snap).l, () => { const i = SNAPS.findIndex(s => s.t === tl.snap); tl.snap = SNAPS[(i + 1) % SNAPS.length].t; savePrefs(); renderView(); }, 'key sm'));
   const zoom = f => { if (UI.shift && isNotes) zoomV(f); else zoomTL(f); };   // Shift + zoom: row height
   bar.append(btn('−', () => zoom(1 / 1.5), 'key sm ic'), btn('+', () => zoom(1.5), 'key sm ic'));
-  if (isNotes) bar.append(btn('Select', () => { tl.selMode = !tl.selMode; tl.box = null; renderView(); }, 'key sm selKey' + (tl.selMode ? ' on' : '')));
+  if (isNotes) { let held = false, t = 0; const sk = btn('Select', () => { if (held) { held = false; return; } tl.selMode = !tl.selMode; tl.box = null; renderView(); }, 'key sm selKey' + (tl.selMode ? ' on' : ''));   // long-press: select all
+    sk.addEventListener('pointerdown', () => { held = false; clearTimeout(t); t = setTimeout(() => { held = true; selectAll(); }, 450); }); for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) sk.addEventListener(ev, () => clearTimeout(t)); bar.append(sk); }
   if (!isNotes) bar.append(btn(IC.draw, () => { tl.draw = !tl.draw; renderView(); }, 'key sm ic' + (tl.draw ? ' on' : '')), btn(IC.shapes, openShapes, 'key sm ic'));
   const del = btn(IC.del, () => isNotes ? deleteSelNote() : autoCtl.del(), 'key sm ic warn'); del.setAttribute('aria-label', 'Delete'); bar.append(del);
   const wrap = h('div', 'scr tlwrap' + (UI.tlSlide ? ' slide' + UI.tlSlide : '')), cv = h('canvas', 'navc'); UI.tlSlide = 0; cv.setAttribute('aria-label', 'Timeline'); wrap.append(cv); w.append(bar, wrap); V.append(w);
