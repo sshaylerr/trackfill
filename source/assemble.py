@@ -5,7 +5,7 @@ app = (root / 'app.html').read_text()
 model = (root / 'js/model.js').read_text() + '\n' + (root / 'js/harmony.js').read_text().replace("'use strict';", '', 1)
 host = (root / 'js/host.js').read_text()
 controls = (root / 'ui/controls.js').read_text()
-views = (root / 'ui/views.js').read_text() + '\n' + (root / 'ui/chop.js').read_text() + '\n' + (root / 'ui/scope.js').read_text() + '\n' + (root / 'ui/fxvis.js').read_text() + '\n' + (root / 'ui/devices.js').read_text() + '\n' + (root / 'ui/keys.js').read_text()
+views = (root / 'ui/views.js').read_text() + '\n' + (root / 'ui/chop.js').read_text() + '\n' + (root / 'ui/scope.js').read_text() + '\n' + (root / 'ui/fxvis.js').read_text() + '\n' + (root / 'ui/devices.js').read_text() + '\n' + (root / 'ui/keys.js').read_text() + '\n' + (root / 'ui/edit.js').read_text()
 wasm = base64.b64encode((root / 'build/engine.wasm').read_bytes()).decode()
 for marker, value in [('/*@MODEL@*/', model), ('/*@HOST@*/', host), ('"@HOST_SRC@"', json.dumps(host)), ('@WASM_B64@', wasm), ('/*@CONTROLS@*/', controls), ('/*@VIEWS@*/', views)]:
     assert app.count(marker) == 1, marker
