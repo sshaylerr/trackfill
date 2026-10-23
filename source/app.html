@@ -133,7 +133,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 #meter .bar i{display:block;height:100%;width:100%;transform:scaleX(0);background:var(--play);transform-origin:left}
 #meter .bar i.hot{background:var(--accent)}
 #meter .cpu{font-size:8.5px;color:var(--print);text-align:right;white-space:nowrap}
-#meter .cpu.hot{color:var(--accent)}
+#meter .cpu.hot{color:var(--accent)} #meter .cpu.busy::after{content:' ·';color:var(--accent)}
 #meter .clip{height:12px;border-radius:3px;background:#0b0b0c;border:1px solid #000;font:700 7px var(--font-lcd);color:var(--dim);display:flex;align-items:center;justify-content:center}
 #meter .clip.on{background:var(--rec);color:#2b0707}
 
@@ -624,7 +624,7 @@ function upgradeSampleRecord(s) {   // v1 stored Float32 channel arrays; v2 stor
   if (s.chans) { const data = interleave(s.chans, s.chans[0].length); return { id: s.id, name: s.name, sr: s.sr, ch: s.chans.length, frames: s.chans[0].length, data, added: 0 }; }
   return null;
 }
-const usedSampleIds = () => { const u = new Set(); for (const p of P.pads) { if (p.sample) u.add(p.sample); if (p.frz) for (const k in p.frz) u.add(p.frz[k]); } for (const k of tableKeys()) if (!k.startsWith('w:')) u.add(k); for (const p of P.pads) { const g = grSrc(p); if (g) u.add(g); } return u; };   // your own wavetables travel with the project like samples
+const usedSampleIds = () => { const u = new Set(); for (const p of P.pads) { if (p.sample) u.add(p.sample); if (p.frz) for (const k in p.frz) u.add(p.frz[k]); } for (const k of tableKeys()) if (!k.startsWith('w:')) u.add(k); for (const p of P.pads) { const g = grSrc(p); if (g) u.add(g); if (p.stx && p.wm !== 'Repitch') u.add(p.stx); } return u; };   // your own wavetables travel with the project like samples
 
 /* ================= storage ================= */
 const DB = { db: null, ok: false,
@@ -671,9 +671,9 @@ function ensureTable(key) { if (!key || ENG.sent.has('T' + key) || !ENG.node) re
 function ensureSample(id) { if (!id || ENG.sent.has(id) || !ENG.node) return; const s = SAMPLES.get(id); if (!s || s.wt) return;
   send({ t: 'sample', key: id, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr }); ENG.sent.add(id); }
 function syncScene(i) { const sc = P.scenes[i]; send({ t: 'scene', i, v: sc }); for (const k in sc.notes) for (const n of sc.notes[k]) if (n.f) delete n.f; }
-function syncPad(i) { const p = P.pads[i]; ensureSample(p.sample); const gs = grSrc(p); if (gs) { if (gs.startsWith('b:')) buildBuiltin(gs.slice(2)); ensureSample(gs); } for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
+function syncPad(i) { const p = P.pads[i]; ensureSample(p.sample); if (p.stx) ensureSample(p.stx); if (typeof stretchCheck === 'function') stretchCheck(i); const gs = grSrc(p); if (gs) { if (gs.startsWith('b:')) buildBuiltin(gs.slice(2)); ensureSample(gs); } for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
 function syncChan(c) { send({ t: 'chan', i: c, v: P.chans[c] }); }
-function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing } }); updateTransport(); }
+function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing } }); updateTransport(); if (typeof stretchAllSoon === 'function') stretchAllSoon(); }   // stretched pads follow the tempo
 function syncProject() { if (!ENG.node) return; for (const id of usedSampleIds()) ensureSample(id); for (const k of tableKeys()) ensureTable(k); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
 function sendParam(key, v) { send({ t: 'param', key, v }); }
 function silentWavUrl() { const sr = 8000, n = sr / 2, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), ws = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
@@ -1228,7 +1228,7 @@ function openLibrary() {
     const top = h('div', 'row'), q = h('input', 'textin'); q.placeholder = 'Search sounds'; q.style.flex = '1'; top.append(q, btn('Import', () => { closeSheet(); pickAudio(UI.pad); }, 'btn on')); card.append(top);
     const box = h('div', 'stack'); box.style.marginTop = '10px'; card.append(box);
     const used = usedSampleIds();
-    const draw = () => { box.innerHTML = ''; const f = q.value.trim().toLowerCase(), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt && !s.drum && (!f || s.name.toLowerCase().includes(f)));
+    const draw = () => { box.innerHTML = ''; const f = q.value.trim().toLowerCase(), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt && !s.drum && !s.x && (!f || s.name.toLowerCase().includes(f)));
       const mine = all.filter(s => !s.builtin).sort((a, b) => (b.added || 0) - (a.added || 0));
       // built-ins are listed by pack and only synthesized when you preview or use one
       const packs = PACKS.map(([title, keys]) => [title, keys.map(k => ALL_BUILTINS.find(x => x[0] === k)).filter(k => k && (!f || k[1].toLowerCase().includes(f) || title.toLowerCase().includes(f))).map(k => ({ id: 'b:' + k[0], name: k[1].replace(/ \((classic|jungle)\)$/, ''), builtin: true, kit: k }))]);
@@ -1306,7 +1306,7 @@ function openMenu() {
     g = h('div', 'g2'); g.append(confirmBtn('New: Liquid jungle kit', 'Tap again: start it', newJungle, 'btn'), confirmBtn('Stress test project', 'Tap again: load it', newStress, 'btn')); st.append(g);
     card.append(st); });
 }
-function afterLoad() { ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
+function afterLoad() { setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
 
 /* ---------- engine check ---------- */
 async function runChecks() {

@@ -2,10 +2,10 @@
 import base64, json, pathlib
 root = pathlib.Path(__file__).parent
 app = (root / 'app.html').read_text()
-model = (root / 'js/model.js').read_text() + '\n' + (root / 'js/harmony.js').read_text().replace("'use strict';", '', 1) + '\n' + (root / 'js/synthpresets.js').read_text().replace("'use strict';", '', 1) + '\n' + (root / 'js/wavetables.js').read_text().replace("'use strict';", '', 1) + '\n' + (root / 'js/drums.js').read_text().replace("'use strict';", '', 1)
+model = (root / 'js/model.js').read_text() + '\n' + (root / 'js/harmony.js').read_text().replace("'use strict';", '', 1) + '\n' + (root / 'js/synthpresets.js').read_text().replace("'use strict';", '', 1) + '\n' + (root / 'js/wavetables.js').read_text().replace("'use strict';", '', 1) + '\n' + (root / 'js/drums.js').read_text().replace("'use strict';", '', 1) + '\n' + (root / 'js/stretch.js').read_text().replace("'use strict';", '', 1)
 host = (root / 'js/host.js').read_text()
 controls = (root / 'ui/controls.js').read_text()
-views = (root / 'ui/views.js').read_text() + '\n' + (root / 'ui/chop.js').read_text() + '\n' + (root / 'ui/scope.js').read_text() + '\n' + (root / 'ui/fxvis.js').read_text() + '\n' + (root / 'ui/devices.js').read_text() + '\n' + (root / 'ui/keys.js').read_text() + '\n' + (root / 'ui/edit.js').read_text() + '\n' + (root / 'ui/synth.js').read_text() + '\n' + (root / 'ui/drums.js').read_text()
+views = 'const SignalsmithStretch = (() => { const module = undefined, exports = undefined, define = undefined;\n' + (root / 'js/vendor/signalsmith-stretch.js').read_text() + '\nreturn SignalsmithStretch; })();\n' + (root / 'ui/views.js').read_text() + '\n' + (root / 'ui/chop.js').read_text() + '\n' + (root / 'ui/scope.js').read_text() + '\n' + (root / 'ui/fxvis.js').read_text() + '\n' + (root / 'ui/devices.js').read_text() + '\n' + (root / 'ui/keys.js').read_text() + '\n' + (root / 'ui/edit.js').read_text() + '\n' + (root / 'ui/synth.js').read_text() + '\n' + (root / 'ui/drums.js').read_text() + '\n' + (root / 'ui/stretch.js').read_text()
 wasm = base64.b64encode((root / 'build/engine.wasm').read_bytes()).decode()
 for marker, value in [('/*@MODEL@*/', model), ('/*@HOST@*/', host), ('"@HOST_SRC@"', json.dumps(host)), ('@WASM_B64@', wasm), ('/*@CONTROLS@*/', controls), ('/*@VIEWS@*/', views)]:
     assert app.count(marker) == 1, marker

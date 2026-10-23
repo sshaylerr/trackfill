@@ -1,7 +1,7 @@
 // Trackfill automated tests: node tests/run.cjs [--update-golden]
 // Renders projects through the real WASM engine + host and checks safety, determinism and behavior.
 const fs = require('fs'), path = require('path');
-const H = require('../js/host.js'), M = require('../js/model.js'), HM = require('../js/harmony.js'), SP = require('../js/synthpresets.js'), WT = require('../js/wavetables.js'), DR = require('../js/drums.js');
+const H = require('../js/host.js'), M = require('../js/model.js'), HM = require('../js/harmony.js'), SP = require('../js/synthpresets.js'), WT = require('../js/wavetables.js'), DR = require('../js/drums.js'), ST = require('../js/stretch.js');
 const wasm = new WebAssembly.Module(fs.readFileSync(path.join(__dirname, '../build/engine.wasm')));
 const GOLD = path.join(__dirname, 'golden.json');
 let fails = 0; const ok = (c, msg) => { console.log((c ? '  ✓ ' : '  ✗ ') + msg); if (!c) fails++; };
@@ -260,6 +260,22 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const L = new Float32Array(128), R = new Float32Array(128); host.msg({ t: 'hit', pad: 30, semi: 0, vel: .9, tag: 1 }); for (let i = 0; i < 40; i++) host.render(128, L, R); const v1 = ex.tf_voices();
     host.msg({ t: 'hit', pad: 31, semi: 0, vel: .9, tag: 2 }); for (let i = 0; i < 8; i++) host.render(128, L, R); const v2 = ex.tf_voices();
     ok(v1 === 1 && v2 === 1, `choke groups: the closed hat cuts the ringing open hat (voices ${v1} → ${v2})`); }
+  console.log('time stretch');
+  { const k = M.ALL_BUILTINS.find(x => x[0] === 'jbreak'), s = M.buildKitSample(k[0], k[1]), pad = { tempo: 170, wp: ST.stretchDefaults() }, dur = s.frames / s.sr, ratio = 170 / 140;
+    const env = (r, n) => { const st = Math.floor(r.L.length / n), o = []; for (let i = 0; i < n; i++) { let m = 0; for (let j = 0; j < st; j++) m = Math.max(m, Math.abs(r.L[i * st + j])); o.push(m); } return o; };
+    const b0 = ST.renderBeats(s, pad, ratio, 0, ST.stretchDefaults()), bE = ST.renderBeats(s, pad, ratio, 0, Object.assign(ST.stretchDefaults(), { env: 20 })), bL = ST.renderBeats(s, pad, ratio, 0, Object.assign(ST.stretchDefaults(), { loop: 'Forward' }));
+    const quiet = r => env(r, 200).filter(x => x < .01).length, slices = ST.beatsPoints(s, pad, pad.wp).length;
+    ok(Math.abs(b0.L.length / s.sr - dur * ratio) < .002 && quiet(bE) > quiet(b0) + 20 && quiet(bL) < quiet(b0), `Beats: ${slices} slices, the right length (${(b0.L.length / s.sr).toFixed(2)} s for ${dur.toFixed(2)} s at 170→140 BPM); Transient Envelope opens clean gaps (${quiet(b0)} → ${quiet(bE)} quiet spots) and Loop fills the gaps a slowed-down slice leaves (${quiet(b0)} → ${quiet(bL)})`);
+    const v = ST.renderVintage(s, ratio, 0, Object.assign(ST.stretchDefaults(), { win: 30 })), vg = ST.renderVintage(s, ratio, 0, Object.assign(ST.stretchDefaults(), { win: 30, grit: 1 }));
+    const levels = r => { const set = new Set(); for (let i = 0; i < 20000; i++) set.add(r.L[i * 3]); return set.size; }, bad = [...v.L, ...vg.L].some(x => !(x === x));
+    ok(!bad && Math.abs(v.L.length / s.sr - dur * ratio) < .002 && levels(vg) < levels(v) / 4, `Vintage: the right length, finite, and Grit really drops the resolution (${levels(v)} → ${levels(vg)} distinct levels)`);
+    // the engine plays the stretched render (tempo baked in) instead of repitching
+    const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; }); Q.scenes.forEach(sc => { sc.notes = {}; sc.auto = {}; }); Q.bpm = 140;
+    const v2 = ST.renderVintage(s, 2, 0, ST.stretchDefaults()), n = v2.L.length, o = new Int16Array(n * 2); for (let i = 0; i < n; i++) { o[i * 2] = Math.max(-1, Math.min(1, v2.L[i])) * 32767; o[i * 2 + 1] = Math.max(-1, Math.min(1, v2.R[i])) * 32767; }   // a render twice as long: tells it apart from repitching
+    Object.assign(Q.pads[5], { sample: 'b:jbreak', stx: 'x:test', wm: 'Vintage', tempo: 170, mode: 'one', chop: null, start: 0, end: 1, pitch: 0, fine: 0 }); host.msg({ t: 'project', P: Q });
+    host.msg({ t: 'sample', key: 'b:jbreak', data: s.data, frames: s.frames, ch: s.ch, sr: s.sr }); host.msg({ t: 'sample', key: 'x:test', data: o, frames: n, ch: 2, sr: 48000 });
+    host.msg({ t: 'hit', pad: 5, semi: 0, vel: .9, tag: 1 }); const L = new Float32Array(128), R = new Float32Array(128); let blocks = 0; while (ex.tf_voices() && blocks < 3000) { host.render(128, L, R); blocks++; }
+    const played = blocks * 128 / 48000; ok(played > dur * ratio * 1.3, `a stretched pad plays its render as is (${played.toFixed(2)} s from a ${(2 * dur).toFixed(2)} s render; repitching the original would last ${(dur * ratio).toFixed(2)} s)`); }
   console.log('pitch bend');
   { // a sustained sample and a synth, bent up a full range of 12: both play an octave higher; automation drives it
     const zc = (x, a) => { let n = 0; for (let i = a + 1; i < x.length; i++) if ((x[i - 1] < 0) !== (x[i] < 0)) n++; return n; };

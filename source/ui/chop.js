@@ -28,7 +28,7 @@ function chopView(pi) {
   const g = h('div', 'kgrid');
   if (c) g.append(selEl('Slice by', ['Transient', 'Equal', 'Manual'], () => CHOP_BY.indexOf(c.by), i => { pushUndo('pad:' + pi); touchPad(pi); c.by = CHOP_BY[i]; if (c.by !== 'm') rechop(pad, s); UI.slice = 0; syncPad(pi); markDirty(); renderView(); }),
     c.by === 'm' ? cellBtn('Slices', String(c.pts.length), () => openChopTools(pi)) : chopAmt(pi, c.by === 't' ? 'sens' : 'div'), tempo, cellBtn('Tools', 'Open', () => openChopTools(pi)));
-  else g.append(tempo, cellBtn('Tools', 'Open', () => openChopTools(pi)), blankCell(), blankCell());
+  else g.append(tempo, cellBtn('Stretch', pad.wm || 'Repitch', () => openStretch(pi)), cellBtn('Tools', 'Open', () => openChopTools(pi)), blankCell());
   w.append(disp, pads, g); return w;
 }
 // the slice waveform: on the Sound view's Chop page, and above the pads when the Pads screen is in Chop mode
@@ -178,8 +178,9 @@ function openChopTools(pi) {
     const dur = (pad.end - pad.start) * s.frames / s.sr; card.append(h('div', 'sec', 'Fit to tempo: how long is this sound?'));
     const fit = h('div', 'g2'); fit.append(btn('Off', () => { pushUndo('pad:' + pi); pad.tempo = 0; syncPad(pi); markDirty(); closeSheet(); renderView(); }, 'btn' + (pad.tempo ? '' : ' on')));
     for (const [beats, l] of [[1, '1 beat'], [2, '2 beats'], [4, '1 bar'], [8, '2 bars'], [16, '4 bars'], [32, '8 bars']]) { const bpm = beats * 60 / dur; if (bpm < 20 || bpm > 300) continue;
-      fit.append(btn(`${l} · ${bpm.toFixed(1)} BPM`, () => { pushUndo('pad:' + pi); touchPad(pi); pad.tempo = Math.round(bpm * 10) / 10; syncPad(pi); markDirty(); closeSheet(); renderView(); toast(`Plays at ${P.bpm} BPM by repitching from ${pad.tempo}`); }, 'btn' + (Math.abs(pad.tempo - bpm) < .06 ? ' on' : ''))); }
-    card.append(fit, h('p', 'note', 'The sound is sped up or slowed down (and its pitch moves with it) so it keeps time with the song.'));
+      fit.append(btn(`${l} · ${bpm.toFixed(1)} BPM`, () => { pushUndo('pad:' + pi); touchPad(pi); pad.tempo = Math.round(bpm * 10) / 10; syncPad(pi); markDirty(); closeSheet(); renderView(); toast(pad.wm && pad.wm !== 'Repitch' ? `Stretches (${pad.wm}) from ${pad.tempo} to ${P.bpm} BPM` : `Plays at ${P.bpm} BPM by repitching from ${pad.tempo}`); }, 'btn' + (Math.abs(pad.tempo - bpm) < .06 ? ' on' : ''))); }
+    card.append(fit, h('p', 'note', pad.wm && pad.wm !== 'Repitch' ? `It keeps time with the song by stretching (${pad.wm}).` : 'The sound is sped up or slowed down (and its pitch moves with it) so it keeps time with the song. Stretch keeps the pitch instead.'));
+    { const sb = h('div', 'g2'); sb.append(btn('Stretch: ' + (pad.wm || 'Repitch'), () => { closeSheet(); openStretch(pi); }, 'btn' + (pad.wm && pad.wm !== 'Repitch' ? ' on' : ''))); card.append(sb); }
     if (!c) return;
     card.append(h('div', 'sec', 'Slices'));
     const g = h('div', 'g2'), n = c.pts.length, k = clamp(UI.slice, 0, n - 1);
