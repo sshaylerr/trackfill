@@ -1,5 +1,5 @@
 /* ---------- Edit: one clipboard for pads, scenes, timeline bars, effect devices and channel strips ----------
-   The Edit key (top bar, or Shift + OK on the d-pad) opens a sheet for whatever you're on, plus the current scene. */
+   The Edit key (top bar, or Shift + OK on the d-pad) opens it, docked at the bottom. Shift + Del duplicates the selected notes. */
 let CLIP = null;   // { kind: 'pad' | 'scene' | 'bars' | 'fx' | 'chain' | 'chan', label, data }
 const clone = o => JSON.parse(JSON.stringify(o));
 function setClip(kind, label, data) { CLIP = { kind, label, data: clone(data) }; toast('Copied: ' + label); }
@@ -83,11 +83,34 @@ function duplicateBars() {
   pushUndo('scene:' + UI.scene); const d = grabBars(UI.scene, t0, t0 + len * BAR, s); if (need > sc.bars) { sc.bars = need; UI.tl.zoom = null; }
   putBars(UI.scene, at, d, null); EDR.from += len; afterEdit(); renderScenes(); toast(`Bars ${EDR.from - len + 1}–${EDR.from} copied to ${EDR.from + 1}–${EDR.from + len}`);
 }
-// Duplicate the selection (a note, a chord stack or a group) right after itself
-function duplicateNote() { const items = selItems(); if (!items.length) return; const sc = P.scenes[UI.scene], lo = Math.min(...items.map(x => x.n.t)), hi = Math.max(...items.map(x => x.n.t + x.n.len)), span = fixT(hi - lo);
-  if (lo + span >= sceneLen(UI.scene)) { toast('No room after this'); return; } pushUndo('scene:' + UI.scene); const copies = [];
-  for (const x of items) { const n = Object.assign({}, x.n, { t: fixT(x.n.t + span) }); if (n.t >= sceneLen(UI.scene)) continue; touchPad(x.pi); (sc.notes[x.pi] = sc.notes[x.pi] || []).push(n); copies.push({ pi: x.pi, n }); }
-  setGroup(copies); afterEdit(); }
+function clearBars() { const sc = P.scenes[UI.scene], s = barsScope(), t0 = EDR.from * BAR, t1 = t0 + EDR.len * BAR; pushUndo('scene:' + UI.scene);
+  for (const pi of s.pads) if (sc.notes[pi]) { touchPad(pi); sc.notes[pi] = sc.notes[pi].filter(n => n.t < t0 - 1e-6 || n.t >= t1 - 1e-6); if (!sc.notes[pi].length) delete sc.notes[pi]; }
+  for (const k of s.keys) if (sc.auto[k]) sc.auto[k] = sc.auto[k].filter(q => q.t < t0 || q.t >= t1);
+  clearSel(); afterEdit(); }
+
+/* ----- notes: the selection (a note, a chord stack or a group) ----- */
+// how far a copy moves: the selection's length, rounded up to the grid (past half a bar: whole bars; past a beat: whole beats)
+function selSpan(items) { const lo = Math.min(...items.map(x => x.n.t)), hi = Math.max(...items.map(x => x.n.t + x.n.len)), raw = Math.max(1, hi - lo);
+  const u = raw > BAR / 2 ? BAR : raw > BEAT ? BEAT : (UI.tl.snap || raw); return { lo, span: fixT(Math.ceil(raw / u - 1e-6) * u) }; }
+function copyNotes(cut) { const items = selItems(); if (!items.length) { toast('Select notes first'); return false; } const { lo, span } = selSpan(items);
+  setClip('notes', items.length + (items.length > 1 ? ' notes' : ' note'), { span, one: items.every(x => x.pi === items[0].pi), items: items.map(x => ({ pi: x.pi, n: Object.assign({}, x.n, { t: fixT(x.n.t - lo) }) })) });
+  if (cut) deleteSel(); return true; }
+function placeNotes(at, items) { const sc = P.scenes[UI.scene], L = sceneLen(UI.scene), out = [];
+  for (const x of items) { const n = Object.assign({}, x.n, { t: fixT(at + x.n.t) }); if (n.t >= L - 1e-6) continue; touchPad(x.pi); (sc.notes[x.pi] = sc.notes[x.pi] || []).push(n); out.push({ pi: x.pi, n }); }
+  for (const pi of new Set(out.map(x => x.pi))) sc.notes[pi].sort((p, q) => p.t - q.t);
+  return out; }
+function showNotes(copies) { const tl = UI.tl; setGroup(copies); if (copies.length) { tl.cursor.t = Math.min(...copies.map(x => x.n.t)); if (tl.mode === 'bank') UI.pad = tl.sel.pi; } tlEnsure(); afterEdit(); auditionSel(); }
+// paste: right after the selection, or at the cursor; the pasted notes become the selection, so Paste again carries on
+function pasteNotes() { if (!clipIs('notes')) return; const tl = UI.tl, d = CLIP.data, items = selItems();
+  const at = items.length ? (({ lo, span }) => lo + span)(selSpan(items)) : (tl.snap ? Math.floor(tl.cursor.t / tl.snap) * tl.snap : tl.cursor.t);
+  if (at >= sceneLen(UI.scene)) { toast('No room after this'); return; }
+  const map = x => ({ pi: tl.mode === 'keys' && d.one ? UI.pad : UI.bank * 16 + x.pi % 16, n: x.n });
+  pushUndo('scene:' + UI.scene); showNotes(placeNotes(at, d.items.map(map))); }
+function duplicateNote(fill) { const items = selItems(); if (!items.length) { toast('Select notes first'); return; } const { lo, span } = selSpan(items), L = sceneLen(UI.scene);
+  if (lo + span >= L) { toast('No room after this'); return; } pushUndo('scene:' + UI.scene);
+  const rel = items.map(x => ({ pi: x.pi, n: Object.assign({}, x.n, { t: fixT(x.n.t - lo) }) })); let copies = [];
+  for (let at = lo + span; at < L - 1e-6; at += span) { const c = placeNotes(at, rel); copies = fill ? copies.concat(c) : c; if (!fill) break; }
+  showNotes(copies); }
 
 /* ----- effect devices and channel strips ----- */
 function copyFx(c, s) { const f = P.chans[c].fx[s]; if (f) setClip('fx', `${FX_DEFS[f.type].name}${FX_DEFS[f.type].modes.length > 1 ? ' · ' + (FX_DEFS[f.type].modes[f.mode].n || '') : ''}`, f); }
@@ -99,47 +122,48 @@ function pasteChain(c) { if (!clipIs('chain')) return; pushUndo('chan:' + c); P.
 function copyChan(c) { const C = P.chans[c]; setClip('chan', `Channel ${chanName(c)}`, { vol: C.vol, pan: C.pan, sa: C.sa, sb: C.sb, fx: C.fx }); }
 function pasteChan(c) { if (!clipIs('chan')) return; pushUndo('chan:' + c); Object.assign(P.chans[c], clone(CLIP.data)); fxChanged(c); toast(`Pasted onto ${chanName(c)} (name and routing kept)`); }
 
-/* ----- the Edit sheet ----- */
+/* ----- the Edit sheet: docked at the bottom so the work stays in view; a few tabs, one grid of keys each, nothing to scroll ----- */
 function editContext() {
   if (UI.view === 'seq') return 'bars';
   if (UI.view === 'fx') return 'fx';
   if (UI.view === 'mix') return UI.mixSel < G0 ? 'pad' : 'chan';
   return 'pad';
 }
+const ED = { tab: {} };
 function openEdit() {
-  const ctx = editContext();
-  if (ctx === 'bars') { const tl = UI.tl, t = tl.sel ? tl.sel.n.t : tl.cursor.t || 0; EDR.from = clamp(Math.floor(t / BAR), 0, P.scenes[UI.scene].bars - 1); EDR.len = Math.min(EDR.len || 1, P.scenes[UI.scene].bars - EDR.from) || 1; }
+  const ctx = editContext(), tl = UI.tl, notes = ctx === 'bars' && tl.lane === 'notes';
+  if (ctx === 'bars') { const t = tl.sel ? tl.sel.n.t : tl.cursor.t || 0; EDR.from = clamp(Math.floor(t / BAR), 0, P.scenes[UI.scene].bars - 1); EDR.len = Math.min(EDR.len || 1, P.scenes[UI.scene].bars - EDR.from) || 1; }
+  const tabs = { bars: notes ? ['Notes', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'] }[ctx];
+  let tab = notes && selItems().length ? 'Notes' : tabs.includes(ED.tab[ctx]) ? ED.tab[ctx] : tabs[0];
   openSheet('Edit', card => {
-    const body = h('div', 'stack'); card.append(body);
-    const row = (...bs) => { const g = h('div', bs.length > 2 ? 'g3' : 'g2'); bs.forEach(b => g.append(b)); body.append(g); };
-    const act = (label, fn, on = true, cls = 'btn') => { const b = btn(label, () => { fn(); if (UI.sheet && !b._keep) closeSheet(); }, cls); if (!on) b.disabled = true; return b; };
-    const draw = () => { body.innerHTML = '';
-      body.append(h('p', 'note clipline', CLIP ? `Clipboard: <b>${esc(CLIP.label)}</b>` : 'Clipboard is empty'));
-      if (ctx === 'pad') { const pi = UI.view === 'mix' ? UI.mixSel : UI.pad; body.append(h('div', 'sec', `Pad ${padLabel(pi)} · ${esc(P.pads[pi].name || 'Empty')}`));
-        row(act('Copy', () => copyPad(pi)), act('Paste', () => pastePad(pi), clipIs('pad')), act('Duplicate', () => duplicatePad(pi), hasSound(P.pads[pi])));
-        row(act('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap the pad to swap ${padLabel(pi)} with (Back cancels)`); }), confirmBtn('Clear sound', 'Tap again to clear', () => { closeSheet(); clearPad(pi); }));
-        body.append(''); }
-      if (ctx === 'chan') { const c = UI.mixSel; body.append(h('div', 'sec', `Channel ${esc(chanName(c))}`));
-        row(act('Copy', () => copyChan(c)), act('Paste', () => pasteChan(c), clipIs('chan')));
-        row(act('Copy effects', () => copyChain(c), P.chans[c].fx.length > 0), act('Paste effects', () => pasteChain(c), clipIs('chain'))); }
-      if (ctx === 'fx') { const c = UI.fxCh, s = UI.fxSlot, f = P.chans[c].fx[s]; body.append(h('div', 'sec', `Insert ${s + 1} on ${esc(chanName(c))}`));
-        row(act('Copy', () => copyFx(c, s), !!f), act(f ? 'Paste over' : 'Paste', () => pasteFx(c, s, false), clipIs('fx')), act('Duplicate', () => duplicateFx(c, s), !!f));
-        row(act('Paste after', () => pasteFx(c, s + 1, true), clipIs('fx') && !!f), act('Copy chain', () => copyChain(c), P.chans[c].fx.length > 0), act('Paste chain', () => pasteChain(c), clipIs('chain'))); }
-      if (ctx === 'bars') { const sc = P.scenes[UI.scene], s = barsScope();
-        body.append(h('div', 'sec', `Bars · ${esc(s.desc)}`));
-        const fr = h('div', 'g3 hrow'), lab = h('div', 'lcdbox edr', `Bar ${EDR.from + 1}${EDR.len > 1 ? '–' + (EDR.from + EDR.len) : ''} of ${sc.bars}`);
-        const keep = b => { b._keep = 1; return b; };
-        fr.append(keep(act('◀ Bar', () => { EDR.from = Math.max(0, EDR.from - 1); draw(); })), lab, keep(act('Bar ▶', () => { EDR.from = Math.min(sc.bars - 1, EDR.from + 1); EDR.len = Math.min(EDR.len, sc.bars - EDR.from); draw(); }))); body.append(fr);
-        const lg = h('div', 'g4 hrow'); for (const n of [1, 2, 4, 8]) { const b = keep(act(n + (n > 1 ? ' bars' : ' bar'), () => { EDR.len = n; draw(); }, EDR.from + n <= sc.bars, 'btn' + (EDR.len === n ? ' on' : ''))); lg.append(b); } body.append(lg);
-        row(act('Copy', copyBars), act('Paste here', pasteBars, clipIs('bars')), act('Duplicate', duplicateBars, EDR.from + EDR.len * 2 <= 16));
-        if (UI.tl.lane === 'notes') row(act('Select all', () => { closeSheet(); selectAll(); }));
-        if (UI.tl.sel) row(act(selItems().length > 1 ? 'Duplicate notes' : 'Duplicate note', duplicateNote), act('Copy note bar', () => { EDR.from = Math.floor(UI.tl.sel.n.t / BAR); EDR.len = 1; copyBars(); }));
-        body.append('');
-        body.append(''); }
-      const i = UI.scene; body.append(h('div', 'sec', `Scene ${i + 1}${P.scenes[i].name ? ' · ' + esc(P.scenes[i].name) : ''}`));
-      row(act('Copy', () => copyScene(i)), act('Paste', () => pasteScene(i), clipIs('scene')), act('Duplicate', () => duplicateScene(i), i < NSCENES - 1));
-      row(act('◀ Move', () => moveScene(i, -1), i > 0), act('Move ▶', () => moveScene(i, 1), i < NSCENES - 1), confirmBtn('Clear', 'Tap again', () => { closeSheet(); clearScene(i); }));
-    };
+    const body = h('div', 'edit'), title = card.querySelector('.shTitle span'); card.append(body);
+    // keys: (label, fn, enabled, opts) — opts.stay keeps the sheet open (the timeline redraws behind it), opts.w spans columns
+    const key = (label, fn, on = true, o = {}) => { const b = btn(label, () => { fn(); if (!UI.sheet) return; if (o.stay) draw(); else closeSheet(); }, 'btn' + (o.cls ? ' ' + o.cls : '')); if (!on) b.disabled = true; if (o.w) b.style.gridColumn = 'span ' + o.w; return b; };
+    const grid = (...ks) => { const g = h('div', 'g4 hrow edg'); ks.forEach(k => g.append(k)); body.append(g); };
+    const draw = () => { const keys = () => [...body.querySelectorAll('.btn')], fi = NAV.el && body.contains(NAV.el) ? keys().indexOf(NAV.el) : -1; body.innerHTML = ''; title.innerHTML = 'Edit' + (CLIP ? ` <i class="clipline">· Clip <b>${esc(CLIP.label)}</b></i>` : '');
+      if (tabs.length > 1) { const tb = h('div', 'g' + tabs.length + ' hrow edtabs'); for (const t of tabs) tb.append(btn(t, () => { tab = ED.tab[ctx] = t; draw(); }, 'btn sm' + (t === tab ? ' on' : ''))); body.append(tb); }
+      const n = selItems().length, sc = P.scenes[UI.scene];
+      if (tab === 'Notes') {
+        grid(key('Copy', () => copyNotes(), n > 0), key('Cut', () => copyNotes(true), n > 0), key('Paste', pasteNotes, clipIs('notes'), { stay: 1 }), key('Delete', deleteSel, n > 0, { cls: 'warn' }),
+          key('Duplicate', () => duplicateNote(), n > 0, { stay: 1, w: 2, cls: 'hot' }), key('Fill to end', () => duplicateNote(true), n > 0, { stay: 1 }), key('Select all', selectAll, true, { stay: 1 })); }
+      if (tab === 'Bars') { const lab = h('div', 'lcdbox edr', `Bar ${EDR.from + 1}${EDR.len > 1 ? '–' + (EDR.from + EDR.len) : ''} / ${sc.bars}`); lab.style.gridColumn = 'span 2';
+        grid(key('◀', () => { EDR.from = Math.max(0, EDR.from - 1); }, EDR.from > 0, { stay: 1 }), lab, key('▶', () => { EDR.from = Math.min(sc.bars - 1, EDR.from + 1); EDR.len = Math.min(EDR.len, sc.bars - EDR.from); }, EDR.from < sc.bars - 1, { stay: 1 }),
+          ...[1, 2, 4, 8].map(k => key(k + (k > 1 ? ' bars' : ' bar'), () => { EDR.len = k; }, EDR.from + k <= sc.bars, { stay: 1, cls: 'sm' + (EDR.len === k ? ' on' : '') })),
+          key('Copy', copyBars), key('Paste', pasteBars, clipIs('bars'), { stay: 1 }), key('Duplicate', duplicateBars, EDR.from + EDR.len * 2 <= 16, { stay: 1, cls: 'hot' }), key('Clear', clearBars, true, { stay: 1, cls: 'warn' })); }
+      if (tab === 'Pad') { const pi = UI.view === 'mix' ? UI.mixSel : UI.pad;
+        grid(key('Copy', () => copyPad(pi)), key('Paste', () => pastePad(pi), clipIs('pad')), key('Duplicate', () => duplicatePad(pi), hasSound(P.pads[pi]), { cls: 'hot' }), confirmBtn('Clear', 'Again', () => { closeSheet(); clearPad(pi); }),
+          key('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap a pad to swap with ${padLabel(pi)}`); }, true, { w: 2 })); }
+      if (tab === 'Channel') { const c = UI.mixSel;
+        grid(key('Copy', () => copyChan(c)), key('Paste', () => pasteChan(c), clipIs('chan')), key('Copy FX', () => copyChain(c), P.chans[c].fx.length > 0), key('Paste FX', () => pasteChain(c), clipIs('chain'))); }
+      if (tab === 'Effect') { const c = UI.fxCh, s = UI.fxSlot, f = P.chans[c].fx[s];
+        grid(key('Copy', () => copyFx(c, s), !!f), key(f ? 'Replace' : 'Paste', () => pasteFx(c, s, false), clipIs('fx')), key('Insert', () => pasteFx(c, s + 1, true), clipIs('fx') && !!f), key('Duplicate', () => duplicateFx(c, s), !!f, { cls: 'hot' }),
+          key('Copy chain', () => copyChain(c), P.chans[c].fx.length > 0, { w: 2 }), key('Paste chain', () => pasteChain(c), clipIs('chain'), { w: 2 })); }
+      if (tab === 'Scene') { const i = UI.scene;
+        grid(key('Copy', () => copyScene(i)), key('Paste', () => pasteScene(i), clipIs('scene'), { stay: 1 }), key('Duplicate', () => duplicateScene(i), i < NSCENES - 1, { stay: 1, cls: 'hot' }), confirmBtn('Clear', 'Again', () => { clearScene(i); draw(); }),
+          key('◀ Move', () => moveScene(UI.scene, -1), i > 0, { stay: 1, w: 2 }), key('Move ▶', () => moveScene(UI.scene, 1), i < NSCENES - 1, { stay: 1, w: 2 })); }
+      if (fi >= 0) { const ks = keys(); let k = ks[Math.min(fi, ks.length - 1)]; if (k && k.disabled) k = ks.find(x => !x.disabled); if (k) setNav(k, true); }   // the d-pad stays where it was
+      if (UI.panel) requestAnimationFrame(updatePanel); };
     draw();
   });
+  $('#sheet').classList.add('dock'); placeSheet();
 }

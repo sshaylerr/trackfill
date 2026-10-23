@@ -433,6 +433,11 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 #sheet .card :is(.g2,.g3,.g4):not(.hrow)>.btn:disabled{opacity:.35}
 #sheet .card .btn.prow{display:grid;height:auto;min-height:50px;padding:7px 10px} #sheet .card .btn.prow.on::after{display:none}
 #sheet .card .list{gap:0;border-top:1px solid var(--line)} #sheet .card .li{background:none;border:0;border-bottom:1px solid var(--line);border-radius:0} #sheet .card .li.on{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+#sheet.dock{background:rgba(0,0,0,.18)} #sheet.dock .card{align-self:flex-end;box-shadow:0 -6px 24px rgba(0,0,0,.5)}
+#sheet .edit{display:flex;flex-direction:column;gap:6px;padding:2px 0 4px;min-height:180px} #sheet .edg{gap:4px} #sheet .edg>.btn,#sheet .edg>.lcdbox{height:46px;min-height:46px;margin:0}
+#sheet .edg>.btn.sm{height:34px;min-height:34px} #sheet .edtabs{gap:4px} #sheet .edtabs>.btn{height:30px;min-height:30px}
+#sheet .edg>.btn.hot:not(:disabled){color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,var(--line))} #sheet .edg>.btn.warn{color:var(--rec)}
+.shTitle .clipline{font-style:normal;color:var(--dim);font-weight:400;margin-left:2px}
 #sheet .card .note{font-size:12px;color:var(--dim)} #sheet .card .param{background:var(--panel)}
 #toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:30;background:var(--ink);color:#111;font-weight:600;font-size:13.5px;padding:9px 14px;border-radius:9px;max-width:calc(100% - 32px);text-align:center;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
@@ -1320,7 +1325,7 @@ function openLibrary() {
 // the menu window sits exactly over the view area (and the scene strip above it when that leaves too little room)
 function placeSheet() { const S = $('#sheet'); if (S.hidden) return; const v = $('#view').getBoundingClientRect(), sc = $('#scenes').getBoundingClientRect(), top = v.height < 300 ? sc.top : v.top;
   Object.assign(S.style, { left: v.left + 'px', top: top + 'px', width: v.width + 'px', height: (v.bottom - top) + 'px' }); }
-function openSheet(title, build, onClose) { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } UI.sheetClose = onClose || null; navReset(); const S = $('#sheet'), card = S.querySelector('.card'); card.innerHTML = ''; const hd = h('div', 'shTitle'); hd.append(h('span', '', esc(title)), btn('Close', closeSheet, 'btn sm')); card.append(hd); build(card); S.hidden = false; UI.sheet = true; placeSheet(); card.scrollTop = 0; if (UI.panel) requestAnimationFrame(updatePanel); }
+function openSheet(title, build, onClose) { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } UI.sheetClose = onClose || null; navReset(); const S = $('#sheet'), card = S.querySelector('.card'); S.classList.remove('dock'); card.innerHTML = ''; const hd = h('div', 'shTitle'); hd.append(h('span', '', esc(title)), btn('Close', closeSheet, 'btn sm')); card.append(hd); build(card); S.hidden = false; UI.sheet = true; placeSheet(); card.scrollTop = 0; if (UI.panel) requestAnimationFrame(updatePanel); }
 function closeSheet() { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } navReset(); $('#sheet').hidden = true; UI.sheet = false; renderScenes(); renderView(); }
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 function confirmBtn(label, again, fn, cls = 'btn warn') { const b = btn(label, e => { if (e) e.stopPropagation(); if (b._armed) { fn(); return; } b._armed = true; b.textContent = again; setTimeout(() => { b._armed = false; b.textContent = label; }, 3000); }, cls); return b; }
@@ -1550,7 +1555,9 @@ function navBack() {
   if (NAV.mode === 'edit') { navEndEdit(false); return; }
   if (UI.sheet) closeSheet();
 }
-function navDel() { if (NAV.mode === 'canvas') canvasCtl().del(); }
+const shiftDup = () => UI.shift && !UI.sheet && UI.view === 'seq' && UI.tl.lane === 'notes';
+function navDel() { if (shiftDup()) { UI.shift = false; $('#pShift').classList.remove('on'); duplicateNote(); return; }   // Shift + Del: duplicate
+  if (NAV.mode === 'canvas') canvasCtl().del(); }
 function navInfo() {
   const el = NAV.el; if (!el) return '';
   if (NAV.mode === 'canvas' && NAV.held) return canvasCtl().heldInfo();
@@ -1681,7 +1688,8 @@ function holdBtn(el, fn) { let t1 = 0, t2 = 0; const stop = () => { clearTimeout
   el.addEventListener('pointerdown', e => { e.preventDefault(); el.classList.add('down'); haptic(); fn(); updatePanel(); t1 = setTimeout(() => { t2 = setInterval(() => { fn(); updatePanel(); }, 70); }, 380); });
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, stop); }
 document.querySelectorAll('.dpad .pk[data-k]').forEach(b => holdBtn(b, () => navArrow(b.dataset.k, UI.shift)));
-holdBtn($('#pDel'), navDel);
+{ let dup = false; $('#pDel').addEventListener('pointerdown', () => { dup = shiftDup(); if (dup) navDel(); });   // Shift + Del duplicates once; holding never deletes
+  holdBtn($('#pDel'), () => { if (!dup) navDel(); }); }
 $('#pBack').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); navBack(); updatePanel(); });
 $('#pStrip').addEventListener('click', toggleStrip);
 $('#pShift').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); UI.shift = !UI.shift; $('#pShift').classList.toggle('on', UI.shift); updatePanel(); });
@@ -1691,6 +1699,7 @@ $('#pFine').addEventListener('pointerdown', e => { e.preventDefault(); haptic();
   const up = () => { if (!ok.classList.contains('down')) return; ok.classList.remove('down'); navOk(false); updatePanel(); }; ok.addEventListener('pointerup', up); ok.addEventListener('pointercancel', up); ok.addEventListener('pointerleave', up); }
 addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; if (e.key === ' ') { e.preventDefault(); play(); return; }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if ((e.metaKey || e.ctrlKey) && UI.view === 'seq' && UI.tl.lane === 'notes' && !UI.sheet) { const f = { d: () => duplicateNote(), c: () => copyNotes(), x: () => copyNotes(true), v: pasteNotes, a: selectAll }[e.key.toLowerCase()]; if (f) { e.preventDefault(); f(); updatePanel(); return; } }
   const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }, f = UI.fine;
   if (map[e.key]) { e.preventDefault(); if (e.altKey) UI.fine = Math.max(1, f); navArrow(map[e.key], e.shiftKey || UI.shift); UI.fine = f; }
   else if (e.key === 'Enter') { e.preventDefault(); if (!e.repeat) navOk(true); }
