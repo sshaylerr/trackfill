@@ -665,6 +665,7 @@ function silentWavUrl() { const sr = 8000, n = sr / 2, b = new ArrayBuffer(44 + 
 // iOS mutes Web Audio on the silent switch unless the page is in the "playback" audio category.
 function unmuteIOS() {
   try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) {}
+  if (navigator.audioSession) return;   // iOS 17+: the playback category alone beats the silent switch; a silent <audio> track on top can push iOS onto a slower audio path
   try { if (!mediaTag) { mediaTag = document.createElement('audio'); mediaTag.setAttribute('x-webkit-airplay', 'deny'); mediaTag.setAttribute('playsinline', ''); mediaTag.preload = 'auto'; mediaTag.loop = true; mediaTag.src = silentWavUrl(); mediaTag.load(); }
     if (mediaTag.paused) { const p = mediaTag.play(); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
 }
@@ -936,7 +937,7 @@ function padDown(cell, hk = cell) {   // hk: the key this press is held under (t
   const chop = padChop();
   if (UI.keys) { pi = UI.pad; UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flashCell(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flashCell(cell); return; } semi = kc.semi; } }
   else if (UI.swapFrom != null) { const a = UI.swapFrom; UI.swapFrom = null; pi = UI.bank * 16 + cell; if (a === pi) { refreshPadDots(); toast('Swap cancelled'); } else { swapPads(a, pi); UI.pad = pi; } return; }
-  else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; refreshPadDots(); updatePanel(); } }
+  else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; requestAnimationFrame(() => { refreshPadDots(); updatePanel(); }); } }   // screen updates wait until the note is sent
   const pad = P.pads[pi]; flashCell(cell); if (!hasSound(pad)) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return; }
   const tag = tagSeq++; if (pad.sample) ensureSample(pad.sample);
   if (kc && kc.chord && kxOf(pi).arp) {   // arpeggiator: the engine plays the chord's notes in time; latch keeps it going after you let go
