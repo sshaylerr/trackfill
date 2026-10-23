@@ -1142,7 +1142,11 @@ function moveSelRows(d) { const tl = UI.tl, sc = P.scenes[UI.scene], items = sel
   d = clamp(d, -Math.min(...rows), max - Math.max(...rows)); if (!d) return 0;
   for (const x of items) { if (tl.mode === 'bank') { const npi = x.pi + d, arr = sc.notes[x.pi]; arr.splice(arr.indexOf(x.n), 1); if (!arr.length) delete sc.notes[x.pi]; touchPad(npi); (sc.notes[npi] = sc.notes[npi] || []).push(x.n); x.pi = npi; }
     else x.n.p = KR.p(KR.row(x.n.p) + d); }
-  if (tl.mode === 'bank') UI.pad = tl.sel.pi; audition(tl.sel.pi, tl.sel.n.p); return d; }
+  if (tl.mode === 'bank') UI.pad = tl.sel.pi; auditionSel(); return d; }
+// hear the selection: its first chord (every note starting with the earliest one, up to 8)
+function auditionSel() { const items = selItems(); if (!items.length || !ENG.node) return; const t0 = Math.min(...items.map(x => x.n.t));
+  for (const x of items.filter(x => x.n.t - t0 < STACK_T).slice(0, 8)) { const pad = P.pads[x.pi]; if (!hasSound(pad)) continue; if (pad.sample) ensureSample(pad.sample); send({ t: 'hit', pad: x.pi, semi: x.n.p, vel: x.n.v, gate: .3, tag: 0 }); } }
+function selectAll() { const tl = UI.tl; setGroup(notesInBox(0, tlLen(), 0, maxRow())); if (tl.sel && tl.mode === 'bank') UI.pad = tl.sel.pi; drawTL(); updatePanel(); haptic(); toast(selItems().length + ' notes'); }
 function deleteSel() { const items = selItems(); if (!items.length) { toast('Select a note first'); return; } pushUndo('scene:' + UI.scene); const sc = P.scenes[UI.scene];
   for (const x of items) { touchPad(x.pi); const arr = sc.notes[x.pi]; if (!arr) continue; const i = arr.indexOf(x.n); if (i >= 0) arr.splice(i, 1); if (!arr.length) delete sc.notes[x.pi]; }
   clearSel(); afterEdit(); }
@@ -1225,7 +1229,7 @@ function bindTL(cv) {
     if (TL.pinch) { if (!ptrs.size) TL.pinch = null; return; }   // the pinch ends when every finger has lifted
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; TL.drag = null; const tl = UI.tl, { x, y } = tlLocal(e), now = Date.now();
     if (d.kind === 'box') { if (!d.moved) { clearSel(); drawTL(); updatePanel(); return; }
-      setGroup(notesInBox(x2t(d.x0), x2t(x), y2row(d.y0), y2row(y))); if (tl.sel && tl.mode === 'bank') UI.pad = tl.sel.pi; drawTL(); updatePanel(); return; }
+      setGroup(notesInBox(x2t(d.x0), x2t(x), y2row(d.y0), y2row(y))); if (tl.sel && tl.mode === 'bank') UI.pad = tl.sel.pi; auditionSel(); drawTL(); updatePanel(); return; }
     if (d.axis === 'v') { const dy = y - d.y0; if (Math.abs(dy) > 40) tlBank(UI.bank + (dy < 0 ? 1 : -1), 'swipe'); else drawTL(); return; }
     if (d.kind === 'label' && !d.moved) { const r = y2row(y); if (r >= 0 && r <= maxRow()) { if (tl.mode === 'bank') { UI.pad = UI.bank * 16 + r; UI.tl.target = null; audition(UI.pad); } else audition(UI.pad, KR.p(r)); } drawTL(); updatePanel(); return; }
     if (d.kind === 'empty' && !d.moved) {
@@ -1236,7 +1240,7 @@ function bindTL(cv) {
       if (TL.lastTap.o === d.hit.n && now - TL.lastTap.t < 350) { deleteSel(); TL.lastTap = { t: 0, o: null }; return; }   // double tap deletes the selection
       if (d.wasSel && tl.selMode && tl.ms) { setGroup(selItems().filter(q => tl.mode === 'bank' ? !stackOf(d.hit.pi, d.hit.n).some(z => z.n === q.n) : q.n !== d.hit.n)); drawTL(); updatePanel(); }   // Select: tap a selected note to drop it
       else if (d.wasSel && !tl.selMode && tl.ms && tl.mode === 'keys') { selectNote(d.hit.pi, d.hit.n); drawTL(); }
-      TL.lastTap = { t: now, o: d.hit.n }; audition(d.hit.pi, d.hit.n.p); return; }
+      TL.lastTap = { t: now, o: d.hit.n }; auditionSel(); return; }
     if (d.kind === 'pt' && !d.moved) { const pts = lanePts(false), p = pts && pts[d.i]; if (p && TL.lastTap.o === p && now - TL.lastTap.t < 350) { autoCtl.del(); TL.lastTap = { t: 0, o: null }; return; } TL.lastTap = { t: now, o: p }; return; }
     if (d.kind === 'draw') { finishDraw(d.pts); return; }
     if (d.kind !== 'pan' && d.kind !== 'empty') afterEdit();
@@ -1633,11 +1637,11 @@ const noteCtl = {
     else tl.cursor.row = clamp(tl.cursor.row + d, 0, maxRow()); tlEnsure(); },
   left(s) { this.hz(-1, s); }, right(s) { this.hz(1, s); }, up(s) { this.vt(-1, s); }, down(s) { this.vt(1, s); },
   ok() { const tl = UI.tl;
-    if (tl.box) { const b = tl.box; tl.box = null; tl.selMode = false; setGroup(notesInBox(b.t, tl.cursor.t + tlStep(), b.row, tl.cursor.row)); if (tl.sel) selStart();   // the box's notes, ready to move
+    if (tl.box) { const b = tl.box; tl.box = null; tl.selMode = false; setGroup(notesInBox(b.t, tl.cursor.t + tlStep(), b.row, tl.cursor.row)); if (tl.sel) { selStart(); auditionSel(); }   // the box's notes, ready to move
       const k = document.querySelector('.selKey'); if (k) k.classList.remove('on'); afterEdit(); return; }
     if (tl.selMode) { clearSel(); tl.box = { t: tl.cursor.t, row: tl.cursor.row }; drawTL(); return; }
     if (tl.sel) { clearSel(); NAV.selUndo = -1; afterEdit(); return; }
-    const hit = noteAtCursor(); if (hit) { selStart(); selectNote(hit.pi, hit.n); audition(hit.pi, hit.n.p); drawTL(); return; }
+    const hit = noteAtCursor(); if (hit) { selStart(); selectNote(hit.pi, hit.n); auditionSel(); drawTL(); return; }
     addNoteAt(tl.cursor.t, tl.cursor.row); NAV.selUndo = UNDO.length - 1; },
   back() { const tl = UI.tl; if (tl.box) { tl.box = null; drawTL(); return true; } if (!tl.sel) return false; if (NAV.selUndo >= 0) selCancel(); clearSel(); drawTL(); return true; },
   del() { NAV.selUndo = -1; deleteSel(); } };
