@@ -15,6 +15,11 @@ const TF = { PPQ: 96, BAR: 384, NCH: 83, NPAD: 64, G0: 64, B0: 72, R0: 80, MASTE
    Patches store physical values by id; the engine works on 0..1 per parameter so modulation is uniform. */
 const TF_WAVES = ['Sine', 'Triangle', 'Saw', 'Square', 'Pulse'];
 const TF_LFO_DIVS = [['4 bars', 16], ['2 bars', 8], ['1 bar', 4], ['1/2', 2], ['1/2 D', 3], ['1/2 T', 4 / 3], ['1/4', 1], ['1/4 D', 1.5], ['1/4 T', 2 / 3], ['1/8', .5], ['1/8 D', .75], ['1/8 T', 1 / 3], ['1/16', .25], ['1/16 T', 1 / 6], ['1/32', .125]];
+// FM: algorithms as [name, targets of op 2, op 3, op 4 (bit k = feeds op k+1), carriers (bit k = op k+1 is heard)]; ops only feed lower-numbered ones
+const TF_ALGS = [['Stack', 1, 2, 4, 1], ['Y', 1, 2, 2, 1], ['Fork', 1, 1, 4, 1], ['Two pairs', 1, 0, 4, 5], ['One to three', 0, 0, 7, 7], ['Stack + sine', 0, 2, 4, 3],
+  ['Two into one + sine', 0, 2, 2, 3], ['Pair + two', 0, 0, 4, 7], ['Additive', 0, 0, 0, 15], ['Diamond', 1, 1, 6, 1], ['Three into one', 1, 1, 1, 1], ['Chain to two', 0, 3, 4, 3]];
+const TF_OPMODES = ['FM', 'Ring', 'Filter', 'Filter FM', 'Fold'];
+const TF_FMWAVES = ['Sine', 'Digital', 'Triangle', 'Saw', 'Square', 'Sine 1+2', 'Sine 1+3', 'Saw 3', 'Square 3', 'Noise'];
 const TFSYN = (() => {
   const L = [], osc = (n, def) => { const o = 'o' + n;
     L.push([o + 'w', 'Wave', 'opt', TF_WAVES, 0, def.w, o], [o + 'o', 'Octave', 'int', -2, 2, def.o || 0, o], [o + 's', 'Semi', 'lin', -12, 12, def.s || 0, o], [o + 'f', 'Fine', 'lin', -100, 100, def.f || 0, o],
@@ -36,6 +41,13 @@ const TFSYN = (() => {
     ['l' + k + 'd', 'Rate', 'opt', TF_LFO_DIVS.map(d => d[0]), 0, '1/4', 'l' + k], ['l' + k + 'm', 'Mode', 'opt', ['Retrig', 'Free', 'One-shot'], 0, 'Retrig', 'l' + k],
     ['l' + k + 'o', 'Smooth', 'lin', 0, 1, 0, 'l' + k], ['l' + k + 'p', 'Phase', 'lin', 0, 1, 0, 'l' + k]);
   for (let k = 1; k <= 4; k++) L.push(['m' + k, 'Macro ' + k, 'lin', 0, 1, 0, 'mc']);
+  // FM engine: four operators (op 1 is the bottom of every algorithm, op 4 the top, with feedback)
+  L.push(['eng', 'Engine', 'opt', ['Analog', 'FM'], 0, 'Analog', 'en'], ['alg', 'Algorithm', 'opt', TF_ALGS.map(a => a[0]), 0, TF_ALGS[0][0], 'fa'],
+    ['fmd', 'FM depth', 'lin', 0, 1, .5, 'fa'], ['ffb', 'Feedback', 'lin', 0, 1, 0, 'fa']);
+  for (let k = 1; k <= 4; k++) { const f = 'f' + k, t = 'f' + k;
+    L.push([f + 'm', 'Mode', 'opt', TF_OPMODES, 0, 'FM', t], [f + 'w', 'Wave', 'opt', TF_FMWAVES, 0, 'Sine', t], [f + 'c', 'Ratio', 'int', 0, 16, k === 1 ? 1 : k, t], [f + 'f', 'Fine', 'lin', 0, 1, 0, t],
+      [f + 'x', 'Fixed', 'opt', ['Off', 'On'], 0, 'Off', t], [f + 'z', 'Freq', 'exp', 1, 12000, 440, t], [f + 'l', 'Level', 'lin', 0, 1, k === 1 ? .8 : 0, t], [f + 't', 'Amount', 'lin', 0, 1, .5, t],
+      [f + 'q', 'Resonance', 'lin', 0, 1, .3, t], [f + 'a', 'Attack', 'exp', .0005, 10, .002, t], [f + 'd', 'Decay', 'exp', .005, 10, 1, t], [f + 's', 'Sustain', 'lin', 0, 1, 1, t], [f + 'r', 'Release', 'exp', .005, 15, .3, t]); }
   return L.map(([id, l, k, a, b, d, tab], i) => ({ i, id, l, k, a, b, d, tab }));
 })();
 const TFSYN_ID = Object.fromEntries(TFSYN.map(p => [p.id, p]));
@@ -277,7 +289,7 @@ class TFHost {
     const ex = this.ex, pad = this.P.pads[pi]; if (!ex.tf_syn_on) return;
     const on = !!(pad && pad.src === 'synth' && pad.syn); if (!on) { if (this.synOn && this.synOn[pi]) ex.tf_syn_on(pi, 0); if (this.synOn) this.synOn[pi] = 0; return; }
     (this.synOn = this.synOn || [])[pi] = 1; const S = pad.syn;
-    for (const p of TFSYN) ex.tf_syn_param(pi, p.i, tfSynNorm(p, S.p ? S.p[p.id] : undefined));
+    for (const p of TFSYN) ex.tf_syn_param(pi, p.i, tfSynNorm(p, p.id === 'eng' ? (S.eng === 'fm' ? 'FM' : 'Analog') : S.p ? S.p[p.id] : undefined));
     for (let k = 0; k < 4; k++) { const ptr = ex.tf_syn_lfo(pi, k); if (ptr) new Float32Array(ex.memory.buffer, ptr, 256).set(tfLfoTable(S.lfo && S.lfo[k])); }
     const mods = (S.mods || []).filter(r => TFSYN_ID[r.d] && r.s >= 0 && r.s < TF_SRC.length).slice(0, 32); ex.tf_syn_routes(pi, mods.length);
     mods.forEach((r, k) => ex.tf_syn_route(pi, k, r.s, TFSYN_ID[r.d].i, r.a || 0, r.c || 0, r.v == null ? -1 : r.v));
@@ -511,4 +523,4 @@ async function tfRenderOffline(module, P, samples, opts) {
   }
   return { L, R, sr };
 }
-if (typeof module !== 'undefined') module.exports = { TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

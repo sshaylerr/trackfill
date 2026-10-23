@@ -254,7 +254,7 @@ function jungleProject() {
   Object.assign(C[12], { sb: .3, vol: .5 }); Object.assign(C[13], { sb: .3, vol: .5 }); Object.assign(C[15], { vol: .55 });
   C[R0 + 1].fx = [newFx(FX_TYPES.REVERB, { 0: 1, 2: .5 }, 2)];
   // bank B, second row: a few synth pads to try (Analog engine)
-  const SPM = SPN(); if (SPM.SYN_PRESETS) [['Reese', 24, 3], ['Supersaw', 25, 4], ['Trance Pluck', 26, 0], ['Juno Strings', 27, 5]].forEach(([n, pi, col]) => { const pr = SPM.SYN_PRESETS.find(x => x.n === n); if (!pr) return;
+  const SPM = SPN(); if (SPM.SYN_PRESETS) [['Reese', 24, 3], ['Supersaw', 25, 4], ['Trance Pluck', 26, 0], ['Juno Strings', 27, 5]].forEach(([n, pi, col]) => { const pr = SPM.SYN_PRESETS.find(x => x.n === n) || SPM.FM_PRESETS.find(x => x.n === n); if (!pr) return;
     Object.assign(p.pads[pi], { name: n.slice(0, 12), src: 'synth', syn: SPM.synPatch(pr), mode: 'gate', color: col, voice: pr.voice || 'poly', glide: pr.glide != null ? pr.glide : .08, poly: 8 });
     if (pr.fx) C[pi].fx = pr.fx.map(f => newFx(f.type, null, f.mode || 0)); Object.assign(C[pi], { sb: .25, vol: .5 }); });
   C[MASTER].fx = [newFx(FX_TYPES.LIMIT, null, 0)]; C[MASTER].vol = .62;
@@ -467,7 +467,7 @@ function migrate(src) {
 }
 function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : (v === v ? v : 0); }
 // harmony helpers live in harmony.js (one script with this file in the app; a require in the tests)
-const SPN = () => typeof normalizeSyn === 'function' ? { normalizeSyn, SYN_PRESETS, synPatch } : require('./synthpresets.js');
+const SPN = () => typeof normalizeSyn === 'function' ? { normalizeSyn, SYN_PRESETS, FM_PRESETS, synPatch } : require('./synthpresets.js');
 const HMN = () => typeof normalizeKx === 'function' ? { normalizeKx, normalizeKey, PROGS, chordPads, voiceChord } : require('./harmony.js');
 function normalize(p) {
   const n = newProject(true); Object.assign(n, p); n.v = PROJECT_VERSION;
@@ -540,8 +540,8 @@ function demoProject() {
 function stressProject() {
   const p = jungleProject(), SPM = SPN(), S = p.scenes, q = 24, F = FX_TYPES; p.name = 'Stress test';
   const add = (s, pi, t, len, pp = 0, v = .85) => { (S[s].notes[pi] = S[s].notes[pi] || []).push({ t, len, p: pp, v }); };
-  const syn = ['Supersaw', 'Reese', 'Hoover Bass', 'Juno Strings', 'Warm Pad', 'Trance Pad', 'Sweep Pad', 'Acid Line', 'Sync Lead', 'Brass Lead', 'Poly Stab', 'Rave Stab', '80s Poly Keys', 'House Chord', 'Wobble', 'Moog Bass',
-    'Trance Pluck', 'Pluck', 'Dark Pad', 'Ambient Drift', 'Trance Lead', 'Juno Bass', 'Sub', 'Noise Sweep', 'Laser Zap'];
+  const syn = ['Supersaw', 'Reese', 'Hoover Bass', 'Juno Strings', 'Warm Pad', 'Trance Pad', 'Sweep Pad', 'Acid Line', 'Sync Lead', 'Brass Lead', 'Poly Stab', 'Rave Stab', '80s Poly Keys', 'Folded Bass', 'Wobble', 'Jump Up Wobble',
+    'Trance Pluck', 'Tech Stab', 'Digital Brass', 'Glass Pad', 'Neuro Growl', 'Reese FM', 'E. Piano', 'Bells', 'Breath Pad'];   // Analog and FM
   syn.forEach((n, k) => { const pi = 28 + k; if (pi >= NPADS) return; const pr = SPM.SYN_PRESETS.find(x => x.n === n); if (!pr) return;
     Object.assign(p.pads[pi], { name: n.slice(0, 12), src: 'synth', syn: SPM.synPatch(pr), mode: 'gate', color: k % 8, voice: pr.voice || 'poly', glide: pr.glide || 0, poly: 8 }); });
   for (const sc of [0, 1]) Object.assign(S[sc], { bars: 4, repeat: 1 });
