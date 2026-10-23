@@ -978,10 +978,11 @@ let tagSeq = 1;
 function padDown(cell, hk = cell) {   // hk: the key this press is held under (the panel's pad strip uses its own)
   ensureAudio(); let pi, semi = 0, kc = null;
   const chop = padChop();
-  if (UI.keys) { pi = UI.pad; UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flashCell(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flashCell(cell); return; } semi = kc.semi; } }
+  const fromStrip = typeof hk === 'string' && hk[0] === 's', flash = fromStrip ? () => {} : flashCell;   // the panel's pads light themselves, never the big grid
+  if (UI.keys) { pi = UI.pad; if (!fromStrip) UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flash(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flash(cell); return; } semi = kc.semi; } }
   else if (UI.swapFrom != null) { const a = UI.swapFrom; UI.swapFrom = null; pi = UI.bank * 16 + cell; if (a === pi) { refreshPadDots(); toast('Swap cancelled'); } else { swapPads(a, pi); UI.pad = pi; } return; }
   else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; requestAnimationFrame(() => { refreshPadDots(); updatePanel(); }); } }   // screen updates wait until the note is sent
-  const pad = P.pads[pi]; flashCell(cell); if (!hasSound(pad)) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return; }
+  const pad = P.pads[pi]; flash(cell); if (!hasSound(pad)) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return; }
   const tag = tagSeq++; if (pad.sample) ensureSample(pad.sample);
   if (kc && kc.chord && kxOf(pi).arp) {   // arpeggiator: the engine plays the chord's notes in time; latch keeps it going after you let go
     const kx = kxOf(pi), notes = playChord(pi, kc.chord), lt = KEYS.latch;
@@ -1510,7 +1511,7 @@ function buildStrip() {
   bw.addEventListener('pointerup', rel); bw.addEventListener('pointercancel', rel); s.append(bw); refreshStrip();
 }
 function withKeys(fn) { const k = UI.keys; UI.keys = true; try { return fn(); } finally { UI.keys = k; } }
-function stripDown(cell) { ensureAudio(); withKeys(() => padDown(cell, 's' + cell)); if (UI.view === 'pads') refreshPadDots(); }
+function stripDown(cell) { ensureAudio(); withKeys(() => padDown(cell, 's' + cell)); if (UI.view === 'pads') { refreshPadDots(); if (!UI.keys && Math.floor(UI.pad / 16) === UI.bank) flashCell(UI.pad % 16); } }
 function refreshStrip() {
   const s = $('#pstrip'); if (!s || !UI.strip) return; if (!s.children.length) { buildStrip(); return; }
   const pi = UI.pad, pad = P.pads[pi], chop = withKeys(() => padChop());
