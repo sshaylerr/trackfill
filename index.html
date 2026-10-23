@@ -267,6 +267,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 .chopView{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
 .chopwave{flex:1;min-height:90px;position:relative}
 .chopwave canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.dispKey{position:absolute;top:5px;right:5px;height:24px;min-width:0;padding:0 9px;font-size:11px;opacity:.95;z-index:1} #view.tiny .dispKey{height:20px;font-size:10px}
 .zbtns{position:absolute;right:5px;bottom:20px;display:flex;gap:4px}
 .zbtns .key{height:26px;min-width:30px;padding:0 6px;opacity:.9}
 .spads{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-auto-rows:36px;gap:6px 5px;flex:none}
@@ -3888,6 +3889,7 @@ function renderSound(V) {
   if (UI.snd === PG.SAMPLE && pad.src === 'drum' && pad.drum) { renderDrumPage(w, pi, head, pages); V.append(w); return; }
   if (UI.snd === PG.CHOP) { w.append(head, pages, chopView(pi)); V.append(w); requestAnimationFrame(drawChop); return; }
   const disp = h('div', 'scr disp'), cv = h('canvas'); disp.append(cv); dispCv = cv; bindWave(cv);
+  if (UI.snd === PG.SAMPLE) disp.append(btn(pad.sample ? 'Replace sample' : 'Load a sound', openLibrary, 'key sm dispKey'));   // the sound itself lives on the screen, next to its name
   const g = h('div', 'kgrid'), redraw = { after: () => drawDisp() };
   if (UI.snd === PG.SAMPLE) {
     g.append(padParam(pi, 'pitch', { label: 'Pitch', min: -24, max: 24, step: 1, coarse: 1, big: 12, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v + ' st' }),
@@ -3896,7 +3898,7 @@ function renderSound(V) {
       padParam(pi, 'end', { label: 'End', step: .001, coarse: .01, big: .05, def: 1, fmt: v => (v * 100).toFixed(1) + '%' }),
       modeSel(pi), pad.mode === 'loop' ? padParam(pi, 'loopS', { label: 'Loop start', step: .001, coarse: .01, big: .05, def: .25, fmt: v => (v * 100).toFixed(1) + '%', after: () => drawDisp() })
         : selEl('Reverse', ['Off', 'On'], () => pad.reverse ? 1 : 0, i => { pushUndo('pad:' + pi); touchPad(pi); pad.reverse = !!i; syncPad(pi); markDirty(); drawDisp(); }),
-      cellBtn('Sound', SAMPLES.get(pad.sample)?.name || 'Empty', openLibrary), cellBtn('Tools', 'Open', () => openSoundTools(pi)));
+      cellBtn('Stretch', stretchLabel(pad), () => openStretch(pi)), cellBtn('Tools', 'Open', () => openSoundTools(pi)));
   } else if (UI.snd === PG.AMP) {
     g.append(padParam(pi, 'atk', { label: 'Attack', max: 2, step: .001, coarse: .02, big: .1, def: 0, fmt: v => Math.round(v * 1000) + ' ms' }),
       padParam(pi, 'rel', { label: 'Release', max: 4, step: .001, coarse: .02, big: .25, def: .05, fmt: v => Math.round(v * 1000) + ' ms' }),
@@ -3935,7 +3937,7 @@ function drawDisp() {
       const xs = pad.start * W, xe = pad.end * W; g.fillStyle = 'rgba(0,0,0,.66)'; g.fillRect(0, 0, xs, H); g.fillRect(xe, 0, W - xe, H);
       g.fillStyle = COL.accent; g.fillRect(xs - 1, 0, 2, H); g.fillRect(xe - 1, 0, 2, H); g.fillRect(xs, 0, 9, 12); g.fillRect(xe - 9, H - 12, 9, 12);
       if (pad.mode === 'loop') { const xl = clamp(pad.loopS, pad.start, pad.end) * W; g.globalAlpha = .13; g.fillRect(xl, 0, xe - xl, H); g.globalAlpha = 1; g.fillRect(xl - 1, 0, 2, H); txt('loop', xl + 5, 22, COL.accent); }
-      txt(`${(s.frames / s.sr).toFixed(2)}s · ${s.ch === 2 ? 'stereo' : 'mono'}${pad.reverse ? ' · reversed' : ''}`, 8, H - 10); txt(s.name, W - 8, 10, COL.mute, 'right');
+      txt(`${(s.frames / s.sr).toFixed(2)}s · ${s.ch === 2 ? 'stereo' : 'mono'}${pad.reverse ? ' · reversed' : ''}${pad.tempo > 0 || (pad.wm && pad.wm !== 'Repitch') ? ' · ' + stretchLabel(pad) : ''}`, 8, H - 10); txt(s.name, W - 128, 15, COL.mute, 'right');
       return;
     }
     // AMP: the envelope over the trimmed sound
@@ -4145,7 +4147,7 @@ function chopView(pi) {
   const g = h('div', 'kgrid');
   if (c) g.append(selEl('Slice by', ['Transient', 'Equal', 'Manual'], () => CHOP_BY.indexOf(c.by), i => { pushUndo('pad:' + pi); touchPad(pi); c.by = CHOP_BY[i]; if (c.by !== 'm') rechop(pad, s); UI.slice = 0; syncPad(pi); markDirty(); renderView(); }),
     c.by === 'm' ? cellBtn('Slices', String(c.pts.length), () => openChopTools(pi)) : chopAmt(pi, c.by === 't' ? 'sens' : 'div'), tempo, cellBtn('Tools', 'Open', () => openChopTools(pi)));
-  else g.append(tempo, cellBtn('Stretch', pad.wm || 'Repitch', () => openStretch(pi)), cellBtn('Tools', 'Open', () => openChopTools(pi)), blankCell());
+  else g.append(tempo, cellBtn('Stretch', stretchLabel(pad), () => openStretch(pi)), cellBtn('Tools', 'Open', () => openChopTools(pi)), blankCell());
   w.append(disp, pads, g); return w;
 }
 // the slice waveform: on the Sound view's Chop page, and above the pads when the Pads screen is in Chop mode
@@ -5599,7 +5601,8 @@ let strBusy = 0; function stretchBusy(d) { strBusy += d; const el = document.que
 // a pad changed: if what the stretch depends on moved (tempo, pitch, mode, settings, sample), render again
 function stretchCheck(pi) { const pad = P.pads[pi]; if (!pad || !pad.wm || pad.wm === 'Repitch') { if (pad && pad.stx) { pad.stx = null; } return; } if (!pad.sample) return; const key = stretchKey(pad); if (key !== pad.stx && key !== STR.sig.get(pi)) scheduleStretch(pi); }
 
-/* ---------- the Stretch menu ---------- */
+/* ---------- the Stretch menu (on the Sample page: the sound's tempo, the mode and its settings) ---------- */
+function stretchLabel(pad) { const m = pad.wm || 'Repitch'; return pad.tempo > 0 ? `${m} · ${+pad.tempo.toFixed(1)}→${P.bpm}` : m === 'Repitch' ? 'Off' : m + (pad.wp && pad.wp.speed !== 1 ? ' · ' + pad.wp.speed.toFixed(2) + '×' : ''); }
 const STRETCH_ABOUT = { Repitch: 'speed and pitch move together, like a turntable', Clean: 'keeps the pitch: vocals, pads, keys, full mixes', Beats: 'slices at each hit, every slice at its own speed: breaks',
   Vintage: 'the old sampler stretch: grainy, metallic, jungle' };
 function openStretch(pi) {
@@ -5609,10 +5612,12 @@ function openStretch(pi) {
     const l = h('div', 'list'); for (const m of STRETCH_MODES) { const li = h('div', 'li' + (pad.wm === m ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${m}</b><span>${STRETCH_ABOUT[m]}</span></div>`;
       li.onclick = () => { pushUndo('pad:' + pi); touchPad(pi); pad.wm = m; markDirty(); if (m === 'Repitch') { pad.stx = null; syncPad(pi); } else refreshStretch(pi); closeSheet(); openStretch(pi); }; l.append(li); }
     st.append(h('div', 'sec', 'Mode'), l);
-    st.append(h('div', 'sec', 'Timing'));
-    if (pad.tempo > 0) st.append(h('p', 'note', `Follows the song: the sound's own tempo is ${pad.tempo} BPM, the song is at ${P.bpm}. Set its tempo with the Tempo knob or Fit to tempo on the Chop page.`));
-    else st.append(paramEl({ label: 'Speed', min: .25, max: 2, step: .01, coarse: .05, big: .25, def: 1, fmt: v => v.toFixed(2) + '×', get: () => w.speed, set: v => set('speed', v), onStart: () => pushUndo('pad:' + pi) }),
-      h('p', 'note', 'Set the sound\'s tempo (Chop page) and it follows the song instead.'));
+    st.append(h('div', 'sec', 'The sound\'s tempo: then it follows the song (' + P.bpm + ' BPM)'));
+    const dur = (pad.end - pad.start) * s.frames / s.sr, fit = h('div', 'g3'); fit.append(btn('Off', () => { pushUndo('pad:' + pi); touchPad(pi); pad.tempo = 0; syncPad(pi); markDirty(); closeSheet(); openStretch(pi); }, 'btn' + (pad.tempo ? '' : ' on')));
+    for (const [beats, l] of [[1, '1 beat'], [2, '2 beats'], [4, '1 bar'], [8, '2 bars'], [16, '4 bars'], [32, '8 bars']]) { const bpm = beats * 60 / dur; if (bpm < 20 || bpm > 300) continue;
+      fit.append(btn(`${l} · ${bpm.toFixed(1)}`, () => { pushUndo('pad:' + pi); touchPad(pi); pad.tempo = Math.round(bpm * 10) / 10; syncPad(pi); markDirty(); closeSheet(); openStretch(pi); }, 'btn' + (Math.abs(pad.tempo - bpm) < .06 ? ' on' : ''))); }
+    st.append(fit, paramEl({ label: 'Tempo', min: 0, max: 300, step: .1, coarse: 1, big: 10, def: 0, fmt: v => v < 20 ? 'Off' : v.toFixed(1) + ' BPM', get: () => pad.tempo, set: v => { touchPad(pi); pad.tempo = v < 20 ? 0 : v; syncPad(pi); markDirty(); }, onStart: () => pushUndo('pad:' + pi) }));
+    if (!(pad.tempo > 0)) st.append(paramEl({ label: 'Speed (without a tempo)', min: .25, max: 2, step: .01, coarse: .05, big: .25, def: 1, fmt: v => v.toFixed(2) + '×', get: () => w.speed, set: v => set('speed', v), onStart: () => pushUndo('pad:' + pi) }));
     if (pad.wm === 'Beats') { st.append(h('div', 'sec', 'Beats'));
       const pr = h('div', 'g4'); for (const o of BEATS_PRESERVE) { const b = btn(o, () => { pushUndo('pad:' + pi); set('preserve', o); closeSheet(); openStretch(pi); }, 'btn' + (w.preserve === o ? ' on' : '')); if (o !== 'Transients' && !(pad.tempo > 0)) b.disabled = true; pr.append(b); }
       st.append(pr);
