@@ -1101,6 +1101,8 @@ function bindTL(cv) {
   cv.addEventListener('pointermove', e => {
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; const { x, y } = tlLocal(e), tl = UI.tl, len = tlLen();
     if (!d.moved && Math.hypot(x - d.x0, y - d.y0) > 7) d.moved = true; if (!d.moved) return;
+    if ((d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') && tl.lane === 'notes' && tl.mode === 'bank' && d.axis == null && d.y0 >= RULER_H) d.axis = Math.abs(y - d.y0) > Math.abs(x - d.x0) * 1.3 ? 'v' : 'h';
+    if (d.axis === 'v') return;   // a vertical swipe in Bank view flips banks (on release), like the mixer's pages
     if (d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') { if (d.kind !== 'label') d.kind = 'pan'; tl.sx = d.sx0 - (x - d.x0) / tl.zoom; if (tl.mode === 'keys' && tl.lane === 'notes') tl.sy = d.sy0 - (y - d.y0); drawTL(); return; }
     if (d.kind === 'move' || d.kind === 'resize') { if (!d.pushed) { pushUndo('scene:' + UI.scene); touchPad(d.hit.pi); d.pushed = true; } const n = d.hit.n, dt = (x - d.x0) / tl.zoom;
       if (d.kind === 'move') { n.t = clamp(snapT(d.t0 + dt), 0, len - .01); const dr = y2row(y) - d.row0;
@@ -1117,6 +1119,7 @@ function bindTL(cv) {
   });
   const up = e => {
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; TL.drag = null; const tl = UI.tl, { x, y } = tlLocal(e), now = Date.now();
+    if (d.axis === 'v') { const dy = y - d.y0; if (Math.abs(dy) > 40) tlBank(UI.bank + (dy < 0 ? 1 : -1), 'swipe'); else drawTL(); return; }
     if (d.kind === 'label' && !d.moved) { const r = y2row(y); if (r >= 0 && r <= maxRow()) { if (tl.mode === 'bank') { UI.pad = UI.bank * 16 + r; UI.tl.target = null; audition(UI.pad); } else audition(UI.pad, KR.p(r)); } drawTL(); updatePanel(); return; }
     if (d.kind === 'empty' && !d.moved) {
       if (tl.lane === 'notes') { const r = y2row(y); if (r >= 0 && r <= maxRow()) { const s = tl.snap, t = s ? Math.floor(x2t(x) / s) * s : fixT(x2t(x)); if (t < tlLen()) addNoteAt(t, r); } }
@@ -1409,6 +1412,8 @@ function navArrow(dir, sh) {
     const d = dir === 'right' ? 1 : -1, syn = P.pads[UI.pad].src === 'synth' && P.pads[UI.pad].syn;
     if (syn) SYN_ST.pg = (SYN_ST.pg + d + SYN_PAGES.length) % SYN_PAGES.length; else UI.snd = (UI.snd + d + SND_PAGES.length) % SND_PAGES.length;
     renderView(); updatePanel(); return; }
+  if (UI.shift && NAV.mode === 'nav' && UI.view === 'seq' && UI.tl.lane === 'notes' && UI.tl.mode === 'bank' && (dir === 'up' || dir === 'down')) {   // Shift + ↑↓ flips banks on the timeline
+    tlBank(UI.bank + (dir === 'down' ? 1 : -1), 'dpad'); return; }
   if (NAV.mode === 'canvas') { canvasCtl()[dir](sh || NAV.held, sh); return; }
   if (NAV.mode === 'edit' && NAV.el && NAV.el._reg) { NAV.el._reg.step(dir === 'up' || dir === 'right' ? 1 : -1, sh); return; }
   navMove(dir);
