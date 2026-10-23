@@ -114,10 +114,10 @@ let synCv = null;
 // engines: one faceplate each
 const SYN_ENGINES = [{ id: 'analog', n: 'Analog', blurb: 'Three oscillators into a ladder: basses, leads, pads', look: { face: '#1b1a19', face2: '#121212', cap: '#e6dcc6', ind: '#1a1714', ring: '#f2b544', track: '#050505', ink: '#ece5d4', ink2: '#a59c88', scr: '#0c0d0e', sw: '#0b0b0c', swInk: '#f0c35a', tex: 'none' } },
   { id: 'fm', n: 'FM', blurb: 'Four operators with modes: keys, bells, growls', look: { face: '#15171a', face2: '#0c0d0f', cap: '#2b2f35', ind: '#e9edf0', ring: '#4fd1c5', track: '#050607', ink: '#e4e8eb', ink2: '#87909a', scr: '#06090a', sw: '#1b1e23', swInk: '#4fd1c5', tex: 'none' } }, { id: 'wt', n: 'Wavetable', blurb: 'Two morphing wavetable oscillators: growls, pads, leads', look: { face: '#17161d', face2: '#0e0d12', cap: '#2c2a36', ind: '#ece9ff', ring: '#9b8cff', track: '#060509', ink: '#e8e6f2', ink2: '#8d89a3', scr: '#07060b', sw: '#1c1a24', swInk: '#9b8cff', tex: 'none' } },
-  { id: 'gr', n: 'Granular', blurb: 'Clouds of grains from any sound: textures, stretches, glitches', look: { face: '#141917', face2: '#0c100e', cap: '#28302c', ind: '#e6f2ec', ring: '#5fd3a0', track: '#050706', ink: '#e3ece7', ink2: '#86978e', scr: '#060908', sw: '#19201c', swInk: '#5fd3a0', tex: 'none' } }, { id: 'dr', n: 'Drum', blurb: 'Kick, snare, clap, hats and percussion', soon: true }];
+  { id: 'gr', n: 'Granular', blurb: 'Clouds of grains from any sound: textures, stretches, glitches', look: { face: '#141917', face2: '#0c100e', cap: '#28302c', ind: '#e6f2ec', ring: '#5fd3a0', track: '#050706', ink: '#e3ece7', ink2: '#86978e', scr: '#060908', sw: '#19201c', swInk: '#5fd3a0', tex: 'none' } }];
 function openEnginePicker(pi) {
   openSheet('Synth engine', card => { const st = h('div', 'stack');
-    for (const e of SYN_ENGINES) { const b = btn(`<b>${e.n}</b><span>${e.soon ? 'Coming next' : 'Built'}</span><i>${esc(e.blurb)}</i>`, () => { if (e.soon) return; closeSheet(); setEngine(pi, e.id); }, 'btn prow' + (e.id === (synOf(pi).eng || 'analog') ? ' on' : '')); if (e.soon) b.disabled = true; st.append(b); }
+    for (const e of SYN_ENGINES) { const b = btn(`<b>${e.n}</b><i>${esc(e.blurb)}</i>`, () => { closeSheet(); setEngine(pi, e.id); }, 'btn prow' + (e.id === (synOf(pi).eng || 'analog') ? ' on' : '')); st.append(b); }
     st.append(''); card.append(st); });
 }
 // a new engine keeps the shared frame (sub, noise, filter, envelopes, LFOs, macros, modulation) and starts from its own Init
