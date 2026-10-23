@@ -98,11 +98,13 @@ body{font-variant-numeric:tabular-nums}
 .synPages{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))} .synPages .key{width:100%;padding:0 2px;font-size:12px;white-space:nowrap} @media (max-width:400px){.synPages .key{font-size:10.5px;letter-spacing:-.02em}}
 .synTabs{display:flex;gap:4px;height:30px;flex:none} .synTabs .key{flex:1;height:30px;padding:0 4px;font-size:12px;min-width:0} .synInfo{flex:1;display:flex;align-items:center;padding:0 10px;font:500 11.5px var(--font-lcd);color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .srcKey{flex:none;padding:0 8px} .mapKey{flex:none;padding:0 8px}
+/* Map's rows take exactly the space of what they replace (page keys, the faceplate's preset line), so nothing moves */
+.mapAmt.param{padding:4px 9px 0;display:flex;flex-direction:column;justify-content:center;gap:4px;overflow:hidden} .mapAmt.param .ptrack{margin-top:0;height:4px} .soundView>.mapRow{height:30px} .synDev>.mapRow{height:28px} .mapRow>.key,.mapRow>.lcdbox,.mapRow .mapAmt{height:100%;min-height:0} .synDev>.mapRow .key{font-size:11.5px}
 .mapBar{display:flex;flex-direction:column;gap:4px;flex:none} .mapRow{display:flex;gap:4px;height:34px;align-items:stretch;min-width:0} .mapRow::-webkit-scrollbar{display:none}
 .mapLab{flex:0 1 auto;min-width:60px;max-width:120px;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;padding:0 8px;font:500 12px var(--font-lcd);color:var(--accent);white-space:nowrap}
 .mchip{flex:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap} .mchip i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
 .msrcs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0} .msrcs::-webkit-scrollbar{display:none} .mdone{margin-left:auto;flex:none}
-.mapAmt{flex:1;min-width:0;height:34px} .mapAmt .prow{font-size:11px} .mapRow .key.mx{color:var(--rec)}
+.mapAmt{flex:1;min-width:0;height:100%} .mapAmt .prow{font-size:11px} .mapRow .key.mx{color:var(--rec)}
 .knob .km{fill:none;stroke-width:2.2;stroke-linecap:round;opacity:.95}
 .synGrid .modded .klab::after{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:1px}
 .synGrid .maptgt{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px}
@@ -385,7 +387,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 #pStrip{position:absolute;top:8px;right:10px;width:56px;height:22px;font-size:11px;border-radius:3px} #panel{position:relative}
 .pstrip{display:none;grid-template-columns:30px 1fr 26px;gap:5px;height:124px}
 .sbend{position:relative;border-radius:13px;background:linear-gradient(90deg,#101012,#1c1c20 50%,#101012);border:1px solid #000;box-shadow:inset 0 1px 6px rgba(0,0,0,.8);touch-action:none} .sbend::before{content:"";position:absolute;left:4px;right:4px;top:50%;height:1px;background:var(--dim)}
-.sbend i{position:absolute;left:2px;right:2px;top:50%;height:22px;margin-top:-11px;border-radius:10px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #000;box-shadow:0 1px 0 rgba(255,255,255,.08) inset} #panel.strip .pbody{display:none} #panel.strip .pstrip{display:grid}
+.sbend i{position:absolute;left:2px;right:2px;top:50%;height:22px;margin-top:-11px;border-radius:10px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #000;box-shadow:0 1px 0 rgba(255,255,255,.08) inset} #panel.padsOn .pbody{display:none} #panel.padsOn .pstrip{display:grid}
 .soct{display:flex;flex-direction:column;gap:4px} .soct .pk{flex:1;font-size:12px}
 .sgrid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(2,1fr);gap:4px}
 .spk{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#26262a);border:1px solid #070708;box-shadow:0 2px 0 #050506;display:flex;align-items:flex-end;justify-content:center;padding:0 2px 7px;font:500 10.5px var(--font-lcd);color:var(--ink);white-space:nowrap;overflow:hidden;position:relative;touch-action:none;min-width:0}
@@ -1375,7 +1377,7 @@ $('#fileProj').addEventListener('change', async e => { const f = e.target.files 
    OK presses a key, plays a pad, or enters a control: knobs, faders and selectors then take the arrows until OK or BACK.
    The timeline is one control: inside it, the cursor selects notes and points the same way. */
 const NAV = { el: null, mode: 'nav', orig: null, undoAt: -1, last: null, selUndo: -1, held: false, holdT: 0, okHadSel: false };
-const NAV_SEL = 'button:not(:disabled), .knob:not(.blank), .fader, .selr, .param, .pad, input, canvas.navc';
+const NAV_SEL = 'button:not(:disabled), .knob:not(.blank), .fader, .selr, .param, .pad, .li, input, canvas.navc';
 const tlCtl = () => UI.tl.lane === 'notes' ? noteCtl : autoCtl;
 // the d-pad drives one canvas per screen: the timeline, or the slice editor on the Sound view's Chop page
 const canvasCtl = () => (NAV.el && NAV.el._ctl) || (UI.view === 'seq' ? tlCtl() : chopCtl), canvasDraw = () => NAV.el && NAV.el._draw ? NAV.el._draw() : UI.view === 'seq' ? drawTL() : drawChop();
@@ -1402,12 +1404,22 @@ function navEnsure() {
   if (wasCanvas && NAV.el && NAV.el.matches('canvas.navc')) { NAV.mode = 'canvas'; NAV.el.classList.add('ne'); }
   return NAV.el;
 }
+// d-pad movement, the same everywhere: ←→ stay in the row (wrapping to its far end), ↑↓ go to the nearest row in that direction
+// and land on the item closest in position; at the top or bottom edge nothing moves.
 function navMove(dir) {
-  const cur = navEnsure(); if (!cur) return; const c = navCenter(cur), horiz = dir === 'left' || dir === 'right'; let best = null, bs = 1e9;
-  for (const it of navItems()) { if (it === cur) continue; const o = navCenter(it), dx = o.x - c.x, dy = o.y - c.y, prim = dir === 'right' ? dx : dir === 'left' ? -dx : dir === 'down' ? dy : -dy; if (prim < 4) continue;
-    const overlap = horiz ? (o.r.top < c.r.bottom - 2 && o.r.bottom > c.r.top + 2) : (o.r.left < c.r.right - 2 && o.r.right > c.r.left + 2);
-    const s = prim + (overlap ? 0 : (horiz ? Math.abs(dy) : Math.abs(dx)) * 3); if (s < bs) { bs = s; best = it; } }
-  if (best) setNav(best);
+  const cur = navEnsure(); if (!cur) return; const c = navCenter(cur), items = navItems().filter(it => it !== cur).map(it => ({ it, o: navCenter(it) }));
+  if (dir === 'left' || dir === 'right') {
+    const sameRow = ({ o }) => { const ov = Math.min(o.r.bottom, c.r.bottom) - Math.max(o.r.top, c.r.top); return ov >= Math.min(o.r.height, c.r.height) * .5; };
+    const row = items.filter(sameRow); if (!row.length) return;
+    const sgn = dir === 'right' ? 1 : -1, ahead = row.filter(({ o }) => (o.x - c.x) * sgn > 2);
+    const pick = ahead.length ? ahead.reduce((a, b) => ((a.o.x - c.x) * sgn <= (b.o.x - c.x) * sgn ? a : b))   // the next one along
+      : row.reduce((a, b) => ((a.o.x - c.x) * sgn <= (b.o.x - c.x) * sgn ? a : b));                                  // wrap: the far end of the row
+    setNav(pick.it); return; }
+  const sgn = dir === 'down' ? 1 : -1, ahead = items.filter(({ o }) => (sgn > 0 ? o.r.top >= c.r.bottom - 6 : o.r.bottom <= c.r.top + 6) && (o.y - c.y) * sgn > 2);
+  if (!ahead.length) return;
+  const gap = x => sgn > 0 ? x.o.r.top - c.r.bottom : c.r.top - x.o.r.bottom, near = Math.min(...ahead.map(gap));
+  const band = ahead.filter(x => gap(x) <= near + Math.max(8, Math.min(x.o.r.height, 40) * .5));   // the nearest row (items of different heights still count as one row)
+  setNav(band.reduce((a, b) => (Math.abs(a.o.x - c.x) <= Math.abs(b.o.x - c.x) ? a : b)).it);
 }
 function navOk(down) {
   if (UI.shift && down && !UI.sheet) { UI.shift = false; $('#pShift').classList.remove('on'); openEdit(); return; }   // Shift + OK: Edit (copy, paste, duplicate)
@@ -1493,7 +1505,7 @@ function refreshStrip() {
   $('#panel').classList.toggle('chords', !chop && kxOf(pi).mode === 'chords');
   $('#pinfo').textContent = `${padLabel(pi)} ${pad.name || ''} · ${hasSound(pad) ? (chop ? 'slices' : keysStatus(pi)) : 'empty pad'}`;
 }
-function toggleStrip() { UI.strip = !UI.strip; $('#panel').classList.toggle('strip', UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; if (UI.strip) refreshStrip(); else updatePanel(); savePrefs(); }
+function toggleStrip() { UI.strip = !UI.strip; $('#panel').classList.toggle('padsOn', UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; if (UI.strip) refreshStrip(); else updatePanel(); savePrefs(); }
 function togglePanel() {
   UI.panel = !UI.panel; $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   if (!UI.panel) { if (NAV.mode === 'edit') navEndEdit(true); NAV.mode = 'nav'; if (NAV.el) NAV.el.classList.remove('nf', 'ne'); if (UI.view === 'seq') drawTL(); else drawChop(); }
@@ -1645,7 +1657,7 @@ async function boot() {
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (pr.snap != null) UI.tl.snap = pr.snap;
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); }
-  applyTheme(); $('#panel').classList.toggle('strip', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
+  applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
 }
