@@ -96,6 +96,7 @@ function renderSound(V) {
   if (UI.snd === PG.SAMPLE && pad.src === 'drum' && pad.drum) { renderDrumPage(w, pi, head, pages); V.append(w); return; }
   if (UI.snd === PG.CHOP) { w.append(head, pages, chopView(pi)); V.append(w); requestAnimationFrame(drawChop); return; }
   const disp = h('div', 'scr disp'), cv = h('canvas'); disp.append(cv); dispCv = cv; bindWave(cv);
+  if (UI.snd === PG.SAMPLE) disp.append(btn(pad.sample ? 'Replace sample' : 'Load a sound', openLibrary, 'key sm dispKey'));   // the sound itself lives on the screen, next to its name
   const g = h('div', 'kgrid'), redraw = { after: () => drawDisp() };
   if (UI.snd === PG.SAMPLE) {
     g.append(padParam(pi, 'pitch', { label: 'Pitch', min: -24, max: 24, step: 1, coarse: 1, big: 12, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v + ' st' }),
@@ -104,7 +105,7 @@ function renderSound(V) {
       padParam(pi, 'end', { label: 'End', step: .001, coarse: .01, big: .05, def: 1, fmt: v => (v * 100).toFixed(1) + '%' }),
       modeSel(pi), pad.mode === 'loop' ? padParam(pi, 'loopS', { label: 'Loop start', step: .001, coarse: .01, big: .05, def: .25, fmt: v => (v * 100).toFixed(1) + '%', after: () => drawDisp() })
         : selEl('Reverse', ['Off', 'On'], () => pad.reverse ? 1 : 0, i => { pushUndo('pad:' + pi); touchPad(pi); pad.reverse = !!i; syncPad(pi); markDirty(); drawDisp(); }),
-      cellBtn('Sound', SAMPLES.get(pad.sample)?.name || 'Empty', openLibrary), cellBtn('Tools', 'Open', () => openSoundTools(pi)));
+      cellBtn('Stretch', stretchLabel(pad), () => openStretch(pi)), cellBtn('Tools', 'Open', () => openSoundTools(pi)));
   } else if (UI.snd === PG.AMP) {
     g.append(padParam(pi, 'atk', { label: 'Attack', max: 2, step: .001, coarse: .02, big: .1, def: 0, fmt: v => Math.round(v * 1000) + ' ms' }),
       padParam(pi, 'rel', { label: 'Release', max: 4, step: .001, coarse: .02, big: .25, def: .05, fmt: v => Math.round(v * 1000) + ' ms' }),
@@ -143,7 +144,7 @@ function drawDisp() {
       const xs = pad.start * W, xe = pad.end * W; g.fillStyle = 'rgba(0,0,0,.66)'; g.fillRect(0, 0, xs, H); g.fillRect(xe, 0, W - xe, H);
       g.fillStyle = COL.accent; g.fillRect(xs - 1, 0, 2, H); g.fillRect(xe - 1, 0, 2, H); g.fillRect(xs, 0, 9, 12); g.fillRect(xe - 9, H - 12, 9, 12);
       if (pad.mode === 'loop') { const xl = clamp(pad.loopS, pad.start, pad.end) * W; g.globalAlpha = .13; g.fillRect(xl, 0, xe - xl, H); g.globalAlpha = 1; g.fillRect(xl - 1, 0, 2, H); txt('loop', xl + 5, 22, COL.accent); }
-      txt(`${(s.frames / s.sr).toFixed(2)}s · ${s.ch === 2 ? 'stereo' : 'mono'}${pad.reverse ? ' · reversed' : ''}`, 8, H - 10); txt(s.name, W - 8, 10, COL.mute, 'right');
+      txt(`${(s.frames / s.sr).toFixed(2)}s · ${s.ch === 2 ? 'stereo' : 'mono'}${pad.reverse ? ' · reversed' : ''}${pad.tempo > 0 || (pad.wm && pad.wm !== 'Repitch') ? ' · ' + stretchLabel(pad) : ''}`, 8, H - 10); txt(s.name, W - 128, 15, COL.mute, 'right');
       return;
     }
     // AMP: the envelope over the trimmed sound

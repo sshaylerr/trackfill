@@ -28,7 +28,7 @@ function chopView(pi) {
   const g = h('div', 'kgrid');
   if (c) g.append(selEl('Slice by', ['Transient', 'Equal', 'Manual'], () => CHOP_BY.indexOf(c.by), i => { pushUndo('pad:' + pi); touchPad(pi); c.by = CHOP_BY[i]; if (c.by !== 'm') rechop(pad, s); UI.slice = 0; syncPad(pi); markDirty(); renderView(); }),
     c.by === 'm' ? cellBtn('Slices', String(c.pts.length), () => openChopTools(pi)) : chopAmt(pi, c.by === 't' ? 'sens' : 'div'), tempo, cellBtn('Tools', 'Open', () => openChopTools(pi)));
-  else g.append(tempo, cellBtn('Stretch', pad.wm || 'Repitch', () => openStretch(pi)), cellBtn('Tools', 'Open', () => openChopTools(pi)), blankCell());
+  else g.append(tempo, cellBtn('Stretch', stretchLabel(pad), () => openStretch(pi)), cellBtn('Tools', 'Open', () => openChopTools(pi)), blankCell());
   w.append(disp, pads, g); return w;
 }
 // the slice waveform: on the Sound view's Chop page, and above the pads when the Pads screen is in Chop mode
