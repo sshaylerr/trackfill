@@ -71,15 +71,29 @@ function synSpecial(pi, what) {
 
 /* ----- the synth Sound page ----- */
 let synCv = null;
+// engines: one faceplate each (only Analog is built so far)
+const SYN_ENGINES = [{ id: 'analog', n: 'Analog', blurb: 'Three oscillators into a ladder: basses, leads, pads', look: { face: '#1b1a19', face2: '#121212', cap: '#e6dcc6', ind: '#1a1714', ring: '#f2b544', track: '#050505', ink: '#ece5d4', ink2: '#a59c88', scr: '#0c0d0e', sw: '#0b0b0c', swInk: '#f0c35a', tex: 'none' } },
+  { id: 'fm', n: 'FM', blurb: 'Four operators with modes: keys, bells, growls', soon: true }, { id: 'wt', n: 'Wavetable', blurb: 'Two morphing wavetable oscillators', soon: true },
+  { id: 'gr', n: 'Granular', blurb: 'Clouds of grains from any sound', soon: true }, { id: 'dr', n: 'Drum', blurb: 'Kick, snare, clap, hats and percussion', soon: true }];
+function openEnginePicker(pi) {
+  openSheet('Synth engine', card => { const st = h('div', 'stack');
+    for (const e of SYN_ENGINES) { const b = btn(`<b>${e.n}</b><span>${e.soon ? 'Coming next' : 'Built'}</span><i>${esc(e.blurb)}</i>`, () => { if (!e.soon) closeSheet(); }, 'btn prow' + (e.id === (synOf(pi).eng || 'analog') ? ' on' : '')); if (e.soon) b.disabled = true; st.append(b); }
+    st.append(h('p', 'note', 'Switching engines keeps everything in the shared frame: sub, noise crunch, filter, envelopes, LFOs, macros and modulation.')); card.append(st); });
+}
 function renderSynthSound(w, pi, head) {
-  const pad = P.pads[pi], pg = SYN_PAGES[SYN_ST.pg], tab = synTab();
-  if (UI.map) w.append(head, mapBar(pi));
+  const pad = P.pads[pi], pg = SYN_PAGES[SYN_ST.pg], tab = synTab(), eng = SYN_ENGINES.find(e => e.id === (synOf(pi).eng || 'analog')) || SYN_ENGINES[0];
+  // the faceplate: engine logo and selector, then tabs, screen and controls (page keys and the Map bar sit above it)
+  const dev = h('div', 'dev synDev'); applyLook(dev, Object.assign({}, LOOK_BASE, eng.look)); dev.dataset.eng = eng.id;
+  const mb = UI.map ? mapBar(pi) : null;
+  if (mb) dev.append(mb[1]); else { const dh = h('div', 'devHead'); dh.append(h('div', 'logo', `<b>${eng.n}</b><i>${esc(synOf(pi).name || 'Init')}</i>`), btn(eng.n + ' <span class="car">▾</span>', () => openEnginePicker(pi), 'key sm modeKey')); dev.append(dh); }
+  if (mb) w.append(head, mb[0]);
   else {
     const pages = seg(SYN_PAGES.map(x => x.n), SYN_ST.pg, i => { SYN_ST.pg = i; renderView(); }); pages.classList.add('synPages');
-    const tabs = h('div', 'keys synTabs'); for (const [id, l] of pg.tabs) { const b = btn(l, () => { SYN_ST.tab[SYN_ST.pg] = id; renderView(); }, 'key sm' + (id === tab ? ' on' : '')); tabs.append(b); }
-    if (pg.n === 'Filter' || pg.n === 'Mix') { tabs.innerHTML = ''; tabs.append(h('div', 'lcdbox synInfo', pg.n === 'Filter' ? 'Filter · ' + esc(synOf(pi).p.flt ?? 'Ladder') + ' · after the oscillators, before the sub and noise' : 'Channel · level, pan, sends and effects')); }
-    w.append(head, pages, tabs);
+    w.append(head, pages);
   }
+  const tabs = h('div', 'keys synTabs'); for (const [id, l] of pg.tabs) { const b = btn(l, () => { SYN_ST.tab[SYN_ST.pg] = id; renderView(); }, 'key sm' + (id === tab ? ' on' : '')); tabs.append(b); }
+  if (pg.n === 'Filter' || pg.n === 'Mix') { tabs.innerHTML = ''; tabs.append(h('div', 'lcdbox synInfo', pg.n === 'Filter' ? 'Filter · ' + esc(synOf(pi).p.flt ?? 'Ladder') + ' · after the oscillators' : 'Channel · level, pan, sends and effects')); }
+  dev.append(tabs);
   const disp = h('div', 'scr disp'), cv = h('canvas', tab[0] === 'l' && tab !== 'l' ? 'navc' : ''); disp.append(cv); synCv = cv;
   if (/^l\d$/.test(tab)) { cv.classList.add('navc'); cv.setAttribute('aria-label', 'LFO shape'); cv._ctl = lfoCtl; cv._draw = drawSynDisp; bindLfo(cv, pi); }
   const g = h('div', 'kgrid synGrid');
@@ -90,7 +104,7 @@ function renderSynthSound(w, pi, head) {
   } else { const cells = SYN_CELLS[tab] || []; for (let i = 0; i < 8; i++) g.append(cells[i] ? synCtl(pi, cells[i]) : blankCell()); }
   g.addEventListener('pointerdown', e => { if (!UI.map) return; const c = e.target.closest('[data-syn]'); if (!c) return; e.preventDefault(); e.stopPropagation(); mapPick(pi, c.dataset.syn); }, true);
   g.addEventListener('click', e => { if (UI.map && e.target.closest('[data-syn]')) { e.stopPropagation(); e.preventDefault(); } }, true);
-  w.append(disp, g); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
+  dev.append(disp, g); w.append(dev); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
 }
 function synHeadKey(pi) { const pad = P.pads[pi], k = btn(pad.src === 'synth' ? 'Synth' : 'Sample', () => openSynthSource(pi), 'key sm srcKey' + (pad.src === 'synth' ? ' on' : '')); return k; }
 function mapKey(pi) { return btn('Map', () => { UI.map = UI.map ? null : { target: null, route: -1, armed: -1 }; renderView(); }, 'key sm mapKey' + (UI.map ? ' on' : '')); }
@@ -130,9 +144,11 @@ function drawSynDisp() {
   const wave = (w, ph, pw) => { ph -= Math.floor(ph); switch (w) { case 'Sine': return Math.sin(ph * 2 * Math.PI); case 'Triangle': return ph < .5 ? 4 * ph - 1 : 3 - 4 * ph; case 'Saw': return 2 * ph - 1; case 'Square': return ph < .5 ? 1 : -1; default: return ph < pw ? 1 : -1; } };
   if (/^o\d$/.test(tab) || tab === 'vo') {   // the oscillator mix: two cycles of what the three oscillators add up to
     grid(); const oscs = [1, 2, 3].map(k => ({ w: v('o' + k + 'w'), r: Math.pow(2, v('o' + k + 'o') + v('o' + k + 's') / 12), l: k === 3 && v('o3x') === 'LFO' ? 0 : v('o' + k + 'l'), pw: v('o' + k + 'p') }));
-    const sum = x => oscs.reduce((a, o) => a + o.l * wave(o.w, x * 2 * o.r, o.pw), 0), mx = Math.max(.3, ...Array.from({ length: 64 }, (_, i) => Math.abs(sum(i / 64))));
-    if (tab !== 'vo') { const k = +tab[1] - 1, o = oscs[k]; line(x => H / 2 - wave(o.w, x * 2, o.pw) * H * .3, COL.dim, 1.2); }
-    line(x => H / 2 - sum(x) / mx * H * .38);
+    const r0 = oscs[0].r, cyc = 2, N = Math.max(400, W * 2);   // osc 1 shows two cycles; the others are drawn relative to it
+    const sum = x => oscs.reduce((a, o) => a + o.l * wave(o.w, x * cyc * o.r / r0, o.pw), 0); let mx = .3; for (let i = 0; i < 256; i++) mx = Math.max(mx, Math.abs(sum(i / 256)));
+    const plot = (fn, c, lw, a = 1) => { g.beginPath(); for (let i = 0; i <= N; i++) { const x = i / N, y = H / 2 - fn(x) * H * .36; i ? g.lineTo(x * W, y) : g.moveTo(x * W, y); } g.globalAlpha = a; g.strokeStyle = c; g.lineWidth = lw; g.lineJoin = 'round'; g.stroke(); g.globalAlpha = 1; };
+    if (tab !== 'vo') { const o = oscs[+tab[1] - 1]; plot(x => sum(x) / mx, COL.mute, 1.2, .5); if (o.l > .0005 || tab === 'o1') plot(x => wave(o.w, x * cyc * o.r / r0, o.pw), col, 2.2); else txt('This oscillator is off: raise its Level', W / 2, H / 2 + 18, COL.dim, 'center'); }
+    else plot(x => sum(x) / mx, col, 2.2);
     const U = v('uni'); if (tab === 'vo' && U > 1) { const det = v('det'), spr = v('spr'); for (let u = 0; u < U; u++) { const x = (2 * u / (U - 1) - 1); g.fillStyle = COL.accent; g.fillRect(W / 2 + x * spr * W * .42 - 1, H - 14 - Math.abs(x) * det * 30, 3, 8); } txt(`${U} voices · detune ${Math.round(det * 100)}% · spread ${Math.round(spr * 100)}%`, 8, 12); }
     else txt(tab === 'vo' ? 'Voice: unison, feedback, pitch, level, glide' : `Osc ${tab[1]} · ${v('o' + tab[1] + 'w')}${tab === 'o3' && v('o3x') === 'LFO' ? ' · LFO' : ''}`, 8, 12);
     return;
@@ -241,27 +257,36 @@ function mapPick(pi, id) {
     M.target = id; M.route = S.mods.findIndex(m => m.d === id && m.s === M.armed); renderView(); return; }
   M.target = id; const rs = routesFor(pi, id); M.route = rs.length ? rs[rs.length - 1][1] : -1; renderView();
 }
+const SRC_SHORT = ['Amp', 'Env 2', 'Env 3', 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4', 'Vel', 'Note', 'Rand', 'Alt', 'Osc 3', 'M1', 'M2', 'M3', 'M4'];
+// Map bar (two fixed rows, nothing scrolls): ① the control and the selected connection's amount ② its connections and +
 function mapBar(pi) {
-  const M = UI.map, S = synOf(pi), bar = h('div', 'mapBar'), r1 = h('div', 'keys mapRow'), r2 = h('div', 'keys mapRow');
-  const t = M.target && TFSYN_ID[M.target];
-  r1.append(h('div', 'lcdbox mapLab', t ? esc(t.l) : M.armed >= 0 ? esc(TF_SRC[M.armed]) + ' → tap controls' : 'Map · tap a control'));
-  const chips = h('div', 'msrcs'); r1.append(chips);   // the route chips scroll; Done always stays in view
-  if (t) { for (const [m, i] of routesFor(pi, M.target)) { const b = btn(`<i style="background:${SRC_COL(m.s)}"></i>${esc(TF_SRC[m.s])} ${m.a > 0 ? '+' : ''}${Math.round(m.a * 100)}%`, () => { M.route = i; renderView(); }, 'key sm mchip' + (M.route === i ? ' on' : '')); chips.append(b); }
-    chips.append(btn('+', () => { M.route = -1; renderView(); }, 'key sm mchip' + (M.route < 0 ? ' on' : ''))); }
+  const M = UI.map, S = synOf(pi), bar = { querySelector: s => r2.querySelector(s) }, r1 = h('div', 'mapRow'), r2 = h('div', 'mapRow');
+  const t = M.target && TFSYN_ID[M.target], m = t && M.route >= 0 ? S.mods[M.route] : null;
+  r1.append(h('div', 'lcdbox mapLab', t ? esc(t.l) : M.armed >= 0 ? esc(SRC_SHORT[M.armed]) + ' →' : 'Map'));
+  if (m) { const amt = paramEl({ label: TF_SRC[m.s], min: -1, max: 1, step: .01, coarse: .05, big: .2, def: 0, bipolar: true, fmt: x => (x > 0 ? '+' : '') + Math.round(x * 100) + '%', noFocus: true,
+      get: () => m.a, set: x => { m.a = x; syncPad(pi); markDirty(); paintMods(document.querySelector('.synGrid'), pi); const c = bar.querySelector('.mchip.on b'); if (c) c.textContent = (x > 0 ? '+' : '') + Math.round(x * 100) + '%'; }, onStart: () => pushUndo('pad:' + pi) });
+    amt.classList.add('mapAmt'); r1.append(amt); }
+  else r1.append(h('div', 'mapHint', t ? 'Tap + to add a source' : M.armed >= 0 ? 'Tap controls to connect ' + esc(TF_SRC[M.armed]) : 'Tap a control to modulate it'));
   r1.append(btn('Done', () => { UI.map = null; renderView(); }, 'key sm mdone'));
-  if (t && M.route >= 0 && S.mods[M.route]) { const m = S.mods[M.route];
-    const amt = paramEl({ label: TF_SRC[m.s] + ' → ' + t.l, min: -1, max: 1, step: .01, coarse: .05, big: .2, def: 0, bipolar: true, fmt: x => (x > 0 ? '+' : '') + Math.round(x * 100) + '%', noFocus: true,
-      get: () => m.a, set: x => { m.a = x; syncPad(pi); markDirty(); paintMods(document.querySelector('.synGrid'), pi); }, onStart: () => pushUndo('pad:' + pi) });
-    amt.classList.add('mapAmt'); r2.append(amt, btn('More…', () => openRouteMore(pi, M.route), 'key sm'), btn('✕', () => { pushUndo('pad:' + pi); S.mods.splice(M.route, 1); M.route = -1; syncPad(pi); markDirty(); renderView(); }, 'key sm mx'));
-  } else {
-    const sc = h('div', 'msrcs');
-    TF_SRC.forEach((n, s) => { const b = btn(`<i style="background:${SRC_COL(s)}"></i>${esc(n)}`, () => {
-      if (t) { if (routesFor(pi, M.target).some(([m]) => m.s === s)) { M.route = S.mods.findIndex(m => m.d === M.target && m.s === s); renderView(); return; }
-        if (routesFor(pi, M.target).length >= 4) { toast('A control takes up to four sources'); return; }
-        pushUndo('pad:' + pi); S.mods.push({ s, d: M.target, a: .25, c: 0 }); M.route = S.mods.length - 1; syncPad(pi); markDirty(); renderView(); }
-      else { M.armed = M.armed === s ? -1 : s; renderView(); } }, 'key sm mchip' + (M.armed === s ? ' on' : '')); sc.append(b); });
-    r2.append(sc); }
-  bar.append(r1, r2); return bar;
+  if (t) { for (const [q, i] of routesFor(pi, M.target)) r2.append(btn(`<i style="background:${SRC_COL(q.s)}"></i>${esc(SRC_SHORT[q.s])} <b>${q.a > 0 ? '+' : ''}${Math.round(q.a * 100)}%</b>`,
+      () => { if (M.route === i) openRouteMore(pi, i); else { M.route = i; renderView(); } }, 'key sm mchip' + (M.route === i ? ' on' : '')));
+    if (routesFor(pi, M.target).length < 4) r2.append(btn('+', () => openSourcePicker(pi), 'key sm madd'));
+  }
+  else r2.append(btn(M.armed >= 0 ? 'Source: ' + esc(TF_SRC[M.armed]) : 'Pick a source first…', () => openSourcePicker(pi), 'key sm madd' + (M.armed >= 0 ? ' on' : '')));
+  return [r1, r2];   // row 1 takes the page keys' place, row 2 the faceplate's logo line, so the layout barely moves
+}
+// every source in one sheet, grouped and coloured (no scrolling rows); with no control picked it arms the source instead
+function openSourcePicker(pi) {
+  const M = UI.map, S = synOf(pi), t = M.target;
+  openSheet(t ? 'Modulate ' + TFSYN_ID[t].l + ' with…' : 'Pick a source, then tap controls', card => { const st = h('div', 'stack');
+    for (const [title, ids] of [['Envelopes', [0, 1, 2]], ['LFOs', [3, 4, 5, 6, 11]], ['Playing', [7, 8, 9, 10]], ['Macros', [12, 13, 14, 15]]]) {
+      st.append(h('div', 'sec', title)); const g = h('div', 'g3');
+      for (const s of ids) { const used = t && routesFor(pi, t).some(([q]) => q.s === s);
+        g.append(btn(`<i class="sdot" style="background:${SRC_COL(s)}"></i>${esc(TF_SRC[s])}`, () => { closeSheet();
+          if (t) { const ex = S.mods.findIndex(q => q.d === t && q.s === s); if (ex >= 0) M.route = ex; else { pushUndo('pad:' + pi); S.mods.push({ s, d: t, a: .25, c: 0 }); M.route = S.mods.length - 1; syncPad(pi); markDirty(); } }
+          else M.armed = M.armed === s ? -1 : s; renderView(); }, 'btn srcbtn' + (used || M.armed === s ? ' on' : ''))); }
+      st.append(g); }
+    st.append(h('p', 'note', t ? 'The new connection starts at +25%: set the amount in the bar. Up to four sources per control.' : 'Then every control you tap gets this source at +25%. Tap Done when finished.')); card.append(st); });
 }
 function openRouteMore(pi, ri) {
   const S = synOf(pi), m = S.mods[ri]; if (!m) return;
@@ -271,7 +296,8 @@ function openRouteMore(pi, ri) {
     st.append(h('div', 'sec', 'Via: scale this by another source')); g = h('div', 'g4');
     g.append(btn('None', () => { pushUndo('pad:' + pi); delete m.v; syncPad(pi); markDirty(); closeSheet(); openRouteMore(pi, ri); }, 'btn' + (m.v == null ? ' on' : '')));
     TF_SRC.forEach((n, s) => { if (s !== m.s) g.append(btn(esc(n), () => { pushUndo('pad:' + pi); m.v = s; syncPad(pi); markDirty(); closeSheet(); openRouteMore(pi, ri); }, 'btn' + (m.v === s ? ' on' : ''))); });
-    st.append(g, h('p', 'note', 'Via multiplies this connection by a second source: for example LFO 1 → Cutoff via Macro 2 lets one knob fade the wobble in and out.')); card.append(st); });
+    st.append(g, h('p', 'note', 'Via multiplies this connection by a second source: for example LFO 1 → Cutoff via Macro 2 lets one knob fade the wobble in and out.'));
+    const rm = h('div', 'g2'); rm.append(btn('Remove connection', () => { pushUndo('pad:' + pi); S.mods.splice(ri, 1); if (UI.map) UI.map.route = -1; syncPad(pi); markDirty(); closeSheet(); }, 'btn warn')); st.append(rm); card.append(st); });
 }
 // rings on modulated knobs: the range the modulation can reach, in the first source's colour
 function paintMods(g, pi) {

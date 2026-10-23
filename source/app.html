@@ -78,11 +78,21 @@ body{font-variant-numeric:tabular-nums}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .btn:disabled{opacity:.32;pointer-events:none} .clipline b{color:var(--accent);font-weight:600} .lcdbox.edr{display:flex;align-items:center;justify-content:center;height:36px;font:500 12px var(--font-lcd);color:var(--accent)}
 .grid.swapping .pad:not(.sel){animation:swapPulse 1s ease-in-out infinite alternate} @keyframes swapPulse{from{box-shadow:0 3px 0 #050506,inset 0 0 0 1px transparent}to{box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)}}
+.synDev{flex:1 1 auto;min-height:0;padding:8px 8px 6px;gap:6px;border-radius:5px} .synDev::before,.synDev::after{display:none}
+.synDev[data-eng="analog"]{border-left:9px solid #5b3418;border-right:9px solid #5b3418;border-image:linear-gradient(180deg,#7a4a26,#4a2a14 40%,#6b3f20 70%,#3e2310) 1;border-top:1px solid #000;border-bottom:1px solid #000}
+.synDev .devHead{height:26px;padding:0 2px} .synDev .disp{background:var(--d-scr)} .synDev .synTabs .key{background:linear-gradient(180deg,#2a2826,#1d1c1a)} .synDev .synTabs .key.on{color:var(--d-ring)}
+.synDev .knob .kb{stroke:#0a0908} .synDev .lcdbox.synInfo{background:var(--d-scr)}
+#view.short .synDev .devHead{display:none} #view.short .synDev{padding:4px 5px 3px;gap:3px} #view.short .synTabs,#view.short .synTabs .key{height:26px}
+#view.tiny .synDev .disp{min-height:22px} #view.short .kgrid.synGrid{grid-auto-rows:54px;gap:2px 4px} #view.short .synGrid .knob svg{width:34px;height:34px} #view.short .synGrid .selr{padding-top:2px} #view.short .synGrid .selr .sw{height:26px} #view.tiny .kgrid.synGrid{grid-auto-rows:48px} #view.tiny .soundView{gap:5px}
+.mapRow .mchip{flex:0 1 auto;min-width:0;overflow:hidden;font-size:12px;padding:0 7px} .mapRow .madd{flex:none;padding:0 10px}
+.mapRow{display:flex;gap:4px;height:34px;align-items:stretch;min-width:0} .mapHint{flex:1;min-width:0;display:flex;align-items:center;font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+.mchip b{font-weight:500;font-family:var(--font-lcd)} .madd{flex:none} .mapTip{flex:1;min-width:0;display:flex;align-items:center;justify-content:flex-end;font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden}
+.srcbtn{display:flex;align-items:center;gap:7px;justify-content:center} .sdot{width:9px;height:9px;border-radius:50%;flex:none}
 .synPages{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))} .synPages .key{width:100%;padding:0 2px;font-size:12px;white-space:nowrap} @media (max-width:400px){.synPages .key{font-size:10.5px;letter-spacing:-.02em}}
 .synTabs{display:flex;gap:4px;height:30px;flex:none} .synTabs .key{flex:1;height:30px;padding:0 4px;font-size:12px;min-width:0} .synInfo{flex:1;display:flex;align-items:center;padding:0 10px;font:500 11.5px var(--font-lcd);color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .srcKey{flex:none;padding:0 8px} .mapKey{flex:none;padding:0 8px}
 .mapBar{display:flex;flex-direction:column;gap:4px;flex:none} .mapRow{display:flex;gap:4px;height:34px;align-items:stretch;min-width:0} .mapRow::-webkit-scrollbar{display:none}
-.mapLab{flex:0 0 auto;min-width:96px;display:flex;align-items:center;padding:0 8px;font:500 12px var(--font-lcd);color:var(--accent);white-space:nowrap}
+.mapLab{flex:0 1 auto;min-width:60px;max-width:120px;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;padding:0 8px;font:500 12px var(--font-lcd);color:var(--accent);white-space:nowrap}
 .mchip{flex:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap} .mchip i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
 .msrcs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0} .msrcs::-webkit-scrollbar{display:none} .mdone{margin-left:auto;flex:none}
 .mapAmt{flex:1;min-width:0;height:34px} .mapAmt .prow{font-size:11px} .mapRow .key.mx{color:var(--rec)}
@@ -364,7 +374,14 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 
 /* ---------- precision panel ---------- */
 #panel{flex:none;height:168px;background:linear-gradient(180deg,var(--body2),var(--body));border:1px solid var(--edge);border-radius:6px;padding:8px 10px 10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-.pinfo{height:22px;margin-bottom:8px;font-size:10.5px}
+.pinfo{height:22px;margin-bottom:8px;font-size:10.5px;margin-right:62px}
+#pStrip{position:absolute;top:8px;right:10px;width:56px;height:22px;font-size:11px;border-radius:3px} #panel{position:relative}
+.pstrip{display:none;grid-template-columns:30px 1fr;gap:5px;height:124px} #panel.strip .pbody{display:none} #panel.strip .pstrip{display:grid}
+.soct{display:flex;flex-direction:column;gap:4px} .soct .pk{flex:1;font-size:12px}
+.sgrid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(2,1fr);gap:4px}
+.spk{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#26262a);border:1px solid #070708;box-shadow:0 2px 0 #050506;display:flex;align-items:flex-end;justify-content:center;padding:0 2px 7px;font:500 10.5px var(--font-lcd);color:var(--ink);white-space:nowrap;overflow:hidden;position:relative;touch-action:none;min-width:0}
+.spk::after{content:"";position:absolute;left:5px;right:5px;bottom:3px;height:2px;border-radius:1px;background:color-mix(in srgb,var(--pc) 40%,#101012)} .spk.root{color:var(--accent)} #panel.chords .spk{font-size:9.5px;letter-spacing:-.03em}
+.spk.hit{transform:translateY(1px);background:linear-gradient(180deg,#3a3a40,#2e2e33)} .spk.hit::after{background:var(--pc);box-shadow:0 0 6px var(--pc)}
 .pbody{display:flex;align-items:center;justify-content:space-between;gap:8px}
 #panel.mirror .pbody{flex-direction:row-reverse}
 .dpad{display:grid;grid-template-columns:repeat(3,40px);grid-template-rows:repeat(3,38px);gap:2px;padding:4px;border-radius:6px;background:#141416;box-shadow:inset 0 1px 4px rgba(0,0,0,.8)}
@@ -412,7 +429,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
   <nav id="scenes" aria-label="Scenes"></nav>
   <main id="view"></main>
   <section id="panel" hidden aria-label="Precision controls">
-    <div class="pinfo lcdbox" id="pinfo"></div>
+    <div class="pinfo lcdbox" id="pinfo"></div><button class="pk" id="pStrip" aria-label="Show pads in the panel">Pads</button>
     <div class="pbody">
       <div class="dpad">
         <button class="pk u" data-k="up" aria-label="Up"><svg viewBox="0 0 24 24"><path d="M12 6l7 9H5z"/></svg></button>
@@ -431,6 +448,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
         <button class="pk" id="pOk">OK</button>
       </div>
     </div>
+    <div class="pstrip" id="pstrip"></div>
   </section>
   <nav id="tabs">
     <button data-v="pads">Pads</button>
@@ -585,7 +603,7 @@ const DB = { db: null, ok: false,
 let saveTimer = 0;
 function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
 function saveNow() { clearTimeout(saveTimer); if (P) DB.put('kv', 'project', P); }
-function savePrefs() { DB.put('kv', 'ui', { theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol }); }
+function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -774,7 +792,7 @@ function keyMeta(key) {
 function renderAll() { renderScenes(); renderView(); updateTransport(); updatePanel(); }
 function setView(v) { navReset(); UI.view = v; renderView(); savePrefs(); }
 function renderView() {
-  for (const cell in HELD) padUp(+cell);
+  for (const k in HELD) if (k[0] !== 's') padUp(+k);   // strip pads (keys 's…') live in the panel and keep playing
   if (NAV.mode === 'edit') navEndEdit(true);
   const V = $('#view'); V.innerHTML = ''; UI.regs = []; TL.cv = null; SCOPE.views = SCOPE.views.filter(v => v.cv.closest('#sheet'));
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === (UI.view === 'fx' ? UI.fxBack : UI.view)));
@@ -863,6 +881,7 @@ function refreshPadDots() {
     pd.classList.toggle('klatch', !!(kc && KEYS.latch && KEYS.latch.pi === pi && KEYS.latch.cell === cell)); pd.classList.toggle('kroot', !!(kc && kc.root)); pd.classList.toggle('kout', !!(kc && kc.out)); pd.classList.toggle('kchord', !!(kc && kc.chord)); pd.classList.toggle('kprog', !!(kc && kc.prog)); if (kc && kc.none) pd.classList.add('empty');
     const html = `<span class="pn">${chop ? cell + 1 : pn != null ? esc(pn) : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; } });
   const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; }
+  if (UI.strip && UI.panel) refreshStrip();
 }
 function stopLatch() { if (KEYS.latch) { send({ t: 'arpStop', tag: KEYS.latch.tag }); KEYS.latch = null; } }
 // notes the arpeggiator played: recorded as played while recording, otherwise kept for Capture
@@ -883,7 +902,7 @@ function flashPad(pi, k = -1) {
   if (UI.keys) { if (k >= 0 && pi === UI.pad && padChop()) flashCell(k); return; }
   if (Math.floor(pi / 16) === UI.bank) flashCell(pi % 16); }
 let tagSeq = 1;
-function padDown(cell) {
+function padDown(cell, hk = cell) {   // hk: the key this press is held under (the panel's pad strip uses its own)
   ensureAudio(); let pi, semi = 0, kc = null;
   const chop = padChop();
   if (UI.keys) { pi = UI.pad; UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flashCell(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flashCell(cell); return; } semi = kc.semi; } }
@@ -895,17 +914,17 @@ function padDown(cell) {
     const kx = kxOf(pi), notes = playChord(pi, kc.chord), lt = KEYS.latch;
     if (lt) { send({ t: 'arpStop', tag: lt.tag }); KEYS.latch = null; if (kx.latch && lt.pi === pi && lt.cell === cell) { refreshPadDots(); return; } }
     send({ t: 'arp', pad: pi, tag, notes: notes.map(x => ({ semi: x.semi, vel: x.vel })), pat: kx.apat, rate: kx.arate, oct: kx.aoct, gate: kx.agate });
-    if (kx.latch) { KEYS.latch = { tag, pi, cell }; refreshPadDots(); } else HELD[cell] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return;
+    if (kx.latch) { KEYS.latch = { tag, pi, cell }; refreshPadDots(); } else HELD[hk] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return;
   }
   if (kc && kc.chord) {   // a chord: every note shares one tag, so letting go releases them all (and cancels strummed notes not yet played)
     const notes = playChord(pi, kc.chord); send({ t: 'hit', pad: pi, notes, tag });
     const live = T.playing && T.rec, rec = [], cap = [];
     for (const x of notes) { if (live) { const r = recordNote(pi, x.semi, x.vel, x.ms); if (r) rec.push(r); } else cap.push(capHit(pi, x.semi, x.vel, x.ms)); }
-    HELD[cell] = { tag, rec, cap: live ? [] : cap, pi, start: ctx ? ctx.currentTime : 0, ms: notes.map(x => x.ms) }; return;
+    HELD[hk] = { tag, rec, cap: live ? [] : cap, pi, start: ctx ? ctx.currentTime : 0, ms: notes.map(x => x.ms) }; return;
   }
   send({ t: 'hit', pad: pi, semi, vel: .9, tag }); if (chop) { selectSlice(cell); slicePlayed(pi, cell, 0); }
   const rec = (T.playing && T.rec) ? recordNote(pi, semi) : null, cap = rec ? null : capHit(pi, semi, .9);
-  HELD[cell] = { tag, rec: rec ? [rec] : [], cap: cap ? [cap] : [], pi, start: ctx ? ctx.currentTime : 0, ms: [0] };
+  HELD[hk] = { tag, rec: rec ? [rec] : [], cap: cap ? [cap] : [], pi, start: ctx ? ctx.currentTime : 0, ms: [0] };
 }
 function padUp(cell) {
   const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
@@ -1380,7 +1399,28 @@ function navInfo() {
   const t = (el.getAttribute('aria-label') || el.value || el.textContent || '').trim().replace(/\s+/g, ' ');
   return `${t || 'Key'} · OK to press`;
 }
-function updatePanel() { if (!UI.panel) return; navEnsure(); $('#pinfo').textContent = navInfo(); }
+function updatePanel() { if (!UI.panel) return; if (UI.strip) { refreshStrip(); return; } navEnsure(); $('#pinfo').textContent = navInfo(); }
+/* the panel's pad strip: 16 pads that play the selected pad the way Keys view does (notes, scale, chords, arpeggiator), so you can play while you design */
+function buildStrip() {
+  const s = $('#pstrip'); s.innerHTML = ''; const oct = h('div', 'soct');
+  oct.append(btn('▲', () => { keysOct(1); refreshStrip(); }, 'pk'), btn('▼', () => { keysOct(-1); refreshStrip(); }, 'pk')); s.append(oct);
+  const g = h('div', 'sgrid'); for (let r = 1; r >= 0; r--) for (let c = 0; c < 8; c++) { const cell = r * 8 + c, d = h('div', 'spk'); d.dataset.cell = cell;
+    d.addEventListener('pointerdown', e => { e.preventDefault(); try { d.setPointerCapture(e.pointerId); } catch (_) {} stripDown(cell); d.classList.add('hit'); });
+    const up = () => { padUp('s' + cell); d.classList.remove('hit'); }; d.addEventListener('pointerup', up); d.addEventListener('pointercancel', up); g.append(d); }
+  s.append(g); refreshStrip();
+}
+function withKeys(fn) { const k = UI.keys; UI.keys = true; try { return fn(); } finally { UI.keys = k; } }
+function stripDown(cell) { ensureAudio(); withKeys(() => padDown(cell, 's' + cell)); if (UI.view === 'pads') refreshPadDots(); }
+function refreshStrip() {
+  const s = $('#pstrip'); if (!s || !UI.strip) return; if (!s.children.length) { buildStrip(); return; }
+  const pi = UI.pad, pad = P.pads[pi], chop = withKeys(() => padChop());
+  s.querySelectorAll('.spk').forEach(d => { const cell = +d.dataset.cell; let name = '—', root = false;
+    if (chop) name = cell < chop.pts.length ? String(cell + 1) : '—'; else if (hasSound(pad)) { const kc = withKeys(() => keyCell(cell)); name = kc.name; root = !!kc.root; }
+    d.textContent = name; d.classList.toggle('root', root); d.style.setProperty('--pc', PAD_COLORS[pad.color]); });
+  $('#panel').classList.toggle('chords', !chop && kxOf(pi).mode === 'chords');
+  $('#pinfo').textContent = `${padLabel(pi)} ${pad.name || ''} · ${hasSound(pad) ? (chop ? 'slices' : keysStatus(pi)) : 'empty pad'}`;
+}
+function toggleStrip() { UI.strip = !UI.strip; $('#panel').classList.toggle('strip', UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; if (UI.strip) refreshStrip(); else updatePanel(); savePrefs(); }
 function togglePanel() {
   UI.panel = !UI.panel; $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   if (!UI.panel) { if (NAV.mode === 'edit') navEndEdit(true); NAV.mode = 'nav'; if (NAV.el) NAV.el.classList.remove('nf', 'ne'); if (UI.view === 'seq') drawTL(); else drawChop(); }
@@ -1457,6 +1497,7 @@ function holdBtn(el, fn) { let t1 = 0, t2 = 0; const stop = () => { clearTimeout
 document.querySelectorAll('.dpad .pk[data-k]').forEach(b => holdBtn(b, () => navArrow(b.dataset.k, UI.shift)));
 holdBtn($('#pDel'), navDel);
 $('#pBack').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); navBack(); updatePanel(); });
+$('#pStrip').addEventListener('click', toggleStrip);
 $('#pShift').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); UI.shift = !UI.shift; $('#pShift').classList.toggle('on', UI.shift); updatePanel(); });
 function setFine(v) { UI.fine = v; const b = $('#pFine'); b.textContent = ['Fine', '1/64', '1 ms'][v]; b.classList.toggle('on', v > 0); }
 $('#pFine').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); setFine((UI.fine + 1) % 3); updatePanel(); toast(['Normal steps', 'Fine: 1/64 notes, smallest value steps', 'Extra fine: 1 ms nudges'][UI.fine]); });
@@ -1492,7 +1533,7 @@ document.addEventListener('touchmove', e => { if (e.touches.length > 1 || !e.tar
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 document.addEventListener('touchend', () => { if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); }, true);
 document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(); if (T.playing) stop(); if (mediaTag) mediaTag.pause(); } });
-new ResizeObserver(() => { const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') drawDisp(); else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); }).observe($('#view'));
+new ResizeObserver(() => { const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); }).observe($('#view'));
 let lastHeard = -1;
 // the screen loop runs only while something moves (playback, sound, meters falling, a recent touch); wake() restarts it
 let frameOn = false, lastFrame = 0, wakeAt = 0;
@@ -1525,9 +1566,9 @@ async function boot() {
   P = saved ? migrate(saved) : demoProject(); await warmBuiltins(P); ensureBuiltinsFor(P);
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (pr.snap != null) UI.tl.snap = pr.snap;
-    UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
+    UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); }
-  applyTheme(); $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
+  applyTheme(); $('#panel').classList.toggle('strip', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
 }

@@ -91,11 +91,21 @@ body{font-variant-numeric:tabular-nums}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .btn:disabled{opacity:.32;pointer-events:none} .clipline b{color:var(--accent);font-weight:600} .lcdbox.edr{display:flex;align-items:center;justify-content:center;height:36px;font:500 12px var(--font-lcd);color:var(--accent)}
 .grid.swapping .pad:not(.sel){animation:swapPulse 1s ease-in-out infinite alternate} @keyframes swapPulse{from{box-shadow:0 3px 0 #050506,inset 0 0 0 1px transparent}to{box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)}}
+.synDev{flex:1 1 auto;min-height:0;padding:8px 8px 6px;gap:6px;border-radius:5px} .synDev::before,.synDev::after{display:none}
+.synDev[data-eng="analog"]{border-left:9px solid #5b3418;border-right:9px solid #5b3418;border-image:linear-gradient(180deg,#7a4a26,#4a2a14 40%,#6b3f20 70%,#3e2310) 1;border-top:1px solid #000;border-bottom:1px solid #000}
+.synDev .devHead{height:26px;padding:0 2px} .synDev .disp{background:var(--d-scr)} .synDev .synTabs .key{background:linear-gradient(180deg,#2a2826,#1d1c1a)} .synDev .synTabs .key.on{color:var(--d-ring)}
+.synDev .knob .kb{stroke:#0a0908} .synDev .lcdbox.synInfo{background:var(--d-scr)}
+#view.short .synDev .devHead{display:none} #view.short .synDev{padding:4px 5px 3px;gap:3px} #view.short .synTabs,#view.short .synTabs .key{height:26px}
+#view.tiny .synDev .disp{min-height:22px} #view.short .kgrid.synGrid{grid-auto-rows:54px;gap:2px 4px} #view.short .synGrid .knob svg{width:34px;height:34px} #view.short .synGrid .selr{padding-top:2px} #view.short .synGrid .selr .sw{height:26px} #view.tiny .kgrid.synGrid{grid-auto-rows:48px} #view.tiny .soundView{gap:5px}
+.mapRow .mchip{flex:0 1 auto;min-width:0;overflow:hidden;font-size:12px;padding:0 7px} .mapRow .madd{flex:none;padding:0 10px}
+.mapRow{display:flex;gap:4px;height:34px;align-items:stretch;min-width:0} .mapHint{flex:1;min-width:0;display:flex;align-items:center;font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+.mchip b{font-weight:500;font-family:var(--font-lcd)} .madd{flex:none} .mapTip{flex:1;min-width:0;display:flex;align-items:center;justify-content:flex-end;font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden}
+.srcbtn{display:flex;align-items:center;gap:7px;justify-content:center} .sdot{width:9px;height:9px;border-radius:50%;flex:none}
 .synPages{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))} .synPages .key{width:100%;padding:0 2px;font-size:12px;white-space:nowrap} @media (max-width:400px){.synPages .key{font-size:10.5px;letter-spacing:-.02em}}
 .synTabs{display:flex;gap:4px;height:30px;flex:none} .synTabs .key{flex:1;height:30px;padding:0 4px;font-size:12px;min-width:0} .synInfo{flex:1;display:flex;align-items:center;padding:0 10px;font:500 11.5px var(--font-lcd);color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .srcKey{flex:none;padding:0 8px} .mapKey{flex:none;padding:0 8px}
 .mapBar{display:flex;flex-direction:column;gap:4px;flex:none} .mapRow{display:flex;gap:4px;height:34px;align-items:stretch;min-width:0} .mapRow::-webkit-scrollbar{display:none}
-.mapLab{flex:0 0 auto;min-width:96px;display:flex;align-items:center;padding:0 8px;font:500 12px var(--font-lcd);color:var(--accent);white-space:nowrap}
+.mapLab{flex:0 1 auto;min-width:60px;max-width:120px;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;padding:0 8px;font:500 12px var(--font-lcd);color:var(--accent);white-space:nowrap}
 .mchip{flex:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap} .mchip i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
 .msrcs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0} .msrcs::-webkit-scrollbar{display:none} .mdone{margin-left:auto;flex:none}
 .mapAmt{flex:1;min-width:0;height:34px} .mapAmt .prow{font-size:11px} .mapRow .key.mx{color:var(--rec)}
@@ -377,7 +387,14 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 
 /* ---------- precision panel ---------- */
 #panel{flex:none;height:168px;background:linear-gradient(180deg,var(--body2),var(--body));border:1px solid var(--edge);border-radius:6px;padding:8px 10px 10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-.pinfo{height:22px;margin-bottom:8px;font-size:10.5px}
+.pinfo{height:22px;margin-bottom:8px;font-size:10.5px;margin-right:62px}
+#pStrip{position:absolute;top:8px;right:10px;width:56px;height:22px;font-size:11px;border-radius:3px} #panel{position:relative}
+.pstrip{display:none;grid-template-columns:30px 1fr;gap:5px;height:124px} #panel.strip .pbody{display:none} #panel.strip .pstrip{display:grid}
+.soct{display:flex;flex-direction:column;gap:4px} .soct .pk{flex:1;font-size:12px}
+.sgrid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(2,1fr);gap:4px}
+.spk{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#26262a);border:1px solid #070708;box-shadow:0 2px 0 #050506;display:flex;align-items:flex-end;justify-content:center;padding:0 2px 7px;font:500 10.5px var(--font-lcd);color:var(--ink);white-space:nowrap;overflow:hidden;position:relative;touch-action:none;min-width:0}
+.spk::after{content:"";position:absolute;left:5px;right:5px;bottom:3px;height:2px;border-radius:1px;background:color-mix(in srgb,var(--pc) 40%,#101012)} .spk.root{color:var(--accent)} #panel.chords .spk{font-size:9.5px;letter-spacing:-.03em}
+.spk.hit{transform:translateY(1px);background:linear-gradient(180deg,#3a3a40,#2e2e33)} .spk.hit::after{background:var(--pc);box-shadow:0 0 6px var(--pc)}
 .pbody{display:flex;align-items:center;justify-content:space-between;gap:8px}
 #panel.mirror .pbody{flex-direction:row-reverse}
 .dpad{display:grid;grid-template-columns:repeat(3,40px);grid-template-rows:repeat(3,38px);gap:2px;padding:4px;border-radius:6px;background:#141416;box-shadow:inset 0 1px 4px rgba(0,0,0,.8)}
@@ -429,7 +446,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
   <nav id="scenes" aria-label="Scenes"></nav>
   <main id="view"></main>
   <section id="panel" hidden aria-label="Precision controls">
-    <div class="pinfo lcdbox" id="pinfo"></div>
+    <div class="pinfo lcdbox" id="pinfo"></div><button class="pk" id="pStrip" aria-label="Show pads in the panel">Pads</button>
     <div class="pbody">
       <div class="dpad">
         <button class="pk u" data-k="up" aria-label="Up"><svg viewBox="0 0 24 24"><path d="M12 6l7 9H5z"/></svg></button>
@@ -448,6 +465,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
         <button class="pk" id="pOk">OK</button>
       </div>
     </div>
+    <div class="pstrip" id="pstrip"></div>
   </section>
   <nav id="tabs">
     <button data-v="pads">Pads</button>
@@ -2019,7 +2037,7 @@ const DB = { db: null, ok: false,
 let saveTimer = 0;
 function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
 function saveNow() { clearTimeout(saveTimer); if (P) DB.put('kv', 'project', P); }
-function savePrefs() { DB.put('kv', 'ui', { theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol }); }
+function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -2288,7 +2306,7 @@ function keyMeta(key) {
 function renderAll() { renderScenes(); renderView(); updateTransport(); updatePanel(); }
 function setView(v) { navReset(); UI.view = v; renderView(); savePrefs(); }
 function renderView() {
-  for (const cell in HELD) padUp(+cell);
+  for (const k in HELD) if (k[0] !== 's') padUp(+k);   // strip pads (keys 's…') live in the panel and keep playing
   if (NAV.mode === 'edit') navEndEdit(true);
   const V = $('#view'); V.innerHTML = ''; UI.regs = []; TL.cv = null; SCOPE.views = SCOPE.views.filter(v => v.cv.closest('#sheet'));
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === (UI.view === 'fx' ? UI.fxBack : UI.view)));
@@ -2377,6 +2395,7 @@ function refreshPadDots() {
     pd.classList.toggle('klatch', !!(kc && KEYS.latch && KEYS.latch.pi === pi && KEYS.latch.cell === cell)); pd.classList.toggle('kroot', !!(kc && kc.root)); pd.classList.toggle('kout', !!(kc && kc.out)); pd.classList.toggle('kchord', !!(kc && kc.chord)); pd.classList.toggle('kprog', !!(kc && kc.prog)); if (kc && kc.none) pd.classList.add('empty');
     const html = `<span class="pn">${chop ? cell + 1 : pn != null ? esc(pn) : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; } });
   const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; }
+  if (UI.strip && UI.panel) refreshStrip();
 }
 function stopLatch() { if (KEYS.latch) { send({ t: 'arpStop', tag: KEYS.latch.tag }); KEYS.latch = null; } }
 // notes the arpeggiator played: recorded as played while recording, otherwise kept for Capture
@@ -2397,7 +2416,7 @@ function flashPad(pi, k = -1) {
   if (UI.keys) { if (k >= 0 && pi === UI.pad && padChop()) flashCell(k); return; }
   if (Math.floor(pi / 16) === UI.bank) flashCell(pi % 16); }
 let tagSeq = 1;
-function padDown(cell) {
+function padDown(cell, hk = cell) {   // hk: the key this press is held under (the panel's pad strip uses its own)
   ensureAudio(); let pi, semi = 0, kc = null;
   const chop = padChop();
   if (UI.keys) { pi = UI.pad; UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flashCell(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flashCell(cell); return; } semi = kc.semi; } }
@@ -2409,17 +2428,17 @@ function padDown(cell) {
     const kx = kxOf(pi), notes = playChord(pi, kc.chord), lt = KEYS.latch;
     if (lt) { send({ t: 'arpStop', tag: lt.tag }); KEYS.latch = null; if (kx.latch && lt.pi === pi && lt.cell === cell) { refreshPadDots(); return; } }
     send({ t: 'arp', pad: pi, tag, notes: notes.map(x => ({ semi: x.semi, vel: x.vel })), pat: kx.apat, rate: kx.arate, oct: kx.aoct, gate: kx.agate });
-    if (kx.latch) { KEYS.latch = { tag, pi, cell }; refreshPadDots(); } else HELD[cell] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return;
+    if (kx.latch) { KEYS.latch = { tag, pi, cell }; refreshPadDots(); } else HELD[hk] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return;
   }
   if (kc && kc.chord) {   // a chord: every note shares one tag, so letting go releases them all (and cancels strummed notes not yet played)
     const notes = playChord(pi, kc.chord); send({ t: 'hit', pad: pi, notes, tag });
     const live = T.playing && T.rec, rec = [], cap = [];
     for (const x of notes) { if (live) { const r = recordNote(pi, x.semi, x.vel, x.ms); if (r) rec.push(r); } else cap.push(capHit(pi, x.semi, x.vel, x.ms)); }
-    HELD[cell] = { tag, rec, cap: live ? [] : cap, pi, start: ctx ? ctx.currentTime : 0, ms: notes.map(x => x.ms) }; return;
+    HELD[hk] = { tag, rec, cap: live ? [] : cap, pi, start: ctx ? ctx.currentTime : 0, ms: notes.map(x => x.ms) }; return;
   }
   send({ t: 'hit', pad: pi, semi, vel: .9, tag }); if (chop) { selectSlice(cell); slicePlayed(pi, cell, 0); }
   const rec = (T.playing && T.rec) ? recordNote(pi, semi) : null, cap = rec ? null : capHit(pi, semi, .9);
-  HELD[cell] = { tag, rec: rec ? [rec] : [], cap: cap ? [cap] : [], pi, start: ctx ? ctx.currentTime : 0, ms: [0] };
+  HELD[hk] = { tag, rec: rec ? [rec] : [], cap: cap ? [cap] : [], pi, start: ctx ? ctx.currentTime : 0, ms: [0] };
 }
 function padUp(cell) {
   const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
@@ -3844,15 +3863,29 @@ function synSpecial(pi, what) {
 
 /* ----- the synth Sound page ----- */
 let synCv = null;
+// engines: one faceplate each (only Analog is built so far)
+const SYN_ENGINES = [{ id: 'analog', n: 'Analog', blurb: 'Three oscillators into a ladder: basses, leads, pads', look: { face: '#1b1a19', face2: '#121212', cap: '#e6dcc6', ind: '#1a1714', ring: '#f2b544', track: '#050505', ink: '#ece5d4', ink2: '#a59c88', scr: '#0c0d0e', sw: '#0b0b0c', swInk: '#f0c35a', tex: 'none' } },
+  { id: 'fm', n: 'FM', blurb: 'Four operators with modes: keys, bells, growls', soon: true }, { id: 'wt', n: 'Wavetable', blurb: 'Two morphing wavetable oscillators', soon: true },
+  { id: 'gr', n: 'Granular', blurb: 'Clouds of grains from any sound', soon: true }, { id: 'dr', n: 'Drum', blurb: 'Kick, snare, clap, hats and percussion', soon: true }];
+function openEnginePicker(pi) {
+  openSheet('Synth engine', card => { const st = h('div', 'stack');
+    for (const e of SYN_ENGINES) { const b = btn(`<b>${e.n}</b><span>${e.soon ? 'Coming next' : 'Built'}</span><i>${esc(e.blurb)}</i>`, () => { if (!e.soon) closeSheet(); }, 'btn prow' + (e.id === (synOf(pi).eng || 'analog') ? ' on' : '')); if (e.soon) b.disabled = true; st.append(b); }
+    st.append(h('p', 'note', 'Switching engines keeps everything in the shared frame: sub, noise crunch, filter, envelopes, LFOs, macros and modulation.')); card.append(st); });
+}
 function renderSynthSound(w, pi, head) {
-  const pad = P.pads[pi], pg = SYN_PAGES[SYN_ST.pg], tab = synTab();
-  if (UI.map) w.append(head, mapBar(pi));
+  const pad = P.pads[pi], pg = SYN_PAGES[SYN_ST.pg], tab = synTab(), eng = SYN_ENGINES.find(e => e.id === (synOf(pi).eng || 'analog')) || SYN_ENGINES[0];
+  // the faceplate: engine logo and selector, then tabs, screen and controls (page keys and the Map bar sit above it)
+  const dev = h('div', 'dev synDev'); applyLook(dev, Object.assign({}, LOOK_BASE, eng.look)); dev.dataset.eng = eng.id;
+  const mb = UI.map ? mapBar(pi) : null;
+  if (mb) dev.append(mb[1]); else { const dh = h('div', 'devHead'); dh.append(h('div', 'logo', `<b>${eng.n}</b><i>${esc(synOf(pi).name || 'Init')}</i>`), btn(eng.n + ' <span class="car">▾</span>', () => openEnginePicker(pi), 'key sm modeKey')); dev.append(dh); }
+  if (mb) w.append(head, mb[0]);
   else {
     const pages = seg(SYN_PAGES.map(x => x.n), SYN_ST.pg, i => { SYN_ST.pg = i; renderView(); }); pages.classList.add('synPages');
-    const tabs = h('div', 'keys synTabs'); for (const [id, l] of pg.tabs) { const b = btn(l, () => { SYN_ST.tab[SYN_ST.pg] = id; renderView(); }, 'key sm' + (id === tab ? ' on' : '')); tabs.append(b); }
-    if (pg.n === 'Filter' || pg.n === 'Mix') { tabs.innerHTML = ''; tabs.append(h('div', 'lcdbox synInfo', pg.n === 'Filter' ? 'Filter · ' + esc(synOf(pi).p.flt ?? 'Ladder') + ' · after the oscillators, before the sub and noise' : 'Channel · level, pan, sends and effects')); }
-    w.append(head, pages, tabs);
+    w.append(head, pages);
   }
+  const tabs = h('div', 'keys synTabs'); for (const [id, l] of pg.tabs) { const b = btn(l, () => { SYN_ST.tab[SYN_ST.pg] = id; renderView(); }, 'key sm' + (id === tab ? ' on' : '')); tabs.append(b); }
+  if (pg.n === 'Filter' || pg.n === 'Mix') { tabs.innerHTML = ''; tabs.append(h('div', 'lcdbox synInfo', pg.n === 'Filter' ? 'Filter · ' + esc(synOf(pi).p.flt ?? 'Ladder') + ' · after the oscillators' : 'Channel · level, pan, sends and effects')); }
+  dev.append(tabs);
   const disp = h('div', 'scr disp'), cv = h('canvas', tab[0] === 'l' && tab !== 'l' ? 'navc' : ''); disp.append(cv); synCv = cv;
   if (/^l\d$/.test(tab)) { cv.classList.add('navc'); cv.setAttribute('aria-label', 'LFO shape'); cv._ctl = lfoCtl; cv._draw = drawSynDisp; bindLfo(cv, pi); }
   const g = h('div', 'kgrid synGrid');
@@ -3863,7 +3896,7 @@ function renderSynthSound(w, pi, head) {
   } else { const cells = SYN_CELLS[tab] || []; for (let i = 0; i < 8; i++) g.append(cells[i] ? synCtl(pi, cells[i]) : blankCell()); }
   g.addEventListener('pointerdown', e => { if (!UI.map) return; const c = e.target.closest('[data-syn]'); if (!c) return; e.preventDefault(); e.stopPropagation(); mapPick(pi, c.dataset.syn); }, true);
   g.addEventListener('click', e => { if (UI.map && e.target.closest('[data-syn]')) { e.stopPropagation(); e.preventDefault(); } }, true);
-  w.append(disp, g); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
+  dev.append(disp, g); w.append(dev); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
 }
 function synHeadKey(pi) { const pad = P.pads[pi], k = btn(pad.src === 'synth' ? 'Synth' : 'Sample', () => openSynthSource(pi), 'key sm srcKey' + (pad.src === 'synth' ? ' on' : '')); return k; }
 function mapKey(pi) { return btn('Map', () => { UI.map = UI.map ? null : { target: null, route: -1, armed: -1 }; renderView(); }, 'key sm mapKey' + (UI.map ? ' on' : '')); }
@@ -3903,9 +3936,11 @@ function drawSynDisp() {
   const wave = (w, ph, pw) => { ph -= Math.floor(ph); switch (w) { case 'Sine': return Math.sin(ph * 2 * Math.PI); case 'Triangle': return ph < .5 ? 4 * ph - 1 : 3 - 4 * ph; case 'Saw': return 2 * ph - 1; case 'Square': return ph < .5 ? 1 : -1; default: return ph < pw ? 1 : -1; } };
   if (/^o\d$/.test(tab) || tab === 'vo') {   // the oscillator mix: two cycles of what the three oscillators add up to
     grid(); const oscs = [1, 2, 3].map(k => ({ w: v('o' + k + 'w'), r: Math.pow(2, v('o' + k + 'o') + v('o' + k + 's') / 12), l: k === 3 && v('o3x') === 'LFO' ? 0 : v('o' + k + 'l'), pw: v('o' + k + 'p') }));
-    const sum = x => oscs.reduce((a, o) => a + o.l * wave(o.w, x * 2 * o.r, o.pw), 0), mx = Math.max(.3, ...Array.from({ length: 64 }, (_, i) => Math.abs(sum(i / 64))));
-    if (tab !== 'vo') { const k = +tab[1] - 1, o = oscs[k]; line(x => H / 2 - wave(o.w, x * 2, o.pw) * H * .3, COL.dim, 1.2); }
-    line(x => H / 2 - sum(x) / mx * H * .38);
+    const r0 = oscs[0].r, cyc = 2, N = Math.max(400, W * 2);   // osc 1 shows two cycles; the others are drawn relative to it
+    const sum = x => oscs.reduce((a, o) => a + o.l * wave(o.w, x * cyc * o.r / r0, o.pw), 0); let mx = .3; for (let i = 0; i < 256; i++) mx = Math.max(mx, Math.abs(sum(i / 256)));
+    const plot = (fn, c, lw, a = 1) => { g.beginPath(); for (let i = 0; i <= N; i++) { const x = i / N, y = H / 2 - fn(x) * H * .36; i ? g.lineTo(x * W, y) : g.moveTo(x * W, y); } g.globalAlpha = a; g.strokeStyle = c; g.lineWidth = lw; g.lineJoin = 'round'; g.stroke(); g.globalAlpha = 1; };
+    if (tab !== 'vo') { const o = oscs[+tab[1] - 1]; plot(x => sum(x) / mx, COL.mute, 1.2, .5); if (o.l > .0005 || tab === 'o1') plot(x => wave(o.w, x * cyc * o.r / r0, o.pw), col, 2.2); else txt('This oscillator is off: raise its Level', W / 2, H / 2 + 18, COL.dim, 'center'); }
+    else plot(x => sum(x) / mx, col, 2.2);
     const U = v('uni'); if (tab === 'vo' && U > 1) { const det = v('det'), spr = v('spr'); for (let u = 0; u < U; u++) { const x = (2 * u / (U - 1) - 1); g.fillStyle = COL.accent; g.fillRect(W / 2 + x * spr * W * .42 - 1, H - 14 - Math.abs(x) * det * 30, 3, 8); } txt(`${U} voices · detune ${Math.round(det * 100)}% · spread ${Math.round(spr * 100)}%`, 8, 12); }
     else txt(tab === 'vo' ? 'Voice: unison, feedback, pitch, level, glide' : `Osc ${tab[1]} · ${v('o' + tab[1] + 'w')}${tab === 'o3' && v('o3x') === 'LFO' ? ' · LFO' : ''}`, 8, 12);
     return;
@@ -4014,27 +4049,36 @@ function mapPick(pi, id) {
     M.target = id; M.route = S.mods.findIndex(m => m.d === id && m.s === M.armed); renderView(); return; }
   M.target = id; const rs = routesFor(pi, id); M.route = rs.length ? rs[rs.length - 1][1] : -1; renderView();
 }
+const SRC_SHORT = ['Amp', 'Env 2', 'Env 3', 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4', 'Vel', 'Note', 'Rand', 'Alt', 'Osc 3', 'M1', 'M2', 'M3', 'M4'];
+// Map bar (two fixed rows, nothing scrolls): ① the control and the selected connection's amount ② its connections and +
 function mapBar(pi) {
-  const M = UI.map, S = synOf(pi), bar = h('div', 'mapBar'), r1 = h('div', 'keys mapRow'), r2 = h('div', 'keys mapRow');
-  const t = M.target && TFSYN_ID[M.target];
-  r1.append(h('div', 'lcdbox mapLab', t ? esc(t.l) : M.armed >= 0 ? esc(TF_SRC[M.armed]) + ' → tap controls' : 'Map · tap a control'));
-  const chips = h('div', 'msrcs'); r1.append(chips);   // the route chips scroll; Done always stays in view
-  if (t) { for (const [m, i] of routesFor(pi, M.target)) { const b = btn(`<i style="background:${SRC_COL(m.s)}"></i>${esc(TF_SRC[m.s])} ${m.a > 0 ? '+' : ''}${Math.round(m.a * 100)}%`, () => { M.route = i; renderView(); }, 'key sm mchip' + (M.route === i ? ' on' : '')); chips.append(b); }
-    chips.append(btn('+', () => { M.route = -1; renderView(); }, 'key sm mchip' + (M.route < 0 ? ' on' : ''))); }
+  const M = UI.map, S = synOf(pi), bar = { querySelector: s => r2.querySelector(s) }, r1 = h('div', 'mapRow'), r2 = h('div', 'mapRow');
+  const t = M.target && TFSYN_ID[M.target], m = t && M.route >= 0 ? S.mods[M.route] : null;
+  r1.append(h('div', 'lcdbox mapLab', t ? esc(t.l) : M.armed >= 0 ? esc(SRC_SHORT[M.armed]) + ' →' : 'Map'));
+  if (m) { const amt = paramEl({ label: TF_SRC[m.s], min: -1, max: 1, step: .01, coarse: .05, big: .2, def: 0, bipolar: true, fmt: x => (x > 0 ? '+' : '') + Math.round(x * 100) + '%', noFocus: true,
+      get: () => m.a, set: x => { m.a = x; syncPad(pi); markDirty(); paintMods(document.querySelector('.synGrid'), pi); const c = bar.querySelector('.mchip.on b'); if (c) c.textContent = (x > 0 ? '+' : '') + Math.round(x * 100) + '%'; }, onStart: () => pushUndo('pad:' + pi) });
+    amt.classList.add('mapAmt'); r1.append(amt); }
+  else r1.append(h('div', 'mapHint', t ? 'Tap + to add a source' : M.armed >= 0 ? 'Tap controls to connect ' + esc(TF_SRC[M.armed]) : 'Tap a control to modulate it'));
   r1.append(btn('Done', () => { UI.map = null; renderView(); }, 'key sm mdone'));
-  if (t && M.route >= 0 && S.mods[M.route]) { const m = S.mods[M.route];
-    const amt = paramEl({ label: TF_SRC[m.s] + ' → ' + t.l, min: -1, max: 1, step: .01, coarse: .05, big: .2, def: 0, bipolar: true, fmt: x => (x > 0 ? '+' : '') + Math.round(x * 100) + '%', noFocus: true,
-      get: () => m.a, set: x => { m.a = x; syncPad(pi); markDirty(); paintMods(document.querySelector('.synGrid'), pi); }, onStart: () => pushUndo('pad:' + pi) });
-    amt.classList.add('mapAmt'); r2.append(amt, btn('More…', () => openRouteMore(pi, M.route), 'key sm'), btn('✕', () => { pushUndo('pad:' + pi); S.mods.splice(M.route, 1); M.route = -1; syncPad(pi); markDirty(); renderView(); }, 'key sm mx'));
-  } else {
-    const sc = h('div', 'msrcs');
-    TF_SRC.forEach((n, s) => { const b = btn(`<i style="background:${SRC_COL(s)}"></i>${esc(n)}`, () => {
-      if (t) { if (routesFor(pi, M.target).some(([m]) => m.s === s)) { M.route = S.mods.findIndex(m => m.d === M.target && m.s === s); renderView(); return; }
-        if (routesFor(pi, M.target).length >= 4) { toast('A control takes up to four sources'); return; }
-        pushUndo('pad:' + pi); S.mods.push({ s, d: M.target, a: .25, c: 0 }); M.route = S.mods.length - 1; syncPad(pi); markDirty(); renderView(); }
-      else { M.armed = M.armed === s ? -1 : s; renderView(); } }, 'key sm mchip' + (M.armed === s ? ' on' : '')); sc.append(b); });
-    r2.append(sc); }
-  bar.append(r1, r2); return bar;
+  if (t) { for (const [q, i] of routesFor(pi, M.target)) r2.append(btn(`<i style="background:${SRC_COL(q.s)}"></i>${esc(SRC_SHORT[q.s])} <b>${q.a > 0 ? '+' : ''}${Math.round(q.a * 100)}%</b>`,
+      () => { if (M.route === i) openRouteMore(pi, i); else { M.route = i; renderView(); } }, 'key sm mchip' + (M.route === i ? ' on' : '')));
+    if (routesFor(pi, M.target).length < 4) r2.append(btn('+', () => openSourcePicker(pi), 'key sm madd'));
+  }
+  else r2.append(btn(M.armed >= 0 ? 'Source: ' + esc(TF_SRC[M.armed]) : 'Pick a source first…', () => openSourcePicker(pi), 'key sm madd' + (M.armed >= 0 ? ' on' : '')));
+  return [r1, r2];   // row 1 takes the page keys' place, row 2 the faceplate's logo line, so the layout barely moves
+}
+// every source in one sheet, grouped and coloured (no scrolling rows); with no control picked it arms the source instead
+function openSourcePicker(pi) {
+  const M = UI.map, S = synOf(pi), t = M.target;
+  openSheet(t ? 'Modulate ' + TFSYN_ID[t].l + ' with…' : 'Pick a source, then tap controls', card => { const st = h('div', 'stack');
+    for (const [title, ids] of [['Envelopes', [0, 1, 2]], ['LFOs', [3, 4, 5, 6, 11]], ['Playing', [7, 8, 9, 10]], ['Macros', [12, 13, 14, 15]]]) {
+      st.append(h('div', 'sec', title)); const g = h('div', 'g3');
+      for (const s of ids) { const used = t && routesFor(pi, t).some(([q]) => q.s === s);
+        g.append(btn(`<i class="sdot" style="background:${SRC_COL(s)}"></i>${esc(TF_SRC[s])}`, () => { closeSheet();
+          if (t) { const ex = S.mods.findIndex(q => q.d === t && q.s === s); if (ex >= 0) M.route = ex; else { pushUndo('pad:' + pi); S.mods.push({ s, d: t, a: .25, c: 0 }); M.route = S.mods.length - 1; syncPad(pi); markDirty(); } }
+          else M.armed = M.armed === s ? -1 : s; renderView(); }, 'btn srcbtn' + (used || M.armed === s ? ' on' : ''))); }
+      st.append(g); }
+    st.append(h('p', 'note', t ? 'The new connection starts at +25%: set the amount in the bar. Up to four sources per control.' : 'Then every control you tap gets this source at +25%. Tap Done when finished.')); card.append(st); });
 }
 function openRouteMore(pi, ri) {
   const S = synOf(pi), m = S.mods[ri]; if (!m) return;
@@ -4044,7 +4088,8 @@ function openRouteMore(pi, ri) {
     st.append(h('div', 'sec', 'Via: scale this by another source')); g = h('div', 'g4');
     g.append(btn('None', () => { pushUndo('pad:' + pi); delete m.v; syncPad(pi); markDirty(); closeSheet(); openRouteMore(pi, ri); }, 'btn' + (m.v == null ? ' on' : '')));
     TF_SRC.forEach((n, s) => { if (s !== m.s) g.append(btn(esc(n), () => { pushUndo('pad:' + pi); m.v = s; syncPad(pi); markDirty(); closeSheet(); openRouteMore(pi, ri); }, 'btn' + (m.v === s ? ' on' : ''))); });
-    st.append(g, h('p', 'note', 'Via multiplies this connection by a second source: for example LFO 1 → Cutoff via Macro 2 lets one knob fade the wobble in and out.')); card.append(st); });
+    st.append(g, h('p', 'note', 'Via multiplies this connection by a second source: for example LFO 1 → Cutoff via Macro 2 lets one knob fade the wobble in and out.'));
+    const rm = h('div', 'g2'); rm.append(btn('Remove connection', () => { pushUndo('pad:' + pi); S.mods.splice(ri, 1); if (UI.map) UI.map.route = -1; syncPad(pi); markDirty(); closeSheet(); }, 'btn warn')); st.append(rm); card.append(st); });
 }
 // rings on modulated knobs: the range the modulation can reach, in the first source's colour
 function paintMods(g, pi) {
@@ -4287,7 +4332,28 @@ function navInfo() {
   const t = (el.getAttribute('aria-label') || el.value || el.textContent || '').trim().replace(/\s+/g, ' ');
   return `${t || 'Key'} · OK to press`;
 }
-function updatePanel() { if (!UI.panel) return; navEnsure(); $('#pinfo').textContent = navInfo(); }
+function updatePanel() { if (!UI.panel) return; if (UI.strip) { refreshStrip(); return; } navEnsure(); $('#pinfo').textContent = navInfo(); }
+/* the panel's pad strip: 16 pads that play the selected pad the way Keys view does (notes, scale, chords, arpeggiator), so you can play while you design */
+function buildStrip() {
+  const s = $('#pstrip'); s.innerHTML = ''; const oct = h('div', 'soct');
+  oct.append(btn('▲', () => { keysOct(1); refreshStrip(); }, 'pk'), btn('▼', () => { keysOct(-1); refreshStrip(); }, 'pk')); s.append(oct);
+  const g = h('div', 'sgrid'); for (let r = 1; r >= 0; r--) for (let c = 0; c < 8; c++) { const cell = r * 8 + c, d = h('div', 'spk'); d.dataset.cell = cell;
+    d.addEventListener('pointerdown', e => { e.preventDefault(); try { d.setPointerCapture(e.pointerId); } catch (_) {} stripDown(cell); d.classList.add('hit'); });
+    const up = () => { padUp('s' + cell); d.classList.remove('hit'); }; d.addEventListener('pointerup', up); d.addEventListener('pointercancel', up); g.append(d); }
+  s.append(g); refreshStrip();
+}
+function withKeys(fn) { const k = UI.keys; UI.keys = true; try { return fn(); } finally { UI.keys = k; } }
+function stripDown(cell) { ensureAudio(); withKeys(() => padDown(cell, 's' + cell)); if (UI.view === 'pads') refreshPadDots(); }
+function refreshStrip() {
+  const s = $('#pstrip'); if (!s || !UI.strip) return; if (!s.children.length) { buildStrip(); return; }
+  const pi = UI.pad, pad = P.pads[pi], chop = withKeys(() => padChop());
+  s.querySelectorAll('.spk').forEach(d => { const cell = +d.dataset.cell; let name = '—', root = false;
+    if (chop) name = cell < chop.pts.length ? String(cell + 1) : '—'; else if (hasSound(pad)) { const kc = withKeys(() => keyCell(cell)); name = kc.name; root = !!kc.root; }
+    d.textContent = name; d.classList.toggle('root', root); d.style.setProperty('--pc', PAD_COLORS[pad.color]); });
+  $('#panel').classList.toggle('chords', !chop && kxOf(pi).mode === 'chords');
+  $('#pinfo').textContent = `${padLabel(pi)} ${pad.name || ''} · ${hasSound(pad) ? (chop ? 'slices' : keysStatus(pi)) : 'empty pad'}`;
+}
+function toggleStrip() { UI.strip = !UI.strip; $('#panel').classList.toggle('strip', UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; if (UI.strip) refreshStrip(); else updatePanel(); savePrefs(); }
 function togglePanel() {
   UI.panel = !UI.panel; $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   if (!UI.panel) { if (NAV.mode === 'edit') navEndEdit(true); NAV.mode = 'nav'; if (NAV.el) NAV.el.classList.remove('nf', 'ne'); if (UI.view === 'seq') drawTL(); else drawChop(); }
@@ -4364,6 +4430,7 @@ function holdBtn(el, fn) { let t1 = 0, t2 = 0; const stop = () => { clearTimeout
 document.querySelectorAll('.dpad .pk[data-k]').forEach(b => holdBtn(b, () => navArrow(b.dataset.k, UI.shift)));
 holdBtn($('#pDel'), navDel);
 $('#pBack').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); navBack(); updatePanel(); });
+$('#pStrip').addEventListener('click', toggleStrip);
 $('#pShift').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); UI.shift = !UI.shift; $('#pShift').classList.toggle('on', UI.shift); updatePanel(); });
 function setFine(v) { UI.fine = v; const b = $('#pFine'); b.textContent = ['Fine', '1/64', '1 ms'][v]; b.classList.toggle('on', v > 0); }
 $('#pFine').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); setFine((UI.fine + 1) % 3); updatePanel(); toast(['Normal steps', 'Fine: 1/64 notes, smallest value steps', 'Extra fine: 1 ms nudges'][UI.fine]); });
@@ -4399,7 +4466,7 @@ document.addEventListener('touchmove', e => { if (e.touches.length > 1 || !e.tar
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 document.addEventListener('touchend', () => { if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); }, true);
 document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(); if (T.playing) stop(); if (mediaTag) mediaTag.pause(); } });
-new ResizeObserver(() => { const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') drawDisp(); else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); }).observe($('#view'));
+new ResizeObserver(() => { const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); }).observe($('#view'));
 let lastHeard = -1;
 // the screen loop runs only while something moves (playback, sound, meters falling, a recent touch); wake() restarts it
 let frameOn = false, lastFrame = 0, wakeAt = 0;
@@ -4432,9 +4499,9 @@ async function boot() {
   P = saved ? migrate(saved) : demoProject(); await warmBuiltins(P); ensureBuiltinsFor(P);
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (pr.snap != null) UI.tl.snap = pr.snap;
-    UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
+    UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); }
-  applyTheme(); $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
+  applyTheme(); $('#panel').classList.toggle('strip', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
 }
