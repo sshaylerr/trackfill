@@ -601,6 +601,8 @@ async function warmBuiltins(proj) {
 }
 function newJungle() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the Liquid jungle kit…');
   setTimeout(async () => { const np = jungleProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Liquid jungle: drums and break on bank A, keys and pads on bank B (set up for Chords). F minor, 174 BPM.'); }, 60); }
+function newStress() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the stress test…');
+  setTimeout(async () => { const np = stressProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Stress test: 53 pads, 29 synths, 266 effects. Press Play and watch CPU in the top bar.'); }, 60); }
 function ensureBuiltinsFor(proj) { for (const p of proj.pads) if (p.sample && p.sample.startsWith('b:')) buildBuiltin(p.sample.slice(2)); }
 function addUserSample(name, sr, ch, data, extra) {
   const id = 'u:' + uid(), s = Object.assign({ id, name, sr, ch, frames: data.length / ch, data, added: Date.now() }, extra || {});
@@ -1252,7 +1254,7 @@ function openMenu() {
     g = h('div', 'g2'); g.append(btn('Haptics: ' + (UI.haptics ? 'On' : 'Off'), () => { UI.haptics = !UI.haptics; savePrefs(); haptic(); closeSheet(); toast(UI.haptics ? 'Haptics on (iPhone needs iOS 18)' : 'Haptics off'); }, 'btn' + (UI.haptics ? ' on' : ''))); st.append(g);
     g = h('div', 'g2'); g.append(confirmBtn('New project', 'Tap again: start fresh', () => { pushUndo('all'); if (T.playing) stop(); P = newProject(); afterLoad(); closeSheet(); toast('New project. Bank A has the built-in kit.'); }),
       confirmBtn('Load demo song', 'Tap again to load demo', () => { pushUndo('all'); if (T.playing) stop(); P = demoProject(); afterLoad(); closeSheet(); }, 'btn')); st.append(g);
-    g = h('div', 'g2'); g.append(confirmBtn('New: Liquid jungle kit', 'Tap again: start it', newJungle, 'btn')); st.append(g);
+    g = h('div', 'g2'); g.append(confirmBtn('New: Liquid jungle kit', 'Tap again: start it', newJungle, 'btn'), confirmBtn('Stress test project', 'Tap again: load it', newStress, 'btn')); st.append(g);
     card.append(st); });
 }
 function afterLoad() { ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
