@@ -72,9 +72,12 @@ body{font-variant-numeric:tabular-nums}
 #bPlay.on::after{background:var(--play);box-shadow:0 0 6px var(--play)}
 #bRec{color:var(--rec)} #bRec.armed::after{background:var(--rec);opacity:.6} #bRec.on::after{background:var(--rec);box-shadow:0 0 8px var(--rec);animation:recpulse 1s ease-in-out infinite}
 @keyframes recpulse{50%{opacity:.35}}
-#bLoop{width:70px} #bTempo{width:56px;flex-direction:column;gap:2px;line-height:1}
+#bLoop{width:56px;flex-direction:column;gap:2px;line-height:1} #bLoop b{font:500 15px var(--font-ui);color:var(--ink)} #bLoop small{font-size:9px;color:var(--print);text-transform:uppercase;letter-spacing:.04em}
+#bTempo{width:56px;flex-direction:column;gap:2px;line-height:1}
 #bTempo.clk::after{content:"";position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.btn:disabled{opacity:.32;pointer-events:none} .clipline b{color:var(--accent);font-weight:600} .lcdbox.edr{display:flex;align-items:center;justify-content:center;height:36px;font:500 12px var(--font-lcd);color:var(--accent)}
+.grid.swapping .pad:not(.sel){animation:swapPulse 1s ease-in-out infinite alternate} @keyframes swapPulse{from{box-shadow:0 3px 0 #050506,inset 0 0 0 1px transparent}to{box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)}}
 .g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px} .g4 .btn{padding:0 6px;min-width:0}
 .btn.theme{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px} .btn.theme.on{background:linear-gradient(180deg,var(--on1),var(--on2));color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-ring)}
 .swd{width:12px;height:12px;border-radius:50%;flex:none;background:var(--sa);box-shadow:0 0 0 2px var(--sb),0 0 6px var(--sa)}
@@ -375,7 +378,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 #toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:30;background:var(--ink);color:#111;font-weight:600;font-size:13.5px;padding:9px 14px;border-radius:9px;max-width:calc(100% - 32px);text-align:center;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-@media (max-width:420px){#top{gap:4px}.tb.ic{width:36px;min-width:36px}#bLoop{width:64px}#bTempo{width:52px}}
+@media (max-width:420px){#top{gap:3px}.tb.ic{width:36px;min-width:36px}#bLoop{width:48px}#bTempo{width:50px}}
 @media (max-width:370px){.tb.ic{width:34px;min-width:34px}.dpad{grid-template-columns:repeat(3,36px);grid-template-rows:repeat(3,34px)}.pact .pk{width:50px;height:50px}.pmid .pk{width:50px}.knob svg{width:42px;height:42px}}
 </style>
 
@@ -390,6 +393,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
     <button class="tb" id="bTempo" aria-label="Tempo"><b>96</b><small>BPM</small></button>
     <span class="spacer"></span>
     <button class="tb ic" id="bUndo" aria-label="Undo"><svg viewBox="0 0 24 24"><path d="M9.5 5 4 10.5 9.5 16v-3.7c4.2 0 7.1 1.3 9 4.7-.6-4.9-3.4-8.4-9-9V5z"/></svg></button>
+    <button class="tb ic" id="bEdit" aria-label="Copy, paste and duplicate"><svg viewBox="0 0 24 24"><path d="M8 3h10a2 2 0 0 1 2 2v10h-2V5H8z"/><rect x="4" y="7" width="12" height="14" rx="2"/></svg></button>
     <button class="tb ic" id="bPanel" aria-label="Precision controls"><svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" opacity=".95"/></svg></button>
     <button class="tb ic" id="bMenu" aria-label="Project menu"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="2.2" rx="1.1"/><rect x="4" y="11" width="16" height="2.2" rx="1.1"/><rect x="4" y="16" width="16" height="2.2" rx="1.1"/></svg></button>
   </header>
@@ -768,7 +772,7 @@ function renderView() {
 function updateTransport() {
   $('#bPlay').innerHTML = T.playing ? '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7.5 5.2 19 12 7.5 18.8z"/></svg>';
   $('#bPlay').classList.toggle('on', T.playing); const r = $('#bRec'); r.classList.toggle('armed', T.rec && !T.playing); r.classList.toggle('on', T.rec && T.playing);
-  $('#bLoop').textContent = T.loop === 'scene' ? '⟲ Scene' : '▶▶ Song'; $('#bTempo b').textContent = String(+P.bpm.toFixed(1));
+  $('#bLoop').innerHTML = T.loop === 'scene' ? '<b>⟲</b><small>Scene</small>' : '<b>▶▶</b><small>Song</small>'; $('#bTempo b').textContent = String(+P.bpm.toFixed(1));
 }
 function updateSoundChip() { let c = $('#soundChip'); const need = !ctx || ctx.state !== 'running';
   if (need && !c) { c = h('div', ''); c.id = 'soundChip'; $('#view').append(c); } else if (!need && c) { c.remove(); ENG.slept = false; }
@@ -836,7 +840,7 @@ function playChord(pi, c) {
   return humanize(all, { strum: kx.strum, dir: kx.dir, feel: kx.feel, bassFirst: kx.bass !== 'off' }, Math.random, KEYS.flip[pi]);
 }
 function refreshPadDots() {
-  const grid = document.querySelector('.grid'); if (!grid) return; const sc = P.scenes[UI.scene], chop = padChop(), kb = document.querySelector('.kbtn'); if (kb) kb.textContent = chopOf(UI.pad) ? 'Chop' : 'Keys';
+  const grid = document.querySelector('.grid'); if (!grid) return; grid.classList.toggle('swapping', UI.swapFrom != null && !UI.keys); const sc = P.scenes[UI.scene], chop = padChop(), kb = document.querySelector('.kbtn'); if (kb) kb.textContent = chopOf(UI.pad) ? 'Chop' : 'Keys';
   [...grid.children].forEach(pd => { const cell = +pd.dataset.cell; let pi, name;
     let pn = null, kc = null;
     if (UI.keys) { pi = UI.pad; if (chop) name = cell < chop.pts.length ? sliceName(UI.pad, cell) : '—'; else { kc = keyCell(cell); name = kc.name; pn = kc.pn; }
@@ -871,6 +875,7 @@ function padDown(cell) {
   ensureAudio(); let pi, semi = 0, kc = null;
   const chop = padChop();
   if (UI.keys) { pi = UI.pad; UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flashCell(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flashCell(cell); return; } semi = kc.semi; } }
+  else if (UI.swapFrom != null) { const a = UI.swapFrom; UI.swapFrom = null; pi = UI.bank * 16 + cell; if (a === pi) { refreshPadDots(); toast('Swap cancelled'); } else { swapPads(a, pi); UI.pad = pi; } return; }
   else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; refreshPadDots(); updatePanel(); } }
   const pad = P.pads[pi]; flashCell(cell); if (!pad.sample) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return; }
   const tag = tagSeq++; ensureSample(pad.sample);
@@ -1150,11 +1155,10 @@ function openSceneSheet(i) {
     g.append(paramEl({ label: 'Length', min: 1, max: 16, step: 1, coarse: 1, big: 4, get: () => sc.bars, set: v => { sc.bars = v; UI.tl.zoom = null; syncScene(i); markDirty(); }, onStart: () => pushUndo('scene:' + i), def: 4, fmt: v => v + (v > 1 ? ' bars' : ' bar'), noFocus: true }),
       paramEl({ label: 'Repeats in song', min: 1, max: 8, step: 1, coarse: 1, big: 1, get: () => sc.repeat, set: v => { sc.repeat = v; syncScene(i); markDirty(); }, onStart: () => pushUndo('scene:' + i), def: 1, fmt: v => '×' + v, noFocus: true }));
     st.append(g);
-    const a = h('div', 'g2'), tgt = i + 1 < NSCENES ? i + 1 : null;
-    const copy = () => { pushUndo('scene:' + tgt); P.scenes[tgt] = JSON.parse(JSON.stringify(sc)); syncScene(tgt); markDirty(); closeSheet(); selectScene(tgt); toast(`Copied into scene ${tgt + 1}`); };
-    if (tgt != null) a.append(noteCount(P.scenes[tgt]) ? confirmBtn(`Copy into ${tgt + 1}`, `Replace scene ${tgt + 1}?`, copy, 'btn') : btn(`Copy into ${tgt + 1}`, copy));
+    const a = h('div', 'g2');
+    a.append(btn('Copy, paste, move…', () => { closeSheet(); if (UI.scene !== i) selectScene(i); openEdit(); }));
     a.append(confirmBtn('Clear scene', 'Tap again to clear', () => { pushUndo('scene:' + i); P.scenes[i] = Object.assign(emptyScene(), { bars: sc.bars }); syncScene(i); markDirty(); closeSheet(); }));
-    st.append(a, h('p', 'note', 'Song mode plays scenes 1 to 16 in order and skips empty ones. Copy a scene into the next slot to make a variation.')); card.append(st);
+    st.append(a, h('p', 'note', 'Song mode plays scenes 1 to 16 in order and skips empty ones. Duplicate a scene (in Edit) to make a variation right after it.')); card.append(st);
   });
 }
 let taps = [];
@@ -1311,6 +1315,8 @@ function navMove(dir) {
   if (best) setNav(best);
 }
 function navOk(down) {
+  if (UI.shift && down && !UI.sheet) { UI.shift = false; $('#pShift').classList.remove('on'); openEdit(); return; }   // Shift + OK: Edit (copy, paste, duplicate)
+  if (UI.shift && !down && UI.sheet) return;
   const el = navEnsure(); if (!el) return;
   if (NAV.mode === 'canvas') {
     const ctl = canvasCtl();   // hold OK: the arrows switch to their alternate job (note length, point curve, slice start)
@@ -1340,6 +1346,7 @@ function navArrow(dir, sh) {
   navMove(dir);
 }
 function navBack() {
+  if (UI.swapFrom != null) { UI.swapFrom = null; refreshPadDots(); toast('Swap cancelled'); return; }
   if (NAV.mode === 'canvas') { if (!canvasCtl().back()) { NAV.mode = 'nav'; NAV.el && NAV.el.classList.remove('ne'); canvasDraw(); } return; }
   if (NAV.mode === 'edit') { navEndEdit(false); return; }
   if (UI.sheet) closeSheet();
@@ -1460,7 +1467,7 @@ $('#meter').addEventListener('click', () => { METER.clip = false; drawMeter(); }
 $('#bPlay').onclick = play;
 $('#bRec').onclick = () => { T.rec = !T.rec; sendClick(); if (T.rec && T.playing) pushUndo('all'); updateTransport(); if (T.rec && !T.playing) toast('Record armed. Press play, then play pads or move controls.'); };
 $('#bLoop').onclick = () => { T.loop = T.loop === 'scene' ? 'song' : 'scene'; send({ t: 'loop', v: T.loop }); updateTransport(); savePrefs(); toast(T.loop === 'song' ? 'Song mode: scenes play in order with repeats' : 'Scene mode: the selected scene loops'); };
-$('#bTempo').onclick = openTempo; $('#bUndo').onclick = undo; $('#bPanel').onclick = togglePanel; $('#bMenu').onclick = openMenu;
+$('#bTempo').onclick = openTempo; $('#bUndo').onclick = undo; $('#bEdit').onclick = openEdit; $('#bPanel').onclick = togglePanel; $('#bMenu').onclick = openMenu;
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setView(b.dataset.v));
 document.addEventListener('pointerdown', ensureAudio, true);
 for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
