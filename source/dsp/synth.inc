@@ -11,6 +11,7 @@
 enum { NSV = 32, NROUTE = 32, LFOT = 256, MAXUNI = 7, CMB = 2048 };
 struct Route { i32 src, dst, curve, via; float amt; };
 struct Patch {
+  i32 wt[2];   // wavetable ids for oscillators A and B (0: none)
   float p[NSP]; float lfo[4][LFOT]; Route r[NROUTE]; i32 nr, on, mode, poly; float glide;
   float gph[4], gval[4];            // free-running LFOs: one shared phase per pad
   i32 alt; u32 rng; i32 used[NSP]; u32 srcUsed;   // srcUsed: bit per source that any route reads (unused LFOs and envelopes are skipped)  // used: which parameters have a modulation route
@@ -28,6 +29,7 @@ struct SVoice {
   float nzlp, nzhp[2], nzx1, fb[2], fmz;                    // crunch tone, crunch high-pass (svf), ADAA memory, feedback, FM smoothing
   // FM engine: operator phases, sample-and-hold noise, op 4 feedback memory, filter-mode state, operator envelopes
   float fph[4][MAXUNI], fnz[4][MAXUNI], ffm[MAXUNI][2], fsv[4][MAXUNI][2];
+  float wph[2][MAXUNI], wlast[2][MAXUNI];   // wavetable: phases, last outputs (for FM, AM and Ring between the oscillators)
   i32 ost[4]; float oev[4], oet[4], oef[4], oamp[4];
   float cmb[2][CMB]; i32 cw;
 };
@@ -86,7 +88,7 @@ EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 ta
   for (i32 i = 0; i < NSP; i++) v->m[i] = P->p[i];
   const i32 retrig = disc(P->p[SP_RET], 2);
   for (i32 o = 0; o < 3; o++) { for (i32 u = 0; u < MAXUNI; u++) v->ph[o][u] = retrig ? 0.f : (frnd(&svRng) + 1.f) * 0.5f; v->dr[o] = v->drT[o] = 0.f; }
-  if (!retrig) { v->sph = (frnd(&svRng) + 1.f) * 0.5f; for (i32 k = 0; k < 4; k++) for (i32 u = 0; u < MAXUNI; u++) v->fph[k][u] = (frnd(&svRng) + 1.f) * 0.5f; }
+  if (!retrig) { for (i32 o = 0; o < 2; o++) for (i32 u = 0; u < MAXUNI; u++) v->wph[o][u] = (frnd(&svRng) + 1.f) * 0.5f; v->sph = (frnd(&svRng) + 1.f) * 0.5f; for (i32 k = 0; k < 4; k++) for (i32 u = 0; u < MAXUNI; u++) v->fph[k][u] = (frnd(&svRng) + 1.f) * 0.5f; }
   for (i32 k = 0; k < 4; k++) { v->lph[k] = P->p[SP_L1P + k * 6]; v->ldone[k] = 0; }
   v->ampPrev = 0.f;   // sequencer offsets within a 16-sample block start at the block (under 0.4 ms)
   return slot;
@@ -150,6 +152,33 @@ static void opEnvStep(SVoice* v, i32 k, const float* m, i32 b, float dt) {
     case 3: x = t >= R ? 0.f : v->oef[k] * (1.f - curve_frac(t / R, -0.6f)); if (t >= R) st = 5; break;
     default: x = 0.f;
   }
+}
+
+/* ---------- wavetables: prepared by the host (nine band limits, one per octave, plus each frame's fundamental) ---------- */
+enum { NWT = 48, WTLV = 9, WTN = 2048 };
+struct WTab { i32 F; float* lv[WTLV]; float* fund; };
+static WTab wtab[NWT];
+static inline i32 wtLenL(i32 l) { i32 n = WTN >> l; return n < 64 ? 64 : n; }
+EX i32 tf_wt_new(i32 F) {
+  if (F < 1 || F > 64) return 0; i32 id = 0; for (i32 i = 1; i < NWT; i++) if (!wtab[i].F) { id = i; break; } if (!id) return 0;
+  WTab* t = &wtab[id]; for (i32 l = 0; l < WTLV; l++) { t->lv[l] = (float*)tf_malloc(F * wtLenL(l) * 4); if (!t->lv[l]) { for (i32 k = 0; k < l; k++) tf_free(t->lv[k]); return 0; } }
+  t->fund = (float*)tf_malloc(F * 8); if (!t->fund) { for (i32 k = 0; k < WTLV; k++) tf_free(t->lv[k]); return 0; } t->F = F; return id; }
+EX float* tf_wt_lv(i32 id, i32 l) { return id > 0 && id < NWT && wtab[id].F && l >= 0 && l < WTLV ? wtab[id].lv[l] : 0; }
+EX float* tf_wt_fund(i32 id) { return id > 0 && id < NWT && wtab[id].F ? wtab[id].fund : 0; }
+EX void tf_wt_free(i32 id) { if (id <= 0 || id >= NWT || !wtab[id].F) return; for (i32 p = 0; p < NPAD; p++) if (pat[p]) for (i32 o = 0; o < 2; o++) if (pat[p]->wt[o] == id) pat[p]->wt[o] = 0;
+  for (i32 l = 0; l < WTLV; l++) tf_free(wtab[id].lv[l]); tf_free(wtab[id].fund); wtab[id].F = 0; }
+EX void tf_syn_wt(i32 pad, i32 osc, i32 id) { Patch* P = patch(pad); if (P && osc >= 0 && osc < 2) P->wt[osc] = id > 0 && id < NWT && wtab[id].F ? id : 0; }
+static inline float wtRead(const float* t, i32 len, float ph) { float x = ph * len; i32 i = (i32)x; float fr = x - i; i &= len - 1; return t[i] + (t[(i + 1) & (len - 1)] - t[i]) * fr; }
+// warp the phase (Sync, Bend, PWM, Mirror, Quantize); FM, AM and Ring are applied by the caller with the other oscillator
+static inline float wtWarp(i32 w, float a, float p) {
+  switch (w) {
+    case 1: { float q = p * (1.f + a * 7.f); return q - floorf_(q); }
+    case 2: { float k = (a - 0.5f) * 2.6f; return p + k * p * (1.f - p); }
+    case 3: { float d = 0.5f + a * 0.47f; return p < d ? p / d * 0.5f : 0.5f + (p - d) / (1.f - d) * 0.5f; }
+    case 4: { float m = p < 0.5f ? p : 1.f - p; return p + (m - p) * a; }
+    case 5: if (a > 0.001f) { float q = 4.f + (1.f - a) * (1.f - a) * 252.f; return floorf_(p * q) / q; } return p;
+  }
+  return p;
 }
 
 /* ---------- envelopes ---------- */
@@ -252,7 +281,7 @@ static void renderSynth(i32 n) {
       inc[o] = clampf(f0 * fexp(semis * 0.0577622650f) / SR, 0.f, 0.45f); lvl[o] = m[b + 4]; pw[o] = spPhys(b + 5, m[b + 5]);
       if (o == 2 && disc(m[SP_O3X], 2)) lvl[o] = 0.f; if (lvl[o] > 0.0005f) nOn++; }
     // FM engine: per-block operator setup (frequency, table, envelope → amplitude ramp, filter coefficients)
-    const i32 isFM = disc(m[SP_ENG], 2) == 1;
+    const i32 isFM = disc(m[SP_ENG], NENG) == 1;
     i32 opOn = 0, oMode[4], alg = 0; const float* oT[4]; float oInc[4], oA0[4], oDA[4], oAmt[4], oG[4], oK[4], oFc[4], fmS = 0, fbA = 0; i32 oNz[4];
     if (isFM) { fmInit(); nOn = 1; alg = disc(m[SP_ALG], NALG); fmS = m[SP_FMD] * 2.f; fbA = m[SP_FFB] * m[SP_FFB] * 0.9f;
       for (i32 k = 0; k < 4; k++) { const i32 b = SP_F1M + k * FSTRIDE; const float lv = m[b + 6], l2 = lv * lv;
@@ -263,6 +292,15 @@ static void renderSynth(i32 n) {
         float e = 0.f; if (l2 > 1e-7f) { opEnvStep(v, k, m, b, dt); e = v->oev[k]; } else v->oev[k] = 0.f;
         const float a1o = e * l2; oA0[k] = v->oamp[k]; oDA[k] = (a1o - oA0[k]) / n; v->oamp[k] = a1o; if (a1o > 1e-7f || oA0[k] > 1e-7f) opOn |= 1 << k;
         oAmt[k] = m[b + 7]; oFc[k] = clampf(hz, 20.f, 0.45f * SR); oG[k] = ftan(3.14159265f * oFc[k] / SR); oK[k] = 2.f - 1.96f * m[b + 8]; } }
+    // Wavetable engine: per-block setup for oscillators A and B
+    const i32 isWT = disc(m[SP_ENG], NENG) == 2; i32 wOn = 0, wW[2], wLen[2], wF[2]; const float* wT0[2]; const float* wT1[2]; const float* wFd0[2]; const float* wFd1[2]; float wFr[2], wInc[2], wLvl[2], wAmt[2]; i32 wNoF[2];
+    if (isWT) { fmInit(); nOn = 1;
+      for (i32 o = 0; o < 2; o++) { const i32 b = SP_WAP + o * WSTRIDE, id = P->wt[o]; wLvl[o] = m[b + 4]; if (!id || wLvl[o] < 0.0005f) continue; const WTab* T = &wtab[id];
+        float semis = spPhys(b + 1, m[b + 1]) * 12.f + spPhys(b + 2, m[b + 2]) + spPhys(b + 3, m[b + 3]) * 0.01f + v->dr[o] * drift * 0.1f, hz = f0 * fexp(semis * 0.0577622650f);
+        wInc[o] = clampf(hz / SR, 0.f, 0.45f); i32 l = 0; const float H = 0.45f * SR / maxf(hz, 1.f); while (l < WTLV - 1 && (512 >> l) > H) l++;
+        const float fi = clampf(m[b], 0.f, 1.f) * (T->F - 1); i32 i0 = (i32)fi; if (i0 > T->F - 2) i0 = T->F > 1 ? T->F - 2 : 0; wFr[o] = T->F > 1 ? fi - i0 : 0.f; const i32 i1 = T->F > 1 ? i0 + 1 : 0;
+        wLen[o] = wtLenL(l); wT0[o] = T->lv[l] + i0 * wLen[o]; wT1[o] = T->lv[l] + i1 * wLen[o]; wFd0[o] = T->fund + i0 * 2; wFd1[o] = T->fund + i1 * 2; wF[o] = T->F;
+        wW[o] = disc(m[b + 5], NWARP); wAmt[o] = m[b + 6]; wNoF[o] = disc(m[b + 7], 2); wOn |= 1 << o; } }
     const i32 sync = disc(m[SP_O2Y], 2); const float fm = m[SP_O2M];
     const i32 U = (i32)spPhys(SP_UNI, m[SP_UNI]); const float det = m[SP_DET], spr = U > 1 ? m[SP_SPR] : 0.f, ug = 1.f / sqrtf_((float)U);
     float dm[MAXUNI], panL[MAXUNI], panR[MAXUNI];
@@ -293,7 +331,18 @@ static void renderSynth(i32 n) {
     const i32 chans = stereo ? 2 : 1;
     for (i32 i = 0; i < n; i++) {
       float amp = a0 + da * (i + 1), sL = 0, sR = 0;
-      if (isFM) for (i32 u = 0; u < U; u++) {   // four operators, top (op 4) down: each feeds the ones its algorithm lists, carriers are heard
+      if (isWT) for (i32 u = 0; u < U; u++) {   // B first (A can take it for FM/AM/Ring), then A; B's cross-modulation uses A's last sample
+        float x = 0;
+        for (i32 oo = 1; oo >= 0; oo--) { if (!((wOn >> oo) & 1)) { v->wlast[oo][u] = 0.f; continue; } const i32 o = oo, w = wW[o]; float& ph = v->wph[o][u]; const float other = v->wlast[1 - o][u], a = wAmt[o];
+          float p = ph; if (w >= 1 && w <= 5) p = wtWarp(w, a, p); else if (w == 6) { p += other * a * 1.5f; p -= floorf_(p); }
+          float y = wtRead(wT0[o], wLen[o], p); if (wFr[o] > 0.f) y += (wtRead(wT1[o], wLen[o], p) - y) * wFr[o];
+          if (wNoF[o]) { const float* sn = fmTab[0][0]; float q = p + 0.25f; q -= floorf_(q); const float s1 = fmLook(sn, p), c1 = fmLook(sn, q);
+            const float fa = wFd0[o][0] + (wFd1[o][0] - wFd0[o][0]) * wFr[o], fb = wFd0[o][1] + (wFd1[o][1] - wFd0[o][1]) * wFr[o]; y -= fa * s1 + fb * c1; }
+          if (w == 7) y *= 1.f + a * other; else if (w == 8) y *= 1.f - a + a * other;
+          v->wlast[o][u] = y; x += y * wLvl[o]; ph += wInc[o] * dm[u]; ph -= floorf_(ph); }
+        sL += x * panL[u]; sR += x * panR[u];
+      }
+      else if (isFM) for (i32 u = 0; u < U; u++) {   // four operators, top (op 4) down: each feeds the ones its algorithm lists, carriers are heard
         float in[4] = { 0, 0, 0, 0 }, x = 0;
         for (i32 k = 3; k >= 0; k--) { float& ph = v->fph[k][u]; const float ik = in[k], inc = oInc[k] * dm[u];
           if (!((opOn >> k) & 1)) { ph += inc; ph -= floorf_(ph); continue; }

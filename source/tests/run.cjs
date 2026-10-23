@@ -1,7 +1,7 @@
 // Trackfill automated tests: node tests/run.cjs [--update-golden]
 // Renders projects through the real WASM engine + host and checks safety, determinism and behavior.
 const fs = require('fs'), path = require('path');
-const H = require('../js/host.js'), M = require('../js/model.js'), HM = require('../js/harmony.js'), SP = require('../js/synthpresets.js');
+const H = require('../js/host.js'), M = require('../js/model.js'), HM = require('../js/harmony.js'), SP = require('../js/synthpresets.js'), WT = require('../js/wavetables.js');
 const wasm = new WebAssembly.Module(fs.readFileSync(path.join(__dirname, '../build/engine.wasm')));
 const GOLD = path.join(__dirname, 'golden.json');
 let fails = 0; const ok = (c, msg) => { console.log((c ? '  ✓ ' : '  ✗ ') + msg); if (!c) fails++; };
@@ -194,6 +194,33 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       ok(distinct && H.TF_OPMODES.every(m => out[m].e > 1e-6 && !out[m].bad), 'every operator mode (FM, Ring, Filter, Filter FM, Fold) sounds and sounds different'); }
     { const s = mk({ alg: 'Stack', f2l: .6, f3l: .6, f4l: .6, ffb: .4, f2m: 'Fold', f3m: 'Filter FM' }); for (let k = 0; k < 16; k++) s.host.msg({ t: 'hit', pad: 20, semi: k - 8, vel: .8, tag: k + 1 });
       s.run(20); const t0 = Date.now(); s.run(375 * 2); const ms = Date.now() - t0; console.log(`    16 FM notes (4 operators, fold, filter FM, feedback): ${(ms / 20).toFixed(1)}% of real time on this machine`); ok(ms < 2000, 'FM processing stays well within real time'); }
+  }
+  console.log('wavetable synth');
+  { const prep = {}, tab = k => prep[k] || (prep[k] = (() => { const { raw, F } = WT.tfWtFactoryRaw(k.slice(2)); return WT.tfWtPrepare(raw, F); })());
+    const mk = (patch, pad = {}) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject();
+      Q.chans.forEach(c => { c.fx = []; }); Object.assign(Q.pads[20], { src: 'synth', syn: patch, mode: 'gate', voice: 'poly', poly: 16, glide: 0 }, pad); host.msg({ t: 'project', P: Q });
+      for (const k of new Set([patch.wt.a, patch.wt.b])) { const t = tab(k); host.msg({ t: 'wtable', key: k, F: t.F, lv: t.lv, fund: t.fund }); }
+      const L = new Float32Array(128), R = new Float32Array(128), run = n => { let e = 0, bad = 0, zc = 0, d = 0, last = 0; for (let i = 0; i < n; i++) { host.render(128, L, R); for (let j = 0; j < 128; j++) { const v = L[j]; if (!(v === v)) bad++; e += v * v; d += (v - last) * (v - last); if ((v > 0) !== (last > 0)) zc++; last = v; } } return { e: e / (n * 128), bad, zc, bright: d / Math.max(e, 1e-12) }; };
+      return { ex, host, run }; };
+    const pt = (p, wt = { a: 'w:Basic Shapes' }) => SP.synPatch({ eng: 'wt', p: Object.assign({ flt: 'Off', dri: 0 }, p), wt }), hit = s => { s.host.msg({ t: 'hit', pad: 20, semi: 0, vel: .9, tag: 1 }); s.run(20); };
+    { let bad = 0, silent = [], stuck = []; for (const pr of [SP.SYN_WT_INIT, ...SP.WT_PRESETS]) { const s = mk(SP.synPatch(pr), { voice: pr.voice || 'poly', glide: pr.glide || 0 });
+        [0, 4, 7].forEach((semi, i) => s.host.msg({ t: 'hit', pad: 20, semi, vel: .85, tag: 10 + i })); const a = s.run(375 * 2); [0, 1, 2].forEach(i => s.host.msg({ t: 'rel', tag: 10 + i, rel: .1 })); s.run(375 * 8);
+        bad += a.bad; if (a.e < 1e-7) silent.push(pr.n); if (s.ex.tf_voices()) stuck.push(pr.n); }
+      ok(!bad && !silent.length && !stuck.length, `all ${SP.WT_PRESETS.length} wavetable presets play, stay finite and release (${silent.length ? 'silent: ' + silent.join(', ') : ''}${stuck.length ? ' stuck: ' + stuck.join(', ') : ''})`); }
+    { const a = mk(pt({ wap: 0 })), b = mk(pt({ wap: .66 })), c = mk(pt({ wap: .66, wah: 'Remove' })); hit(a); hit(b); hit(c); const ra = a.run(200), rb = b.run(200), rc = c.run(200);
+      ok(rb.bright > ra.bright * 20 && Math.abs(rc.zc / rb.zc - 2) < 1.2 && rc.zc > rb.zc * 1.8, `position morphs the table (sine → saw, ×${(rb.bright / ra.bright).toFixed(0)} brighter); Remove fundamental takes out the lowest harmonic (zero crossings ×${(rc.zc / rb.zc).toFixed(2)})`); }
+    { const out = {}; for (const w of H.TF_WARPS) { const s = mk(pt({ wap: .25, waw: w, wax: .7, wbl: .5, wbo: 1, wbp: .66 }, { a: 'w:Basic Shapes', b: 'w:Basic Shapes' })); hit(s); out[w] = s.run(150); }
+      const changed = H.TF_WARPS.filter(w => w !== 'Off' && Math.abs(out[w].bright / out.Off.bright - 1) > .02 || Math.abs(out[w].e / out.Off.e - 1) > .02);
+      ok(changed.length === H.TF_WARPS.length - 1 && H.TF_WARPS.every(w => !out[w].bad), `every warp changes the sound (${changed.length}/${H.TF_WARPS.length - 1})`); }
+    { // a wavetable WAV with a Serum-style frame-size chunk, and a table made from a plain sound
+      const F = 8, N = 256, n = F * N, b = new ArrayBuffer(44 + 16 + n * 4), v = new DataView(b), ws = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+      ws(0, 'RIFF'); v.setUint32(4, b.byteLength - 8, true); ws(8, 'WAVE'); ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 3, true); v.setUint16(22, 1, true); v.setUint32(24, 48000, true); v.setUint32(28, 192000, true); v.setUint16(32, 4, true); v.setUint16(34, 32, true);
+      ws(36, 'clm '); v.setUint32(40, 8, true); ws(44, '<!>256  '); ws(52, 'data'); v.setUint32(56, n * 4, true); for (let i = 0; i < n; i++) v.setFloat32(60 + i * 4, Math.sin(2 * Math.PI * (i % N) / N * (1 + Math.floor(i / N))), true);
+      const r = WT.wtParseWav(b), t = WT.wtFromFrames(r.data, r.frameSize), sr = 48000, mono = new Float32Array(sr); for (let i = 0; i < sr; i++) mono[i] = ((i * 220 / sr) % 1) * 2 - 1;
+      const fs2 = WT.wtFromSample(mono, sr), p8 = WT.tfWtPrepare(t.raw, t.F), sp = WT.wtSpectrum ? null : null;
+      ok(r.frameSize === 256 && t.F === 8 && Math.abs(fs2.hz - 220) < 3 && p8.lv.length === WT.WT_LV, `wavetable import reads the frame size (${r.frameSize}, ${t.F} frames) and a plain sound becomes a table at its pitch (${fs2.hz.toFixed(1)} Hz)`); }
+    { const s = mk(pt({ wap: .5, wbl: .6, uni: 3, det: .3, waw: 'FM', wax: .3 }, { a: 'w:Growl', b: 'w:Basic Shapes' })); for (let k = 0; k < 16; k++) s.host.msg({ t: 'hit', pad: 20, semi: k - 8, vel: .8, tag: k + 1 });
+      s.run(20); const t0 = Date.now(); s.run(375 * 2); const ms = Date.now() - t0; console.log(`    16 wavetable notes (A + B, 3× unison, FM warp): ${(ms / 20).toFixed(1)}% of real time on this machine`); ok(ms < 2000, 'wavetable processing stays well within real time'); }
   }
   console.log('pitch bend');
   { // a sustained sample and a synth, bent up a full range of 12: both play an octave higher; automation drives it

@@ -8,7 +8,7 @@ s += 'static const i32 spKind[NSP] = { ' + H.TFSYN.map(p => K[p.k]).join(', ') +
 s += 'static const float spA[NSP] = { ' + H.TFSYN.map(p => F(p.k === 'opt' ? 0 : p.a)).join(', ') + ' };\n';
 s += 'static const float spB[NSP] = { ' + H.TFSYN.map(p => F(p.k === 'opt' ? p.a.length - 1 : p.b)).join(', ') + ' };\n';
 s += 'static const float lfoDivBeats[NLFODIV] = { ' + H.TF_LFO_DIVS.map(d => F(d[1])).join(', ') + ' };\n';
-s += `enum { NALG = ${H.TF_ALGS.length}, NOPMODE = ${H.TF_OPMODES.length}, NFMWAVE = ${H.TF_FMWAVES.length}, FSTRIDE = ${H.TFSYN_ID.f2m.i - H.TFSYN_ID.f1m.i} };\n`;
+s += `enum { NALG = ${H.TF_ALGS.length}, NOPMODE = ${H.TF_OPMODES.length}, NFMWAVE = ${H.TF_FMWAVES.length}, FSTRIDE = ${H.TFSYN_ID.f2m.i - H.TFSYN_ID.f1m.i}, WSTRIDE = ${H.TFSYN_ID.wbp.i - H.TFSYN_ID.wap.i}, NWARP = ${H.TF_WARPS.length}, NENG = ${H.TFSYN_ID.eng.a.length} };\n`;
 s += 'static const u8 algTgt[NALG][4] = { ' + H.TF_ALGS.map(a => `{ 0, ${a[1]}, ${a[2]}, ${a[3]} }`).join(', ') + ' };\n';
 s += 'static const u8 algCar[NALG] = { ' + H.TF_ALGS.map(a => a[4]).join(', ') + ' };\n';
 fs.writeFileSync(path.join(__dirname, '../dsp/syn_params.h'), s);
