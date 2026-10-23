@@ -168,7 +168,7 @@ static inline float adaaClip(float x, float* x1) {   // soft clip with first-ord
 /* ---------- render ---------- */
 static float srcVal(const SVoice* v, const Patch* P, i32 s, float o3) {
   switch (s) { case 0: return v->ev[0]; case 1: return v->ev[1]; case 2: return v->ev[2]; case 3: case 4: case 5: case 6: return v->ls[s - 3];
-    case 7: return v->vel; case 8: return clampf(v->semi / 48.f, -1.f, 1.f); case 9: return v->rnd; case 10: return v->alt; case 11: return o3;
+    case 7: return v->vel; case 8: return clampf(v->semi / 48.f, -1.f, 1.f); case 9: return v->rnd; case 10: return v->alt; case 11: return o3; case 16: return chBendN[v->pad];
     default: return P->p[SP_M1 + (s - 12)]; }
 }
 static void renderSynth(i32 n) {
@@ -202,7 +202,7 @@ static void renderSynth(i32 n) {
     if (v->semi != v->semiT) { float g = P->glide; if (g < 0.001f) v->semi = v->semiT; else { v->semi = v->semiT + (v->semi - v->semiT) * fexp(-dt * 4.f / g); if (fabsf_(v->semi - v->semiT) < 0.002f) v->semi = v->semiT; } }
     const float drift = m[SP_DRI];
     for (i32 o = 0; o < 3; o++) { if ((svAge + vi * 7 + o) % 23 == 0) v->drT[o] = frnd(&svRng); v->dr[o] += (v->drT[o] - v->dr[o]) * 0.02f; }
-    const float f0 = 130.8128f * fexp((v->semi + v->dr[0] * drift * 0.12f) * 0.0577622650f);
+    const float f0 = 130.8128f * fexp((v->semi + chBendS[v->pad] + v->dr[0] * drift * 0.12f) * 0.0577622650f);
     // oscillators
     i32 W[3]; float inc[3], lvl[3], pw[3]; i32 nOn = 0;
     for (i32 o = 0; o < 3; o++) { i32 b = o == 0 ? SP_O1W : o == 1 ? SP_O2W : SP_O3W; W[o] = disc(m[b], 5);

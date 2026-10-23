@@ -40,7 +40,7 @@ const TFSYN = (() => {
 })();
 const TFSYN_ID = Object.fromEntries(TFSYN.map(p => [p.id, p]));
 // modulation sources, in engine order
-const TF_SRC = ['Amp env', 'Env 2', 'Env 3', 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4', 'Velocity', 'Note', 'Random', 'Alternate', 'Osc 3', 'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4'];
+const TF_SRC = ['Amp env', 'Env 2', 'Env 3', 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4', 'Velocity', 'Note', 'Random', 'Alternate', 'Osc 3', 'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4', 'Bend'];
 function tfSynNorm(p, v) {
   if (v == null) v = p.d;
   switch (p.k) {
@@ -104,13 +104,15 @@ function tfParseKey(k) { const a = k.split('.'); return { c: +a[0], s: +a[1], i:
 function tfBase(P, k) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return null;
   if (s === -1) return [C.vol, C.pan, C.sa, C.sb][i];
-  if (s === -2) { const p = P.pads[c]; return p ? [p.cut, p.res][i] : null; }
+  if (s === -2) { const p = P.pads[c]; return p ? [p.cut, p.res, p.bend == null ? .5 : p.bend][i] : null; }
+  if (s === -3) { const p = P.pads[c], d = TFSYN[i]; return p && p.syn && d ? tfSynNorm(d, p.syn.p[d.id]) : null; }   // synth parameter i
   const f = C.fx[s]; return f ? f.p[i] : null;
 }
 function tfSetBase(P, k, v) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return;
   if (s === -1) C[['vol', 'pan', 'sa', 'sb'][i]] = v;
-  else if (s === -2) { const p = P.pads[c]; if (p) p[['cut', 'res'][i]] = v; }
+  else if (s === -2) { const p = P.pads[c]; if (p) p[['cut', 'res', 'bend'][i]] = v; }
+  else if (s === -3) { const p = P.pads[c], d = TFSYN[i]; if (p && p.syn && d) p.syn.p[d.id] = tfSynPhys(d, v); }
   else if (C.fx[s]) C.fx[s].p[i] = v;
 }
 function tfHasNotes(sc) { for (const k in sc.notes) if (sc.notes[k].length) return true; return false; }
@@ -211,6 +213,8 @@ class TFHost {
     const { c, s, i } = tfParseKey(k), ex = this.ex;
     if (v == null || !(v === v)) return;
     if (s === -1) { if (i === 0) ex.tf_ch_set(c, 0, 2 * v * v); else if (i === 1) ex.tf_ch_set(c, 1, v * 2 - 1); else ex.tf_ch_set(c, i, v); }
+    else if (s === -2 && i === 2) { const p = this.P.pads[c]; ex.tf_ch_bend(c, (v * 2 - 1) * ((p && p.bendR) || 2), v * 2 - 1); }   // pitch bend: ± the pad's bend range
+    else if (s === -3) { if (ex.tf_syn_param) ex.tf_syn_param(c, i, v); }
     else if (s === -2) { if (this.frozen(c)) return; ex.tf_ch_set(c, i === 0 ? 5 : 6, i === 0 ? 20 * Math.pow(1000, v) : 0.7 + v * v * 18); }
     else ex.tf_fx_param(c, s, i, v);
   }
@@ -230,6 +234,7 @@ class TFHost {
     const p = this.P.pads[i];
     if (this.frozen(i)) { this.ex.tf_ch_set(i, 5, 20000); this.ex.tf_ch_set(i, 6, 0.707); }
     else { this.applyKey(i + '.-2.0', p.cut); this.applyKey(i + '.-2.1', p.res); }
+    this.applyKey(i + '.-2.2', p.bend == null ? .5 : p.bend);
     this.syncChan(i);
     this.syncSynth(i);
   }

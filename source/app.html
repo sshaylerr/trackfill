@@ -78,12 +78,12 @@ body{font-variant-numeric:tabular-nums}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .btn:disabled{opacity:.32;pointer-events:none} .clipline b{color:var(--accent);font-weight:600} .lcdbox.edr{display:flex;align-items:center;justify-content:center;height:36px;font:500 12px var(--font-lcd);color:var(--accent)}
 .grid.swapping .pad:not(.sel){animation:swapPulse 1s ease-in-out infinite alternate} @keyframes swapPulse{from{box-shadow:0 3px 0 #050506,inset 0 0 0 1px transparent}to{box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)}}
-.synDev{flex:1 1 auto;min-height:0;padding:8px 8px 6px;gap:6px;border-radius:5px} .synDev::before,.synDev::after{display:none}
+.dev.synDev{flex:1 1 auto;min-height:0;padding:8px 8px 6px;gap:6px;border-radius:5px} .synDev::before,.synDev::after{display:none}
 .synDev[data-eng="analog"]{border-left:9px solid #5b3418;border-right:9px solid #5b3418;border-image:linear-gradient(180deg,#7a4a26,#4a2a14 40%,#6b3f20 70%,#3e2310) 1;border-top:1px solid #000;border-bottom:1px solid #000}
 .synDev .devHead{height:26px;padding:0 2px} .synDev .disp{background:var(--d-scr)} .synDev .synTabs .key{background:linear-gradient(180deg,#2a2826,#1d1c1a)} .synDev .synTabs .key.on{color:var(--d-ring)}
 .synDev .knob .kb{stroke:#0a0908} .synDev .lcdbox.synInfo{background:var(--d-scr)}
 #view.short .synDev .devHead{display:none} #view.short .synDev{padding:4px 5px 3px;gap:3px} #view.short .synTabs,#view.short .synTabs .key{height:26px}
-#view.tiny .synDev .disp{min-height:22px} #view.short .kgrid.synGrid{grid-auto-rows:54px;gap:2px 4px} #view.short .synGrid .knob svg{width:34px;height:34px} #view.short .synGrid .selr{padding-top:2px} #view.short .synGrid .selr .sw{height:26px} #view.tiny .kgrid.synGrid{grid-auto-rows:48px} #view.tiny .soundView{gap:5px}
+#view.tiny .synDev .disp{min-height:0} .synDev .disp.gone canvas{visibility:hidden} #view.short .kgrid.synGrid{grid-auto-rows:54px;gap:2px 4px} #view.short .synGrid .knob svg{width:34px;height:34px} #view.short .synGrid .selr{padding-top:2px} #view.short .synGrid .selr .sw{height:26px} #view.tiny .soundView{gap:5px}
 .mapRow .mchip{flex:0 1 auto;min-width:0;overflow:hidden;font-size:12px;padding:0 7px} .mapRow .madd{flex:none;padding:0 10px}
 .mapRow{display:flex;gap:4px;height:34px;align-items:stretch;min-width:0} .mapHint{flex:1;min-width:0;display:flex;align-items:center;font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
 .mchip b{font-weight:500;font-family:var(--font-lcd)} .madd{flex:none} .mapTip{flex:1;min-width:0;display:flex;align-items:center;justify-content:flex-end;font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden}
@@ -376,7 +376,9 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 #panel{flex:none;height:168px;background:linear-gradient(180deg,var(--body2),var(--body));border:1px solid var(--edge);border-radius:6px;padding:8px 10px 10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
 .pinfo{height:22px;margin-bottom:8px;font-size:10.5px;margin-right:62px}
 #pStrip{position:absolute;top:8px;right:10px;width:56px;height:22px;font-size:11px;border-radius:3px} #panel{position:relative}
-.pstrip{display:none;grid-template-columns:30px 1fr;gap:5px;height:124px} #panel.strip .pbody{display:none} #panel.strip .pstrip{display:grid}
+.pstrip{display:none;grid-template-columns:30px 1fr 26px;gap:5px;height:124px}
+.sbend{position:relative;border-radius:13px;background:linear-gradient(90deg,#101012,#1c1c20 50%,#101012);border:1px solid #000;box-shadow:inset 0 1px 6px rgba(0,0,0,.8);touch-action:none} .sbend::before{content:"";position:absolute;left:4px;right:4px;top:50%;height:1px;background:var(--dim)}
+.sbend i{position:absolute;left:2px;right:2px;top:50%;height:22px;margin-top:-11px;border-radius:10px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #000;box-shadow:0 1px 0 rgba(255,255,255,.08) inset} #panel.strip .pbody{display:none} #panel.strip .pstrip{display:grid}
 .soct{display:flex;flex-direction:column;gap:4px} .soct .pk{flex:1;font-size:12px}
 .sgrid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(2,1fr);gap:4px}
 .spk{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#26262a);border:1px solid #070708;box-shadow:0 2px 0 #050506;display:flex;align-items:flex-end;justify-content:center;padding:0 2px 7px;font:500 10.5px var(--font-lcd);color:var(--ink);white-space:nowrap;overflow:hidden;position:relative;touch-action:none;min-width:0}
@@ -782,7 +784,10 @@ const SOUNDP = [{ label: 'Cutoff', short: 'Cutoff', def: 1, fmt: v => { const f 
   { label: 'Resonance', short: 'Reso', def: .08, fmt: v => (.7 + v * v * 18).toFixed(1), step: .005, coarse: .03 }];
 function keyMeta(key) {
   const { c, s, i } = tfParseKey(key);
-  if (s === -1) return STRIP[i]; if (s === -2) return SOUNDP[i];
+  if (s === -1) return STRIP[i];
+  if (s === -2 && i === 2) { const r = (P.pads[c] && P.pads[c].bendR) || 2; return { label: 'Pitch bend', short: 'Bend', def: .5, bipolar: true, step: .002, coarse: .02, fmt: v => { const st = (v * 2 - 1) * r; return (st > 0 ? '+' : '') + st.toFixed(Math.abs(st) < 10 ? 2 : 1) + ' st'; } }; }
+  if (s === -2) return SOUNDP[i];
+  if (s === -3) { const d = TFSYN[i]; return d ? { label: d.l, short: d.l, def: tfSynNorm(d, d.d), bipolar: d.k === 'bip', step: .002, coarse: .02, fmt: v => synFmt(d, tfSynPhys(d, v)) } : { label: '?', short: '?', def: 0, fmt: pct }; }
   const f = P.chans[c].fx[s]; if (!f) return { label: 'Missing effect', short: '?', def: 0, fmt: pct };
   const d = FX_DEFS[f.type], prm = fxParams(f)[i];
   return { label: `${d.name} ${prm.n}`, short: `${s + 1}·${prm.n}`, def: prm.d, fmt: prm.opts ? v => prm.opts[Math.round(v * (prm.opts.length - 1))] : prm.f, step: prm.opts ? 1 / (prm.opts.length - 1) : .002, coarse: prm.opts ? 1 / (prm.opts.length - 1) : .02 };
@@ -1407,7 +1412,14 @@ function buildStrip() {
   const g = h('div', 'sgrid'); for (let r = 1; r >= 0; r--) for (let c = 0; c < 8; c++) { const cell = r * 8 + c, d = h('div', 'spk'); d.dataset.cell = cell;
     d.addEventListener('pointerdown', e => { e.preventDefault(); try { d.setPointerCapture(e.pointerId); } catch (_) {} stripDown(cell); d.classList.add('hit'); });
     const up = () => { padUp('s' + cell); d.classList.remove('hit'); }; d.addEventListener('pointerup', up); d.addEventListener('pointercancel', up); g.append(d); }
-  s.append(g); refreshStrip();
+  s.append(g);
+  // pitch bend wheel: drag up or down, springs back to the middle when you let go (recorded as automation while recording)
+  const bw = h('div', 'sbend'), knob = h('i'); bw.append(knob); let bd = null;
+  const setB = v => { const key = UI.pad + '.-2.2'; tfSetBase(P, key, v); sendParam(key, v); if (T.playing && T.rec) recAuto(key, v); knob.style.top = (1 - v) * 100 + '%'; };
+  bw.addEventListener('pointerdown', e => { e.preventDefault(); try { bw.setPointerCapture(e.pointerId); } catch (_) {} const r = bw.getBoundingClientRect(); bd = { r }; send({ t: 'live', key: UI.pad + '.-2.2', on: true }); setB(clamp(1 - (e.clientY - r.top) / r.height, 0, 1)); });
+  bw.addEventListener('pointermove', e => { if (bd) setB(clamp(1 - (e.clientY - bd.r.top) / bd.r.height, 0, 1)); });
+  const rel = () => { if (!bd) return; bd = null; setB(.5); send({ t: 'live', key: UI.pad + '.-2.2', on: false }); UI.autoRec = null; markDirty(); };
+  bw.addEventListener('pointerup', rel); bw.addEventListener('pointercancel', rel); s.append(bw); refreshStrip();
 }
 function withKeys(fn) { const k = UI.keys; UI.keys = true; try { return fn(); } finally { UI.keys = k; } }
 function stripDown(cell) { ensureAudio(); withKeys(() => padDown(cell, 's' + cell)); if (UI.view === 'pads') refreshPadDots(); }
@@ -1436,7 +1448,11 @@ document.addEventListener('pointerdown', e => {
 function selStart() { NAV.selUndo = UNDO.length; pushUndo('scene:' + UI.scene); }
 function selCancel() { if (NAV.selUndo >= 0 && UNDO.length === NAV.selUndo + 1) { const e = UNDO.pop(); scopeSet(e.scope, JSON.parse(e.data)); markDirty(); renderScenes(); } NAV.selUndo = -1; }
 function noteAtCursor() { const c = UI.tl.cursor, st = tlStep(), sc = P.scenes[UI.scene]; let pi, p = null; if (UI.tl.mode === 'bank') pi = UI.bank * 16 + c.row; else { pi = UI.pad; p = c.row; }
-  const n = (sc.notes[pi] || []).find(n => n.t >= c.t - 1e-6 && n.t < c.t + st && (p == null || KR.row(n.p) === p)); return n ? { pi, n } : null; }
+  const row = (sc.notes[pi] || []).filter(n => p == null || KR.row(n.p) === p);
+  // a note starting in the cursor's cell; otherwise a longer note that covers it (the latest one to start)
+  let n = row.find(n => n.t >= c.t - 1e-6 && n.t < c.t + st);
+  if (!n) n = row.filter(n => n.t < c.t + st && n.t + n.len > c.t + 1e-6).sort((a, b) => b.t - a.t)[0];
+  return n ? { pi, n } : null; }
 function tlEnsure() { const tl = UI.tl, c = tl.cursor; let t = c.t, row = c.row; if (tl.sel) { t = tl.sel.n.t; row = tl.mode === 'bank' ? tl.sel.pi - UI.bank * 16 : KR.row(tl.sel.n.p); }
   if (tl.lane !== 'notes' && tl.selPt >= 0) { const pts = lanePts(false); if (pts && pts[tl.selPt]) t = pts[tl.selPt].t; }
   const x = t2x(t); if (x < LABEL_W + 8) tl.sx = t - 8 / tl.zoom; else if (x > TL.W - 30) tl.sx = t - (TL.W - LABEL_W - 40) / tl.zoom;
