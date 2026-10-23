@@ -124,10 +124,10 @@ function openEdit() {
         row(act('Paste after', () => pasteFx(c, s + 1, true), clipIs('fx') && !!f), act('Copy chain', () => copyChain(c), P.chans[c].fx.length > 0), act('Paste chain', () => pasteChain(c), clipIs('chain'))); }
       if (ctx === 'bars') { const sc = P.scenes[UI.scene], s = barsScope();
         body.append(h('div', 'sec', `Bars · ${esc(s.desc)}`));
-        const fr = h('div', 'g3'), lab = h('div', 'lcdbox edr', `Bar ${EDR.from + 1}${EDR.len > 1 ? '–' + (EDR.from + EDR.len) : ''} of ${sc.bars}`);
+        const fr = h('div', 'g3 hrow'), lab = h('div', 'lcdbox edr', `Bar ${EDR.from + 1}${EDR.len > 1 ? '–' + (EDR.from + EDR.len) : ''} of ${sc.bars}`);
         const keep = b => { b._keep = 1; return b; };
         fr.append(keep(act('◀ Bar', () => { EDR.from = Math.max(0, EDR.from - 1); draw(); })), lab, keep(act('Bar ▶', () => { EDR.from = Math.min(sc.bars - 1, EDR.from + 1); EDR.len = Math.min(EDR.len, sc.bars - EDR.from); draw(); }))); body.append(fr);
-        const lg = h('div', 'g4'); for (const n of [1, 2, 4, 8]) { const b = keep(act(n + (n > 1 ? ' bars' : ' bar'), () => { EDR.len = n; draw(); }, EDR.from + n <= sc.bars, 'btn' + (EDR.len === n ? ' on' : ''))); lg.append(b); } body.append(lg);
+        const lg = h('div', 'g4 hrow'); for (const n of [1, 2, 4, 8]) { const b = keep(act(n + (n > 1 ? ' bars' : ' bar'), () => { EDR.len = n; draw(); }, EDR.from + n <= sc.bars, 'btn' + (EDR.len === n ? ' on' : ''))); lg.append(b); } body.append(lg);
         row(act('Copy', copyBars), act('Paste here', pasteBars, clipIs('bars')), act('Duplicate', duplicateBars, EDR.from + EDR.len * 2 <= 16));
         if (UI.tl.sel) row(act('Duplicate note', duplicateNote), act('Copy note bar', () => { EDR.from = Math.floor(UI.tl.sel.n.t / BAR); EDR.len = 1; copyBars(); }));
         body.append(h('p', 'note', UI.tl.lane !== 'notes' ? 'Copies this automation lane over the chosen bars.' : UI.tl.mode === 'bank' ? 'Copies the notes of all 16 pads in this bank, with their automation. Paste replaces what was there.' : 'Copies this pad\'s notes and automation. Paste onto another pad\'s Keys view to move a part between sounds.'));

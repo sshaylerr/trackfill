@@ -78,6 +78,13 @@ body{font-variant-numeric:tabular-nums}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .btn:disabled{opacity:.32;pointer-events:none} .clipline b{color:var(--accent);font-weight:600} .lcdbox.edr{display:flex;align-items:center;justify-content:center;height:36px;font:500 12px var(--font-lcd);color:var(--accent)}
 .grid.swapping .pad:not(.sel){animation:swapPulse 1s ease-in-out infinite alternate} @keyframes swapPulse{from{box-shadow:0 3px 0 #050506,inset 0 0 0 1px transparent}to{box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)}}
+.synDev .devHead{gap:5px;padding:0} .engKey{flex:none;height:28px;padding:0 4px 0 2px;background:none;border:0;display:flex;align-items:baseline;gap:4px;color:var(--d-ink)}
+.engKey b{font:800 15px/1 var(--font-ui);letter-spacing:.12em;text-transform:uppercase} .engKey .car{font-size:9px;opacity:.7}
+.presetLcd{flex:1;min-width:0;height:28px;border-radius:3px;background:var(--d-scr);border:1px solid #000;box-shadow:inset 0 1px 5px rgba(0,0,0,.8);display:flex;align-items:center;gap:8px;padding:0 9px;text-align:left}
+.presetLcd span{flex:1;min-width:0;font:500 14px var(--font-lcd);color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .presetLcd i{font:500 10px var(--font-lcd);font-style:normal;color:var(--mute);flex:none}
+.synDev .pstep{flex:none;width:28px;min-width:28px;height:28px;padding:0}
+.saveRow{display:flex;gap:6px;align-items:center} .saveRow .textin{flex:1} .saveRow .btn{flex:none;height:34px}
+.lsub{margin-left:auto;font:400 12px var(--font-lcd);color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%} .lsub.warn{color:var(--rec)}
 .dev.synDev{flex:1 1 auto;min-height:0;padding:8px 8px 6px;gap:6px;border-radius:5px} .synDev::before,.synDev::after{display:none}
 .synDev[data-eng="analog"]{border-left:9px solid #5b3418;border-right:9px solid #5b3418;border-image:linear-gradient(180deg,#7a4a26,#4a2a14 40%,#6b3f20 70%,#3e2310) 1;border-top:1px solid #000;border-bottom:1px solid #000}
 .synDev .devHead{height:26px;padding:0 2px} .synDev .disp{background:var(--d-scr)} .synDev .synTabs .key{background:linear-gradient(180deg,#2a2826,#1d1c1a)} .synDev .synTabs .key.on{color:var(--d-ring)}
@@ -400,11 +407,26 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 #pOk{background:linear-gradient(180deg,var(--accent-hi),var(--accent) 55%,var(--accent-lo));color:var(--accent-ink);box-shadow:0 2px 0 var(--accent-deep)}
 
 /* ---------- sheet + toast ---------- */
-#sheet{position:fixed;inset:0;z-index:20;background:rgba(3,4,5,.62);display:flex;align-items:flex-end;justify-content:center}
-#sheet .card{width:100%;max-width:780px;max-height:84%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--sheet);border:1px solid #000;border-bottom:0;border-radius:8px 8px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.6);
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px calc(18px + env(safe-area-inset-bottom,0px))}
-.shTitle{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
-.shTitle span{font-size:18px;font-weight:700;text-wrap:balance}
+/* menus are windows on the device's screen: they open over the view area (timeline, mixer, pads), the rest of the device stays put */
+#sheet{position:fixed;z-index:20;background:rgba(0,0,0,.55);display:flex;align-items:stretch;justify-content:center;padding:4px;border-radius:6px}
+#sheet .card{width:100%;max-width:780px;max-height:100%;align-self:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--bg);border:1px solid #000;border-radius:5px;
+  box-shadow:inset 0 2px 10px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.05),0 10px 30px rgba(0,0,0,.7);padding:0 10px 12px}
+.shTitle{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 -10px 6px;padding:0 6px 0 12px;height:38px;background:var(--panel);border-bottom:1px solid var(--line)}
+.shTitle span{font:600 12px var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shTitle .btn{height:28px;font-size:12px}
+/* inside a menu, choices are one per line, like a hardware screen list (grids marked .hrow stay side by side) */
+#sheet .card .g2:not(.hrow),#sheet .card .g3:not(.hrow),#sheet .card .g4:not(.hrow){display:flex;flex-direction:column;gap:0;border-top:1px solid var(--line)}
+#sheet .card .stack{gap:4px} #sheet .card .sec{margin:12px 2px 4px;color:var(--dim);font-size:10.5px}
+#sheet .card :is(.g2,.g3,.g4):not(.hrow)>.btn,#sheet .card .stack>.btn,#sheet .card>.btn,#sheet .card .lrow{height:42px;min-height:42px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;box-shadow:none;
+  justify-content:flex-start;text-align:left;padding:0 10px;font:500 14px var(--font-ui);color:var(--ink);width:100%}
+#sheet .card :is(.g2,.g3,.g4):not(.hrow)>.btn.on,#sheet .card .stack>.btn.on,#sheet .card .lrow.on{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent)}
+#sheet .card :is(.g2,.g3,.g4):not(.hrow)>.btn.on::after,#sheet .card .stack>.btn.on::after,#sheet .card .lrow.on::after{content:"●";margin-left:auto;font-size:9px;color:var(--accent)}
+#sheet .card :is(.g2,.g3,.g4):not(.hrow)>.btn.warn,#sheet .card .stack>.btn.warn{color:var(--rec)}
+#sheet .card :is(.g2,.g3,.g4):not(.hrow)>.btn:active,#sheet .card .stack>.btn:active{background:var(--raised)}
+#sheet .card :is(.g2,.g3,.g4):not(.hrow)>.btn:disabled{opacity:.35}
+#sheet .card .btn.prow{display:grid;height:auto;min-height:50px;padding:7px 10px} #sheet .card .btn.prow.on::after{display:none}
+#sheet .card .list{gap:0;border-top:1px solid var(--line)} #sheet .card .li{background:none;border:0;border-bottom:1px solid var(--line);border-radius:0} #sheet .card .li.on{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+#sheet .card .note{font-size:12px;color:var(--dim)} #sheet .card .param{background:var(--panel)}
 #toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:30;background:var(--ink);color:#111;font-weight:600;font-size:13.5px;padding:9px 14px;border-radius:9px;max-width:calc(100% - 32px);text-align:center;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -1176,7 +1198,10 @@ function openLibrary() {
 
 /*@VIEWS@*/
 /* ---------- sheets ---------- */
-function openSheet(title, build, onClose) { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } UI.sheetClose = onClose || null; navReset(); const S = $('#sheet'), card = S.querySelector('.card'); card.innerHTML = ''; const hd = h('div', 'shTitle'); hd.append(h('span', '', esc(title)), btn('Done', closeSheet, 'btn sm')); card.append(hd); build(card); S.hidden = false; UI.sheet = true; if (UI.panel) requestAnimationFrame(updatePanel); }
+// the menu window sits exactly over the view area (and the scene strip above it when that leaves too little room)
+function placeSheet() { const S = $('#sheet'); if (S.hidden) return; const v = $('#view').getBoundingClientRect(), sc = $('#scenes').getBoundingClientRect(), top = v.height < 300 ? sc.top : v.top;
+  Object.assign(S.style, { left: v.left + 'px', top: top + 'px', width: v.width + 'px', height: (v.bottom - top) + 'px' }); }
+function openSheet(title, build, onClose) { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } UI.sheetClose = onClose || null; navReset(); const S = $('#sheet'), card = S.querySelector('.card'); card.innerHTML = ''; const hd = h('div', 'shTitle'); hd.append(h('span', '', esc(title)), btn('Close', closeSheet, 'btn sm')); card.append(hd); build(card); S.hidden = false; UI.sheet = true; placeSheet(); card.scrollTop = 0; if (UI.panel) requestAnimationFrame(updatePanel); }
 function closeSheet() { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } navReset(); $('#sheet').hidden = true; UI.sheet = false; renderScenes(); renderView(); }
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 function confirmBtn(label, again, fn, cls = 'btn warn') { const b = btn(label, e => { if (e) e.stopPropagation(); if (b._armed) { fn(); return; } b._armed = true; b.textContent = again; setTimeout(() => { b._armed = false; b.textContent = label; }, 3000); }, cls); return b; }
@@ -1549,7 +1574,7 @@ document.addEventListener('touchmove', e => { if (e.touches.length > 1 || !e.tar
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 document.addEventListener('touchend', () => { if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); }, true);
 document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(); if (T.playing) stop(); if (mediaTag) mediaTag.pause(); } });
-new ResizeObserver(() => { const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); }).observe($('#view'));
+new ResizeObserver(() => { placeSheet(); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); }).observe($('#view'));
 let lastHeard = -1;
 // the screen loop runs only while something moves (playback, sound, meters falling, a recent touch); wake() restarts it
 let frameOn = false, lastFrame = 0, wakeAt = 0;
@@ -1575,7 +1600,7 @@ function frame(ts) {
 
 /* ================= boot ================= */
 async function boot() {
-  readColors(); buildBuiltins(); await DB.open();
+  readColors(); buildBuiltins(); await DB.open(); await loadUserPresets();
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {}
   const saved = await DB.get('kv', 'project');
   for (const s of await DB.all('samples')) { const r = upgradeSampleRecord(s); if (r) { SAMPLES.set(r.id, r); if (r !== s) DB.put('samples', r.id, r); } }

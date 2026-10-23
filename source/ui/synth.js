@@ -90,7 +90,9 @@ function renderSynthSound(w, pi, head) {
   // the faceplate: engine logo and selector, then tabs, screen and controls (page keys and the Map bar sit above it)
   const dev = h('div', 'dev synDev'); applyLook(dev, Object.assign({}, LOOK_BASE, eng.look)); dev.dataset.eng = eng.id;
   const mb = UI.map ? mapBar(pi) : null;
-  if (mb) dev.append(mb[1]); else { const dh = h('div', 'devHead'); dh.append(h('div', 'logo', `<b>${eng.n}</b><i>${esc(synOf(pi).name || 'Init')}</i>`), btn(eng.n + ' <span class="car">▾</span>', () => openEnginePicker(pi), 'key sm modeKey')); dev.append(dh); }
+  if (mb) dev.append(mb[1]); else { const S = synOf(pi), dh = h('div', 'devHead'), changed = S.sig != null && patchSig(S) !== S.sig;
+    const lcd = btn(`<span>${esc(S.name || 'Init')}</span>${changed ? '<i>edited</i>' : ''}`, () => openPresetBrowser(pi), 'presetLcd');
+    dh.append(btn(`<b>${eng.n}</b><span class="car">▾</span>`, () => openEnginePicker(pi), 'engKey'), btn(IC.left, () => stepPreset(pi, -1), 'key sm ic pstep'), lcd, btn(IC.right, () => stepPreset(pi, 1), 'key sm ic pstep')); dev.append(dh); }
   if (mb) w.append(head, mb[0]);
   else {
     const pages = seg(SYN_PAGES.map(x => x.n), SYN_ST.pg, i => { SYN_ST.pg = i; renderView(); }); pages.classList.add('synPages');
@@ -116,26 +118,54 @@ function mapKey(pi) { return btn('Map', () => { UI.map = UI.map ? null : { targe
 
 /* ----- source and presets ----- */
 function applySynthPreset(pi, pr) {
-  pushUndo('all'); const pad = P.pads[pi]; touchPad(pi); pad.src = 'synth'; pad.syn = synPatch(pr); pad.mode = 'gate';
+  pushUndo('all'); const pad = P.pads[pi]; touchPad(pi); pad.src = 'synth'; pad.syn = synPatch(pr); pad.syn.sig = patchSig(pad.syn); pad.mode = 'gate';
   if (pr.voice) pad.voice = pr.voice; else if (pr !== SYN_INIT) pad.voice = 'poly'; pad.glide = pr.glide != null ? pr.glide : pad.glide; pad.poly = Math.max(pad.poly || 8, 8);
   if (!pad.name || SYN_PRESETS.some(x => x.n === pad.name) || pad.name === 'Init' || pad.name === 'Synth') pad.name = pr.n.slice(0, 12);
   const C = P.chans[pi]; if (pr.fx && !C.fx.length) { C.fx = pr.fx.map(f => newFx(f.type, null, f.mode || 0)); syncChan(pi); }
   syncPad(pi); markDirty(); renderAll(); audition(pi);
 }
+// the sound source: a pad plays its sample or a synth (presets live inside the synth, on the faceplate)
 function openSynthSource(pi) {
-  const pad = P.pads[pi];
-  openSheet('Sound source · ' + padLabel(pi), card => {
-    const st = h('div', 'stack'), g = h('div', 'g2');
-    g.append(btn('Sample', () => { pushUndo('pad:' + pi); pad.src = 'sample'; syncPad(pi); markDirty(); closeSheet(); renderAll(); }, 'btn' + (pad.src !== 'synth' ? ' on' : '')),
-      btn('Synth · Analog', () => { if (pad.src === 'synth' && pad.syn) { closeSheet(); return; } if (pad.syn) { pushUndo('pad:' + pi); pad.src = 'synth'; pad.mode = 'gate'; syncPad(pi); markDirty(); closeSheet(); renderAll(); } else { closeSheet(); applySynthPreset(pi, SYN_INIT); } }, 'btn' + (pad.src === 'synth' ? ' on' : '')));
-    st.append(g, h('p', 'note', 'A pad plays either its sample or a synth. Switching back and forth keeps both, so nothing is lost.'));
-    let grp = null, list = null;
-    for (const pr of [SYN_INIT, ...SYN_PRESETS]) { if (pr.g !== grp) { grp = pr.g; st.append(h('div', 'sec', grp)); list = h('div', 'g2'); st.append(list); }
-      list.append(btn(esc(pr.n), () => { closeSheet(); applySynthPreset(pi, pr); }, 'btn' + (pad.src === 'synth' && pad.syn && pad.syn.name === pr.n ? ' on' : ''))); }
-    st.append(h('p', 'note', 'Every preset puts Macro 1 on "open it up" and Macro 2 on "movement" (LFO page, Macros).')); card.append(st);
-  });
+  const pad = P.pads[pi], smp = pad.sample ? (SAMPLES.get(pad.sample) || {}).name || 'Sound' : 'none loaded';
+  openSheet('Sound source · ' + padLabel(pi), card => { const st = h('div', 'stack');
+    st.append(btn(`Sample <span class="lsub">${esc(smp)}</span>`, () => { if (pad.src !== 'synth') { closeSheet(); return; } pushUndo('pad:' + pi); pad.src = 'sample'; syncPad(pi); markDirty(); closeSheet(); renderAll(); }, 'btn' + (pad.src !== 'synth' ? ' on' : '')),
+      btn(`Synth <span class="lsub">${pad.syn ? 'Analog · ' + esc(pad.syn.name || 'Init') : 'Analog · Init'}</span>`, () => { closeSheet(); if (pad.src === 'synth' && pad.syn) return; if (pad.syn) { pushUndo('pad:' + pi); pad.src = 'synth'; pad.mode = 'gate'; syncPad(pi); markDirty(); renderAll(); } else applySynthPreset(pi, SYN_INIT); }, 'btn' + (pad.src === 'synth' ? ' on' : '')));
+    st.append(h('p', 'note', 'Switching keeps both, so nothing is lost. On a synth, the preset name on the faceplate opens its presets.')); card.append(st); });
 }
-
+/* ----- presets: factory ones per engine, plus your own (kept on this device for every project) ----- */
+let USER_PRESETS = [];
+async function loadUserPresets() { const v = await DB.get('kv', 'synPresets'); USER_PRESETS = Array.isArray(v) ? v.filter(x => x && x.n && x.syn) : []; }
+function saveUserPresets() { DB.put('kv', 'synPresets', USER_PRESETS); }
+const patchSig = s => { const j = JSON.stringify([s.p, s.mods, s.lfo]); let hsh = 0; for (let i = 0; i < j.length; i++) hsh = (hsh * 31 + j.charCodeAt(i)) | 0; return hsh; };
+function presetList() { return [SYN_INIT, ...USER_PRESETS.map(u => Object.assign({ user: true }, u)), ...SYN_PRESETS]; }
+function loadPresetEntry(pi, pr) { if (pr.user) applyUserPreset(pi, pr); else applySynthPreset(pi, pr); }
+function applyUserPreset(pi, u) {
+  pushUndo('all'); const pad = P.pads[pi]; touchPad(pi); pad.src = 'synth'; pad.mode = 'gate'; pad.syn = normalizeSyn(JSON.parse(JSON.stringify(u.syn))); pad.syn.name = u.n; pad.syn.sig = patchSig(pad.syn);
+  if (u.voice) pad.voice = u.voice; if (u.glide != null) pad.glide = u.glide; syncPad(pi); markDirty(); renderAll(); audition(pi);
+}
+function stepPreset(pi, d) { const L = presetList(), cur = synOf(pi).name, i = L.findIndex(x => x.n === cur); loadPresetEntry(pi, L[(i < 0 ? 0 : i + d + L.length) % L.length]); }
+function savePresetAs(pi, name) {
+  const pad = P.pads[pi], S = synOf(pi); name = (name || '').trim().slice(0, 24); if (!name) { toast('Give the preset a name'); return false; }
+  const ex = USER_PRESETS.findIndex(x => x.n === name), rec = { n: name, g: 'Yours', eng: S.eng || 'analog', voice: pad.voice, glide: pad.glide, syn: JSON.parse(JSON.stringify({ eng: S.eng, p: S.p, mods: S.mods, lfo: S.lfo })), t: Date.now() };
+  if (ex >= 0) USER_PRESETS[ex] = rec; else USER_PRESETS.unshift(rec); saveUserPresets();
+  S.name = name; S.sig = patchSig(S); markDirty(); toast(ex >= 0 ? `Updated preset "${name}"` : `Saved preset "${name}"`); return true;
+}
+function openPresetBrowser(pi) {
+  const S = synOf(pi), eng = (SYN_ENGINES.find(e => e.id === (S.eng || 'analog')) || SYN_ENGINES[0]).n; let editing = false;
+  openSheet(eng + ' presets', card => { const st = h('div', 'stack'); card.append(st);
+    const draw = () => { st.innerHTML = ''; const changed = S.sig != null && patchSig(S) !== S.sig;
+      // save: type a name and save, or update the preset you started from
+      const sv = h('div', 'saveRow'), inp = h('input', 'textin'); inp.value = S.name && S.name !== 'Init' ? S.name : ''; inp.placeholder = 'Name your sound'; inp.maxLength = 24;
+      const go = () => { if (savePresetAs(pi, inp.value)) { closeSheet(); renderView(); } }; inp.onkeydown = e => { if (e.key === 'Enter') go(); };
+      sv.append(inp, btn('Save', go, 'btn on')); st.append(h('div', 'sec', changed ? 'Save · this sound has changes' : 'Save'), sv);
+      if (USER_PRESETS.length) { st.append(h('div', 'sec', 'Yours')); const l = h('div', 'g2');
+        for (const u of USER_PRESETS) l.append(btn(editing ? `${esc(u.n)} <span class="lsub warn">remove</span>` : esc(u.n), () => { if (editing) { USER_PRESETS = USER_PRESETS.filter(x => x !== u); saveUserPresets(); draw(); return; } closeSheet(); applyUserPreset(pi, u); }, 'btn' + (S.name === u.n ? ' on' : '')));
+        l.append(btn(editing ? 'Done removing' : 'Remove presets…', () => { editing = !editing; draw(); }, 'btn warn')); st.append(l); }
+      let grp = null, l = null;
+      for (const pr of [SYN_INIT, ...SYN_PRESETS]) { if (pr.g !== grp) { grp = pr.g; st.append(h('div', 'sec', grp)); l = h('div', 'g2'); st.append(l); }
+        l.append(btn(esc(pr.n), () => { closeSheet(); applySynthPreset(pi, pr); }, 'btn' + (S.name === pr.n ? ' on' : ''))); } };
+    draw(); });
+}
 /* ----- the screen ----- */
 function drawSynDisp() {
   const cv = synCv; if (!cv || !cv.isConnected) return; const pi = UI.pad, S = synOf(pi); if (!S) return;
