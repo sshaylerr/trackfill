@@ -57,6 +57,30 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
         if (st2.bad || st2.pk > 1 || st2.rms < .0005) bad.push(`${d.name} ${md.n || ''} ${ext} (bad ${st2.bad}, peak ${st2.pk.toFixed(2)}, rms ${st2.rms.toFixed(4)})`); } }
     ok(!bad.length, `${n} renders: every mode at minimum, maximum and default settings stays finite, within 0 dBFS and audible` + (bad.length ? '\n      ' + bad.join('\n      ') : ''));
   }
+  console.log('rhythm effects');
+  { // a steady sine on pad 20 (a held synth note) through one effect on its channel; returns per-16th levels and the L/R balance
+    const mk = (fx, bpm = 120) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.bpm = bpm; Q.chans.forEach(c => { c.fx = []; });
+      Object.assign(Q.pads[20], { src: 'synth', syn: SP.synPatch({ p: { o1w: 'Sine', flt: 'Off', dri: 0, aa: .001, as: 1 } }), mode: 'gate', voice: 'poly' }); Q.chans[20].fx = [fx]; host.msg({ t: 'project', P: Q });
+      host.msg({ t: 'hit', pad: 20, semi: 12, vel: 1, tag: 1 }); const L = new Float32Array(128), R = new Float32Array(128);
+      const run = (secs, cb) => { const blocks = Math.round(secs * 48000 / 128), out = { L: [], R: [] }; for (let b = 0; b < blocks; b++) { if (cb) cb(b); host.render(128, L, R); out.L.push(...L); out.R.push(...R); } return out; };
+      return { host, ex, run, Q }; };
+    const rmsSeg = (x, a, b) => { let e = 0; for (let i = a; i < b; i++) e += x[i] * x[i]; return Math.sqrt(e / Math.max(1, b - a)); };
+    const per16 = (x, bpm = 120) => { const n = Math.round(60 / bpm / 4 * 48000), o = []; for (let i = 0; i + n <= x.length; i += n) o.push(rmsSeg(x, i + n * .25, i + n * .75)); return o; };
+    { const s = mk(M.newFx(18, { 0: 1, 1: .4, 3: 1 })), o = s.run(2); let lMax = 0, rMax = 0, both = 0; const n = 1200;
+      for (let i = 0; i + n <= o.L.length; i += n) { const l = rmsSeg(o.L, i, i + n), r = rmsSeg(o.R, i, i + n); if (l > r * 3) lMax++; if (r > l * 3) rMax++; }
+      ok(lMax > 1 && rMax > 1, `Autopan swings the sound left (${lMax}) and right (${rMax}) on the beat`); }
+    { const f = M.newFx(19, { 0: 1, 1: 2 / 7, 3: 1, 5: 0 }); f.lfo = M.FX_LFO_SHAPES['Gate 1/8'].map(q => Object.assign({}, q)); const s = mk(f), o = s.run(2), l = per16(o.L).slice(2);
+      const hi = l.filter(v => v > .05).length, lo = l.filter(v => v < .005).length;
+      ok(hi >= 6 && lo >= 6, `LFO Tool gates on the grid (${hi} open sixteenths, ${lo} closed at full depth)`); }
+    { const f = M.newFx(20, { 0: 0, 1: 0, 2: 0, 3: 0, 5: tfN(.3), 6: tfN(.3) }); function tfN(sec) { return Math.log(sec / .05) / Math.log(80); }
+      const s = mk(f); let stopAt = Math.round(.5 * 48000 / 128), startAt = Math.round(1.5 * 48000 / 128);
+      const o = s.run(2.5, b => { if (b === stopAt) { f.p[4] = 1; s.host.msg({ t: 'chan', i: 20, v: s.Q.chans[20] }); s.host.syncChan(20); } if (b === startAt) { f.p[4] = 0; s.host.syncChan(20); } });
+      const before = rmsSeg(o.L, .2 * 48000, .45 * 48000), stopped = rmsSeg(o.L, 1.0 * 48000, 1.45 * 48000), after = rmsSeg(o.L, 2.1 * 48000, 2.4 * 48000);
+      ok(before > .05 && stopped < before * .01 && after > before * .7, `Vinyl stop: the turntable stops (${(20 * Math.log10(stopped / before + 1e-9)).toFixed(0)} dB) and spins back up (${(20 * Math.log10(after / before)).toFixed(1)} dB)`); }
+    { const f = M.newFx(21, { 4: 1 }); f.steps = [0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 6, 6, 6, 6]; const s = mk(f), o = s.run(2.1), l = per16(o.L);
+      const muted = [1, 3, 5, 7].map(k => l[k]), open = [0, 2, 4, 6].map(k => l[k]), n16 = 6000, zc = k => { let z = 0; for (let i = k * n16 + 1; i < (k + 1) * n16; i++) if ((o.L[i] > 0) !== (o.L[i - 1] > 0)) z++; return z; }, slow = zc(15) / zc(8);
+      ok(muted.every(v => v < .01) && open.every(v => v > .05) && slow < .35, `Step FX: mutes where you paint them (${muted.map(v => v.toFixed(3)).join(' ')}), tape stop winds the pitch down by the last step (×${slow.toFixed(2)})`); }
+  }
   console.log('mode switching');
   { const f = M.newFx(M.FX_TYPES.DELAY); f.p[2] = .9; f.p[3] = .7; M.setFxMode(f, 1); ok(f.p.length === 12 && f.p[2] === .9 && f.p[3] === .7, 'switching Delay to Tape keeps Time and Feedback');
     const r = M.newFx(M.FX_TYPES.REVERB); r.p[4] = 1; M.setFxMode(r, 1); ok(r.p[0] === 1, 'switching Reverb to Room carries Mix across even though it moved');

@@ -290,6 +290,10 @@ const FX_LAY = {
   '14:1': [['Depth', 'Time', 'Upward', 'Downward'], ['Low split', 'High split', 'In gain', 'Out gain'], ['Low gain', 'Mid gain', 'High gain']],
   ...Object.fromEntries([0, 1, 2].map(m => ['15:' + m, [['Drive', 'Bump', 'Tone', 'Hiss'], ['Wow', 'Flutter', 'Output', 'Mix']]])),
   '16:0': [['Threshold', 'Range', 'Hysteresis', '@key'], ['Attack', 'Hold', 'Release']],
+  '18:0': [['Sync', 'Division', 'Rate'], ['Depth', 'Shape', 'Phase']],
+  '19:0': [['@shape', 'Depth', 'Filter'], ['Sync', 'Division', 'Rate'], ['Smooth', 'Phase', 'Stereo']],
+  '20:0': [['Crackle', 'Noise', 'Wear', 'Wow'], ['Stop', 'Stop time', 'Start time', 'Mix']],
+  '21:0': [['Steps', 'Repeat', 'Filter'], ['@pattern', 'Smooth', 'Mix']],
 };
 // rows of cells: a param index, -1 for a gap, or '@src' / '@key'; the default is four to a row in the engine's order
 function fxRows(f) { const ps = fxParams(f), L = FX_LAY[f.type + ':' + (f.mode | 0)], used = new Set();
@@ -318,11 +322,14 @@ function renderFx(V) {
     const g = h('div', 'kgrid k8'), notesDuck = f.type === FX_TYPES.DUCK && Math.round(f.p[0]) === 0;
     const cell = i => { if (i === -1) return blankCell();
       if (i === '@src') return notesDuck ? cellBtn('Triggers', f.trig.length ? f.trig.map(chanName).join(', ') : 'none', () => openTriggers(c, s)) : cellBtn('Listens to', f.key == null ? 'None' : chanLabel(f.key) + ' ' + chanName(f.key), () => openKeyPicker(c, s));
+      if (i === '@shape') return cellBtn('Shape', 'Pick', () => openFxShapes(c, s));
+      if (i === '@pattern') return cellBtn('Pattern', 'Pick', () => openStepPatterns(c, s));
       if (i === '@key') return cellBtn('Listens to', f.key == null ? 'Itself' : chanLabel(f.key) + ' ' + chanName(f.key), () => openKeyPicker(c, s));
       if (notesDuck && i === 7) return null; const prm = params[i], key = `${c}.${s}.${i}`; let el;
       if (prm.opts) el = selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(key, f.p[i]); redrawVis(); if (f.type === FX_TYPES.DUCK && i === 0) { syncChan(c); renderView(); } markDirty(); });
       else el = keyParam(key, { label: prm.n, after: redrawVis });
       el.dataset.p = prm.n; return el; };
+    if (f.type === FX_TYPES.STEP) dev.append(stepPalette(c, s));   // Step FX: pick an action, then tap steps on the screen
     for (const r of fxRows(f)) { const els = r.map(cell).filter(Boolean); els.forEach((el, k) => { el.style.gridColumn = (k ? 'auto' : (4 - els.length + 1)) + ' / span 2'; g.append(el); }); }   // a short row sits in the middle
     dev.append(g); panel.append(fh, dev);
     if (c < G0 && P.pads[c].frz) panel.append(h('p', 'note', 'Frozen: changing effects unfreezes it.'));
@@ -331,8 +338,8 @@ function renderFx(V) {
     // one device per line, grouped, like every other menu: colour dot (the device's faceplate), name, and its modes or what it does
     const add = t => { pushUndo('chan:' + c); const nf = newFx(t); if (t === FX_TYPES.DUCK) { const kick = P.pads.findIndex(p => p.sample === 'b:dkick' || p.sample === 'b:kick'); if (kick >= 0 && kick !== c) nf.trig = [kick]; }
       C.fx.push(nf); UI.fxSlot = C.fx.length - 1; fxChanged(c); };
-    const ABOUT = { Ducker: 'ducks this channel when a pad plays or a sound gets loud', Utility: 'gain, pan, width, bass mono', Transient: 'more or less attack and sustain', Gate: 'cuts the sound below a threshold', Disperser: 'smears a band in time: zaps and thicker hits' };
-    const GROUPS = [['Tone', ['EQ', 'Filter', 'Saturation', 'Clipper', 'Bitcrush', 'Tape']], ['Dynamics', ['Compressor', 'Limiter', 'Multiband', 'Transient', 'Gate', 'Ducker']], ['Space and movement', ['Delay', 'Reverb', 'Chorus', 'Phaser', 'Disperser']], ['Utility', ['Utility']]];
+    const ABOUT = { Autopan: 'moves the sound left and right', 'LFO Tool': 'a drawn shape on the volume: gate, pump, tremolo', Vinyl: 'crackle, wear and the turntable stop', 'Step FX': 'paint stutters, reverses and tape stops on a grid', Ducker: 'ducks this channel when a pad plays or a sound gets loud', Utility: 'gain, pan, width, bass mono', Transient: 'more or less attack and sustain', Gate: 'cuts the sound below a threshold', Disperser: 'smears a band in time: zaps and thicker hits' };
+    const GROUPS = [['Tone', ['EQ', 'Filter', 'Saturation', 'Clipper', 'Bitcrush', 'Tape', 'Vinyl']], ['Dynamics', ['Compressor', 'Limiter', 'Multiband', 'Transient', 'Gate', 'Ducker']], ['Rhythm', ['Step FX', 'LFO Tool', 'Autopan']], ['Space and movement', ['Delay', 'Reverb', 'Chorus', 'Phaser', 'Disperser']], ['Utility', ['Utility']]];
     const seen = new Set();
     for (const [title, names] of GROUPS.concat([['More', FX_DEFS.map(d => d.name)]])) { const l = h('div', 'list');
       for (const n of names) { const t = FX_DEFS.findIndex(d => d.name === n); if (t < 0 || seen.has(t)) continue; seen.add(t); const d = FX_DEFS[t], full = t === FX_TYPES.DUCK && duckerCount() >= MAX_DUCKERS, lk = fxLook(t, 0);
@@ -373,3 +380,20 @@ function openSoundTools(pi) {
     card.append(t);
   });
 }
+
+/* ----- LFO Tool shapes and Step FX patterns ----- */
+function openFxShapes(c, s) { const f = P.chans[c].fx[s];
+  openSheet('LFO Tool shape', card => { const l = h('div', 'list');
+    for (const n in FX_LFO_SHAPES) { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(n)}</b></div>`; li.onclick = () => { pushUndo('chan:' + c); f.lfo = FX_LFO_SHAPES[n].map(q => Object.assign({ c: 0 }, q)); LFOED.sel = 0; syncChan(c); markDirty(); closeSheet(); }; l.append(li); }
+    card.append(l); }); }
+const STEP_PATTERNS = { Clear: Array(16).fill(0), 'Stutter end': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2], 'Tape stop end': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 6, 6, 6],
+  'Gate 8ths': [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1], 'Reverse fill': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3], 'Half-time drop': [0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4],
+  'Filter sweep': [0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5], 'Jungle chop': [0, 0, 2, 0, 0, 3, 0, 0, 0, 1, 2, 2, 0, 0, 6, 6] };
+function openStepPatterns(c, s) { const f = P.chans[c].fx[s];
+  openSheet('Step FX pattern', card => { const l = h('div', 'list');
+    for (const n in STEP_PATTERNS) { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(n)}</b></div>`; li.onclick = () => { pushUndo('chan:' + c); f.steps = STEP_PATTERNS[n].slice(); syncChan(c); markDirty(); closeSheet(); }; l.append(li); }
+    card.append(l); }); }
+// the action palette: one key per action, coloured like its steps on the screen
+function stepPalette(c, s) { const row = h('div', 'keys stepPal'); if (UI.stepTool == null) UI.stepTool = 2;
+  STEP_ACTS.forEach(([n, col], k) => { if (k === 0) return; const b = btn(`<i style="background:${col}"></i>${esc(n === 'Tape stop' ? 'Stop' : n)}`, () => { UI.stepTool = k; renderView(); }, 'key sm' + (UI.stepTool === k ? ' on' : '')); row.append(b); });
+  return row; }

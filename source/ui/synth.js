@@ -158,7 +158,7 @@ function renderSynthSound(w, pi, head) {
   if (pg.n === 'Filter' || pg.n === 'Mix') { tabs.innerHTML = ''; tabs.append(h('div', 'lcdbox synInfo', pg.n === 'Filter' ? 'Filter · ' + esc(synOf(pi).p.flt ?? 'Ladder') + ' · after the oscillators' : 'Channel · level, pan, sends and effects')); }
   dev.append(tabs);
   const disp = h('div', 'scr disp'), cv = h('canvas', tab[0] === 'l' && tab !== 'l' ? 'navc' : ''); disp.append(cv); synCv = cv;
-  if (/^l\d$/.test(tab)) { cv.classList.add('navc'); cv.setAttribute('aria-label', 'LFO shape'); cv._ctl = lfoCtl; cv._draw = drawSynDisp; bindLfo(cv, pi); }
+  if (/^l\d$/.test(tab)) { cv.classList.add('navc'); cv.setAttribute('aria-label', 'LFO shape'); cv._ctl = lfoCtl; cv._draw = drawSynDisp; bindLfo(cv, lfoSynSrc(pi)); }
   if (isGrPad(pi) && (tab === 'gr' || tab === 'g2')) { cv.classList.add('navc'); cv.setAttribute('aria-label', 'Grain position and spray'); cv._ctl = grCtl; cv._draw = drawSynDisp; bindGrain(cv, pi); }
   const g = h('div', 'kgrid synGrid');
   if (tab === 'mx') { const C = P.chans[pi], redraw = { after: () => {} };
@@ -487,42 +487,46 @@ function openGrainSource(pi) {
 }
 
 /* ----- LFO editor: drag points, tap to add, double-tap to remove, drag a line to bend it ----- */
-const LFOED = { sel: 0, drag: null, last: { t: 0, i: -1 } };
+// The editor works on a "source": the synth's LFOs or the LFO Tool effect (points, what to do after a change, how to redraw, undo key, snap)
+const LFOED = { sel: 0, drag: null, last: { t: 0, i: -1 }, src: null };
 function lfoPts(pi) { const k = +synTab()[1] - 1; return synOf(pi).lfo[k]; }
 function lfoChanged(pi) { syncPad(pi); markDirty(); drawSynDisp(); }
 function snapX(x) { const sn = [0, 4, 8, 16][SYN_ST.snap]; return sn ? Math.round(x * sn) / sn : x; }
-function bindLfo(cv, pi) {
+const lfoSynSrc = pi => ({ pts: () => lfoPts(pi), changed: () => lfoChanged(pi), draw: drawSynDisp, undo: () => pushUndo('pad:' + pi), snap: snapX });
+function bindLfo(cv, srcOrPi) {
+  const src = typeof srcOrPi === 'number' ? lfoSynSrc(srcOrPi) : srcOrPi; LFOED.src = src;
   const pos = e => { const r = cv.getBoundingClientRect(); return { x: clamp((e.clientX - r.left - 8) / (r.width - 16), 0, 1), y: clamp(1 - (e.clientY - r.top - 10) / (r.height - 26), 0, 1), r }; };
-  cv.addEventListener('pointerdown', e => { if (UI.map) return; e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {}
-    const pts = lfoPts(pi), p = pos(e), W = p.r.width - 16, H = p.r.height - 26; let hit = -1, best = 18;
+  cv.addEventListener('pointerdown', e => { if (UI.map) return; e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} LFOED.src = src;
+    const pts = src.pts(), p = pos(e), W = p.r.width - 16, H = p.r.height - 26; let hit = -1, best = 18;
     pts.forEach((q, i) => { const d = Math.hypot((q.x - p.x) * W, (q.y - p.y) * H); if (d < best) { best = d; hit = i; } });
-    pushUndo('pad:' + pi); const now = Date.now();
-    if (hit >= 0) { if (LFOED.last.i === hit && now - LFOED.last.t < 320 && pts.length > 2) { pts.splice(hit, 1); LFOED.sel = Math.max(0, hit - 1); LFOED.last = { t: 0, i: -1 }; lfoChanged(pi); return; }
-      LFOED.last = { t: now, i: hit }; LFOED.sel = hit; LFOED.drag = { kind: 'pt', i: hit }; drawSynDisp(); return; }
+    src.undo(); const now = Date.now();
+    if (hit >= 0) { if (LFOED.last.i === hit && now - LFOED.last.t < 320 && pts.length > 2) { pts.splice(hit, 1); LFOED.sel = Math.max(0, hit - 1); LFOED.last = { t: 0, i: -1 }; src.changed(); return; }
+      LFOED.last = { t: now, i: hit }; LFOED.sel = hit; LFOED.drag = { kind: 'pt', i: hit }; src.draw(); return; }
     // on a line: drag up/down bends the segment; a quick tap adds a point
     let seg = 0; for (let i = 0; i < pts.length; i++) if (pts[i].x <= p.x) seg = i;
     LFOED.drag = { kind: 'seg', i: seg, y0: e.clientY, c0: pts[seg].c || 0, x: p.x, y: p.y, moved: false }; });
-  cv.addEventListener('pointermove', e => { const d = LFOED.drag; if (!d) return; const pts = lfoPts(pi), p = pos(e);
-    if (d.kind === 'pt') { const q = pts[d.i], lo = d.i ? pts[d.i - 1].x + .005 : 0, hi = d.i < pts.length - 1 ? pts[d.i + 1].x - .005 : .999; q.x = d.i === 0 ? 0 : clamp(snapX(p.x), lo, hi); q.y = p.y; lfoChanged(pi); }
-    else { const dy = (d.y0 - e.clientY) / 120; if (Math.abs(d.y0 - e.clientY) > 5) d.moved = true; if (d.moved) { pts[d.i].c = clamp(d.c0 - dy, -.97, .97); lfoChanged(pi); } } });
-  const up = () => { const d = LFOED.drag; LFOED.drag = null; if (d && d.kind === 'seg' && !d.moved) { const pts = lfoPts(pi); if (pts.length < 32) { const x = snapX(d.x); if (!pts.some(q => Math.abs(q.x - x) < .004)) { pts.push({ x, y: d.y, c: 0 }); pts.sort((a, b) => a.x - b.x); LFOED.sel = pts.findIndex(q => q.x === x); lfoChanged(pi); } } } };
+  cv.addEventListener('pointermove', e => { const d = LFOED.drag; if (!d) return; const pts = src.pts(), p = pos(e);
+    if (d.kind === 'pt') { const q = pts[d.i], lo = d.i ? pts[d.i - 1].x + .005 : 0, hi = d.i < pts.length - 1 ? pts[d.i + 1].x - .005 : .999; q.x = d.i === 0 ? 0 : clamp(src.snap(p.x), lo, hi); q.y = p.y; src.changed(); }
+    else { const dy = (d.y0 - e.clientY) / 120; if (Math.abs(d.y0 - e.clientY) > 5) d.moved = true; if (d.moved) { pts[d.i].c = clamp(d.c0 - dy, -.97, .97); src.changed(); } } });
+  const up = () => { const d = LFOED.drag; LFOED.drag = null; if (d && d.kind === 'seg' && !d.moved) { const pts = src.pts(); if (pts.length < 32) { const x = src.snap(d.x); if (!pts.some(q => Math.abs(q.x - x) < .004)) { pts.push({ x, y: d.y, c: 0 }); pts.sort((a, b) => a.x - b.x); LFOED.sel = pts.findIndex(q => q.x === x); src.changed(); } } } };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 }
 // with the d-pad: ←→ pick a point, ↑↓ bend the line after it; hold OK and the arrows move the point; Del removes it
 const lfoCtl = {
+  get s() { return LFOED.src || lfoSynSrc(UI.pad); },
   hasSel() { return true; },
-  info() { const pts = lfoPts(UI.pad), q = pts[LFOED.sel] || pts[0]; return `Point ${LFOED.sel + 1}/${pts.length} · ←→ pick · ↑↓ bend · hold OK to move · Del removes`; },
+  info() { const pts = this.s.pts(); return `Point ${LFOED.sel + 1}/${pts.length} · ←→ pick · ↑↓ bend · hold OK to move · Del removes`; },
   heldInfo() { return 'Moving point · arrows move it, Fine for small steps'; },
-  mv(dx, dy) { const pi = UI.pad, pts = lfoPts(pi), i = LFOED.sel, q = pts[i], st = UI.fine ? .01 : .05; if (!q) return;
+  mv(dx, dy) { const pts = this.s.pts(), i = LFOED.sel, q = pts[i], st = UI.fine ? .01 : .05; if (!q) return;
     if (dx) { const lo = i ? pts[i - 1].x + .005 : 0, hi = i < pts.length - 1 ? pts[i + 1].x - .005 : .999; q.x = i === 0 ? 0 : clamp(q.x + dx * st, lo, hi); }
-    if (dy) q.y = clamp(q.y + dy * st, 0, 1); lfoChanged(pi); },
-  left() { if (NAV.held) this.mv(-1, 0); else { LFOED.sel = Math.max(0, LFOED.sel - 1); drawSynDisp(); } },
-  right() { if (NAV.held) this.mv(1, 0); else { LFOED.sel = Math.min(lfoPts(UI.pad).length - 1, LFOED.sel + 1); drawSynDisp(); } },
-  up() { if (NAV.held) this.mv(0, 1); else { const q = lfoPts(UI.pad)[LFOED.sel]; if (q) { q.c = clamp((q.c || 0) - .1, -.97, .97); lfoChanged(UI.pad); } } },
-  down() { if (NAV.held) this.mv(0, -1); else { const q = lfoPts(UI.pad)[LFOED.sel]; if (q) { q.c = clamp((q.c || 0) + .1, -.97, .97); lfoChanged(UI.pad); } } },
-  ok() {}, holdStart() { pushUndo('pad:' + UI.pad); }, holdEnd() {},
+    if (dy) q.y = clamp(q.y + dy * st, 0, 1); this.s.changed(); },
+  left() { if (NAV.held) this.mv(-1, 0); else { LFOED.sel = Math.max(0, LFOED.sel - 1); this.s.draw(); } },
+  right() { if (NAV.held) this.mv(1, 0); else { LFOED.sel = Math.min(this.s.pts().length - 1, LFOED.sel + 1); this.s.draw(); } },
+  up() { if (NAV.held) this.mv(0, 1); else { const q = this.s.pts()[LFOED.sel]; if (q) { q.c = clamp((q.c || 0) - .1, -.97, .97); this.s.changed(); } } },
+  down() { if (NAV.held) this.mv(0, -1); else { const q = this.s.pts()[LFOED.sel]; if (q) { q.c = clamp((q.c || 0) + .1, -.97, .97); this.s.changed(); } } },
+  ok() {}, holdStart() { this.s.undo(); }, holdEnd() {},
   back() { return false; },
-  del() { const pts = lfoPts(UI.pad); if (pts.length <= 2) return; pushUndo('pad:' + UI.pad); pts.splice(LFOED.sel, 1); LFOED.sel = Math.max(0, LFOED.sel - 1); lfoChanged(UI.pad); } };
+  del() { const pts = this.s.pts(); if (pts.length <= 2) return; this.s.undo(); pts.splice(LFOED.sel, 1); LFOED.sel = Math.max(0, LFOED.sel - 1); this.s.changed(); } };
 function openLfoShapes(pi, k) {
   openSheet('LFO ' + (k + 1) + ' shape', card => { const g = h('div', 'g2');
     for (const n in LFO_SHAPES) g.append(btn(n, () => { pushUndo('pad:' + pi); synOf(pi).lfo[k] = LFO_SHAPES[n].map(q => Object.assign({ c: 0 }, q)); LFOED.sel = 0; lfoChanged(pi); closeSheet(); }));

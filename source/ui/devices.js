@@ -62,6 +62,10 @@ const LOOKS = {
   '15:2': { face: '#6b6152', face2: '#5a5143', cap: '#2f2a22', ring: '#d8c79a', alt: '#d8c79a', ink2: '#cfc4a8' },
   '16:0': { ring: '#9fe07a', alt: '#9fe07a' },
   '17:0': { face: '#140f1f', face2: '#0d0a15', cap: '#221a35', ring: '#7c5cff', alt: '#7c5cff' },
+  '18:0': { face: '#1b2421', face2: '#141b18', cap: '#26322e', ring: '#5fd3a0', alt: '#5fd3a0' },
+  '19:0': { face: '#221a2c', face2: '#191321', cap: '#2e2340', ring: '#c592ff', alt: '#c592ff' },
+  '20:0': { face: '#1a1714', face2: '#120f0d', cap: '#2b2520', ring: '#e8b26a', alt: '#e8b26a', scr: '#0b0908' },
+  '21:0': { face: '#1c1d22', face2: '#141519', cap: '#2a2c33', ring: '#f2b544', alt: '#f2b544' },
 };
 const fxLook = (t, m) => Object.assign({}, LOOK_BASE, LOOKS[t + ':' + m] || LOOKS[t + ':0'] || {});
 function applyLook(el, lk) { const st = el.style;
@@ -75,6 +79,9 @@ function deviceEl(c, s, f, redrawRef) {
   if (d.modes.length > 1) { const mb = btn(`${esc(md.n)} <span class="car">▾</span>`, () => openModePicker(c, s), 'key sm modeKey'); mb.setAttribute('aria-label', 'Mode: ' + md.n); head.append(mb); }
   const vis = h('div', 'scr fxvis'), vcv = h('canvas'); vis.append(vcv); vcv._lk = lk; const redraw = () => drawFxVis(vcv, c, s); redrawRef.fn = redraw;
   if (FXV_LIVE.has(f.type)) scopeView(vcv, redraw); requestAnimationFrame(redraw);
+  if (f.type === FX_TYPES.LFOT) { vcv.classList.add('navc'); vcv.setAttribute('aria-label', 'LFO Tool shape'); vcv._ctl = lfoCtl; vcv._draw = redraw;
+    bindLfo(vcv, { pts: () => P.chans[c].fx[s].lfo, changed: () => { syncChan(c); markDirty(); redraw(); }, draw: redraw, undo: () => pushUndo('chan:' + c), snap: x => Math.round(x * 32) / 32 }); }
+  if (f.type === FX_TYPES.STEP) { vcv.classList.add('navc'); vcv.setAttribute('aria-label', 'Step pattern'); vcv._ctl = stepCtl(c, s, redraw); vcv._draw = redraw; bindSteps(vcv, c, s, redraw); }
   dev.append(head); if (md.blurb) dev.append(h('div', 'blurb', esc(md.blurb))); dev.append(vis); return dev;
 }
 // mode picker: every mode with its blurb and a swatch of its faceplate
@@ -92,3 +99,16 @@ function switchFxMode(c, s, mode) {
   for (const sc of P.scenes) { const next = {}; for (const k in sc.auto) { const q = tfParseKey(k); if (q.c !== c || q.s !== s) { next[k] = sc.auto[k]; continue; } const ni = neu.indexOf(old[q.i]); if (ni >= 0) next[`${c}.${s}.${ni}`] = sc.auto[k]; } sc.auto = next; }
   fxChanged(c); toast(FX_DEFS[f.type].name + ': ' + FX_DEFS[f.type].modes[mode].n);
 }
+
+/* ----- Step FX screen: 16 steps in two rows of eight; tap a step to paint the chosen action (tap it again to clear it) ----- */
+const STEPED = { cur: 0 };
+const stepAt = (cv, e) => { const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top - 18) / (r.height - 22); if (y < 0 || y > 1) return -1; return Math.min(1, Math.floor(y * 2)) * 8 + Math.min(7, Math.floor(x * 8)); };
+function paintStep(c, s, k, redraw) { const f = P.chans[c].fx[s]; if (!f || k < 0) return; pushUndo('chan:' + c); const t = UI.stepTool == null ? 2 : UI.stepTool; f.steps[k] = f.steps[k] === t ? 0 : t; STEPED.cur = k; syncChan(c); markDirty(); redraw(); }
+function bindSteps(cv, c, s, redraw) { let drag = null;
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); const k = stepAt(cv, e); if (k < 0) return; const f = P.chans[c].fx[s]; drag = { v: f.steps[k] === (UI.stepTool ?? 2) ? 0 : (UI.stepTool ?? 2), last: k }; paintStep(c, s, k, redraw); try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
+  cv.addEventListener('pointermove', e => { if (!drag) return; const k = stepAt(cv, e); if (k < 0 || k === drag.last) return; drag.last = k; const f = P.chans[c].fx[s]; f.steps[k] = drag.v; STEPED.cur = k; syncChan(c); markDirty(); redraw(); });   // drag across steps to paint a run
+  const up = () => { drag = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up); }
+const stepCtl = (c, s, redraw) => ({ hasSel() { return false; }, okOnDown: true,
+  info() { return `Step ${STEPED.cur + 1} · arrows move · OK paints ${STEP_ACTS[UI.stepTool ?? 2][0]} · Del clears`; }, heldInfo() { return ''; },
+  left() { STEPED.cur = (STEPED.cur + 15) % 16; redraw(); }, right() { STEPED.cur = (STEPED.cur + 1) % 16; redraw(); }, up() { STEPED.cur = (STEPED.cur + 8) % 16; redraw(); }, down() { STEPED.cur = (STEPED.cur + 8) % 16; redraw(); },
+  ok() { paintStep(c, s, STEPED.cur, redraw); }, back() { return false; }, del() { const f = P.chans[c].fx[s]; pushUndo('chan:' + c); f.steps[STEPED.cur] = 0; syncChan(c); markDirty(); redraw(); } });

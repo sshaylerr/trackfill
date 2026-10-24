@@ -378,14 +378,29 @@ const FX_DEFS = [
   { name: 'Tape', short: 'Tape', params: TAPE_P },
   { name: 'Gate', short: 'Gate', key: true, params: [P_('Threshold', .5, v => fDb(linmap(v, -80, 0))), P_('Range', 1, v => '−' + Math.round(linmap(v, 0, 80)) + ' dB'), P_('Attack', .3, v => fMs(expmap(v, .05, 50))),
     P_('Hold', .1, v => fMs(linmap(v, 0, 500))), P_('Release', .4, v => fMs(expmap(v, 5, 2000))), P_('Hysteresis', .333, v => linmap(v, 0, 12).toFixed(1) + ' dB')] },
-  { name: 'Disperser', short: 'Disp', params: [P_('Amount', .5, v => Math.round(1 + v * 47) + ' stages'), P_('Frequency', .55, v => fHz(expmap(v, 20, 20000))), P_('Pinch', .5, v => expmap(v, .2, 8).toFixed(2)), P_('Mix', 1, fPct)] }
+  { name: 'Disperser', short: 'Disp', params: [P_('Amount', .5, v => Math.round(1 + v * 47) + ' stages'), P_('Frequency', .55, v => fHz(expmap(v, 20, 20000))), P_('Pinch', .5, v => expmap(v, .2, 8).toFixed(2)), P_('Mix', 1, fPct)] },
+  { name: 'Autopan', short: 'Pan', params: [P_('Sync', 1, null, ['Off', 'On']), P_('Division', .4, null, ['1/16', '1/8', '1/4', '1/2', '1 bar', '2 bars']), P_('Rate', .5, v => expmap(v, .05, 20).toFixed(2) + ' Hz'),
+    P_('Depth', .7, fPct), P_('Shape', 0, null, ['Sine', 'Triangle', 'Square']), P_('Phase', 0, v => Math.round(v * 360) + '°')] },
+  { name: 'LFO Tool', short: 'LFO', params: [P_('Sync', 1, null, ['Off', 'On']), P_('Division', 3 / 7, null, ['1/32', '1/16', '1/8', '1/4', '1/2', '1 bar', '2 bars', '4 bars']), P_('Rate', .5, v => expmap(v, .05, 20).toFixed(2) + ' Hz'),
+    P_('Depth', .8, fPct), P_('Filter', 0, v => v < .005 ? 'Off' : fPct(v)), P_('Smooth', .15, v => fMs(v * v * 50)), P_('Phase', 0, v => Math.round(v * 360) + '°'), P_('Stereo', 0, v => Math.round(v * 180) + '°')] },
+  { name: 'Vinyl', short: 'Vinyl', params: [P_('Crackle', .3, fPct), P_('Noise', .2, fPct), P_('Wear', .3, fPct), P_('Wow', .15, fPct), P_('Stop', 0, null, ['Off', 'On']),
+    P_('Stop time', .684, v => fMs(expmap(v, .05, 4) * 1000)), P_('Start time', .474, v => fMs(expmap(v, .05, 4) * 1000)), P_('Mix', 1, fPct)] },
+  { name: 'Step FX', short: 'Steps', params: [P_('Steps', 0, null, ['1/16 · 1 bar', '1/8 · 2 bars', '1/32 · ½ bar']), P_('Repeat', 1 / 3, null, ['1/16', '1/32', '1/64', '1/8']),
+    P_('Filter', .6, fPct), P_('Smooth', .3, v => fMs(.5 + v * v * 30)), P_('Mix', 1, fPct)] }
 ];
-const FX_TYPES = { EQ: 0, COMP: 1, FILTER: 2, SAT: 3, DELAY: 4, REVERB: 5, DUCK: 6, UTIL: 7, CHORUS: 8, CLIP: 9, CRUSH: 10, TRANS: 11, PHASER: 12, LIMIT: 13, MBAND: 14, TAPE: 15, GATE: 16, DISP: 17 };
+// LFO Tool shapes (the drawn curve: 1 = full level, 0 = the Depth's dip) and Step FX actions
+const FX_LFO_SHAPES = { Pump: [{ x: 0, y: 0, c: -.65 }, { x: .55, y: 1, c: 0 }, { x: .97, y: 1, c: 0 }], 'Gate 1/8': [{ x: 0, y: 1, c: 0 }, { x: .45, y: 1, c: 0 }, { x: .5, y: 0, c: 0 }, { x: .95, y: 0, c: 0 }],
+  Trance: [0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0].flatMap((v, i) => [{ x: i / 16, y: v, c: 0 }, { x: i / 16 + .055, y: v, c: 0 }]), Sine: [{ x: 0, y: .5, c: -.19 }, { x: .25, y: 1, c: .19 }, { x: .5, y: .5, c: -.19 }, { x: .75, y: 0, c: .19 }],
+  Triangle: [{ x: 0, y: 0, c: 0 }, { x: .5, y: 1, c: 0 }], 'Saw down': [{ x: 0, y: 1, c: 0 }, { x: .97, y: 0, c: 0 }], 'Saw up': [{ x: 0, y: 0, c: 0 }, { x: .97, y: 1, c: 0 }], Swell: [{ x: 0, y: 0, c: .6 }, { x: .97, y: 1, c: 0 }] };
+const STEP_ACTS = [['Through', '#4a4a4f'], ['Mute', '#16161a'], ['Repeat', '#f2b544'], ['Reverse', '#5ec8e0'], ['Half', '#b48cff'], ['Filter', '#4fe0b0'], ['Tape stop', '#ff6b4a']];
+const STEP_DEFAULT = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 6, 6];
+const FX_TYPES = { EQ: 0, COMP: 1, FILTER: 2, SAT: 3, DELAY: 4, REVERB: 5, DUCK: 6, UTIL: 7, CHORUS: 8, CLIP: 9, CRUSH: 10, TRANS: 11, PHASER: 12, LIMIT: 13, MBAND: 14, TAPE: 15, GATE: 16, DISP: 17, APAN: 18, LFOT: 19, VINYL: 20, STEP: 21 };
 // every effect lists its modes; mode 0 is the effect's original design (old projects play it unchanged)
 FX_DEFS.forEach((d, t) => { const m = FX_MODES[t]; d.modes = [{ n: m ? m.mode0[0] : '', blurb: m ? m.mode0[1] : '', params: d.params }].concat(m ? m.more.map(([n, blurb, params]) => ({ n, blurb, params })) : []); });
 FX_DEFS[7].params.push(P_('Bass mono', 0, fHzOff(20, 500)));
 const fxParams = f => (FX_DEFS[f.type].modes[f.mode | 0] || FX_DEFS[f.type].modes[0]).params;
-function newFx(type, over, mode = 0) { const f = { type, mode, on: true, p: FX_DEFS[type].modes[mode].params.map(p => p.d), key: null, trig: [] }; if (over) for (const k in over) f.p[+k] = over[k]; return f; }
+function newFx(type, over, mode = 0) { const f = { type, mode, on: true, p: FX_DEFS[type].modes[mode].params.map(p => p.d), key: null, trig: [] }; if (over) for (const k in over) f.p[+k] = over[k];
+  if (type === 19) f.lfo = FX_LFO_SHAPES.Pump.map(q => Object.assign({}, q)); if (type === 21) f.steps = STEP_DEFAULT.slice(); return f; }
 // switch modes: a control with the same name keeps its value (delay time, mix, crossovers); the rest start at the new mode's defaults
 function setFxMode(f, mode) { const old = fxParams(f), neu = FX_DEFS[f.type].modes[mode].params, keep = {}; old.forEach((p, i) => { keep[p.n] = f.p[i]; });
   f.mode = mode; f.p = neu.map(p => keep[p.n] != null && !p.opts === !old.find(o => o.n === p.n).opts ? keep[p.n] : p.d); return f; }
@@ -492,7 +507,10 @@ function normalize(p) {
   n.chans = Array.from({ length: NCHANS }, (_, c) => { const d = defaultChan(c), s = (p.chans || [])[c]; if (!s) return d;
     const o = Object.assign(d, s); o.fx = (s.fx || []).filter(f => f && FX_DEFS[f.type]).slice(0, NSLOTS).map(f => {
       const mode = Math.max(0, Math.min(FX_DEFS[f.type].modes.length - 1, f.mode | 0)), def = newFx(f.type, null, mode);
-      return Object.assign(def, f, { mode, p: def.p.map((v, i) => f.p && f.p[i] != null ? clamp01(f.p[i]) : v), trig: (f.trig || []).filter(x => x >= 0 && x < NPADS) }); });
+      const o = Object.assign(def, f, { mode, p: def.p.map((v, i) => f.p && f.p[i] != null ? clamp01(f.p[i]) : v), trig: (f.trig || []).filter(x => x >= 0 && x < NPADS) });
+      if (o.type === 19) o.lfo = Array.isArray(f.lfo) && f.lfo.length >= 2 ? f.lfo.slice(0, 40).map(q => ({ x: clamp01(+q.x || 0), y: clamp01(+q.y || 0), c: Math.max(-.97, Math.min(.97, +q.c || 0)) })) : def.lfo;
+      if (o.type === 21) o.steps = Array.from({ length: 16 }, (_, i) => Math.max(0, Math.min(6, (Array.isArray(f.steps) ? f.steps[i] : 0) | 0)));
+      return o; });
     return o; });
   n.scenes = Array.from({ length: NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.notes = s.notes || {}; s.auto = s.auto || {}; return s; });
   n.bpm = Math.min(220, Math.max(40, +n.bpm || 96)); n.swing = clamp01(+n.swing || 0);
@@ -572,5 +590,5 @@ function stressProject() {
   for (const s of [0, 1]) for (const c of [16, 17, 28, 29, 30, 31, 32, 33]) { S[s].auto[c + '.-2.0'] = lane([[0, .3], [2 * BAR, 1], [4 * BAR - 24, .4]]); S[s].auto[c + '.-1.2'] = lane([[0, 0], [4 * BAR - 24, .5]]); }
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { stressProject, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
+if (typeof module !== 'undefined') module.exports = { FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
   buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };
