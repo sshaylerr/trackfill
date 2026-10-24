@@ -148,6 +148,10 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
           worst = Math.max(worst, Math.abs(rh.reduce((a, b) => a + b, 0) / rh.length - 5 - ({ piano: 5, wide: 9, stab: 9 }[v] || 0)));
           if (keep) { const k = c.root + ':' + c.bass; if (bass[k] != null && bass[k] !== n[0]) bassMoves++; bass[k] = n[0]; } prev = n; } }
       ok(worst <= 6.5 && !bassMoves, `chords stay in one register while you play (furthest ${worst.toFixed(1)} semitones from centre, bass octave changes: ${bassMoves})`); }
+    // fixed by default: each pad plays exactly the same notes whatever was played before it
+    { const kx = HM.normalizeKx({}), pads = HM.chordPads({ root: 5, scale: 5 }, kx); let prev = null, y = 3, diff = 0; const seen = {};
+      for (const [v] of HM.VOICINGS) for (let i = 0; i < 200; i++) { y = (y * 1103515245 + 12345) % 2147483648; const k = y % 16, n = HM.voiceChord(pads[k], v, prev, { lead: kx.smooth, centre: 5, keyRoot: 5 }).join(); if (seen[v + k] && seen[v + k] !== n) diff++; seen[v + k] = n; prev = n.split(',').map(Number); }
+      ok(kx.smooth === false && !diff, `a chord pad plays the same notes every time by default (${diff} differed)`); }
     // the bass is always the chord's root (or slash bass) in the same key-relative window, so F minor's chords never drop an octave
     { let bad = 0, n = 0; for (const [key, kr] of [[{ root: 5, scale: 5 }, 5], [{ root: 0, scale: 0 }, 0], [{ root: 9, scale: 5 }, 9]]) for (const colour of ['triad', 'seventh', 'rich']) for (const v of ['close', 'open', 'drop2', 'shell', 'piano', 'wide', 'quartal']) {
         const pads = HM.chordPads(key, HM.normalizeKx({ colour })); let prev = null;

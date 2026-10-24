@@ -29,7 +29,7 @@ function openKeysSheet(pi = UI.pad) {
         body.append('');
         sec('Chord colour'); opts(COLOURS, kx.colour, v => change({ colour: v }));
         sec('Bass note'); opts(BASSES, kx.bass, v => change({ bass: v }));
-        sec('Voice leading'); opts([[true, 'Smooth'], [false, 'Fixed']], kx.lead, v => change({ lead: v }), 'g2');
+        sec('Voice leading'); opts([[false, 'Fixed'], [true, 'Smooth']], kx.smooth, v => change({ smooth: v }), 'g2');
         body.append('');
         sec('Feel');
         const fg = h('div', 'g2');

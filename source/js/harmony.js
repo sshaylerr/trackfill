@@ -282,7 +282,7 @@ function inScale(semi, key, kx) { const sci = kx && kx.scale >= 0 ? kx.scale : k
 function keyName(key) { const sc = scaleOf(key.scale); return spell(key.root, useFlats(key.root, sc[1])) + ' ' + sc[0].toLowerCase(); }
 const ARP_PATS = [['up', 'Up'], ['down', 'Down'], ['updown', 'Up-down'], ['random', 'Random'], ['chord', 'Chord']];
 const ARP_RATES = [[96, '1/4'], [48, '1/8'], [32, '1/8T'], [24, '1/16'], [16, '1/16T'], [12, '1/32']];
-const defaultKx = () => ({ mode: 'notes', scale: -1, prog: 0, voicing: 'open', colour: 'rich', lead: true, bass: 'off', strum: 0, dir: 'up', feel: .5,
+const defaultKx = () => ({ mode: 'notes', scale: -1, prog: 0, voicing: 'open', colour: 'rich', smooth: false, bass: 'off', strum: 0, dir: 'up', feel: .5,
   arp: false, apat: 'up', arate: 24, aoct: 1, agate: .6, latch: false });
 function normalizeKx(k) {
   const d = defaultKx(); if (!k || typeof k !== 'object') return d; const o = Object.assign(d, k);
@@ -293,7 +293,7 @@ function normalizeKx(k) {
   if (!BASSES.some(v => v[0] === o.bass)) o.bass = 'off'; if (!STRUMS.some(v => v[0] === o.dir)) o.dir = 'up';
   o.arp = !!o.arp; o.latch = !!o.latch; if (!ARP_PATS.some(v => v[0] === o.apat)) o.apat = 'up'; if (!ARP_RATES.some(v => v[0] === o.arate)) o.arate = 24;
   o.aoct = Math.max(1, Math.min(3, Math.round(+o.aoct) || 1)); o.agate = Math.max(.05, Math.min(1, +o.agate || .6));
-  o.lead = o.lead !== false; o.strum = Math.max(0, Math.min(80, +o.strum || 0)); o.feel = Math.max(0, Math.min(1, o.feel == null ? .5 : +o.feel || 0));
+  o.smooth = o.smooth === true; delete o.lead;   // fixed by default: a pad plays the same notes every time o.strum = Math.max(0, Math.min(80, +o.strum || 0)); o.feel = Math.max(0, Math.min(1, o.feel == null ? .5 : +o.feel || 0));
   return o;
 }
 function normalizeKey(k) { const o = { root: 0, scale: SCALE_MINOR }; if (k && typeof k === 'object') { o.root = mod12(Math.round(+k.root) || 0); o.scale = Math.max(0, Math.min(SCALES.length - 1, Math.round(+k.scale) || 0)); if (k.scale == null) o.scale = SCALE_MINOR; } return o; }
