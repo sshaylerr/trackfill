@@ -2,7 +2,7 @@
    Curves are computed from the settings with the engine's own formulas, and drawn only when a setting changes.
    Live parts (spectrum behind EQ and Filter, gain-change meters, limiter history, multiband bands) come from the engine,
    only for the effect on screen. Colours come from the device's screen (each mode has its own look). */
-const FXV_LIVE = new Set([FX_TYPES.EQ, FX_TYPES.FILTER, FX_TYPES.COMP, FX_TYPES.DUCK, FX_TYPES.CLIP, FX_TYPES.TRANS, FX_TYPES.LIMIT, FX_TYPES.MBAND, FX_TYPES.GATE]);
+const FXV_LIVE = new Set([FX_TYPES.EQ, FX_TYPES.FILTER, FX_TYPES.COMP, FX_TYPES.DUCK, FX_TYPES.CLIP, FX_TYPES.TRANS, FX_TYPES.LIMIT, FX_TYPES.MBAND, FX_TYPES.GATE, FX_TYPES.APAN, FX_TYPES.LFOT, FX_TYPES.VINYL, FX_TYPES.STEP]);
 const fxSR = () => (ctx && ctx.sampleRate) || 48000;
 // RBJ biquads exactly as engine.cpp bq_set builds them; returns |H| in dB at f
 function bqDb(type, f0, Q, gdb, f) {
@@ -202,6 +202,35 @@ function drawFxVis(cv, c, s) {
       g.beginPath(); for (let x = 0; x <= W; x += 2) { const fr = SPEC_LO * Math.pow(SPEC_HI / SPEC_LO, x / W), y = top + h - h * Math.min(1, gd(fr) / mx); x ? g.lineTo(x, y) : g.moveTo(x, y); }
       g.strokeStyle = K.acc; g.lineWidth = 2; g.stroke(); g.lineTo(W, top + h); g.lineTo(0, top + h); g.closePath(); g.globalAlpha = .14; g.fillStyle = K.acc; g.fill(); g.globalAlpha = 1;
       T2(`${n} stages · ${fmtHz(fc)} Hz · up to ${mx < 10 ? mx.toFixed(1) : Math.round(mx)} ms`, W - 8, top + 8, K.mute, 'right', 10); break; }
+    case T.APAN: { const v3 = live && SCOPE.vis3 ? SCOPE.vis3 : null, shape = dsc(p[4], 3), depth = p[3], Y = pn => top + 8 + (h - 16) * (pn + 1) / 2, X = u => 10 + (W - 20) * u;
+      g.fillStyle = K.line; g.fillRect(10, Math.round(Y(0)), W - 20, 1); T2('L', W - 8, Y(-1), K.mute, 'right', 9.5); T2('R', W - 8, Y(1), K.mute, 'right', 9.5);
+      const lf = u => { const ph = (u * 2 + p[5]) % 1; return shape === 0 ? Math.sin(2 * Math.PI * ph) : shape === 1 ? (ph < .5 ? 4 * ph - 1 : 3 - 4 * ph) : (ph < .5 ? 1 : -1); };
+      g.beginPath(); for (let x = 0; x <= W - 20; x += 2) { const y = Y(lf(x / (W - 20)) * depth); x ? g.lineTo(X(x / (W - 20)), y) : g.moveTo(X(0), y); } g.strokeStyle = K.acc; g.lineWidth = 2; g.stroke();
+      if (v3) { const ph = ((v3[0] - p[5]) % 1 + 1) % 1, x = X(ph / 2); g.fillStyle = K.ink; g.beginPath(); g.arc(x, Y(v3[1]), 4, 0, 7); g.fill(); }
+      T2(p[0] > .5 ? ['1/16', '1/8', '1/4', '1/2', '1 bar', '2 bars'][dsc(p[1], 6)] : ex(p[2], .05, 20).toFixed(2) + ' Hz', 8, top + 8, K.mute, 'left', 10.5); break; }
+    case T.LFOT: { const pts = f.lfo || [], tb = tfLfoTable(pts), depth = p[3], X = u => 8 + u * (W - 16), Y = v => 10 + (1 - v) * (H - 26), v3 = live && SCOPE.vis3 ? SCOPE.vis3 : null;
+      g.fillStyle = K.line; for (let k = 1; k < 4; k++) g.fillRect(Math.round(X(k / 4)), 4, 1, H - 12); for (let k = 1; k < 16; k++) if (k % 4) g.fillRect(Math.round(X(k / 16)), H - 18, 1, 4);
+      g.beginPath(); for (let i = 0; i <= 256; i++) { const yv = 1 - depth * (1 - (tb[i % 256] + 1) / 2), x = X(i / 256), y = Y(yv); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.lineTo(X(1), Y(0)); g.lineTo(X(0), Y(0)); g.closePath(); g.globalAlpha = .14; g.fillStyle = K.acc; g.fill(); g.globalAlpha = 1;
+      g.beginPath(); for (let i = 0; i <= 256; i++) { const x = X(i / 256), y = Y((tb[i % 256] + 1) / 2); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = K.acc; g.lineWidth = 2; g.stroke();
+      pts.forEach((q, i) => { g.beginPath(); g.arc(X(q.x), Y(q.y), i === LFOED.sel && LFOED.src && LFOED.src.pts() === pts ? 5 : 3.5, 0, 7); g.fillStyle = i === LFOED.sel ? K.ink : K.mute; g.fill(); });
+      if (v3) { g.fillStyle = K.ink; g.globalAlpha = .7; g.fillRect(Math.round(X(((v3[0] - p[6]) % 1 + 1) % 1)), 4, 1.5, H - 12); g.globalAlpha = 1; }
+      T2(p[0] > .5 ? ['1/32', '1/16', '1/8', '1/4', '1/2', '1 bar', '2 bars', '4 bars'][dsc(p[1], 8)] : ex(p[2], .05, 20).toFixed(2) + ' Hz', W - 8, top + 4, K.mute, 'right', 10.5); break; }
+    case T.VINYL: { const v3 = live && SCOPE.vis3 && (SCOPE.vis3[0] > 0 || SCOPE.vis3[1] > 0) ? SCOPE.vis3 : [p[4] > .5 ? 0 : 1, p[4] > .5 ? 2 : 0, 0], sp = v3[0], st = Math.round(v3[1]), R0 = Math.min(h / 2 - 2, W / 4.2), cx0 = W / 2, cy0 = top + h / 2;
+      f._ang = ((f._ang || 0) + sp * .55) % (Math.PI * 2);
+      g.beginPath(); g.arc(cx0, cy0, R0, 0, 7); g.fillStyle = '#050505'; g.fill(); g.strokeStyle = K.line; g.lineWidth = 1;
+      for (let r = R0 * .42; r < R0 - 2; r += 3) { g.beginPath(); g.arc(cx0, cy0, r, 0, 7); g.globalAlpha = .35 + .3 * p[2]; g.stroke(); } g.globalAlpha = 1;
+      g.beginPath(); g.arc(cx0, cy0, R0 * .36, 0, 7); g.fillStyle = K.acc; g.fill(); g.beginPath(); g.arc(cx0, cy0, 2.5, 0, 7); g.fillStyle = '#050505'; g.fill();
+      g.strokeStyle = '#050505'; g.lineWidth = 2; g.beginPath(); g.moveTo(cx0 + Math.cos(f._ang) * R0 * .1, cy0 + Math.sin(f._ang) * R0 * .1); g.lineTo(cx0 + Math.cos(f._ang) * R0 * .34, cy0 + Math.sin(f._ang) * R0 * .34); g.stroke();
+      g.strokeStyle = K.ink; g.lineWidth = 2; g.beginPath(); g.moveTo(cx0 + R0 * 1.25, top + 4); g.lineTo(cx0 + R0 * .78, cy0 + R0 * .35); g.stroke();
+      T2(['Playing', 'Stopping', 'Stopped', 'Starting'][st] || 'Playing', 8, top + 8, st ? K.acc : K.mute, 'left', 10.5, 600); T2(Math.round(sp * 100) + '% speed', W - 8, top + 8, K.mute, 'right', 10.5); break; }
+    case T.STEP: { const steps = f.steps || [], v3 = live && SCOPE.vis3 ? SCOPE.vis3 : null, cw = (W - 4) / 8, ch = (H - 22) / 2, cur = v3 ? Math.round(v3[0]) : -1;
+      for (let k = 0; k < 16; k++) { const a = steps[k] | 0, x = 2 + (k % 8) * cw, y = 18 + Math.floor(k / 8) * ch, col = STEP_ACTS[a][1];
+        g.fillStyle = a ? col : K.line; g.globalAlpha = a ? (k === cur ? 1 : .8) : (k === cur ? .9 : .45); g.fillRect(x + 2, y + 2, cw - 4, ch - 4); g.globalAlpha = 1;
+        if (k % 4 === 0) { g.fillStyle = K.mute; g.fillRect(x + 2, y + ch - 4, 6, 2); }
+        if (a) T2(['', 'Mute', 'Rep', 'Rev', 'Half', 'Filt', 'Stop'][a], x + cw / 2, y + ch / 2, a === 1 ? K.mute : '#111', 'center', 9.5, 700);
+        if (k === cur) { g.strokeStyle = K.ink; g.lineWidth = 2; g.strokeRect(x + 2, y + 2, cw - 4, ch - 4); }
+        if (k === STEPED.cur && NAV.el && NAV.el === cv) { g.strokeStyle = K.acc; g.lineWidth = 2; g.setLineDash([3, 2]); g.strokeRect(x + 1, y + 1, cw - 2, ch - 2); g.setLineDash([]); } }
+      T2(['1/16 steps · 1 bar', '1/8 steps · 2 bars', '1/32 steps · ½ bar'][dsc(p[0], 3)], 6, 9, K.mute, 'left', 10); T2('repeat ' + ['1/16', '1/32', '1/64', '1/8'][dsc(p[1], 4)], W - 6, 9, K.mute, 'right', 10); break; }
   }
   g.globalAlpha = 1; if (!f.on) T2('Bypassed', 8, top + h - 8, K.mute, 'left', 10.5, 600);
 }

@@ -260,6 +260,8 @@ class TFHost {
       const f = C.fx[s], t = f ? f.type : -1, mode = f ? (f.mode | 0) : 0, id = t < 0 ? -1 : t * 16 + mode;   // an effect slot is identified by type and mode
       if (id !== this.fxT[c][s]) { let ok = ex.tf_fx_type(c, s, t); if (ok && t >= 0 && mode) ok = ex.tf_fx_mode(c, s, mode);
         this.fxT[c][s] = ok ? id : -1; if (!ok && t >= 0 && this.post) this.post({ t: 'oom' }); }
+      if (f && ex.tf_fx_tab && (f.type === 19 || f.type === 21)) { const ptr = ex.tf_fx_tab(c, s); if (ptr) { const T = new Float32Array(ex.memory.buffer, ptr, 256);   // the LFO Tool's shape (0..1) or the Step FX pattern
+        if (f.type === 19) { const t = tfLfoTable(f.lfo); for (let i = 0; i < 256; i++) T[i] = (t[i] + 1) * .5; } else { T.fill(0); (f.steps || []).forEach((v, i) => { if (i < 16) T[i] = v; }); } } }
       if (f) { for (let i = 0; i < f.p.length; i++) ex.tf_fx_param(c, s, i, f.p[i]); ex.tf_fx_on(c, s, f.on && !frz ? 1 : 0); ex.tf_fx_key(c, s, (f.type === 6 || f.type === 16) && f.key != null ? f.key : -1); }
     }
   }
@@ -525,6 +527,8 @@ class TFHost {
       while (this.heap.size && this.heap.peek().time < end) { const e = this.heap.pop(); this.dispatch(e, Math.max(0, Math.min(m - 1, Math.floor(e.time - this.now)))); }
       this.flushFollow();
       if (this.playing) this.automate(end);
+      if (ex.tf_set_pos) { const pos = this.playing && this.P ? this.tickAt(this.now) : null; this.freeBeat = (this.freeBeat || 0) + m / this.sr * (this.P ? this.P.bpm : 120) / 60;   // the song position for synced effects (free-running when stopped)
+        ex.tf_set_pos(pos ? pos.tick / TF.PPQ : this.freeBeat, pos ? 1 : 0); }
       ex.tf_render(m); this.views(); if (this.scope) this.scopeFeed(m);
       const vL = this.vL, vR = this.vR;
       for (let i = 0; i < m; i++) { L[off + i] = vL[i]; R[off + i] = vR[i]; }
