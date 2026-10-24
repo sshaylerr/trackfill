@@ -35,6 +35,8 @@ struct SVoice {
   float wph[2][MAXUNI], wlast[2][MAXUNI];
   Grain gr[NGRAIN]; double gph; float gtm; u32 grng;   // granular: grains, playhead (source frames), time to the next grain   // wavetable: phases, last outputs (for FM, AM and Ring between the oscillators)
   i32 ost[4]; float oev[4], oet[4], oef[4], oamp[4];
+  // Sub engine: time since the note began (pitch drop), phase, crossover low-pass (clean sub, mono) and high-pass + tone (per channel), click
+  float sut, suph, slo[4], shi[2][4], sto[2][2], ckz; i32 ckn;
   float cmb[2][CMB]; i32 cw;
 };
 static Patch* pat[NPAD];
@@ -94,6 +96,7 @@ EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 ta
   for (i32 o = 0; o < 3; o++) { for (i32 u = 0; u < MAXUNI; u++) v->ph[o][u] = retrig ? 0.f : (frnd(&svRng) + 1.f) * 0.5f; v->dr[o] = v->drT[o] = 0.f; }
   if (!retrig) { for (i32 o = 0; o < 2; o++) for (i32 u = 0; u < MAXUNI; u++) v->wph[o][u] = (frnd(&svRng) + 1.f) * 0.5f; v->sph = (frnd(&svRng) + 1.f) * 0.5f; for (i32 k = 0; k < 4; k++) for (i32 u = 0; u < MAXUNI; u++) v->fph[k][u] = (frnd(&svRng) + 1.f) * 0.5f; }
   for (i32 k = 0; k < 4; k++) { v->lph[k] = P->p[SP_L1P + k * 6]; v->ldone[k] = 0; }
+  if (disc(P->p[SP_SUP], 2)) v->suph = (frnd(&svRng) + 1.f) * 0.5f;
   v->gtm = 0.f; v->grng = 0x9e3779b9u ^ (svAge * 2654435761u); v->gph = -1.0;
   v->ampPrev = 0.f;   // sequencer offsets within a 16-sample block start at the block (under 0.4 ms)
   return slot;
@@ -327,12 +330,28 @@ static void renderSynth(i32 n) {
         while (pos < 0.0) pos += fr; while (pos >= fr) pos -= fr;
         const float pn = rpn * m[SP_GST]; G->gl = sqrtf_(0.5f * (1.f - pn)); G->gr = sqrtf_(0.5f * (1.f + pn)); G->pos = pos; G->inc = inc; G->t = 0.f; G->len = len; G->on = 1; live++; }
       gNorm = 1.4f / sqrtf_(maxf(1.f, (stretch ? 4.f : (lock ? size / interval : dens * size)))); gShape = 0.5f * (1.f - m[SP_GSH]) + 0.01f; }
+    // Sub engine: per-block pitch (with the 808 drop), harmonic amplitudes, crossover and tone filters, drive
+    const i32 isSU = disc(m[SP_ENG], NENG) == 4; float suInc = 0, suLvl = 0, hA[14], hOff = 0, xg = 0, tg = 0, sdG = 1, sdN = 1, ckA = 0, ckC = 0; i32 hN = 0, sdM = 0, suW = 0;
+    if (isSU) { nOn = 0; fmInit();
+      float drop = 0; if (m[SP_SPA] > 0.0005f) { const float T = spPhys(SP_SPT, m[SP_SPT]), x = clampf(v->sut / T, 0.f, 1.f); drop = spPhys(SP_SPA, m[SP_SPA]) * (1.f - curve_frac(x, linmap(m[SP_SPC], -0.85f, 0.85f))); }
+      v->sut += dt;
+      const float fS = 130.8128f * fexp((v->semi + chBendS[v->pad] + drop + spPhys(SP_SUO, m[SP_SUO]) * 12.f) * 0.0577622650f); suInc = clampf(fS / SR, 0.f, 0.45f); suLvl = m[SP_SUL];
+      const float sh = m[SP_SUS], amt = m[SP_SHM], oe = linmap(m[SP_SHO], -1.f, 1.f), tilt = linmap(m[SP_SHT], -1.f, 1.f);
+      for (i32 k = 2; k <= 13; k++) { float a = 0;
+        if (k & 1) { const float tri = ((k >> 1) & 1 ? -1.f : 1.f) / (float)(k * k), sq = 1.f / k; a = sh <= 0.5f ? tri * sh * 2.f : tri * (2.f - sh * 2.f) + sq * (sh * 2.f - 1.f); }
+        if (k <= 5) a += m[SP_SH2 + k - 2] * 0.6f;
+        a *= amt * ((k & 1) ? 1.f - oe : 1.f + oe) * fexp(tilt * 1.5f * flog((float)k * 0.5f));
+        if (k * suInc >= 0.45f) a = 0.f; hA[k] = a; if (a != 0.f) hN = k; }
+      suW = m[SP_SHW] > 0.001f; hOff = m[SP_SHW] * 0.55f;
+      xg = ftan(3.14159265f * clampf(spPhys(SP_SXO, m[SP_SXO]), 20.f, 0.4f * SR) / SR); tg = ftan(3.14159265f * clampf(spPhys(SP_STO, m[SP_STO]), 40.f, 0.42f * SR) / SR);
+      sdM = disc(m[SP_SDM], 3); sdG = 1.f + m[SP_SDR] * m[SP_SDR] * 24.f; sdN = 1.f / fsat(sdG); if (m[SP_SDR] < 0.001f) sdM = -1;
+      ckA = m[SP_CKL]; ckC = onepole(spPhys(SP_CKT, m[SP_CKT])); }
     const i32 sync = disc(m[SP_O2Y], 2); const float fm = m[SP_O2M];
     const i32 U = (i32)spPhys(SP_UNI, m[SP_UNI]); const float det = m[SP_DET], spr = U > 1 ? m[SP_SPR] : 0.f, ug = 1.f / sqrtf_((float)U);
     float dm[MAXUNI], panL[MAXUNI], panR[MAXUNI];
     for (i32 u = 0; u < U; u++) { float x = U > 1 ? (2.f * u / (U - 1) - 1.f) : 0.f; dm[u] = fexp(x * det * det * 0.6f * 0.0577622650f * (1.f + 0.4f * fabsf_(x)));   // JP-style: outer voices spread further
       float pn = x * spr; panL[u] = sqrtf_(0.5f * (1.f - pn)) * 1.41421356f * ug; panR[u] = sqrtf_(0.5f * (1.f + pn)) * 1.41421356f * ug; }
-    const i32 stereo = spr > 0.001f || isGR;
+    const i32 stereo = (spr > 0.001f && !isSU) || isGR || (isSU && suW);
     // filter
     const i32 ftype = disc(m[SP_FLT], 7);
     float fc = spPhys(SP_CUT, m[SP_CUT]) * fexp((m[SP_KEY] * v->semi / 12.f + linmap(m[SP_FEN], -1, 1) * 5.f * v->ev[1]) * 0.693147181f);
@@ -356,7 +375,23 @@ static void renderSynth(i32 n) {
     const float a0 = v->ampPrev, a1 = v->ev[0] * v->ev[0] * gain; v->ampPrev = a1; const float da = (a1 - a0) / n;
     const i32 chans = stereo ? 2 : 1;
     for (i32 i = 0; i < n; i++) {
-      float amp = a0 + da * (i + 1), sL = 0, sR = 0;
+      float amp = a0 + da * (i + 1), sL = 0, sR = 0, suLow = 0;
+      if (isSU) {   // the fundamental (pure, mono, exactly its level); harmonics and shape added exactly; drive adds only what it creates, high-passed at the crossover
+        const float* sn = fmTab[0][0], ph = v->suph, s1 = fmLook(sn, ph); float hx[2] = { 0, 0 };
+        for (i32 k = 2; k <= hN; k++) { if (hA[k] == 0.f) continue; float q = ph * k; q -= floorf_(q); hx[0] += hA[k] * fmLook(sn, q);
+          if (suW) { float r = q + hOff * (k - 1) / k; r -= floorf_(r); hx[1] += hA[k] * fmLook(sn, r); } }
+        if (!suW) hx[1] = hx[0];
+        for (i32 c = 0; c < (suW ? 2 : 1); c++) { float up = hx[c];
+          if (sdM >= 0) { const float full = s1 + hx[c]; float y = full * sdG;
+            if (sdM == 0) y = fsat(y) * sdN; else if (sdM == 1) y = clampf(y, -1.f, 1.f); else { float q = y * 0.25f; q -= floorf_(q); y = fmLook(sn, q); }
+            y -= full; float* z = v->shi[c]; const float kq = 1.41421356f, a1 = 1.f / (1.f + xg * (xg + kq)), a2 = xg * a1, a3 = xg * a2;
+            for (i32 st = 0; st < 2; st++) { const float v3 = y - z[st * 2 + 1], v1 = a1 * z[st * 2] + a2 * v3, v2 = z[st * 2 + 1] + a2 * z[st * 2] + a3 * v3; z[st * 2] = 2.f * v1 - z[st * 2]; z[st * 2 + 1] = 2.f * v2 - z[st * 2 + 1]; y = y - kq * v1 - v2; }
+            up += y; }
+          float* t = v->sto[c]; const float kq = 1.41421356f, b1 = 1.f / (1.f + tg * (tg + kq)), b2 = tg * b1, b3 = tg * b2, w3 = up - t[1], w1 = b1 * t[0] + b2 * w3, w2 = t[1] + b2 * t[0] + b3 * w3; t[0] = 2.f * w1 - t[0]; t[1] = 2.f * w2 - t[1];
+          if (c) sR = w2; else sL = w2; }
+        if (!suW) sR = sL; suLow = s1 * suLvl;
+        if (ckA > 0.0005f && v->ckn < 2400) { const float e = fexp(-(float)v->ckn * (1.f / (0.0035f * SR))); v->ckz += (((v->ckn < 12 ? 2.f : 0.f) + frnd(&svRng)) * e - v->ckz) * ckC; suLow += v->ckz * ckA * 0.7f; v->ckn++; }   // click: a trigger pulse and a noise burst, low-passed by Click tone
+        v->suph += suInc; v->suph -= floorf_(v->suph); }
       if (GS) {   // grains: windowed reads of the source, each with its own pitch, direction and pan
         const i16* d = GS->d; const i32 ch = GS->ch, fr = (i32)GS->frames; const float* sn = fmTab[0][0];
         for (i32 g = 0; g < NGRAIN; g++) { Grain* G = &v->gr[g]; if (!G->on) continue;
@@ -366,6 +401,7 @@ static void renderSynth(i32 n) {
           const float y = (a + (b - a) * f) * 3.0517578e-5f * w * gNorm; sL += y * G->gl; sR += y * G->gr;
           G->pos += G->inc; if (G->pos >= fr) G->pos -= fr; else if (G->pos < 0.0) G->pos += fr; G->t += 1.f; if (G->t >= G->len) G->on = 0; }
       }
+      else if (isSU) {}
       else if (isWT) for (i32 u = 0; u < U; u++) {   // B first (A can take it for FM/AM/Ring), then A; B's cross-modulation uses A's last sample
         float x = 0;
         for (i32 oo = 1; oo >= 0; oo--) { if (!((wOn >> oo) & 1)) { v->wlast[oo][u] = 0.f; continue; } const i32 o = oo, w = wW[o]; float& ph = v->wph[o][u]; const float other = v->wlast[1 - o][u], a = wAmt[o];
@@ -425,7 +461,7 @@ static void renderSynth(i32 n) {
         v->fb[c] = x; io[c] = x; }
       if (ftype == 6) v->cw = (v->cw + 1) & (CMB - 1);
       if (!stereo) io[1] = io[0];
-      float extra = 0;
+      float extra = suLow;
       if (subL > 0.0005f) { float s = subW == 0 ? fsin(6.28318531f * v->sph) : subW == 1 ? (v->sph < 0.5f ? 4.f * v->sph - 1.f : 3.f - 4.f * v->sph) : (v->sph < 0.5f ? 1.f : -1.f) + blep(v->sph, subInc) - blep(v->sph < 0.5f ? v->sph + 0.5f : v->sph - 0.5f, subInc);
         v->sph += subInc; v->sph -= floorf_(v->sph);
         if (splitOn) { float y = apc * s + v->ap[0]; v->ap[0] = s - apc * y; float y2 = apc * y + v->ap[1]; v->ap[1] = y - apc * y2; s = y2; }   // matches the high-pass's phase

@@ -177,6 +177,20 @@ const GR_PRESETS = [
   grPreset('Time Stretch', 'Stretch', 'b:jvox', { gmo: 'Stretch', gpo: 0, gsc: .5, gsz: .08, gst: .3, ar: .4 }, [synMod('Macro 1', 'gsc', .25), synMod('Macro 2', 'gsz', .3)]),
 ];
 const SYN_GR_INIT = { n: 'Init', g: 'Init', eng: 'gr', gr: { src: 'b:jvox' }, p: { flt: 'Off' }, mods: [] };
+/* ----- Sub presets: a clean fundamental with harmonics above the crossover; 808s use the drop, click and a long decay. Macro 1 = Drive, Macro 2 = Tone ----- */
+function suPreset(n, g, p, x) { return Object.assign({ n, g, eng: 'sub', p: Object.assign({ flt: 'Off', aa: .002, ar: .12 }, p), mods: [synMod('Macro 1', 'sdr', .6), synMod('Macro 2', 'sto', -.5)] }, x || {}); }
+const SU_PRESETS = [
+  suPreset('Liquid Sine', 'Sub', { aa: .006, ar: .15 }, { voice: 'legato', glide: .04 }),
+  suPreset('Clean DnB Sub', 'Sub', { sh2: .18, ar: .08 }, { voice: 'legato', glide: .03 }),
+  suPreset('Warm Sub', 'Sub', { sus: .25, sh2: .3, sdr: .25, sto: 3000 }, { voice: 'mono' }),
+  suPreset('Growl Sub', 'Sub', { sus: .6, sh2: .5, sh3: .5, sdr: .55, sdm: 'Hard', sto: 2200, shw: .4 }, { voice: 'mono' }),
+  suPreset('Sub Layer', 'Sub', { ar: .06, sxo: 200, sul: 1 }, { voice: 'mono' }),
+  suPreset('808 Long', '808', { as: 0, ad: 2.6, ar: .4, spa: 12, spt: .04, ckl: .25, sh2: .2, sdr: .15 }, { voice: 'mono' }),
+  suPreset('808 Punch', '808', { as: 0, ad: .9, ar: .2, spa: 24, spt: .025, spc: -.5, ckl: .6, ckt: 5000, sdr: .3 }, { voice: 'mono' }),
+  suPreset('Trap Slide', '808', { as: 0, ad: 3, ar: .5, spa: 7, spt: .05, ckl: .2, sh2: .25, sdr: .35 }, { voice: 'legato', glide: .12 }),
+  suPreset('Distorted 808', '808', { as: 0, ad: 2.2, ar: .4, spa: 12, spt: .04, ckl: .4, sdr: .8, sdm: 'Hard', sto: 4000, shw: .5 }, { voice: 'mono' }),
+];
+const SYN_SU_INIT = { n: 'Init', g: 'Init', eng: 'sub', p: { flt: 'Off', ar: .12 }, mods: [] };
 const SYN_FM_INIT = { n: 'Init', g: 'Init', eng: 'fm', p: { flt: 'Off', ad: 2, as: 1, ar: .35 }, mods: [] };
 // output level per preset (dB), measured so every preset plays at about the same loudness
 const SYN_LEVELS = {"Moog Bass":-1.5,"Sub":-4.5,"Reese":1,"Acid Line":-16,"Juno Bass":-4.5,"Hoover Bass":0,"Wobble":0.5,"Rubber":-2.5,"Garage Organ Bass":0,"Sync Lead":-1.5,"Supersaw":-11.5,"Brass Lead":-1,"80s Solo Lead":-2,"Chip Square":-3.5,"Trance Lead":-13.5,"G-Funk Whistle":-2.5,"Juno Strings":-10,"Warm Pad":-3,"Dark Pad":-3,"Sweep Pad":-4.5,"Trance Pad":-6.5,"Ambient Drift":-8.5,"Pluck":6,"Trance Pluck":-4.5,"Poly Stab":1.5,"Brass Stab":-3,"80s Poly Keys":-4.5,"Rave Stab":0.5,"House Chord":1,"Noise Sweep":1.5,"Laser Zap":-3};
@@ -195,10 +209,10 @@ function synPatch(pr) {
 }
 function normalizeSyn(s) {
   if (!s || typeof s !== 'object') return null;
-  const o = { eng: ['fm', 'wt', 'gr'].includes(s.eng) ? s.eng : 'analog', sig: typeof s.sig === 'number' ? s.sig : undefined, name: String(s.name || ''), p: Object.assign({}, s.p || {}), mods: Array.isArray(s.mods) ? s.mods.filter(m => m && typeof m.d === 'string' && m.s >= 0 && m.s < SYN_SRC.length).slice(0, 32).map(m => ({ s: m.s | 0, d: m.d, a: Math.max(-1, Math.min(1, +m.a || 0)), c: Math.max(0, Math.min(3, m.c | 0)), v: m.v == null ? undefined : m.v | 0 })) : [] };
+  const o = { eng: ['fm', 'wt', 'gr', 'sub'].includes(s.eng) ? s.eng : 'analog', sig: typeof s.sig === 'number' ? s.sig : undefined, name: String(s.name || ''), p: Object.assign({}, s.p || {}), mods: Array.isArray(s.mods) ? s.mods.filter(m => m && typeof m.d === 'string' && m.s >= 0 && m.s < SYN_SRC.length).slice(0, 32).map(m => ({ s: m.s | 0, d: m.d, a: Math.max(-1, Math.min(1, +m.a || 0)), c: Math.max(0, Math.min(3, m.c | 0)), v: m.v == null ? undefined : m.v | 0 })) : [] };
   if (o.eng === 'gr' || s.gr) o.gr = { src: typeof (s.gr && s.gr.src) === 'string' ? s.gr.src : null };
   if (o.eng === 'wt' || s.wt) o.wt = { a: typeof (s.wt && s.wt.a) === 'string' ? s.wt.a : 'w:Basic Shapes', b: typeof (s.wt && s.wt.b) === 'string' ? s.wt.b : 'w:Basic Shapes' };
   o.lfo = [0, 1, 2, 3].map(k => Array.isArray(s.lfo && s.lfo[k]) && s.lfo[k].length ? s.lfo[k].slice(0, 32).map(q => ({ x: Math.max(0, Math.min(1, +q.x || 0)), y: Math.max(0, Math.min(1, +q.y || 0)), c: Math.max(-.97, Math.min(.97, +q.c || 0)) })) : LFO_SHAPES.Sine.map(q => Object.assign({}, q)));
   return o;
 }
-if (typeof module !== 'undefined') module.exports = { GR_PRESETS, SYN_GR_INIT, WT_PRESETS, SYN_WT_INIT, FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };
+if (typeof module !== 'undefined') module.exports = { SU_PRESETS, SYN_SU_INIT, GR_PRESETS, SYN_GR_INIT, WT_PRESETS, SYN_WT_INIT, FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };

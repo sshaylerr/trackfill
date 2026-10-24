@@ -18,7 +18,7 @@ const TF_LFO_DIVS = [['4 bars', 16], ['2 bars', 8], ['1 bar', 4], ['1/2', 2], ['
 // FM: algorithms as [name, targets of op 2, op 3, op 4 (bit k = feeds op k+1), carriers (bit k = op k+1 is heard)]; ops only feed lower-numbered ones
 const TF_ALGS = [['Stack', 1, 2, 4, 1], ['Y', 1, 2, 2, 1], ['Fork', 1, 1, 4, 1], ['Two pairs', 1, 0, 4, 5], ['One to three', 0, 0, 7, 7], ['Stack + sine', 0, 2, 4, 3],
   ['Two into one + sine', 0, 2, 2, 3], ['Pair + two', 0, 0, 4, 7], ['Additive', 0, 0, 0, 15], ['Diamond', 1, 1, 6, 1], ['Three into one', 1, 1, 1, 1], ['Chain to two', 0, 3, 4, 3]];
-const TF_ENGS = { analog: 'Analog', fm: 'FM', wt: 'Wavetable', gr: 'Granular' };
+const TF_ENGS = { analog: 'Analog', fm: 'FM', wt: 'Wavetable', gr: 'Granular', sub: 'Sub' };
 const TF_WARPS = ['Off', 'Sync', 'Bend', 'PWM', 'Mirror', 'Quantize', 'FM', 'AM', 'Ring'];   // FM, AM and Ring take the other oscillator
 const TF_OPMODES = ['FM', 'Ring', 'Filter', 'Filter FM', 'Fold'];
 const TF_FMWAVES = ['Sine', 'Digital', 'Triangle', 'Saw', 'Square', 'Sine 1+2', 'Sine 1+3', 'Saw 3', 'Square 3', 'Noise'];
@@ -44,7 +44,7 @@ const TFSYN = (() => {
     ['l' + k + 'o', 'Smooth', 'lin', 0, 1, 0, 'l' + k], ['l' + k + 'p', 'Phase', 'lin', 0, 1, 0, 'l' + k]);
   for (let k = 1; k <= 4; k++) L.push(['m' + k, 'Macro ' + k, 'lin', 0, 1, 0, 'mc']);
   // FM engine: four operators (op 1 is the bottom of every algorithm, op 4 the top, with feedback)
-  L.push(['eng', 'Engine', 'opt', ['Analog', 'FM', 'Wavetable', 'Granular'], 0, 'Analog', 'en'], ['alg', 'Algorithm', 'opt', TF_ALGS.map(a => a[0]), 0, TF_ALGS[0][0], 'fa'],
+  L.push(['eng', 'Engine', 'opt', ['Analog', 'FM', 'Wavetable', 'Granular', 'Sub'], 0, 'Analog', 'en'], ['alg', 'Algorithm', 'opt', TF_ALGS.map(a => a[0]), 0, TF_ALGS[0][0], 'fa'],
     ['fmd', 'FM depth', 'lin', 0, 1, .5, 'fa'], ['ffb', 'Feedback', 'lin', 0, 1, 0, 'fa']);
   for (let k = 1; k <= 4; k++) { const f = 'f' + k, t = 'f' + k;
     L.push([f + 'm', 'Mode', 'opt', TF_OPMODES, 0, 'FM', t], [f + 'w', 'Wave', 'opt', TF_FMWAVES, 0, 'Sine', t], [f + 'c', 'Ratio', 'int', 0, 16, k === 1 ? 1 : k, t], [f + 'f', 'Fine', 'lin', 0, 1, 0, t],
@@ -58,6 +58,12 @@ const TFSYN = (() => {
   L.push(['gpo', 'Position', 'lin', 0, 1, .25, 'gr'], ['gsc', 'Scan', 'lin', -2, 2, 0, 'gr'], ['gsz', 'Size', 'exp', .01, .5, .08, 'gr'], ['gde', 'Density', 'exp', 2, 120, 24, 'gr'],
     ['gsp', 'Spray', 'lin', 0, 1, .1, 'gr'], ['gps', 'Pitch spread', 'lin', 0, 12, 0, 'gr'], ['gst', 'Stereo', 'lin', 0, 1, .5, 'gr'], ['gsh', 'Shape', 'lin', 0, 1, .3, 'gr'],
     ['gmo', 'Mode', 'opt', ['Cloud', 'Stretch'], 0, 'Cloud', 'g2'], ['grv', 'Reverse', 'lin', 0, 1, 0, 'g2'], ['gtl', 'Tempo lock', 'opt', ['Off', '1/8', '1/16', '1/32'], 0, 'Off', 'g2'], ['gkt', 'Key track', 'opt', ['Off', 'On'], 0, 'On', 'g2']);
+  // Sub engine: a pure fundamental kept clean below the crossover; harmonics, shape and drive live above it; 808 pitch drop and click
+  L.push(['sus', 'Shape', 'lin', 0, 1, 0, 'su'], ['suo', 'Octave', 'int', -3, 1, -2, 'su'], ['sul', 'Sub', 'lin', 0, 1, .9, 'su'], ['sup', 'Phase', 'opt', ['Reset', 'Free'], 0, 'Reset', 'su'],
+    ['sxo', 'Crossover', 'exp', 40, 400, 120, 'su'], ['sdm', 'Drive mode', 'opt', ['Warm', 'Hard', 'Fold'], 0, 'Warm', 'su'], ['sdr', 'Drive', 'lin', 0, 1, 0, 'su'], ['sto', 'Tone', 'exp', 200, 16000, 6000, 'su'],
+    ['sh2', '2nd', 'lin', 0, 1, 0, 'sh'], ['sh3', '3rd', 'lin', 0, 1, 0, 'sh'], ['sh4', '4th', 'lin', 0, 1, 0, 'sh'], ['sh5', '5th', 'lin', 0, 1, 0, 'sh'],
+    ['shm', 'Amount', 'lin', 0, 1, 1, 'sh'], ['sho', 'Odd / even', 'bip', -1, 1, 0, 'sh'], ['sht', 'Tilt', 'bip', -1, 1, 0, 'sh'], ['shw', 'Width', 'lin', 0, 1, 0, 'sh'],
+    ['spa', 'Drop', 'lin', 0, 36, 0, 's8'], ['spt', 'Drop time', 'exp', .005, 1, .06, 's8'], ['spc', 'Drop curve', 'bip', -1, 1, 0, 's8'], ['ckl', 'Click', 'lin', 0, 1, 0, 's8'], ['ckt', 'Click tone', 'exp', 300, 12000, 3000, 's8']);
   return L.map(([id, l, k, a, b, d, tab], i) => ({ i, id, l, k, a, b, d, tab }));
 })();
 const TFSYN_ID = Object.fromEntries(TFSYN.map(p => [p.id, p]));
@@ -187,7 +193,7 @@ class TFHost {
     this.ex = ex; this.sr = sr; this.post = post || null; ex.tf_init(sr);
     this.P = null; this.sm = new Map();
     this.fxT = []; for (let c = 0; c < TF.NCH; c++) this.fxT.push([-1, -1, -1, -1, -1, -1, -1, -1]);
-    this.duck = []; this.playing = false; this.loop = 'scene'; this.heap = new TFHeap(); this.marks = []; this.arps = new Map(); this.arpOut = []; this.now = 0;
+    this.duck = []; this.playing = false; this.loop = 'scene'; this.heap = new TFHeap(); this.fpend = new Map(); this.marks = []; this.arps = new Map(); this.arpOut = []; this.now = 0;
     this.ah = null; this.pending = null; this.LA = Math.round(0.02 * sr);
     this.live = new Set(); this.autoOn = new Set(); this.fresh = new Map(); this.pos = null; this.idx = [];
     this.click = { on: false, vol: .5 }; this.idleSent = false;   // the click is live-only: offline renders never turn it on
@@ -318,7 +324,14 @@ class TFHost {
     ex.tf_syn_voice(pi, ['poly', 'mono', 'legato'].indexOf(pad.voice || 'poly'), pad.poly || 8, pad.glide || 0);
     ex.tf_syn_on(pi, 1);
   }
-  voice(pi, off, semi, vel, gateSec, tag, chordN = 0) {
+  // Follow: a pad can play the notes of other pads (a sub under every mid bass); of notes that start together it takes the lowest
+  voice(pi, off, semi, vel, gateSec, tag, chordN = 0, only) {
+    if (!only) this.voice0(pi, off, semi, vel, gateSec, tag, chordN);
+    const pads = this.P.pads; for (let f = 0; f < pads.length; f++) { const q = pads[f]; if (f === pi || !q || !q.follow || !q.follow.length || !q.follow.includes(pi) || this.frozen(f) || !(q.sample || q.src === 'synth')) continue;
+      const k = f * 4096 + off, cur = this.fpend.get(k); if (!cur || semi < cur.semi) this.fpend.set(k, { f, off, semi, vel, gateSec, tag }); }
+  }
+  flushFollow() { if (!this.fpend.size) return; for (const x of this.fpend.values()) this.voice0(x.f, x.off, x.semi, x.vel, x.gateSec, x.tag, 0); this.fpend.clear(); }
+  voice0(pi, off, semi, vel, gateSec, tag, chordN = 0) {
     const pad0 = this.P.pads[pi];
     if (pad0 && pad0.choke) this.P.pads.forEach((q, qi) => { if (qi !== pi && q && q.choke === pad0.choke) this.ex.tf_ch_release(qi, 0.004); });   // choke group: a closed hat cuts the open one
     if (pad0 && pad0.src === 'synth' && pad0.syn) { this.ex.tf_syn_note(pi, off, semi + (pad0.pitch || 0) + (pad0.fine || 0) / 100, vel, gateSec, tag, chordN); return; }
@@ -466,6 +479,7 @@ class TFHost {
       if (n.f) { n.f = 0; if (freshOk) continue; }
       const time = time0 + (nt - t0) / tps;
       if (!this.frozen(pi) && pad && (pad.sample || pad.src === 'synth')) this.heap.push({ time, k: 0, pi, semi: n.p, vel: n.v, gate: n.len / tps / this.sr });
+      else if (pad && this.frozen(pi)) this.heap.push({ time, k: 0, pi, semi: n.p, vel: n.v, gate: n.len / tps / this.sr, only: 1 });   // frozen: its followers still play
       if (ducks) for (const d of ducks) this.heap.push({ time: time - d.la, k: 1, c: d.c, s: d.s });
     }
   }
@@ -475,7 +489,7 @@ class TFHost {
   cutClips(t) { this.P.pads.forEach((p, pi) => { if (p.frz) this.heap.push({ time: t, k: 3, tag: TF.FRZ_TAG + pi }); }); }
   dispatch(e, off) {
     const ex = this.ex;
-    if (e.k === 0) { this.voice(e.pi, off, e.semi, e.vel, e.gate, 0);
+    if (e.k === 0) { this.voice(e.pi, off, e.semi, e.vel, e.gate, 0, 0, e.only); if (e.only) return;
       if (this.post && this.flashes.length < 64) { const c = this.P.pads[e.pi].chop, n = c && c.on ? c.pts.length : 0;   // pad | (slice + 1) << 8
         this.flashes.push(n ? e.pi | ((Math.max(0, Math.min(n - 1, Math.round(e.semi) || 0)) + 1) << 8) : e.pi); } }
     else if (e.k === 1) ex.tf_duck_trigger(e.c, e.s, off);
@@ -501,6 +515,7 @@ class TFHost {
       if (this.playing) this.advance(m);
       if (this.arps.size) this.runArps(end);
       while (this.heap.size && this.heap.peek().time < end) { const e = this.heap.pop(); this.dispatch(e, Math.max(0, Math.min(m - 1, Math.floor(e.time - this.now)))); }
+      this.flushFollow();
       if (this.playing) this.automate(end);
       ex.tf_render(m); this.views(); if (this.scope) this.scopeFeed(m);
       const vL = this.vL, vR = this.vR;
