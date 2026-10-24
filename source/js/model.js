@@ -482,6 +482,7 @@ function normalize(p) {
     d.bend = d.bend == null ? .5 : clamp01(+d.bend); d.bendR = [1, 2, 3, 5, 7, 12, 24].includes(+d.bendR) ? +d.bendR : 2;
     d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.drum = d.drum ? DRN().drumNormalize(d.drum) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : d.src === 'drum' && d.drum ? 'drum' : 'sample';
     d.choke = Math.max(0, Math.min(4, d.choke | 0));
+    d.follow = Array.isArray(d.follow) ? [...new Set(d.follow.map(x => x | 0).filter(x => x >= 0 && x < NPADS))].slice(0, 16) : [];
     d.wm = ['Repitch', 'Clean', 'Beats', 'Vintage'].includes(d.wm) ? d.wm : 'Repitch'; d.wp = STN().stretchNormalize(d.wp); d.stx = null;   // the stretched render is made again on load
     d.mode = ['one', 'gate', 'loop'].includes(d.mode) ? d.mode : 'one'; d.loopS = clamp01(+d.loopS || 0); d.xf = Math.max(0, Math.min(1, d.xf == null ? .08 : +d.xf || 0));   // Keys view settings: notes, scale or chords (null until first changed)
     d.voice = ['poly', 'mono', 'legato'].includes(d.voice) ? d.voice : 'poly'; d.poly = Math.max(1, Math.min(16, Math.round(+d.poly) || 8)); d.glide = Math.max(0, Math.min(1, +d.glide || 0));
