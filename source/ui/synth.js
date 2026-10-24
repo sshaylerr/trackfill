@@ -27,6 +27,10 @@ for (let k = 1; k <= 4; k++) SYN_CELLS['l' + k] = ['l' + k + 'y', 'l' + k + '@',
 // colours for modulation sources: envelopes green, LFOs pink, performance sources gold, macros the theme accent
 const SRC_COL = i => i <= 2 ? '#7fd49a' : i <= 6 ? '#ff7ac8' : i <= 11 || i === 16 ? '#e6c162' : 'var(--accent)';
 const SYN_ST = { pg: 0, tab: {}, snap: 0, opv: 0 };
+// pages whose controls don't fill two rows of four are laid out by hand
+const SYN_ROWS = { sb: [['sbl', 'sbo', 'sbw'], ['spl', 'spn']], g2: [['gmo', 'gsh', 'grv'], ['gtl', 'gkt']] };
+function synRows(tab) { if (SYN_ROWS[tab]) return SYN_ROWS[tab]; const l = /^l(\d)$/.exec(tab); if (l) { const k = 'l' + l[1]; return [[k + 'y', k + '@', k + 'm', k + 'p'], [k + 'o', '#shape', '#snap']]; }
+  const c = synCells(tab), pad4 = r => r.concat(['', '', '', '']).slice(0, 4); return [pad4(c.slice(0, 4)), pad4(c.slice(4, 8))]; }
 // synth controls offered as automation lanes (the timeline): macros first, then the ones most often moved in a track
 const SYN_AUTO = ['m1', 'm2', 'm3', 'm4', 'cut', 'res', 'drv', 'fen', 'pit', 'o1l', 'o2l', 'o2m', 'det', 'sbl', 'nzl', 'gan'];
 const SYN_AUTO_FM = ['m1', 'm2', 'm3', 'm4', 'fmd', 'ffb', 'f1l', 'f2l', 'f3l', 'f4l', 'f1t', 'f2t', 'cut', 'res', 'pit', 'gan'];
@@ -147,7 +151,8 @@ function renderSynthSound(w, pi, head) {
     for (let i = 0; i < 4; i++) g.append(keyParam(pi + '.-1.' + i, Object.assign({ label: STRIP[i].label }, redraw)));
     g.append(cellBtn('Output', destName(pi), () => openOutputPicker(pi)), cellBtn('Effects', C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'None', () => openFx(pi, 'sound')),
       cellBtn('Freeze', pad.frz ? 'Frozen' : 'Off', () => { if (pad.frz) { unfreeze(pi); renderView(); toast('Unfrozen'); } else freezePad(pi); }), cellBtn('Preset', synOf(pi).name || 'Init', () => openSynthSource(pi)));
-  } else { const cells = synCells(tab); for (let i = 0; i < 8; i++) g.append(cells[i] ? synCtl(pi, cells[i]) : blankCell()); }
+  } else { const rows = synRows(tab); g.classList.add('k8');   // two rows; a short row sits in the middle (Env 2 and 3 keep the Amp tab's columns)
+    rows.forEach(r => { if (!r.length) r = ['', '', '', '']; r.forEach((id, k) => { const el = id ? synCtl(pi, id) : blankCell(); el.style.gridColumn = (k ? 'auto' : (4 - r.length + 1)) + ' / span 2'; g.append(el); }); }); }
   g.addEventListener('pointerdown', e => { if (!UI.map) return; const c = e.target.closest('[data-syn]'); if (!c) return; e.preventDefault(); e.stopPropagation(); mapPick(pi, c.dataset.syn); }, true);
   g.addEventListener('click', e => { if (UI.map && e.target.closest('[data-syn]')) { e.stopPropagation(); e.preventDefault(); } }, true);
   dev.append(disp, g); w.append(dev); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
