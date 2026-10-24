@@ -81,6 +81,11 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       const muted = [1, 3, 5, 7].map(k => l[k]), open = [0, 2, 4, 6].map(k => l[k]), n16 = 6000, zc = k => { let z = 0; for (let i = k * n16 + 1; i < (k + 1) * n16; i++) if ((o.L[i] > 0) !== (o.L[i - 1] > 0)) z++; return z; }, slow = zc(15) / zc(8);
       ok(muted.every(v => v < .01) && open.every(v => v > .05) && slow < .35, `Step FX: mutes where you paint them (${muted.map(v => v.toFixed(3)).join(' ')}), tape stop winds the pitch down by the last step (×${slow.toFixed(2)})`); }
   }
+  { const H2 = H, run = (fx) => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H2.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; });
+      Object.assign(Q.pads[20], { src: 'synth', syn: SP.synPatch({ p: { o1w: 'Sine', flt: 'Off', dri: 0, aa: .001, as: 1 } }), mode: 'gate', voice: 'poly' }); Q.chans[20].fx = [fx]; host.msg({ t: 'project', P: Q });
+      host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); const L = new Float32Array(128), R = new Float32Array(128); let e = 0, bad = 0; for (let b = 0; b < 375; b++) { host.render(128, L, R); if (b > 150) for (let j = 0; j < 128; j++) { e += L[j] * L[j]; if (!(L[j] === L[j])) bad++; } } return { e, bad, ex }; };
+    const lo = run(M.newFx(22, { 0: 0 })), hi = run(M.newFx(22, { 0: 1 })), modes = [1, 2, 3, 4, 5].map(m => run(M.newFx(22, { 0: 1 }, m)));
+    ok(hi.e < lo.e * .2 && !hi.bad && modes.every(r => !r.bad && r.e > 0), `Grin: at full Amount the build-up thins the low end (${(10 * Math.log10(hi.e / lo.e)).toFixed(1)} dB on a C3 sine); every flavor stays finite`); }
   console.log('mode switching');
   { const f = M.newFx(M.FX_TYPES.DELAY); f.p[2] = .9; f.p[3] = .7; M.setFxMode(f, 1); ok(f.p.length === 12 && f.p[2] === .9 && f.p[3] === .7, 'switching Delay to Tape keeps Time and Feedback');
     const r = M.newFx(M.FX_TYPES.REVERB); r.p[4] = 1; M.setFxMode(r, 1); ok(r.p[0] === 1, 'switching Reverb to Room carries Mix across even though it moved');
@@ -294,6 +299,17 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       ok(v1 === 4 && v2 === 5, `Follow: a sub follows several pads, one note at a time (voices ${v1} after a 3-note chord, ${v2} after a note on the second pad)`); }
     { const s = mk(SP.synPatch(SP.SU_PRESETS[3]), { voice: 'poly', poly: 16 }); for (let k = 0; k < 16; k++) s.host.msg({ t: 'hit', pad: 20, semi: k - 8, vel: .8, tag: k + 1 });
       s.run(20); const t0 = Date.now(); s.run(375 * 2); const ms = Date.now() - t0; console.log(`    16 sub notes (harmonics, hard drive, width): ${(ms / 20).toFixed(1)}% of real time on this machine`); ok(ms < 2000, 'sub processing stays well within real time'); }
+  }
+  console.log('fx synth');
+  { const mk = (pr) => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; });
+      Object.assign(Q.pads[20], { src: 'synth', syn: SP.synPatch(pr), mode: 'gate', voice: 'poly' }); host.msg({ t: 'project', P: Q }); const L = new Float32Array(128), R = new Float32Array(128);
+      const run = n => { const o = { e: 0, bad: 0, x: [] }; for (let i = 0; i < n; i++) { host.render(128, L, R); for (let j = 0; j < 128; j++) { if (!(L[j] === L[j])) o.bad++; o.e += L[j] * L[j]; o.x.push(L[j]); } } return o; }; return { ex, host, run }; };
+    { let bad = 0, silent = [], stuck = []; for (const pr of [SP.SYN_FX_INIT, ...SP.SFX_PRESETS]) { const s = mk(pr); s.host.msg({ t: 'hit', pad: 20, semi: 0, vel: .9, tag: 3 }); const a = s.run(375 * 2); s.host.msg({ t: 'rel', tag: 3, rel: .1 }); s.run(375 * 8);
+        bad += a.bad; if (a.e < 1e-6) silent.push(pr.n); if (s.ex.tf_voices()) stuck.push(pr.n); }
+      ok(!bad && !silent.length && !stuck.length, `all ${SP.SFX_PRESETS.length} FX presets play, stay finite and let go (${silent.length ? 'silent: ' + silent.join(', ') : ''}${stuck.length ? ' stuck: ' + stuck.join(', ') : ''})`); }
+    { const LB = require('../tools/instruments/lib.cjs'), s = mk({ n: 't', eng: 'sfx', p: { flt: 'Off', xwv: 'Sine', xsa: 24, xst: 1 } }); s.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 });
+      const zc = x => { let z = 0; for (let i = 1; i < x.length; i++) if ((x[i] > 0) !== (x[i - 1] > 0)) z++; return z / 2 / (x.length / 48000); }, a = s.run(375 * 2).x, mid = s.run(375).x, f0 = 130.81, f1 = zc(mid);
+      ok(Math.abs(12 * Math.log2(f1 / f0) - 24) < .7, `a sweep rises by its amount and holds (${(12 * Math.log2(f1 / f0)).toFixed(1)} st after 1 s)`); }
   }
   console.log('instruments');
   { const IN = require('../js/instruments.js');

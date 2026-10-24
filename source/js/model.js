@@ -292,6 +292,7 @@ const BANDG = ['Low gain', 'Mid gain', 'High gain'].map(n => P_(n, .5, v => fSig
 const MB_CLASSIC = [...XO, P_('Threshold', .6, v => fDb(linmap(v, -60, 0))), P_('Ratio', .463, fRatio), P_('Below thr', 0, v => fDb(linmap(v, -80, -20))), P_('Below ratio', 0, v => '1:' + expmap(v, 1, 4).toFixed(2)),
   P_('Attack', .5, v => fMs(expmap(v, .5, 100))), P_('Release', .5, v => fMs(expmap(v, 10, 1000))), ...BANDG, P_('Output', .5, v => fSign(v, -24, 24))];
 const TAPE_P = [P_('Drive', .3, v => fDb(linmap(v, -6, 24))), P_('Bump', .4, v => '+' + (v * 6).toFixed(1) + ' dB'), P_('Wow', .2, fPct), P_('Flutter', .2, fPct), P_('Hiss', .15, fPct), P_('Tone', .3, v => fHz(expmap(1 - v, 3000, 20000))), P_('Mix', 1, fPct), P_('Output', .5, v => fSign(v, -12, 12))];
+const GRIN_P = [P_('Amount', 0, fPct), P_('Auto', 0, null, ['Off', '1 bar', '2 bars', '4 bars', '8 bars', '16 bars']), P_('Tone', .5, v => { const t = Math.round((v * 2 - 1) * 100); return t === 0 ? '0' : (t > 0 ? '+' : '−') + Math.abs(t); }), P_('Mix', 1, fPct)];
 // modes beyond each effect's original (mode 0). Names stay generic: what the circuit does, not whose it was.
 const FX_MODES = {
   0: { mode0: ['Clean', 'Precise digital bands'], more: [
@@ -346,6 +347,8 @@ const FX_MODES = {
   12: { mode0: ['Classic', 'Six stages, adjustable'], more: [['Vintage', 'Four-stage pedal swirl, one knob', [P_('Speed', .4, v => expmap(v, .1, 10).toFixed(2) + ' Hz'), P_('Mix', 1, fPct), P_('Voice', 0, null, ['Feedback', 'Clean'])]]] },
   13: { mode0: ['Transparent', 'Clean loudness'], more: [['Punchy', 'Keeps the hit of drums', LIM_P], ['Aggressive', 'Loud and forward, with a little clip', LIM_P], ['Safe', 'Slow and careful; never crosses the ceiling', LIM_P]] },
   14: { mode0: ['Classic', 'Three bands, compress above and lift below'], more: [['Squash', 'Over-the-top upward and downward compression', [...XO.map((p, i) => P_(p.n, i ? .398 : .166, p.f)), P_('Depth', 1, fPct), P_('Time', .5, v => expmap(v, .1, 10).toFixed(2) + '×'), P_('Upward', 1, fPct), P_('Downward', 1, fPct), P_('In gain', .5, v => fSign(v, -24, 24)), ...BANDG, P_('Out gain', .5, v => fSign(v, -24, 24))]]] },
+  22: { mode0: ['Classic', 'Filter up, echo, reverb and a little dirt'], more: [['Wash', 'A wall of reverb that swallows the mix', GRIN_P], ['Dub', 'Echoes that run away into a narrow band', GRIN_P],
+    ['Grit', 'Drive and crush, thinning out as it climbs', GRIN_P], ['Space', 'Swirling phaser, wide and washed', GRIN_P], ['Pump', 'A quarter-note pump that digs in harder', GRIN_P]] },
   15: { mode0: ['Studio', 'Pro reel-to-reel: warm and steady'], more: [['Cassette', 'Darker, wobblier, hissier', TAPE_P], ['Worn', 'Old tape: dull, wobbly, the odd dropout', TAPE_P]] },
 };
 const FX_DEFS = [
@@ -386,7 +389,8 @@ const FX_DEFS = [
   { name: 'Vinyl', short: 'Vinyl', params: [P_('Crackle', .3, fPct), P_('Noise', .2, fPct), P_('Wear', .3, fPct), P_('Wow', .15, fPct), P_('Stop', 0, null, ['Off', 'On']),
     P_('Stop time', .684, v => fMs(expmap(v, .05, 4) * 1000)), P_('Start time', .474, v => fMs(expmap(v, .05, 4) * 1000)), P_('Mix', 1, fPct)] },
   { name: 'Step FX', short: 'Steps', params: [P_('Steps', 0, null, ['1/16 · 1 bar', '1/8 · 2 bars', '1/32 · ½ bar']), P_('Repeat', 1 / 3, null, ['1/16', '1/32', '1/64', '1/8']),
-    P_('Filter', .6, fPct), P_('Smooth', .3, v => fMs(.5 + v * v * 30)), P_('Mix', 1, fPct)] }
+    P_('Filter', .6, fPct), P_('Smooth', .3, v => fMs(.5 + v * v * 30)), P_('Mix', 1, fPct)] },
+  { name: 'Grin', short: 'Grin', params: GRIN_P }
 ];
 // LFO Tool shapes (the drawn curve: 1 = full level, 0 = the Depth's dip) and Step FX actions
 const FX_LFO_SHAPES = { Pump: [{ x: 0, y: 0, c: -.65 }, { x: .55, y: 1, c: 0 }, { x: .97, y: 1, c: 0 }], 'Gate 1/8': [{ x: 0, y: 1, c: 0 }, { x: .45, y: 1, c: 0 }, { x: .5, y: 0, c: 0 }, { x: .95, y: 0, c: 0 }],
@@ -394,7 +398,7 @@ const FX_LFO_SHAPES = { Pump: [{ x: 0, y: 0, c: -.65 }, { x: .55, y: 1, c: 0 }, 
   Triangle: [{ x: 0, y: 0, c: 0 }, { x: .5, y: 1, c: 0 }], 'Saw down': [{ x: 0, y: 1, c: 0 }, { x: .97, y: 0, c: 0 }], 'Saw up': [{ x: 0, y: 0, c: 0 }, { x: .97, y: 1, c: 0 }], Swell: [{ x: 0, y: 0, c: .6 }, { x: .97, y: 1, c: 0 }] };
 const STEP_ACTS = [['Through', '#4a4a4f'], ['Mute', '#16161a'], ['Repeat', '#f2b544'], ['Reverse', '#5ec8e0'], ['Half', '#b48cff'], ['Filter', '#4fe0b0'], ['Tape stop', '#ff6b4a']];
 const STEP_DEFAULT = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 6, 6];
-const FX_TYPES = { EQ: 0, COMP: 1, FILTER: 2, SAT: 3, DELAY: 4, REVERB: 5, DUCK: 6, UTIL: 7, CHORUS: 8, CLIP: 9, CRUSH: 10, TRANS: 11, PHASER: 12, LIMIT: 13, MBAND: 14, TAPE: 15, GATE: 16, DISP: 17, APAN: 18, LFOT: 19, VINYL: 20, STEP: 21 };
+const FX_TYPES = { EQ: 0, COMP: 1, FILTER: 2, SAT: 3, DELAY: 4, REVERB: 5, DUCK: 6, UTIL: 7, CHORUS: 8, CLIP: 9, CRUSH: 10, TRANS: 11, PHASER: 12, LIMIT: 13, MBAND: 14, TAPE: 15, GATE: 16, DISP: 17, APAN: 18, LFOT: 19, VINYL: 20, STEP: 21, GRIN: 22 };
 // every effect lists its modes; mode 0 is the effect's original design (old projects play it unchanged)
 FX_DEFS.forEach((d, t) => { const m = FX_MODES[t]; d.modes = [{ n: m ? m.mode0[0] : '', blurb: m ? m.mode0[1] : '', params: d.params }].concat(m ? m.more.map(([n, blurb, params]) => ({ n, blurb, params })) : []); });
 FX_DEFS[7].params.push(P_('Bass mono', 0, fHzOff(20, 500)));

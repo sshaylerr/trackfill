@@ -129,3 +129,56 @@ static void fx_step(Fx* f, float* L, float* R, i32 n) {
     L[i] = L[i] + (y[0] - L[i]) * mix; R[i] = R[i] + (y[1] - R[i]) * mix; }
   f->vis[0] = (float)S->step; f->vis[1] = (float)S->cur.act;
 }
+
+/* ----- Grin: one Amount knob drives a whole build-up chain; the flavor (mode) decides how each stage follows it ----- */
+// params: Amount, Auto (off, 1, 2, 4, 8, 16 bars: the amount rises by itself over that many bars, in time with the song), Tone, Mix
+// stages: high-pass, low-pass, drive, crush, phaser, tempo delay, small reverb, pump, width
+enum { GDL = 65536, GC0 = 1557, GC1 = 1617, GC2 = 1491, GC3 = 1422, GA0 = 556, GA1 = 441 };
+struct GrinSt { float hp[2][2], lp[2][2], ph[2][4], phl, pfb[2], dl[2][GDL]; u32 dw; float cb[2][4][1700]; i32 ci[4]; float cl[2][4]; float ab[2][2][600]; i32 ai[2]; float amt, hold[2]; i32 hc; };
+static inline float grinAP(float* buf, i32 len, i32& idx, float x) { const float b = buf[idx]; const float y = -x + b; buf[idx] = x + b * 0.5f; if (++idx >= len) idx = 0; return y; }
+static void fx_grin(Fx* f, float* L, float* R, i32 n) {
+  GrinSt* G = (GrinSt*)f->st; float* s = f->s; const i32 m = f->mode, autoSel = (i32)(s[1] * 5.f + .5f);
+  static const float AB[6] = { 0, 4, 8, 16, 32, 64 };
+  float target = s[0]; if (autoSel) { const double b = gBeat / AB[autoSel]; target = (float)(b - floor_dd(b)); }
+  G->amt += (target - G->amt) * (autoSel ? 1.f : 0.25f); const float a = G->amt, a2 = a * a, tone = s[2], mix = s[3];
+  // how each stage follows the amount, per flavor: Classic, Wash, Dub, Grit, Space, Pump
+  float hpHz = 20.f, lpHz = 20000.f, drv = 0, crush = 0, phs = 0, dly = 0, fb = .45f, rev = 0, pump = 0, wid = 1.f;
+  switch (m) {
+    default: hpHz = 20.f * fexp(a2 * 4.1f); rev = .45f * a; dly = .25f * a; drv = .4f * a2; phs = .35f * a; wid = 1.f + .5f * a; break;               // Classic
+    case 1: hpHz = 20.f * fexp(a2 * 3.0f); rev = .75f * a; dly = .2f * a; wid = 1.f + .9f * a; break;                                                  // Wash: a wall of reverb
+    case 2: hpHz = 20.f * fexp(a2 * 3.4f); lpHz = 20000.f * fexp(-a2 * 1.9f); dly = .65f * a; fb = .4f + .45f * a; rev = .2f * a; break;           // Dub: echoes run away
+    case 3: hpHz = 20.f * fexp(a2 * 3.8f); drv = .9f * a; crush = .6f * a2; phs = .2f * a; break;                                                        // Grit: drive and crush
+    case 4: hpHz = 20.f * fexp(a2 * 3.2f); phs = .9f * a; rev = .5f * a; wid = 1.f + 1.f * a; dly = .15f * a; break;                                    // Space: swirling and wide
+    case 5: hpHz = 20.f * fexp(a2 * 4.3f); pump = .9f * a; rev = .3f * a; drv = .2f * a; break;                                                          // Pump: a gate that digs in
+  }
+  hpHz *= fexp((tone - .5f) * 1.2f); lpHz = minf(20000.f, lpHz * fexp((tone - .5f) * 1.2f));
+  const float hg = ftan(3.14159265f * clampf(hpHz, 15.f, .45f * SR) / SR), lg = ftan(3.14159265f * clampf(lpHz, 30.f, .45f * SR) / SR), k = 1.2f;
+  const float h1 = 1.f / (1.f + hg * (hg + k)), h2 = hg * h1, h3 = hg * h2, l1 = 1.f / (1.f + lg * (lg + k)), l2 = lg * l1, l3 = lg * l2;
+  const float dS = minf((float)(GDL - 4), .375f * 60.f / BPM * SR), dg = 1.f + drv * drv * 14.f, dn = 1.f / fsat(dg);   // delay: a dotted eighth
+  const i32 hold = 1 + (i32)(crush * 10.f); const float q = crush > .01f ? fexp((14.f - crush * 9.f) * 0.693147181f) : 0.f;
+  const i32 CL[4] = { GC0, GC1, GC2, GC3 }; const float cfb = .78f + .12f * a;
+  for (i32 i = 0; i < n; i++) {
+    float x[2] = { L[i], R[i] }, dry[2] = { L[i], R[i] };
+    // pump: a quarter-note dip that deepens with the amount
+    float pg = 1.f; if (pump > .001f) { double b = beatAt(i); float ph = (float)(b - floor_dd(b)); pg = 1.f - pump * (ph < .45f ? 1.f - ph / .45f : 0.f) * (ph < .45f ? 1.f - ph / .45f : 0.f) * 1.f; }
+    G->phl += .35f / SR; if (G->phl >= 1.f) G->phl -= 1.f; const float lfo = .5f + .5f * fsin(6.28318531f * G->phl), apc = -.6f - .35f * lfo;
+    for (i32 c = 0; c < 2; c++) { float v = x[c];
+      { float* z = G->hp[c]; const float v3 = v - z[1], v1 = h1 * z[0] + h2 * v3, v2 = z[1] + h2 * z[0] + h3 * v3; z[0] = 2.f * v1 - z[0]; z[1] = 2.f * v2 - z[1]; v = v - k * v1 - v2; }
+      if (lpHz < 19000.f) { float* z = G->lp[c]; const float v3 = v - z[1], v1 = l1 * z[0] + l2 * v3, v2 = z[1] + l2 * z[0] + l3 * v3; z[0] = 2.f * v1 - z[0]; z[1] = 2.f * v2 - z[1]; v = v2; }
+      if (drv > .001f) v = fsat(v * dg) * dn;
+      if (phs > .001f) { float y = v + G->pfb[c] * .5f; for (i32 st = 0; st < 4; st++) { const float o = apc * y + G->ph[c][st]; G->ph[c][st] = y - apc * o; y = o; } G->pfb[c] = y; v = v + (y - v) * phs * .5f + y * phs * .5f; }
+      x[c] = v; }
+    if (hold > 1 || q > 0.f) { if (G->hc++ % hold == 0) for (i32 c = 0; c < 2; c++) G->hold[c] = q > 0.f ? floorf_(x[c] * q + .5f) / q : x[c]; x[0] = G->hold[0]; x[1] = G->hold[1]; }
+    // delay (ping-pong) and reverb run on the processed sound and are mixed back in
+    float wet[2] = { 0, 0 };
+    if (dly > .001f) { const u32 r = (G->dw - (u32)dS) & (GDL - 1); const float d0 = G->dl[0][r], d1 = G->dl[1][r]; G->dl[0][G->dw & (GDL - 1)] = x[0] + d1 * fb; G->dl[1][G->dw & (GDL - 1)] = x[1] * .3f + d0 * fb; G->dw++; wet[0] += d0 * dly; wet[1] += d1 * dly; }
+    if (rev > .001f) for (i32 c = 0; c < 2; c++) { const float in = (x[0] + x[1]) * .25f; float acc = 0;
+        for (i32 j = 0; j < 4; j++) { const i32 len = CL[j] + c * 23; float& z = G->cb[c][j][G->ci[j] % len]; const float y = z; G->cl[c][j] += (y - G->cl[c][j]) * .45f; z = in + G->cl[c][j] * cfb; acc += y; }
+        acc = grinAP(G->ab[c][0], GA0 + c * 7, G->ai[0], acc * .25f); acc = grinAP(G->ab[c][1], GA1 + c * 5, G->ai[1], acc); wet[c] += acc * rev * 1.4f; }
+    for (i32 j = 0; j < 4; j++) G->ci[j]++;
+    float o[2] = { x[0] + wet[0], x[1] + wet[1] };
+    if (wid != 1.f) { const float mm = (o[0] + o[1]) * .5f, sd = (o[0] - o[1]) * .5f * wid; o[0] = mm + sd; o[1] = mm - sd; }
+    const float comp = 1.f / (1.f + .6f * a);   // keeps the level roughly steady as the chain thickens
+    L[i] = dry[0] + (o[0] * comp * pg - dry[0]) * mix; R[i] = dry[1] + (o[1] * comp * pg - dry[1]) * mix; }
+  f->vis[0] = a;
+}

@@ -40,7 +40,8 @@ struct SVoice {
   i32 ost[4]; float oev[4], oet[4], oef[4], oamp[4];
   // Sub engine: time since the note began (pitch drop), phase, crossover low-pass (clean sub, mono) and high-pass + tone (per channel), click
   float sut, suph, slo[4], shi[2][4], sto[2][2], ckz; i32 ckn;
-  i32 izn, idone; double ipos[2]; float ilp[2];   // Instrument: zone, read positions (second one for Width), velocity tone filter
+  i32 izn, idone; double ipos[2]; float ilp[2];
+  float xt, xwp, xwv, xwr, xp[2], xn[2], xh[2], xq[2], xg, xfm; i32 xhc;   // FX engine: sweep time, wobble phase/value, oscillator phases, noise tone, grit hold, level, filter multiplier   // Instrument: zone, read positions (second one for Width), velocity tone filter
   float cmb[2][CMB]; i32 cw;
 };
 static Patch* pat[NPAD];
@@ -366,15 +367,35 @@ static void renderSynth(i32 n) {
         iInc = fexp(semis * 0.0577622650f) * IS->sr / SR; iW = m[SP_IWD] > 0.001f; iInc2 = iInc * fexp(m[SP_IWD] * 0.12f * 0.0577622650f); iInc *= fexp(-m[SP_IWD] * 0.12f * 0.0577622650f);
         iLoop = !disc(m[SP_ILO], 2) && IZ->le > IZ->ls + 8; iG = IZ->g;
         iLp = onepole(minf(0.45f * SR, 20000.f * fexp(-m[SP_IVT] * (1.f - v->vel) * 4.f * 0.693147181f))); } }
+    // FX engine: sweep progress (once, repeating or back and forth; free time or bars), wobble, the level and filter they set
+    const i32 isX = disc(m[SP_ENG], NENG) == 6; float xInc = 0, xInc2 = 0, xTone = 0, xNz = 0, xNlp = 0, xNhp = 0, xG0 = 0, xG1 = 0, xWd = 0; i32 xW = 0, xHold = 1; float xQ = 0;
+    if (isX) { nOn = 0;
+      static const float SB[7] = { 0, 1, 4, 8, 16, 32, 64 }; const i32 ss = disc(m[SP_XSS], 7); const float T = ss ? SB[ss] * 60.f / BPM : spPhys(SP_XST, m[SP_XST]), u = v->xt / maxf(T, .001f);
+      const i32 lp = disc(m[SP_XSL], 3); float x = lp == 0 ? minf(1.f, u) : lp == 1 ? u - floorf_(u) : (u - floorf_(u * 0.5f) * 2.f > 1.f ? 2.f - (u - floorf_(u * 0.5f) * 2.f) : u - floorf_(u * 0.5f) * 2.f);
+      const float cv = curve_frac(x, linmap(m[SP_XSC], -0.85f, 0.85f)); v->xt += dt;
+      // wobble: free or synced, its rate can rise (or fall) along the sweep
+      const float rise = linmap(m[SP_XWU], -1.f, 1.f); float hz = disc(m[SP_XWY], 2) ? 1.f / (lfoDivBeats[disc(m[SP_XWI], NLFODIV)] * beat) : spPhys(SP_XWR, m[SP_XWR]); hz *= fexp(rise * 4.f * cv * 0.693147181f);
+      v->xwp += hz * dt; if (v->xwp >= 1.f) { v->xwp -= floorf_(v->xwp); v->xwr = frnd(&svRng); }
+      const float ph = v->xwp; const i32 sh = disc(m[SP_XWH], 6);
+      const float w = sh == 0 ? fsin(6.28318531f * ph) : sh == 1 ? (ph < .5f ? 4.f * ph - 1.f : 3.f - 4.f * ph) : sh == 2 ? (ph < .5f ? 1.f : -1.f) : sh == 3 ? 2.f * ph - 1.f : sh == 4 ? 1.f - 2.f * ph : v->xwr;
+      v->xwv += (w - v->xwv) * (sh == 2 || sh == 5 ? 0.6f : 1.f);   // square and random: rounded a touch so they don't click
+      const float semis = v->semi + chBendS[v->pad] + spPhys(SP_XOC, m[SP_XOC]) * 12.f + spPhys(SP_XSA, m[SP_XSA]) * cv + spPhys(SP_XWA, m[SP_XWA]) * v->xwv;
+      const float f0x = 130.8128f * fexp(semis * 0.0577622650f); xInc = clampf(f0x / SR, 0.f, 0.45f); xInc2 = clampf(xInc * fexp(m[SP_XDT] * 0.35f * 0.0577622650f), 0.f, 0.45f);
+      xW = disc(m[SP_XWV], 5); xTone = m[SP_XTL]; xNz = m[SP_XNL]; const float col = linmap(m[SP_XNC], -1.f, 1.f);
+      xNlp = onepole(col < 0 ? expmap(1.f + col, 300.f, 20000.f) : 20000.f); xNhp = onepole(col > 0 ? expmap(col, 20.f, 6000.f) : 20.f);
+      xHold = 1 + (i32)(m[SP_XGR] * m[SP_XGR] * 24.f); xQ = m[SP_XGR] > 0.01f ? fexp((16.f - m[SP_XGR] * 12.f) * 0.693147181f) : 0.f; xWd = m[SP_XWD];
+      const float vs = linmap(m[SP_XSV], -1.f, 1.f); float g = vs >= 0 ? 1.f - vs * (1.f - cv) : 1.f + vs * cv; g *= 1.f - m[SP_XWL] * (0.5f - 0.5f * v->xwv);
+      xG0 = v->xg; xG1 = g; v->xg = g; v->xfm = fexp((linmap(m[SP_XSF], -1.f, 1.f) * 8.f * cv + linmap(m[SP_XWF], -1.f, 1.f) * 3.f * v->xwv) * 0.693147181f); }
     const i32 sync = disc(m[SP_O2Y], 2); const float fm = m[SP_O2M];
     const i32 U = (i32)spPhys(SP_UNI, m[SP_UNI]); const float det = m[SP_DET], spr = U > 1 ? m[SP_SPR] : 0.f, ug = 1.f / sqrtf_((float)U);
     float dm[MAXUNI], panL[MAXUNI], panR[MAXUNI];
     for (i32 u = 0; u < U; u++) { float x = U > 1 ? (2.f * u / (U - 1) - 1.f) : 0.f; dm[u] = fexp(x * det * det * 0.6f * 0.0577622650f * (1.f + 0.4f * fabsf_(x)));   // JP-style: outer voices spread further
       float pn = x * spr; panL[u] = sqrtf_(0.5f * (1.f - pn)) * 1.41421356f * ug; panR[u] = sqrtf_(0.5f * (1.f + pn)) * 1.41421356f * ug; }
-    const i32 stereo = (spr > 0.001f && !isSU && !isIN) || isGR || (isSU && suW) || (isIN && iW);
+    const i32 stereo = (spr > 0.001f && !isSU && !isIN && !isX) || isGR || (isSU && suW) || (isIN && iW) || (isX && xWd > 0.001f);
     // filter
     const i32 ftype = disc(m[SP_FLT], 7);
     float fc = spPhys(SP_CUT, m[SP_CUT]) * fexp((m[SP_KEY] * v->semi / 12.f + linmap(m[SP_FEN], -1, 1) * 5.f * v->ev[1]) * 0.693147181f);
+    if (isX) fc *= v->xfm;
     fc = clampf(fc, 20.f, 0.42f * SR); const float fg = ftan(3.14159265f * fc / SR), res = m[SP_RES], shp = m[SP_SHP], fdg = 1.f + m[SP_DRV] * m[SP_DRV] * 15.f, fmk = 1.f / (1.f + m[SP_DRV] * 1.5f);
     if (ftype == 6 && v->cw < 0) v->cw = 0;
     const float fbk = m[SP_FBK] * 0.9f;
@@ -422,6 +443,13 @@ static void renderSynth(i32 n) {
           G->pos += G->inc; if (G->pos >= fr) G->pos -= fr; else if (G->pos < 0.0) G->pos += fr; G->t += 1.f; if (G->t >= G->len) G->on = 0; }
       }
       else if (isSU) {}
+      else if (isX) {   // tone (two oscillators when detuned or wide) and coloured noise, then grit (held samples, fewer bits), level ramped across the block
+        const float g = xG0 + (xG1 - xG0) * (i + 1) / n; float a = 0, b = 0;
+        if (xTone > 0.0005f) { a = oscWave(xW, v->xp[0], xInc, 0.3f); v->xp[0] += xInc; v->xp[0] -= floorf_(v->xp[0]);
+          if (m[SP_XDT] > 0.001f || xWd > 0.001f) { b = oscWave(xW, v->xp[1], xInc2, 0.3f); v->xp[1] += xInc2; v->xp[1] -= floorf_(v->xp[1]); } else b = a; a *= xTone; b *= xTone; }
+        if (xNz > 0.0005f) for (i32 c = 0; c < 2; c++) { const float w = frnd(&svRng); v->xn[c] += (w - v->xn[c]) * xNlp; float* hp = &v->xh[c]; *hp += (v->xn[c] - *hp) * xNhp; const float y = (v->xn[c] - *hp) * xNz * 0.8f; if (c) b += y; else a += y; }
+        if (xHold > 1 || xQ > 0.f) { if (v->xhc++ % xHold == 0) { v->xq[0] = xQ > 0 ? floorf_(a * xQ + .5f) / xQ : a; v->xq[1] = xQ > 0 ? floorf_(b * xQ + .5f) / xQ : b; } a = v->xq[0]; b = v->xq[1]; }
+        const float wd = xWd; sL = (a * (1.f - wd * .5f) + b * wd * .5f) * g * 0.6f; sR = (b * (1.f - wd * .5f) + a * wd * .5f) * g * 0.6f; }
       else if (IS) {   // instrument: linear reads (the instruments are stored at a low rate, like the old ROM players)
         const i16* d = IS->d; const i32 ch = IS->ch; float y[2] = { 0, 0 };
         for (i32 r = 0; r < (iW ? 2 : 1); r++) { double& p = v->ipos[r]; if (p >= IZ->en - 1) { v->idone = 1; continue; }
