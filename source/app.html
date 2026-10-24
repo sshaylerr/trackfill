@@ -992,6 +992,19 @@ let tagSeq = 1;
 /* Pads don't capture the pointer. On iOS, lifting several fingers at once can lose a release, and a capture left behind sends
    every later touch to that one pad: the pads keep playing and the rest of the screen stops answering. Instead each finger is
    remembered by its pointer id and released by a window-wide listener, wherever it lifts. */
+/* Taps: on iOS, a touch WebKit never saw lift (easy with several fingers on the pads) stops it turning taps into clicks: buttons
+   still light up but do nothing. So for touch, a button acts when the finger lifts on it (it barely moved), and the click
+   WebKit may send afterwards is dropped, so nothing ever runs twice. Mouse and the d-pad are unchanged. */
+const TAP = { el: null, id: -1, x: 0, y: 0, done: null, at: 0 }, TAPSEL = 'button, .li, .lrow';
+document.addEventListener('pointerdown', e => { if (e.pointerType !== 'touch') return; const el = e.target.closest && e.target.closest(TAPSEL);
+  TAP.el = el && !el.disabled ? el : null; TAP.id = e.pointerId; TAP.x = e.clientX; TAP.y = e.clientY; }, true);
+document.addEventListener('pointermove', e => { if (TAP.el && e.pointerId === TAP.id && Math.hypot(e.clientX - TAP.x, e.clientY - TAP.y) > 12) TAP.el = null; }, true);
+document.addEventListener('pointercancel', e => { if (e.pointerId === TAP.id) TAP.el = null; }, true);
+document.addEventListener('pointerup', e => { const el = TAP.el; if (!el || e.pointerId !== TAP.id) return; TAP.el = null; if (!el.isConnected || el.disabled) return;
+  const hit = document.elementFromPoint(e.clientX, e.clientY); if (!hit || (hit !== el && !el.contains(hit))) return;
+  TAP.done = el; TAP.at = performance.now(); el.click(); }, true);
+document.addEventListener('click', e => { if (!e.isTrusted || !TAP.done || performance.now() - TAP.at > 900) return;
+  if (TAP.done === e.target || TAP.done.contains(e.target) || !TAP.done.isConnected) { e.stopImmediatePropagation(); e.preventDefault(); TAP.done = null; } }, true);
 const PADPTR = new Map();
 function padPress(e, down, up) { e.preventDefault(); const old = PADPTR.get(e.pointerId); if (old) { PADPTR.delete(e.pointerId); old(); } PADPTR.set(e.pointerId, up); down(); }
 function padRelease(e) { const f = PADPTR.get(e.pointerId); if (f) { PADPTR.delete(e.pointerId); f(); }
