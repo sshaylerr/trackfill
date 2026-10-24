@@ -252,43 +252,50 @@ function remapSlots(c, map) {   // keep automation attached to the right effect 
   for (const sc of P.scenes) { const next = {}; for (const k in sc.auto) { const p = tfParseKey(k); if (p.c !== c || p.s < 0) { next[k] = sc.auto[k]; continue; } const ns = map[p.s]; if (ns >= 0) next[`${c}.${ns}.${p.i}`] = sc.auto[k]; } sc.auto = next; }
 }
 function fxChanged(c) { syncChan(c); P.scenes.forEach((_, i) => syncScene(i)); if (c < G0 && P.pads[c].frz) touchPad(c); markDirty(); renderView(); }
-// the order the controls sit in (four to a row): related controls share a row or a column; '' leaves a gap so bands line up.
-// Only the layout changes: each control keeps its place in the engine, in automation and in saved projects.
+// how the controls sit: rows of up to four; a shorter row is centred; '' leaves a gap so a band's controls stay in one column.
+// '@src' is the Ducker's trigger source (pads or a channel), '@key' the Gate's. Only the layout changes: each control keeps its
+// place in the engine, in automation and in saved projects, and anything a layout misses is added at the end.
 const FX_LAY = {
-  '0:0': ['Low freq', 'Mid freq', 'High freq', 'Low cut', 'Low gain', 'Mid gain', 'High gain', 'High cut', '', 'Mid Q', '', 'Output'],
-  '0:1': ['Low freq', 'Low boost', 'Low atten', 'Tube', 'High freq', 'High boost', 'Bandwidth', '', 'Atten freq', 'High atten', '', 'Output'],
-  '0:2': ['Low freq', 'Mid freq', 'High freq', 'Filter', 'Low gain', 'Mid gain', 'High gain', 'Colour', 'Low shape', '', 'High shape', 'Output'],
-  '0:3': ['LF freq', 'LMF freq', 'HMF freq', 'HF freq', 'LF gain', 'LMF gain', 'HMF gain', 'HF gain', 'HPF', 'LMF Q', 'HMF Q', 'Output'],
-  '1:0': ['Threshold', 'Ratio', 'Attack', 'Release', 'Knee', 'Key HPF', 'Makeup', 'Mix'],
-  '1:1': ['Peak reduction', 'Gain', 'Mode', 'Emphasis', 'Tube', 'Mix'],
-  '1:2': ['Input', 'Ratio', 'Attack', 'Release', 'Output', 'Mix'],
-  '1:3': ['Threshold', 'Ratio', 'Attack', 'Release', 'Key HPF', 'Makeup', 'Mix'],
-  '2:0': ['Cutoff', 'Resonance', 'Type', 'Slope', 'Drive', 'Mix'],
-  '2:1': ['Cutoff', 'Resonance', 'Type', 'Bass', 'LFO rate', 'LFO depth', 'Envelope', 'Drive', 'Mix'],
-  '2:2': ['Cutoff', 'Resonance', 'Squelch', 'Drive', 'LFO rate', 'LFO depth', 'Envelope', 'Mix'],
-  '2:3': ['Cutoff', 'Resonance', 'Type', 'Drive', 'LFO rate', 'LFO depth', 'Envelope', 'Mix'],
-  '2:4': ['Cutoff', 'Resonance', 'Morph', 'Drive', 'LFO rate', 'LFO depth', 'Envelope', 'Mix'],
-  '2:5': ['Vowel', 'Shift', 'Resonance', 'Drive', 'LFO rate', 'LFO depth', 'Envelope', 'Mix'],
-  '2:6': ['Freq', 'Feedback', 'Damping', 'Envelope', 'LFO rate', 'LFO depth', 'Mix'],
-  '3:0': ['Drive', 'Type', 'Tone', 'Output', 'Mix'],
-  ...Object.fromEntries([1, 2, 3, 4, 5].map(m => ['3:' + m, ['Drive', 'Tone', 'Low cut', 'High cut', 'Punish', '', 'Output', 'Mix']])),
-  ...Object.fromEntries([0, 1, 2].map(m => ['4:' + m, ['Sync', 'Division', 'Time', 'Feedback', ...(m ? ['Drive', 'Wow', 'Flutter', 'Age'] : []), 'Ping-pong', 'Low cut', 'High cut', 'Mix']])),
-  '5:0': ['Size', 'Decay', 'Predelay', 'Damping', 'Low cut', 'Width', '', 'Mix'],
-  '5:1': ['Size', 'Decay', 'Predelay', 'Depth', 'Bass mult', 'Bass xover', 'High mult', 'High xover', 'Early size', 'Mod', 'High cut', 'Mix'],
-  '5:2': ['Size', 'Decay', 'Predelay', 'Damping', 'Bandwidth', 'Low cut', 'Mod', 'Width', 'Mix'],
-  '5:3': ['Size', 'Decay', 'Predelay', 'Color', 'Mod depth', 'Mod rate', 'Attack', 'Bass mult', 'Low cut', 'High cut', '', 'Mix'],
-  '5:4': ['Size', 'Decay', 'Predelay', 'Gravity', 'Mod depth', 'Mod rate', 'Low cut', 'High cut', 'Freeze', '', '', 'Mix'],
-  '6:0': ['Trigger', 'Threshold', 'Depth', 'Curve', 'Attack', 'Hold', 'Release', 'Lookahead'],
-  '8:0': ['Rate', 'Depth', 'Delay', 'Feedback', 'Mix'],
-  '8:3': ['Rate', 'Depth', 'Manual', 'Feedback', 'Stereo', '', '', 'Mix'],
-  '12:0': ['Rate', 'Depth', 'Center', 'Feedback', 'Mix'],
-  '14:0': ['Threshold', 'Ratio', 'Attack', 'Release', 'Below thr', 'Below ratio', 'Low split', 'High split', 'Low gain', 'Mid gain', 'High gain', 'Output'],
-  '14:1': ['Depth', 'Time', 'Upward', 'Downward', 'Low split', 'High split', 'In gain', 'Out gain', 'Low gain', 'Mid gain', 'High gain'],
-  ...Object.fromEntries([0, 1, 2].map(m => ['15:' + m, ['Drive', 'Bump', 'Tone', 'Hiss', 'Wow', 'Flutter', 'Output', 'Mix']])),
+  '0:0': [['Low freq', 'Mid freq', 'High freq', 'Low cut'], ['Low gain', 'Mid gain', 'High gain', 'High cut'], ['', 'Mid Q', '', 'Output']],
+  '0:1': [['Low freq', 'Low boost', 'Low atten', 'Tube'], ['High freq', 'Bandwidth', 'High boost', 'Output'], ['Atten freq', 'High atten']],
+  '0:2': [['Low freq', 'Mid freq', 'High freq', 'Filter'], ['Low gain', 'Mid gain', 'High gain', 'Colour'], ['Low shape', '', 'High shape', 'Output']],
+  '0:3': [['LF freq', 'LMF freq', 'HMF freq', 'HF freq'], ['LF gain', 'LMF gain', 'HMF gain', 'HF gain'], ['HPF', 'LMF Q', 'HMF Q', 'Output']],
+  '1:0': [['Threshold', 'Ratio', 'Attack', 'Release'], ['Knee', 'Key HPF', 'Makeup', 'Mix']],
+  '1:1': [['Peak reduction', 'Gain', 'Emphasis'], ['Mode', 'Tube', 'Mix']],
+  '1:2': [['Input', 'Ratio', 'Output'], ['Attack', 'Release', 'Mix']],
+  '1:3': [['Threshold', 'Ratio', 'Attack', 'Release'], ['Key HPF', 'Makeup', 'Mix']],
+  '2:0': [['Cutoff', 'Resonance', 'Drive'], ['Type', 'Slope', 'Mix']],
+  '2:1': [['Cutoff', 'Resonance', 'Type'], ['LFO rate', 'LFO depth', 'Envelope'], ['Drive', 'Bass', 'Mix']],
+  '2:2': [['Cutoff', 'Resonance', 'Squelch', 'Drive'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
+  '2:3': [['Cutoff', 'Resonance', 'Type', 'Drive'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
+  '2:4': [['Cutoff', 'Resonance', 'Morph', 'Drive'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
+  '2:5': [['Vowel', 'Shift', 'Resonance', 'Drive'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
+  '2:6': [['Freq', 'Feedback', 'Damping'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
+  '3:0': [['Type', 'Drive', 'Tone'], ['Output', 'Mix']],
+  ...Object.fromEntries([1, 2, 3, 4, 5].map(m => ['3:' + m, [['Drive', 'Tone', 'Low cut', 'High cut'], ['Punish', 'Output', 'Mix']]])),
+  '4:0': [['Sync', 'Division', 'Time', 'Feedback'], ['Ping-pong', 'Low cut', 'High cut', 'Mix']],
+  ...Object.fromEntries([1, 2].map(m => ['4:' + m, [['Sync', 'Division', 'Time', 'Feedback'], ['Drive', 'Wow', 'Flutter', 'Age'], ['Ping-pong', 'Low cut', 'High cut', 'Mix']]])),
+  '5:0': [['Size', 'Decay', 'Predelay', 'Damping'], ['Low cut', 'Width', 'Mix']],
+  '5:1': [['Size', 'Decay', 'Predelay', 'Depth'], ['Bass mult', 'Bass xover', 'High mult', 'High xover'], ['Early size', 'Mod', 'High cut', 'Mix']],
+  '5:2': [['Size', 'Decay', 'Predelay'], ['Damping', 'Bandwidth', 'Low cut'], ['Mod', 'Width', 'Mix']],
+  '5:3': [['Size', 'Decay', 'Predelay', 'Color'], ['Mod depth', 'Mod rate', 'Attack', 'Bass mult'], ['Low cut', 'High cut', 'Mix']],
+  '5:4': [['Size', 'Decay', 'Predelay', 'Gravity'], ['Mod depth', 'Mod rate', 'Low cut', 'High cut'], ['Freeze', 'Mix']],
+  '6:0': [['Trigger', '@src', 'Threshold'], ['Depth', 'Curve', 'Lookahead'], ['Attack', 'Hold', 'Release']],
+  '8:0': [['Rate', 'Depth', 'Delay'], ['Feedback', 'Mix']],
+  '8:3': [['Rate', 'Depth', 'Manual'], ['Feedback', 'Stereo', 'Mix']],
+  '10:2': [['Amount', 'Tone', 'Noise'], ['Compress', 'Mix']],
+  '12:0': [['Rate', 'Depth', 'Center'], ['Feedback', 'Mix']],
+  ...Object.fromEntries([0, 1, 2, 3].map(m => ['13:' + m, [['Gain', 'Ceiling', 'True peak'], ['Release', 'Lookahead']]])),
+  '14:0': [['Threshold', 'Ratio', 'Attack', 'Release'], ['Below thr', 'Below ratio', 'Low split', 'High split'], ['Low gain', 'Mid gain', 'High gain', 'Output']],
+  '14:1': [['Depth', 'Time', 'Upward', 'Downward'], ['Low split', 'High split', 'In gain', 'Out gain'], ['Low gain', 'Mid gain', 'High gain']],
+  ...Object.fromEntries([0, 1, 2].map(m => ['15:' + m, [['Drive', 'Bump', 'Tone', 'Hiss'], ['Wow', 'Flutter', 'Output', 'Mix']]])),
+  '16:0': [['Threshold', 'Range', 'Hysteresis', '@key'], ['Attack', 'Hold', 'Release']],
 };
-// display order: indices into the mode's params, -1 for a gap; anything a layout misses is appended so nothing can disappear
-function fxOrder(f) { const ps = fxParams(f), L = FX_LAY[f.type + ':' + (f.mode | 0)]; if (!L) return ps.map((_, i) => i);
-  const out = L.map(n => n === '' ? -1 : ps.findIndex(p => p.n === n)).filter((i, k) => i >= 0 || L[k] === ''); ps.forEach((_, i) => { if (!out.includes(i)) out.push(i); }); return out; }
+// rows of cells: a param index, -1 for a gap, or '@src' / '@key'; the default is four to a row in the engine's order
+function fxRows(f) { const ps = fxParams(f), L = FX_LAY[f.type + ':' + (f.mode | 0)], used = new Set();
+  const rows = L ? L.map(r => r.map(n => n === '' ? -1 : n[0] === '@' ? n : ps.findIndex(p => p.n === n)).filter((i, k) => i !== -1 || r[k] === '')) : [];
+  rows.flat().forEach(i => used.add(i)); const rest = ps.map((_, i) => i).filter(i => !used.has(i)); if (!L && (f.type === FX_TYPES.GATE)) rest.push('@key');
+  for (let k = 0; k < rest.length; k += 4) rows.push(rest.slice(k, k + 4)); return rows; }
 function renderFx(V) {
   const c = UI.fxCh, C = P.chans[c], w = h('div', 'fxView'), head = h('div', 'shead');
   const badge = h('div', 'lcdbox', chanLabel(c)); badge.style.flex = '0 0 46px';
@@ -308,12 +315,15 @@ function renderFx(V) {
       btn(IC.left, () => move(-1), 'key sm ic'), btn(IC.right, () => move(1), 'key sm ic'),
       confirmBtn('✕', '?', () => { pushUndo('all'); C.fx.splice(s, 1); const map = []; for (let i = 0; i < NSLOTS; i++) map[i] = i < s ? i : i === s ? -1 : i - 1; remapSlots(c, map); UI.fxSlot = Math.max(0, s - 1); fxChanged(c); }, 'key sm ic warn'));
     const ref = {}, dev = deviceEl(c, s, f, ref), redrawVis = () => ref.fn && ref.fn();
-    const g = h('div', 'kgrid'), notesDuck = f.type === FX_TYPES.DUCK && Math.round(f.p[0]) === 0;
-    fxOrder(f).forEach(i => { if (i < 0) { g.append(blankCell()); return; } const prm = params[i], key = `${c}.${s}.${i}`;
-      if (prm.opts) g.append(selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(key, f.p[i]); redrawVis(); if (f.type === FX_TYPES.DUCK && i === 0) { syncChan(c); renderView(); } markDirty(); }));
-      else if (!(notesDuck && i === 7)) g.append(keyParam(key, { label: prm.n, after: redrawVis })); });
-    if (notesDuck) g.append(cellBtn('Triggers', f.trig.length ? f.trig.map(chanName).join(', ') : 'none', () => openTriggers(c, s)));
-    if ((f.type === FX_TYPES.DUCK && !notesDuck) || f.type === FX_TYPES.GATE) g.append(cellBtn('Listens to', f.key == null ? (f.type === FX_TYPES.GATE ? 'Itself' : 'None') : chanLabel(f.key) + ' ' + chanName(f.key), () => openKeyPicker(c, s)));
+    const g = h('div', 'kgrid k8'), notesDuck = f.type === FX_TYPES.DUCK && Math.round(f.p[0]) === 0;
+    const cell = i => { if (i === -1) return blankCell();
+      if (i === '@src') return notesDuck ? cellBtn('Triggers', f.trig.length ? f.trig.map(chanName).join(', ') : 'none', () => openTriggers(c, s)) : cellBtn('Listens to', f.key == null ? 'None' : chanLabel(f.key) + ' ' + chanName(f.key), () => openKeyPicker(c, s));
+      if (i === '@key') return cellBtn('Listens to', f.key == null ? 'Itself' : chanLabel(f.key) + ' ' + chanName(f.key), () => openKeyPicker(c, s));
+      if (notesDuck && i === 7) return null; const prm = params[i], key = `${c}.${s}.${i}`; let el;
+      if (prm.opts) el = selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(key, f.p[i]); redrawVis(); if (f.type === FX_TYPES.DUCK && i === 0) { syncChan(c); renderView(); } markDirty(); });
+      else el = keyParam(key, { label: prm.n, after: redrawVis });
+      el.dataset.p = prm.n; return el; };
+    for (const r of fxRows(f)) { const els = r.map(cell).filter(Boolean); els.forEach((el, k) => { el.style.gridColumn = (k ? 'auto' : (4 - els.length + 1)) + ' / span 2'; g.append(el); }); }   // a short row sits in the middle
     dev.append(g); panel.append(fh, dev);
     if (c < G0 && P.pads[c].frz) panel.append(h('p', 'note', 'Frozen: changing effects unfreezes it.'));
   } else {
