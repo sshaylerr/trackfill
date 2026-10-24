@@ -1731,13 +1731,13 @@ if (typeof module !== 'undefined') module.exports = { WT_N, WT_LV, WT_MAXF, wtLe
 const DRUM_SR = 48000;
 const DRUM_MODS = {
   kick: { n: 'Kick', knobs: [['tune', 'Tune'], ['punch', 'Punch'], ['snap', 'Snap'], ['decay', 'Decay'], ['click', 'Click'], ['drive', 'Drive']], tuned: true,
-    types: { 'DnB Punch': [.45, .7, .6, .3, .5, .35], 'Jungle': [.4, .5, .4, .25, .3, .5, { grit: .5 }], 'Deep 808': [.3, .3, .1, .85, .1, .15, { hold: 1 }], 'Techno': [.4, .65, .5, .45, .4, .55],
+    types: { 'Classic': [.45, .55, .45, .4, .35, .2], 'DnB Punch': [.45, .7, .6, .3, .5, .35], 'Jungle': [.4, .5, .4, .25, .3, .5, { grit: .5 }], 'Deep 808': [.3, .3, .1, .85, .1, .15, { hold: 1 }], 'Techno': [.4, .65, .5, .45, .4, .55],
       'House': [.5, .55, .45, .4, .35, .25], 'Distorted': [.45, .7, .6, .5, .5, .9], 'Trap 808': [.3, .35, .2, 1, .15, .4, { hold: 1, glide: 1 }], 'Soft': [.5, .3, .1, .35, 0, 0, { soft: 1 }] } },
   snare: { n: 'Snare', knobs: [['tune', 'Tune'], ['body', 'Body'], ['snap', 'Snap'], ['decay', 'Decay'], ['tone', 'Tone'], ['drive', 'Drive']],
-    types: { 'DnB Crack': [.6, .45, .8, .3, .75, .35], 'Jungle Ring': [.5, .75, .55, .45, .55, .3, { ring: 1 }], 'Rimshot': [.85, .6, .6, .1, .8, .2, { rim: 1 }], 'Fat': [.25, .7, .6, .6, .4, .3],
+    types: { 'Classic': [.5, .5, .6, .35, .6, .15], 'DnB Crack': [.6, .45, .8, .3, .75, .35], 'Jungle Ring': [.5, .75, .55, .45, .55, .3, { ring: 1 }], 'Rimshot': [.85, .6, .6, .1, .8, .2, { rim: 1 }], 'Fat': [.25, .7, .6, .6, .4, .3],
       'Trap': [.55, .35, .75, .55, .85, .15], 'Lo-fi': [.45, .55, .6, .35, .45, .4, { grit: 1 }] } },
   clap: { n: 'Clap', knobs: [['tone', 'Tone'], ['spread', 'Spread'], ['decay', 'Decay'], ['snap', 'Snap'], ['room', 'Room'], ['drive', 'Drive']],
-    types: { 'Tight': [.6, .3, .25, .7, .1, .2], 'Big Room': [.5, .6, .55, .5, .7, .2, { layers: 5 }], 'Classic 808': [.45, .45, .4, .55, .25, .15], 'Snap': [.8, .15, .15, .9, .05, .1, { snap: 1 }] } },
+    types: { 'Classic': [.5, .45, .4, .55, .2, .1], 'Tight': [.6, .3, .25, .7, .1, .2], 'Big Room': [.5, .6, .55, .5, .7, .2, { layers: 5 }], 'Classic 808': [.45, .45, .4, .55, .25, .15], 'Snap': [.8, .15, .15, .9, .05, .1, { snap: 1 }] } },
   hats: { n: 'Hats & Cymbals', knobs: [['pitch', 'Pitch'], ['metal', 'Metal'], ['decay', 'Decay'], ['bright', 'Brightness'], ['width', 'Width'], ['drive', 'Drive']],
     types: { 'Closed': [.5, .6, .35, .6, .3, .1, { len: 'closed' }], 'Open': [.5, .6, .45, .6, .5, .1, { len: 'open' }], 'Ride': [.45, .8, .5, .5, .5, 0, { len: 'ride', bell: 1 }],
       'Crash': [.5, .35, .6, .7, .8, .15, { len: 'crash' }], 'Shaker': [.5, 0, .35, .55, .4, 0, { len: 'shaker', shaker: 1 }] } },
@@ -1750,6 +1750,13 @@ const DRUM_KEYLOCK = ['Free', 'Root', 'Fifth'];
 const DRUM_MACHINES = ['Modern', 'Boom', 'Punch', 'Mini', 'Digital'];
 const DRUM_MACH_N = { Modern: 'Modern', Boom: 'Analog Boom', Punch: 'Analog Punch', Mini: 'Analog Mini', Digital: 'Digital 80s' };
 const DRUM_MACH_SUB = { Modern: 'Clean and full: today\'s drums', Boom: 'Round, long, soft-edged', Punch: 'Hard attack, crunchy cymbals', Mini: 'Small, tight, bright', Digital: 'Early sampled: gritty 8-bit' };
+// picking a machine on a kick, snare or clap starts from that box's own sound (type Classic); hats and perc keep their type
+const MACH_KNOBS = { Boom: { kick: [.45, .4, .15, .6, .1, .1], snare: [.4, .5, .55, .35, .4, .05], clap: [.45, .45, .4, .55, .2, .1] },
+  Punch: { kick: [.5, .6, .45, .4, .55, .25], snare: [.45, .5, .7, .4, .6, .2], clap: [.55, .5, .45, .6, .25, .15] },
+  Mini: { kick: [.5, .5, .35, .35, .3, .1], snare: [.5, .3, .7, .3, .65, .05], clap: [.6, .3, .3, .65, .1, .05] },
+  Digital: { kick: [.45, .55, .4, .45, .5, .15], snare: [.5, .55, .65, .4, .55, .1], clap: [.55, .45, .45, .6, .3, .1] } };
+function drumSetMachine(d, mc) { d.mach = mc; const v = MACH_KNOBS[mc] && MACH_KNOBS[mc][d.mod]; if (!v) return d;
+  d.type = 'Classic'; DRUM_MODS[d.mod].knobs.forEach(([id], i) => { if (!d.locks.includes(id)) d.k[id] = v[i]; }); return d; }
 const machOf = d => DRUM_MACHINES.includes(d.mach) ? d.mach : 'Modern';
 const drumBaseHz = (mod, tune, mc) => mod === 'kick' ? 35 * Math.pow(2, tune * 1.25) * (mc === 'Mini' ? 1.35 : 1) : 150 * Math.pow(2, tune * 1.1) * (mc === 'Mini' ? 1.3 : 1);
 
@@ -1915,7 +1922,7 @@ function drumKitPiece(vibe, role, seed) {
 function drumKit(vibe, seed = 1) { const V = DRUM_VIBES.find(v => v[0] === vibe) || DRUM_VIBES[0];
   return { kit: { vibe: V[0], tune: V[7], len: V[8], bright: V[9], drive: V[10], room: V[11], seed }, pieces: KIT_ROLES.map((R, i) => ({ role: R[0], d: drumKitPiece(V[0], i, seed) })) }; }
 function drumKey(d, kit, key) { const k = drumEffective(d, kit), tuned = DRUM_MODS[d.mod].tuned && d.key !== 'Free'; return 'd:' + d.mod + ':' + d.type + (machOf(d) !== 'Modern' ? '@' + machOf(d) : '') + ':' + d.seed + ':' + Object.values(k).map(v => Math.round(v * 1000)).join(',') + (tuned && key ? ':' + key.root + d.key : '') + (kit && d.kit ? ':r' + Math.round(kit.room * 100) : ''); }
-if (typeof module !== 'undefined') module.exports = { DRUM_SR, DRUM_MODS, DRUM_KEYLOCK, DRUM_MACHINES, DRUM_MACH_N, drumBaseHz, DRUM_VIBES, KIT_ROLES, drumDefault, drumNormalize, drumRender, drumVariation, drumKit, drumKitPiece, drumKey, drumEffective, keySnap };
+if (typeof module !== 'undefined') module.exports = { DRUM_SR, DRUM_MODS, DRUM_KEYLOCK, DRUM_MACHINES, DRUM_MACH_N, drumBaseHz, drumSetMachine, DRUM_VIBES, KIT_ROLES, drumDefault, drumNormalize, drumRender, drumVariation, drumKit, drumKitPiece, drumKey, drumEffective, keySnap };
 
 
 /* Trackfill time-stretching. Stretched audio is rendered when something changes (tempo, mode, settings) and played as a plain
@@ -3155,6 +3162,15 @@ function tlClamp() { const tl = UI.tl; if (!tl.zoom) tl.zoom = (TL.W - LABEL_W) 
   if (tl.mode === 'keys') { const ck = !!KR.chop(), kh = rowH(); if (tl.syChop !== ck) { tl.sy = null; tl.syChop = ck; }
     const total = KR.rows() * kh; if (tl.sy == null) tl.sy = ck ? 0 : (KEY_HI - 6) * kh - viewH / 2; tl.sy = clamp(tl.sy, 0, Math.max(0, total - viewH)); }
   else tl.by = clamp(tl.by || 0, 0, Math.max(0, 16 * rowH() - viewH)); }
+// dragging a selection box near an edge scrolls the timeline, so the box can reach notes that weren't on screen
+function boxScroll(d) { if (d.scrolling) return; d.scrolling = true; let last = performance.now();
+  const step = now => { const tl = UI.tl; if (TL.drag !== d || !TL.cv) { d.scrolling = false; return; } const dt = clamp(now - last, 8, 50) / 16.7, E = 30; last = now;
+    const ex = d.x < LABEL_W + E ? -(LABEL_W + E - d.x) : d.x > TL.W - E ? d.x - (TL.W - E) : 0, ey = d.y < RULER_H + E ? -(RULER_H + E - d.y) : d.y > TL.H - E ? d.y - (TL.H - E) : 0;
+    if (!ex && !ey) { d.scrolling = false; return; }
+    const sx = tl.sx, vo = vOff(); tl.sx += Math.sign(ex) * Math.min(E, Math.abs(ex)) * .2 * dt / tl.zoom;
+    if (ey) { const v = Math.sign(ey) * Math.min(E, Math.abs(ey)) * .15 * dt; if (tl.mode === 'keys') tl.sy += v; else tl.by = (tl.by || 0) + v; }
+    tlClamp(); if (tl.sx === sx && vOff() === vo) { d.scrolling = false; return; } drawTL(); requestAnimationFrame(step); };
+  requestAnimationFrame(step); }
 // vertical zoom (Shift + the zoom keys, or pinch): keeps the middle row in place
 function zoomV(f) { const tl = UI.tl, viewH = TL.H - RULER_H, mid = (vOff() + viewH / 2) / rowH();
   if (tl.mode === 'bank') tl.rv = clamp(Math.round((tl.rv || 16) / f * 100) / 100, 4, 16); else tl.kh = clamp((tl.kh || KEY_H) * f, 14, 56);
@@ -3201,7 +3217,7 @@ function drawNotesLane(g) {
         if (j - i > 1) { const x = t2x(arr[i].t), y = row2y(r); if (x > LABEL_W && x < W && y + rh > RULER_H && y < H && rh >= 14) { g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(x + 2, y + 3, 17, Math.min(12, rh - 6)); g.fillStyle = COL.ink; g.fillText('×' + (j - i), x + 4, y + 3 + Math.min(12, rh - 6) / 2); } }
         i = j; } } }
   else { const pi = UI.pad; for (const n of sc.notes[pi] || []) { const r = KR.row(n.p); if (r >= 0 && r < rows) drawNote(n, pi, r, SEL.has(n)); } }
-  const box = TL.drag && TL.drag.kind === 'box' ? [TL.drag.x0, TL.drag.y0, TL.drag.x, TL.drag.y] : tl.box ? [t2x(Math.min(tl.box.t, tl.cursor.t)), row2y(Math.min(tl.box.row, tl.cursor.row)), t2x(Math.max(tl.box.t, tl.cursor.t) + tlStep()), row2y(Math.max(tl.box.row, tl.cursor.row) + 1)] : null;
+  const box = TL.drag && TL.drag.kind === 'box' ? [t2x(TL.drag.bt), TL.drag.by - vOff(), TL.drag.x, TL.drag.y] : tl.box ? [t2x(Math.min(tl.box.t, tl.cursor.t)), row2y(Math.min(tl.box.row, tl.cursor.row)), t2x(Math.max(tl.box.t, tl.cursor.t) + tlStep()), row2y(Math.max(tl.box.row, tl.cursor.row) + 1)] : null;
   if (box) { const [a, b, c2, d2] = box; g.fillStyle = COL.accent; g.globalAlpha = .12; g.fillRect(Math.min(a, c2), Math.min(b, d2), Math.abs(c2 - a), Math.abs(d2 - b)); g.globalAlpha = 1; g.setLineDash([4, 3]); g.strokeStyle = COL.accent; g.lineWidth = 1.5; g.strokeRect(Math.min(a, c2) + .5, Math.min(b, d2) + .5, Math.abs(c2 - a), Math.abs(d2 - b)); g.setLineDash([]); }
   if (NAV.mode === 'canvas' && !tl.sel) { const c = tl.cursor, y = row2y(c.row), x = t2x(c.t); g.setLineDash([4, 3]); g.strokeStyle = COL.accent; g.lineWidth = 1.5; g.strokeRect(x + .5, y + 1.5, Math.max(6, tlStep() * tl.zoom) - 1, rh - 3); g.setLineDash([]); }
   g.fillStyle = COL.raised; g.fillRect(0, RULER_H, LABEL_W, H); g.font = '500 11px ' + FONT_LCD; g.textBaseline = 'middle';
@@ -3303,7 +3319,7 @@ function bindTL(cv) {
         if (tl.mode === 'bank') UI.pad = hit.pi;
         const items = selItems().map(q => ({ q, t: q.n.t, len: q.n.len }));
         TL.drag = Object.assign(base, { kind: hit.edge ? 'resize' : 'move', hit, items, wasSel: inSel, t0: hit.edge ? hit.n.t : Math.min(...items.map(it => it.t)), len0: hit.n.len, row0: y2row(y), rowShift: 0, pushed: false }); drawTL(); updatePanel(); return; }
-      TL.drag = Object.assign(base, { kind: tl.selMode ? 'box' : 'empty' }); return;
+      TL.drag = Object.assign(base, tl.selMode ? { kind: 'box', bt: x2t(x), by: y + vOff() } : { kind: 'empty' }); return;
     }
     if (x < LABEL_W) { TL.drag = Object.assign(base, { kind: 'pan' }); return; }
     const pts = lanePts(false) || []; let hi = -1, best = 20; pts.forEach((p, i) => { const d = Math.hypot(t2x(p.t) - x, v2y(p.v) - y); if (d < best) { best = d; hi = i; } });
@@ -3322,7 +3338,7 @@ function bindTL(cv) {
       const row = (pz.v0 + pz.cy0 - RULER_H) / pz.rh0, v = row * rowH() - (cy - RULER_H); if (tl.mode === 'bank') tl.by = v; else tl.sy = v; drawTL(); return; }
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; const len = tlLen(); d.x = x; d.y = y;
     if (!d.moved && Math.hypot(x - d.x0, y - d.y0) > 7) d.moved = true; if (!d.moved) return;
-    if (d.kind === 'box') { drawTL(); return; }
+    if (d.kind === 'box') { boxScroll(d); drawTL(); return; }
     if ((d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') && tl.lane === 'notes' && tl.mode === 'bank' && d.axis == null && d.y0 >= RULER_H) d.axis = Math.abs(y - d.y0) > Math.abs(x - d.x0) * 1.3 ? 'v' : 'h';
     if (d.axis === 'v') return;   // a vertical swipe in Bank view flips banks (on release), like the mixer's pages
     if (d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') { if (d.kind !== 'label') d.kind = 'pan'; tl.sx = d.sx0 - (x - d.x0) / tl.zoom; if (tl.mode === 'keys' && tl.lane === 'notes') tl.sy = d.sy0 - (y - d.y0); drawTL(); return; }
@@ -3344,7 +3360,7 @@ function bindTL(cv) {
     if (TL.pinch) { if (!ptrs.size) TL.pinch = null; return; }   // the pinch ends when every finger has lifted
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; TL.drag = null; const tl = UI.tl, { x, y } = tlLocal(e), now = Date.now();
     if (d.kind === 'box') { if (!d.moved) { clearSel(); drawTL(); updatePanel(); return; }
-      setGroup(notesInBox(x2t(d.x0), x2t(x), y2row(d.y0), y2row(y))); if (tl.sel && tl.mode === 'bank') UI.pad = tl.sel.pi; auditionSel(); drawTL(); updatePanel(); return; }
+      setGroup(notesInBox(d.bt, x2t(x), y2row(d.by - vOff()), y2row(y))); if (tl.sel && tl.mode === 'bank') UI.pad = tl.sel.pi; auditionSel(); drawTL(); updatePanel(); return; }
     if (d.axis === 'v') { const dy = y - d.y0; if (Math.abs(dy) > 40) tlBank(UI.bank + (dy < 0 ? 1 : -1), 'swipe'); else drawTL(); return; }
     if (d.kind === 'label' && !d.moved) { const r = y2row(y); if (r >= 0 && r <= maxRow()) { if (tl.mode === 'bank') { UI.pad = UI.bank * 16 + r; UI.tl.target = null; audition(UI.pad); } else audition(UI.pad, KR.p(r)); } drawTL(); updatePanel(); return; }
     if (d.kind === 'empty' && !d.moved) {
@@ -5642,7 +5658,7 @@ function renderDrumPage(w, pi, head, pages) {
   dev.append(row);
   const disp = h('div', 'scr disp'), cv = h('canvas'); disp.append(cv); drumCv = cv; dev.append(disp);
   const g = h('div', 'kgrid synGrid'); for (const [id, label] of M.knobs) g.append(drumKnob(pi, id, label));
-  g.append(cellBtn('Kit', (P.drumKits || {})[Math.floor(pi / 16)] ? (P.drumKits[Math.floor(pi / 16)].vibe || 'Kit') : 'Build…', () => openKitBuilder(pi)), cellBtn('More', d.key !== 'Free' ? 'Key: ' + d.key : 'Options', () => openDrumMore(pi)));
+  g.append(cellBtn('Machine', DRUM_MACH_N[machOf(d)], () => openDrumMachines(pi)), cellBtn('More', d.key !== 'Free' ? 'Key: ' + d.key : 'Options', () => openDrumMore(pi)));
   dev.append(g); w.append(head, pages, dev); requestAnimationFrame(drawDrumDisp);
 }
 function drawDrumDisp() {
@@ -5669,11 +5685,12 @@ function openDrumModules(pi) {
     for (const mod in DRUM_MODS) { const M = DRUM_MODS[mod]; st.append(btn(`<b>${M.n}</b><span>${Object.keys(M.types).length} types</span><i>${esc(Object.keys(M.types).join(' · '))}</i>`, () => { closeSheet(); makeDrumPad(pi, mod, Object.keys(M.types)[0]); }, 'btn prow' + (drumOf(pi).mod === mod ? ' on' : ''))); }
     card.append(st); }); }
 function openDrumTypes(pi) { const d = drumOf(pi), M = DRUM_MODS[d.mod];
-  openSheet(M.n, card => { const st = h('div', 'stack'); card.append(st);
-    st.append(h('div', 'sec', 'Machine')); const l = h('div', 'list');
+  openSheet(M.n + ' types', card => { const g = h('div', 'g2'); for (const t in M.types) g.append(btn(esc(t), () => { closeSheet(); setDrumType(pi, t); }, 'btn' + (d.type === t ? ' on' : ''))); card.append(g); }); }
+function openDrumMachines(pi) { const d = drumOf(pi);
+  openSheet('Machine · ' + DRUM_MODS[d.mod].n, card => { const l = h('div', 'list');
     for (const m of DRUM_MACHINES) { const li = h('div', 'li' + (machOf(d) === m ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${DRUM_MACH_N[m]}</b><span>${DRUM_MACH_SUB[m]}</span></div>`;
-      li.onclick = () => { if (machOf(d) !== m) { pushUndo('pad:' + pi); touchPad(pi); d.mach = m; refreshDrum(pi); audition(pi); } closeSheet(); renderView(); }; l.append(li); }
-    st.append(l, h('div', 'sec', 'Type')); const g = h('div', 'g2'); for (const t in M.types) g.append(btn(esc(t), () => { closeSheet(); setDrumType(pi, t); }, 'btn' + (d.type === t ? ' on' : ''))); st.append(g); }); }
+      li.onclick = () => { const pad = P.pads[pi]; if (machOf(d) !== m) { pushUndo('pad:' + pi); touchPad(pi); drumSetMachine(d, m); if (!pad.name || DRUM_TYPE_NAMES.has(pad.name)) pad.name = d.type === 'Classic' ? DRUM_MODS[d.mod].n : d.type.slice(0, 12); refreshDrum(pi); audition(pi); } closeSheet(); renderView(); }; l.append(li); }
+    card.append(l); }); }
 function openDrumMore(pi) {
   const pad = P.pads[pi], d = pad.drum, M = DRUM_MODS[d.mod];
   openSheet(M.n + ' · options', card => { const st = h('div', 'stack'); card.append(st);
@@ -5682,7 +5699,7 @@ function openDrumMore(pi) {
     for (const [id, label] of M.knobs) lk.append(btn(label, () => { const i = d.locks.indexOf(id); if (i >= 0) d.locks.splice(i, 1); else d.locks.push(id); markDirty(); closeSheet(); openDrumMore(pi); }, 'btn' + (d.locks.includes(id) ? ' on' : ''))); st.append(lk);
     st.append(h('div', 'sec', 'This drum')); const g2 = h('div', 'g2');
     g2.append(btn('Save to library', () => { const s = SAMPLES.get(pad.sample); if (!s) return; const id = addUserSample((pad.name || d.type).slice(0, 24), s.sr, s.ch, s.data); closeSheet(); toast(`Saved "${SAMPLES.get(id).name}" to your sounds`); }),
-      btn('Reset to type', () => { closeSheet(); setDrumType(pi, d.type); }), btn('Clear slots', () => { d.slots = []; markDirty(); closeSheet(); renderView(); }),
+      btn('Reset to type', () => { closeSheet(); setDrumType(pi, d.type); }), btn('Kit builder…', () => { closeSheet(); openKitBuilder(pi); }), btn('Clear slots', () => { d.slots = []; markDirty(); closeSheet(); renderView(); }),
       btn(d.kit ? 'Leave the kit' : 'Join the bank\'s kit', () => { pushUndo('pad:' + pi); d.kit = !d.kit; refreshDrum(pi); closeSheet(); renderView(); }));
     st.append(g2); }); }
 
