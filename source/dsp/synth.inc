@@ -452,12 +452,13 @@ static void renderSynth(i32 n) {
         const float wd = xWd; sL = (a * (1.f - wd * .5f) + b * wd * .5f) * g * 0.6f; sR = (b * (1.f - wd * .5f) + a * wd * .5f) * g * 0.6f; }
       else if (IS) {   // instrument: linear reads (the instruments are stored at a low rate, like the old ROM players)
         const i16* d = IS->d; const i32 ch = IS->ch; float y[2] = { 0, 0 };
-        for (i32 r = 0; r < (iW ? 2 : 1); r++) { double& p = v->ipos[r]; if (p >= IZ->en - 1) { v->idone = 1; continue; }
+        for (i32 r = 0; r < (iW ? 2 : 1); r++) { double& p = v->ipos[r]; if (!iLoop && p >= IZ->en - 1) { v->idone = 1; continue; }   // looped zones end where their loop ends: they wrap, never finish
           const i32 i0 = (i32)p; const float f = (float)(p - i0); i32 i1 = i0 + 1; if (iLoop && (u32)i1 >= IZ->le) i1 = IZ->ls;
           float a = d[i0 * ch], b = d[i1 * ch]; if (ch == 2) { a = (a + d[i0 * 2 + 1]) * 0.5f; b = (b + d[i1 * 2 + 1]) * 0.5f; }
           y[r] = (a + (b - a) * f) * 3.0517578e-5f * iG; p += r ? iInc2 : iInc;
           if (iLoop) { const double L = (double)(IZ->le - IZ->ls); while (p >= IZ->le) p -= L; } }
         if (!iW) y[1] = y[0]; else if (v->idone) { v->idone = (v->ipos[0] >= IZ->en - 1 && v->ipos[1] >= IZ->en - 1); }
+        if (iLoop) v->idone = 0;
         v->ilp[0] += (y[0] - v->ilp[0]) * iLp; v->ilp[1] += (y[1] - v->ilp[1]) * iLp; sL = v->ilp[0]; sR = v->ilp[1]; }
       else if (isWT) for (i32 u = 0; u < U; u++) {   // B first (A can take it for FM/AM/Ring), then A; B's cross-modulation uses A's last sample
         float x = 0;

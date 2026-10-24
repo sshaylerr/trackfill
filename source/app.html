@@ -319,6 +319,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 .dev .knob .kval{color:var(--d-ink)} .dev .klab{color:var(--d-ink2)}
 .dev .selr .sw{background:var(--d-sw)} .dev .selr .sw>span{color:var(--d-swink)}
 .kgrid.k8{grid-template-columns:repeat(8,minmax(0,1fr))}
+.grid .pad,.spk{touch-action:none}   /* several fingers on the pads are never a page gesture */
 .stepPal{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;margin:6px 0 2px} .stepPal .key{padding:0 2px;font-size:11px;white-space:nowrap} .stepPal i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:0}
 .dev.dconsole [data-p^="LF "] .kb{fill:#5a3b26} .dev.dconsole [data-p^="LMF "] .kb{fill:#2f5fae} .dev.dconsole [data-p^="HMF "] .kb{fill:#2f8a4a} .dev.dconsole [data-p^="HF "] .kb{fill:#b8322a}
 .dev.stripes{box-shadow:inset 0 3px 0 #e8913c,inset 0 6px 0 #2b2b2e,inset 0 8px 0 #f2efe6,inset 0 -1px 0 rgba(0,0,0,.45),0 3px 0 #050506,0 6px 14px rgba(0,0,0,.35)}
@@ -988,6 +989,16 @@ function flashPad(pi, k = -1) {
   if (UI.keys) { if (k >= 0 && pi === UI.pad && padChop()) flashCell(k); return; }
   if (Math.floor(pi / 16) === UI.bank) flashCell(pi % 16); }
 let tagSeq = 1;
+/* Pads don't capture the pointer. On iOS, lifting several fingers at once can lose a release, and a capture left behind sends
+   every later touch to that one pad: the pads keep playing and the rest of the screen stops answering. Instead each finger is
+   remembered by its pointer id and released by a window-wide listener, wherever it lifts. */
+const PADPTR = new Map();
+function padPress(e, down, up) { e.preventDefault(); const old = PADPTR.get(e.pointerId); if (old) { PADPTR.delete(e.pointerId); old(); } PADPTR.set(e.pointerId, up); down(); }
+function padRelease(e) { const f = PADPTR.get(e.pointerId); if (f) { PADPTR.delete(e.pointerId); f(); }
+  const el = e.target; try { if (el && el.hasPointerCapture && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId); } catch (_) {} }   // and never leave any capture behind
+addEventListener('pointerup', padRelease, true); addEventListener('pointercancel', padRelease, true);
+const releaseAllPads = () => { for (const f of PADPTR.values()) f(); PADPTR.clear(); };
+addEventListener('blur', releaseAllPads); document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAllPads(); });
 function padDown(cell, hk = cell) {   // hk: the key this press is held under (the panel's pad strip uses its own)
   ensureAudio(); let pi, semi = 0, kc = null;
   const chop = padChop();
@@ -1587,8 +1598,7 @@ function buildStrip() {
   const s = $('#pstrip'); s.innerHTML = ''; const oct = h('div', 'soct');
   oct.append(btn('▲', () => { keysOct(1); refreshStrip(); }, 'pk'), btn('▼', () => { keysOct(-1); refreshStrip(); }, 'pk')); s.append(oct);
   const g = h('div', 'sgrid'); for (let r = 1; r >= 0; r--) for (let c = 0; c < 8; c++) { const cell = r * 8 + c, d = h('div', 'spk'); d.dataset.cell = cell;
-    d.addEventListener('pointerdown', e => { e.preventDefault(); try { d.setPointerCapture(e.pointerId); } catch (_) {} stripDown(cell); d.classList.add('hit'); });
-    const up = () => { padUp('s' + cell); d.classList.remove('hit'); }; d.addEventListener('pointerup', up); d.addEventListener('pointercancel', up); g.append(d); }
+    d.addEventListener('pointerdown', e => padPress(e, () => { stripDown(cell); d.classList.add('hit'); }, () => { padUp('s' + cell); d.classList.remove('hit'); })); g.append(d); }
   s.append(g);
   // pitch bend wheel: drag up or down, springs back to the middle when you let go (recorded as automation while recording)
   const bw = h('div', 'sbend'), knob = h('i'); bw.append(knob); let bd = null;
