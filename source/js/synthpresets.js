@@ -206,6 +206,25 @@ const IN_PRESETS = [
   inPreset('flute', 'Flute', 'Melodic', { aa: .03, ar: .25 }), inPreset('synbrass', 'Synth Brass', 'Melodic', { aa: .015, ar: .3, iwd: .3 }),
   inPreset('bassf', 'Finger Bass', 'Bass', DECAY(2.5, .08), { voice: 'mono' }), inPreset('bassp', 'Pick Bass', 'Bass', DECAY(2.5, .08), { voice: 'mono' }), inPreset('bassm', 'Muted Bass', 'Bass', ONE, { voice: 'mono' }),
 ];
+/* ----- FX presets: risers, drops, impacts, lasers and sirens. Macro 1 = Sweep, Macro 2 = Wobble depth ----- */
+function fxPreset(n, g, p, x) { return Object.assign({ n, g, eng: 'sfx', p: Object.assign({ flt: 'Off', aa: .005, ad: 1, as: 1, ar: .3 }, p), mods: [synMod('Macro 1', 'xsa', .3), synMod('Macro 2', 'xwa', .3)] }, x || {}); }
+const SFX_PRESETS = [
+  fxPreset('Noise Riser', 'Risers', { xtl: 0, xnl: 1, xnc: .2, xss: '4 bars', xsf: .7, flt: 'Clean', cut: 300, res: .25, xsv: .8, ar: .5 }),
+  fxPreset('Pitch Riser', 'Risers', { xwv: 'Saw', xsa: 24, xss: '4 bars', xsc: .3, xdt: .5, xwd: .6, xnl: .3, xsf: .5, flt: 'Clean', cut: 1200, xsv: .6, xwa: .25, xwr: 5, xwu: .6 }),
+  fxPreset('Downlifter', 'Risers', { xtl: 0, xnl: 1, xss: '2 bars', xsf: -.7, flt: 'Clean', cut: 12000, res: .2, xsv: -.9 }),
+  fxPreset('Bomb Drop', 'Risers', { xwv: 'Sine', xoc: 2, xsa: -24, xst: 3, xsc: .5, xnl: .15, xnc: -.4 }),
+  fxPreset('Impact', 'Impacts', { xwv: 'Sine', xoc: -1, xsa: -24, xst: .35, xsc: -.6, xnl: .5, xnc: -.5, as: 0, ad: 2.5, ar: .5 }),
+  fxPreset('Zap', 'Impacts', { xwv: 'Saw', xsa: -48, xst: .06, xsc: -.7, as: 0, ad: .2, ar: .05 }),
+  fxPreset('Laser', 'Lasers', { xwv: 'Square', xsa: -36, xst: .12, xsc: -.5, xsl: 'Repeat', xgr: .2, ar: .05 }),
+  fxPreset('Laser Rise', 'Lasers', { xwv: 'Pulse', xoc: 1, xsa: 24, xst: .15, xsc: .4, xsl: 'Repeat', xdt: .3 }),
+  fxPreset('Siren', 'Sirens', { xwv: 'Triangle', xoc: 1, xwa: 7, xwr: .45, xwh: 'Sine' }),
+  fxPreset('Dub Siren', 'Sirens', { xwv: 'Square', xwa: 12, xwh: 'Square', xwr: 3, xwu: .4, xss: '2 bars', flt: 'Clean', cut: 3500 }, { fx: [{ type: 4, mode: 2 }] }),
+  fxPreset('Air Raid', 'Sirens', { xwv: 'Saw', xwa: 12, xwh: 'Triangle', xwr: .12, flt: 'Clean', cut: 2500 }),
+  fxPreset('Alarm', 'Sirens', { xwv: 'Square', xoc: 1, xwa: 5, xwh: 'Square', xwr: 2.5, flt: 'Clean', cut: 3000 }),
+  fxPreset('Wind', 'Textures', { xtl: 0, xnl: 1, xnc: -.4, xwf: .5, xwr: .15, xwh: 'Random', flt: 'Clean', cut: 1200, res: .5, xwl: .3, aa: .6, ar: 1.2 }),
+  fxPreset('Sci-fi Drone', 'Textures', { xwv: 'Saw', xdt: .6, xwd: .8, xwa: .3, xwr: .2, xsf: .3, xsl: 'Back and forth', xst: 6, flt: 'Ladder', cut: 800, res: .5, aa: .8, ar: 1.5 }),
+];
+const SYN_FX_INIT = { n: 'Init', g: 'Init', eng: 'sfx', p: { flt: 'Off' }, mods: [] };
 const SYN_IN_INIT = { n: 'Init', g: 'Init', eng: 'ins', ins: 'i:house', p: { flt: 'Off' }, mods: [] };
 const SYN_SU_INIT = { n: 'Init', g: 'Init', eng: 'sub', p: { flt: 'Off', ar: .12 }, mods: [] };
 const SYN_FM_INIT = { n: 'Init', g: 'Init', eng: 'fm', p: { flt: 'Off', ad: 2, as: 1, ar: .35 }, mods: [] };
@@ -227,11 +246,11 @@ function synPatch(pr) {
 }
 function normalizeSyn(s) {
   if (!s || typeof s !== 'object') return null;
-  const o = { eng: ['fm', 'wt', 'gr', 'sub', 'ins'].includes(s.eng) ? s.eng : 'analog', sig: typeof s.sig === 'number' ? s.sig : undefined, name: String(s.name || ''), p: Object.assign({}, s.p || {}), mods: Array.isArray(s.mods) ? s.mods.filter(m => m && typeof m.d === 'string' && m.s >= 0 && m.s < SYN_SRC.length).slice(0, 32).map(m => ({ s: m.s | 0, d: m.d, a: Math.max(-1, Math.min(1, +m.a || 0)), c: Math.max(0, Math.min(3, m.c | 0)), v: m.v == null ? undefined : m.v | 0 })) : [] };
+  const o = { eng: ['fm', 'wt', 'gr', 'sub', 'ins', 'sfx'].includes(s.eng) ? s.eng : 'analog', sig: typeof s.sig === 'number' ? s.sig : undefined, name: String(s.name || ''), p: Object.assign({}, s.p || {}), mods: Array.isArray(s.mods) ? s.mods.filter(m => m && typeof m.d === 'string' && m.s >= 0 && m.s < SYN_SRC.length).slice(0, 32).map(m => ({ s: m.s | 0, d: m.d, a: Math.max(-1, Math.min(1, +m.a || 0)), c: Math.max(0, Math.min(3, m.c | 0)), v: m.v == null ? undefined : m.v | 0 })) : [] };
   if (o.eng === 'ins' || s.ins) o.ins = typeof s.ins === 'string' && /^i:[a-z0-9]+$/.test(s.ins) ? s.ins : 'i:house';
   if (o.eng === 'gr' || s.gr) o.gr = { src: typeof (s.gr && s.gr.src) === 'string' ? s.gr.src : null };
   if (o.eng === 'wt' || s.wt) o.wt = { a: typeof (s.wt && s.wt.a) === 'string' ? s.wt.a : 'w:Basic Shapes', b: typeof (s.wt && s.wt.b) === 'string' ? s.wt.b : 'w:Basic Shapes' };
   o.lfo = [0, 1, 2, 3].map(k => Array.isArray(s.lfo && s.lfo[k]) && s.lfo[k].length ? s.lfo[k].slice(0, 32).map(q => ({ x: Math.max(0, Math.min(1, +q.x || 0)), y: Math.max(0, Math.min(1, +q.y || 0)), c: Math.max(-.97, Math.min(.97, +q.c || 0)) })) : LFO_SHAPES.Sine.map(q => Object.assign({}, q)));
   return o;
 }
-if (typeof module !== 'undefined') module.exports = { IN_PRESETS, SYN_IN_INIT, SU_PRESETS, SYN_SU_INIT, GR_PRESETS, SYN_GR_INIT, WT_PRESETS, SYN_WT_INIT, FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };
+if (typeof module !== 'undefined') module.exports = { SFX_PRESETS, SYN_FX_INIT, IN_PRESETS, SYN_IN_INIT, SU_PRESETS, SYN_SU_INIT, GR_PRESETS, SYN_GR_INIT, WT_PRESETS, SYN_WT_INIT, FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };

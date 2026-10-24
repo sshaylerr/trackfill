@@ -18,7 +18,7 @@ const TF_LFO_DIVS = [['4 bars', 16], ['2 bars', 8], ['1 bar', 4], ['1/2', 2], ['
 // FM: algorithms as [name, targets of op 2, op 3, op 4 (bit k = feeds op k+1), carriers (bit k = op k+1 is heard)]; ops only feed lower-numbered ones
 const TF_ALGS = [['Stack', 1, 2, 4, 1], ['Y', 1, 2, 2, 1], ['Fork', 1, 1, 4, 1], ['Two pairs', 1, 0, 4, 5], ['One to three', 0, 0, 7, 7], ['Stack + sine', 0, 2, 4, 3],
   ['Two into one + sine', 0, 2, 2, 3], ['Pair + two', 0, 0, 4, 7], ['Additive', 0, 0, 0, 15], ['Diamond', 1, 1, 6, 1], ['Three into one', 1, 1, 1, 1], ['Chain to two', 0, 3, 4, 3]];
-const TF_ENGS = { analog: 'Analog', fm: 'FM', wt: 'Wavetable', gr: 'Granular', sub: 'Sub', ins: 'Instrument' };
+const TF_ENGS = { analog: 'Analog', fm: 'FM', wt: 'Wavetable', gr: 'Granular', sub: 'Sub', ins: 'Instrument', sfx: 'FX' };
 const TF_WARPS = ['Off', 'Sync', 'Bend', 'PWM', 'Mirror', 'Quantize', 'FM', 'AM', 'Ring'];   // FM, AM and Ring take the other oscillator
 const TF_OPMODES = ['FM', 'Ring', 'Filter', 'Filter FM', 'Fold'];
 const TF_FMWAVES = ['Sine', 'Digital', 'Triangle', 'Saw', 'Square', 'Sine 1+2', 'Sine 1+3', 'Saw 3', 'Square 3', 'Noise'];
@@ -44,7 +44,7 @@ const TFSYN = (() => {
     ['l' + k + 'o', 'Smooth', 'lin', 0, 1, 0, 'l' + k], ['l' + k + 'p', 'Phase', 'lin', 0, 1, 0, 'l' + k]);
   for (let k = 1; k <= 4; k++) L.push(['m' + k, 'Macro ' + k, 'lin', 0, 1, 0, 'mc']);
   // FM engine: four operators (op 1 is the bottom of every algorithm, op 4 the top, with feedback)
-  L.push(['eng', 'Engine', 'opt', ['Analog', 'FM', 'Wavetable', 'Granular', 'Sub', 'Instrument'], 0, 'Analog', 'en'], ['alg', 'Algorithm', 'opt', TF_ALGS.map(a => a[0]), 0, TF_ALGS[0][0], 'fa'],
+  L.push(['eng', 'Engine', 'opt', ['Analog', 'FM', 'Wavetable', 'Granular', 'Sub', 'Instrument', 'FX'], 0, 'Analog', 'en'], ['alg', 'Algorithm', 'opt', TF_ALGS.map(a => a[0]), 0, TF_ALGS[0][0], 'fa'],
     ['fmd', 'FM depth', 'lin', 0, 1, .5, 'fa'], ['ffb', 'Feedback', 'lin', 0, 1, 0, 'fa']);
   for (let k = 1; k <= 4; k++) { const f = 'f' + k, t = 'f' + k;
     L.push([f + 'm', 'Mode', 'opt', TF_OPMODES, 0, 'FM', t], [f + 'w', 'Wave', 'opt', TF_FMWAVES, 0, 'Sine', t], [f + 'c', 'Ratio', 'int', 0, 16, k === 1 ? 1 : k, t], [f + 'f', 'Fine', 'lin', 0, 1, 0, t],
@@ -67,6 +67,13 @@ const TFSYN = (() => {
   // Instrument engine: multisampled instruments (the zones come with the instrument, not the patch)
   L.push(['ioc', 'Octave', 'int', -3, 3, 0, 'in'], ['ise', 'Semi', 'lin', -12, 12, 0, 'in'], ['ifi', 'Fine', 'lin', -100, 100, 0, 'in'], ['ist', 'Start', 'lin', 0, 1, 0, 'in'],
     ['ivt', 'Vel → tone', 'lin', 0, 1, .4, 'in'], ['ilo', 'Loop', 'opt', ['On', 'Off'], 0, 'On', 'in'], ['iwd', 'Width', 'lin', 0, 1, 0, 'in']);
+  // FX engine: a tone and noise source, a sweep over time (pitch, filter, level: risers, drops, lasers) and a wobble (sirens)
+  L.push(['xwv', 'Wave', 'opt', TF_WAVES, 0, 'Saw', 'x1'], ['xtl', 'Tone', 'lin', 0, 1, .8, 'x1'], ['xnl', 'Noise', 'lin', 0, 1, 0, 'x1'], ['xnc', 'Color', 'bip', -1, 1, 0, 'x1'],
+    ['xoc', 'Octave', 'int', -3, 3, 0, 'x1'], ['xdt', 'Detune', 'lin', 0, 1, 0, 'x1'], ['xgr', 'Grit', 'lin', 0, 1, 0, 'x1'], ['xwd', 'Width', 'lin', 0, 1, 0, 'x1'],
+    ['xsa', 'Sweep', 'lin', -48, 48, 0, 'x2'], ['xst', 'Time', 'exp', .01, 30, 1, 'x2'], ['xss', 'Sync', 'opt', ['Free', '1 beat', '1 bar', '2 bars', '4 bars', '8 bars', '16 bars'], 0, 'Free', 'x2'], ['xsc', 'Curve', 'bip', -1, 1, 0, 'x2'],
+    ['xsf', 'Filter sweep', 'bip', -1, 1, 0, 'x2'], ['xsv', 'Level sweep', 'bip', -1, 1, 0, 'x2'], ['xsl', 'Loop', 'opt', ['Once', 'Repeat', 'Back and forth'], 0, 'Once', 'x2'],
+    ['xwr', 'Rate', 'exp', .05, 40, 2, 'x3'], ['xwy', 'Sync', 'opt', ['Free', 'Sync'], 0, 'Free', 'x3'], ['xwi', 'Rate', 'opt', TF_LFO_DIVS.map(d => d[0]), 0, '1/8', 'x3'], ['xwa', 'Depth', 'lin', 0, 24, 0, 'x3'],
+    ['xwh', 'Shape', 'opt', ['Sine', 'Triangle', 'Square', 'Saw up', 'Saw down', 'Random'], 0, 'Sine', 'x3'], ['xwu', 'Rate rise', 'bip', -1, 1, 0, 'x3'], ['xwf', 'To filter', 'bip', -1, 1, 0, 'x3'], ['xwl', 'To level', 'lin', 0, 1, 0, 'x3']);
   return L.map(([id, l, k, a, b, d, tab], i) => ({ i, id, l, k, a, b, d, tab }));
 })();
 const TFSYN_ID = Object.fromEntries(TFSYN.map(p => [p.id, p]));

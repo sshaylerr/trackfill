@@ -10,10 +10,10 @@ const SYN_PAGES = [
   { n: 'Mix', tabs: [['mx', 'Channel']] }];
 // FM swaps the Osc page for its own: the algorithm overview, one tab per operator (tone or envelope view), and Voice
 const SYN_OSC_PAGE = SYN_PAGES[0], SYN_FM_PAGE = { n: 'FM', tabs: [['fa', 'Algo'], ['f1', 'Op 1'], ['f2', 'Op 2'], ['f3', 'Op 3'], ['f4', 'Op 4'], ['vo', 'Voice']] };
-const SYN_IN_PAGE = { n: 'Instrument', tabs: [['in', 'Instrument'], ['sv', 'Voice']] }, SYN_SU_PAGE = { n: 'Sub', tabs: [['su', 'Sub'], ['sh', 'Harmonics'], ['s8', '808'], ['sv', 'Voice']] }, SYN_WT_PAGE = { n: 'Osc', tabs: [['wa', 'Osc A'], ['wb', 'Osc B'], ['vo', 'Voice']] }, SYN_GR_PAGE = { n: 'Grains', tabs: [['gr', 'Grains'], ['g2', 'More'], ['vo', 'Voice']] };
+const SYN_X_PAGE = { n: 'FX', tabs: [['x1', 'Source'], ['x2', 'Sweep'], ['x3', 'Wobble'], ['sv', 'Voice']] }, SYN_IN_PAGE = { n: 'Instrument', tabs: [['in', 'Instrument'], ['sv', 'Voice']] }, SYN_SU_PAGE = { n: 'Sub', tabs: [['su', 'Sub'], ['sh', 'Harmonics'], ['s8', '808'], ['sv', 'Voice']] }, SYN_WT_PAGE = { n: 'Osc', tabs: [['wa', 'Osc A'], ['wb', 'Osc B'], ['vo', 'Voice']] }, SYN_GR_PAGE = { n: 'Grains', tabs: [['gr', 'Grains'], ['g2', 'More'], ['vo', 'Voice']] };
 const engOf = pi => { const S = P.pads[pi] && P.pads[pi].syn; return S ? S.eng || 'analog' : 'analog'; };
-const isFmPad = pi => engOf(pi) === 'fm', isWtPad = pi => engOf(pi) === 'wt', isGrPad = pi => engOf(pi) === 'gr', isSuPad = pi => engOf(pi) === 'sub', isInPad = pi => engOf(pi) === 'ins';
-function synEngPages(pi) { SYN_PAGES[0] = isInPad(pi) ? SYN_IN_PAGE : isSuPad(pi) ? SYN_SU_PAGE : isFmPad(pi) ? SYN_FM_PAGE : isWtPad(pi) ? SYN_WT_PAGE : isGrPad(pi) ? SYN_GR_PAGE : SYN_OSC_PAGE; }
+const isFmPad = pi => engOf(pi) === 'fm', isWtPad = pi => engOf(pi) === 'wt', isGrPad = pi => engOf(pi) === 'gr', isSuPad = pi => engOf(pi) === 'sub', isInPad = pi => engOf(pi) === 'ins', isXPad = pi => engOf(pi) === 'sfx';
+function synEngPages(pi) { SYN_PAGES[0] = isXPad(pi) ? SYN_X_PAGE : isInPad(pi) ? SYN_IN_PAGE : isSuPad(pi) ? SYN_SU_PAGE : isFmPad(pi) ? SYN_FM_PAGE : isWtPad(pi) ? SYN_WT_PAGE : isGrPad(pi) ? SYN_GR_PAGE : SYN_OSC_PAGE; }
 const OPMODE_COL = { FM: '#4fd1c5', Ring: '#f2b544', Filter: '#7aa8ff', 'Filter FM': '#c58bff', Fold: '#ff7a7a' };
 function synCells(tab) {
   if (/^f\d$/.test(tab)) { const f = tab; return SYN_ST.opv ? [f + 'a', f + 'd', f + 's', f + 'r', f + 'x', f + 'z', f + 'l', '#opv'] : [f + 'm', f + 'w', f + 'c', f + 'f', f + 'l', f + 't', f + 'q', '#opv']; }
@@ -22,14 +22,16 @@ const SYN_CELLS = {
   o1: ['o1w', 'o1o', 'o1s', 'o1f', 'o1l', 'o1p', 'ret', 'dri'], o2: ['o2w', 'o2o', 'o2s', 'o2f', 'o2l', 'o2p', 'o2y', 'o2m'], o3: ['o3w', 'o3o', 'o3s', 'o3f', 'o3l', 'o3p', 'o3x', 'o3r'],
   vo: ['uni', 'det', 'spr', 'pit', '#bendr', 'gan', '#glide', '#poly'], sb: ['sbl', 'sbo', 'sbw', 'spl', 'spn'], nz: ['nzn', 'nzt', 'nzb', 'nzd', 'nzh', 'nzl', 'nzo', 'nzk'],
   fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp', 'fbk'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'vel', '#voice'], e2: ['2a', '2d', '2s', '2r', '2c', '2k'], e3: ['3a', '3d', '3s', '3r', '3c', '3k'],
-  mc: ['m1', 'm2', 'm3', 'm4'], in: ['#ins', 'ioc', 'ise', 'ifi', 'ist', 'ivt', 'ilo', 'iwd'], su: ['sul', 'suo', 'sus', 'sup', 'sxo', 'sdm', 'sdr', 'sto'], sh: ['sh2', 'sh3', 'sh4', 'sh5', 'shm', 'sho', 'sht', 'shw'],
+  mc: ['m1', 'm2', 'm3', 'm4'],
+  x1: ['xwv', 'xtl', 'xnl', 'xnc', 'xoc', 'xdt', 'xgr', 'xwd'], x2: ['xsa', 'xst', 'xss', 'xsc', 'xsf', 'xsv', 'xsl'], x3: ['xwy', 'xw@', 'xwa', 'xwh', 'xwu', 'xwf', 'xwl'],
+  in: ['#ins', 'ioc', 'ise', 'ifi', 'ist', 'ivt', 'ilo', 'iwd'], su: ['sul', 'suo', 'sus', 'sup', 'sxo', 'sdm', 'sdr', 'sto'], sh: ['sh2', 'sh3', 'sh4', 'sh5', 'shm', 'sho', 'sht', 'shw'],
   s8: ['spa', 'spt', 'spc', '#glide', 'ckl', 'ckt', '#bendr'], sv: ['pit', 'gan', 'vel', '#poly', '#voice', '#follow'], gr: ['#grsrc', 'gpo', 'gsc', 'gsz', 'gde', 'gsp', 'gps', 'gst'], g2: ['gmo', 'gsh', 'grv', 'gtl', 'gkt'], wa: ['#tableA', 'wap', 'wal', 'wao', 'was', 'waf', 'waw', 'wax'], wb: ['#tableB', 'wbp', 'wbl', 'wbo', 'wbs', 'wbf', 'wbw', 'wbx'], fa: ['alg', 'fmd', 'ffb', 'ret', 'f1l', 'f2l', 'f3l', 'f4l'] };
 for (let k = 1; k <= 4; k++) SYN_CELLS['l' + k] = ['l' + k + 'y', 'l' + k + '@', 'l' + k + 'm', 'l' + k + 'o', 'l' + k + 'p', '#shape', '#snap'];
 // colours for modulation sources: envelopes green, LFOs pink, performance sources gold, macros the theme accent
 const SRC_COL = i => i <= 2 ? '#7fd49a' : i <= 6 ? '#ff7ac8' : i <= 11 || i === 16 ? '#e6c162' : 'var(--accent)';
 const SYN_ST = { pg: 0, tab: {}, snap: 0, opv: 0 };
 // pages whose controls don't fill two rows of four are laid out by hand
-const SYN_ROWS = { s8: [['spa', 'spt', 'spc', '#glide'], ['ckl', 'ckt', '#bendr']], sv: [['pit', 'gan', 'vel', '#poly'], ['#voice', '#follow']], sb: [['sbl', 'sbo', 'sbw'], ['spl', 'spn']], g2: [['gmo', 'gsh', 'grv'], ['gtl', 'gkt']] };
+const SYN_ROWS = { x2: [['xsa', 'xst', 'xss', 'xsc'], ['xsf', 'xsv', 'xsl']], x3: [['xwy', 'xw@', 'xwa', 'xwh'], ['xwu', 'xwf', 'xwl']], s8: [['spa', 'spt', 'spc', '#glide'], ['ckl', 'ckt', '#bendr']], sv: [['pit', 'gan', 'vel', '#poly'], ['#voice', '#follow']], sb: [['sbl', 'sbo', 'sbw'], ['spl', 'spn']], g2: [['gmo', 'gsh', 'grv'], ['gtl', 'gkt']] };
 function synRows(tab) { if (SYN_ROWS[tab]) return SYN_ROWS[tab]; const l = /^l(\d)$/.exec(tab); if (l) { const k = 'l' + l[1]; return [[k + 'y', k + '@', k + 'm', k + 'p'], [k + 'o', '#shape', '#snap']]; }
   const c = synCells(tab), pad4 = r => r.concat(['', '', '', '']).slice(0, 4); return [pad4(c.slice(0, 4)), pad4(c.slice(4, 8))]; }
 // synth controls offered as automation lanes (the timeline): macros first, then the ones most often moved in a track
@@ -39,7 +41,8 @@ const SYN_AUTO_WT = ['m1', 'm2', 'm3', 'm4', 'wap', 'wbp', 'wax', 'wbx', 'wal', 
 const SYN_AUTO_GR = ['m1', 'm2', 'm3', 'm4', 'gpo', 'gsc', 'gsz', 'gde', 'gsp', 'gps', 'gst', 'cut', 'res', 'pit', 'gan'];
 const SYN_AUTO_SU = ['m1', 'm2', 'm3', 'm4', 'sul', 'sdr', 'sto', 'shm', 'sh2', 'sh3', 'sus', 'spa', 'cut', 'pit', 'gan'];
 const SYN_AUTO_IN = ['m1', 'm2', 'm3', 'm4', 'cut', 'res', 'ivt', 'iwd', 'ist', 'pit', 'gan'];
-const synAutoIds = pi => isInPad(pi) ? SYN_AUTO_IN : isSuPad(pi) ? SYN_AUTO_SU : isFmPad(pi) ? SYN_AUTO_FM : isWtPad(pi) ? SYN_AUTO_WT : isGrPad(pi) ? SYN_AUTO_GR : SYN_AUTO;
+const SYN_AUTO_X = ['m1', 'm2', 'm3', 'm4', 'xsa', 'xsf', 'xsv', 'xwr', 'xwa', 'xtl', 'xnl', 'xgr', 'cut', 'res', 'pit', 'gan'];
+const synAutoIds = pi => isXPad(pi) ? SYN_AUTO_X : isInPad(pi) ? SYN_AUTO_IN : isSuPad(pi) ? SYN_AUTO_SU : isFmPad(pi) ? SYN_AUTO_FM : isWtPad(pi) ? SYN_AUTO_WT : isGrPad(pi) ? SYN_AUTO_GR : SYN_AUTO;
 const BEND_RANGES = [1, 2, 3, 5, 7, 12, 24];
 function bendRangeSel(pi) { const pad = P.pads[pi]; return selEl('Bend range', BEND_RANGES.map(r => '±' + r + ' st'), () => Math.max(0, BEND_RANGES.indexOf(pad.bendR || 2)), i => { pushUndo('pad:' + pi); pad.bendR = BEND_RANGES[i]; syncPad(pi); markDirty(); }); }
 const synOf = pi => P.pads[pi].syn;
@@ -65,6 +68,10 @@ function synFmt(p, v) {
   if (id === 'gps') return v < .05 ? 'Off' : '±' + v.toFixed(1) + ' st';
   if (/^w[ab]o$/.test(id) || id === 'suo' || id === 'ioc') return sg(v) + ' oct';
   if (id === 'ise') return sg(Math.round(v)) + ' st';
+  if (id === 'xsa' || id === 'xwa') return Math.abs(v) < .05 ? 'Off' : sg(+v.toFixed(1)) + ' st';
+  if (id === 'xst') return secStr(v);
+  if (id === 'xwr') return hzStr(v);
+  if (id === 'xoc') return sg(v) + ' oct';
   if (id === 'ifi') return sg(Math.round(v)) + ' ct';
   if (id === 'sxo' || id === 'sto' || id === 'ckt') return hzStr(v);
   if (id === 'spa') return v < .05 ? 'Off' : '+' + v.toFixed(1) + ' st';
@@ -91,6 +98,7 @@ function synSet(pi, id, v) { const S = synOf(pi); touchPad(pi); S.p[id] = v; sen
 function synCtl(pi, id) {
   const S = synOf(pi);
   if (id.startsWith('#')) return synSpecial(pi, id.slice(1));
+  if (id === 'xw@') return synCtl(pi, (S.p.xwy ?? 'Free') === 'Sync' ? 'xwi' : 'xwr');
   if (/^l\d@$/.test(id)) { const k = id[1], sync = (S.p['l' + k + 'y'] ?? 'Sync') === 'Sync'; return synCtl(pi, 'l' + k + (sync ? 'd' : 'r')); }
   const p0 = TFSYN_ID[id]; let el, p = p0;
   if (/^f\d[tq]$/.test(id)) { const md = S.p[id[0] + id[1] + 'm'] ?? 'FM', lab = id[2] === 't' ? ({ FM: 'Amount', Ring: 'Ring', Filter: 'Type', 'Filter FM': 'Depth', Fold: 'Fold' })[md] : 'Resonance';
@@ -98,7 +106,7 @@ function synCtl(pi, id) {
   if (/^f\dl$/.test(id) && synTab() === 'fa') p = Object.assign({}, p0, { l: 'Op ' + id[1] });
   const cur = () => S.p[id] ?? p.d;
   if (p.k === 'opt') {
-    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); });
+    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || id === 'xwy' || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); });
   } else {
     const intish = p.k === 'int' || /^o\ds$/.test(id) || /^w[ab]s$/.test(id), step = intish ? 1 / (p.b - p.a) : .001;
     el = makeCtl({ label: p.l, min: 0, max: 1, step, coarse: intish ? step : .02, big: intish ? step * 4 : .1, def: tfSynNorm(p, p.d), bipolar: p.k === 'bip' || id === 'gsc' || /^o\d[sf]$/.test(id) || /^w[ab][sf]$/.test(id) || id === 'pit' || id === 'gan',
@@ -132,14 +140,15 @@ const SYN_ENGINES = [{ id: 'analog', n: 'Analog', blurb: 'Three oscillators into
   { id: 'fm', n: 'FM', blurb: 'Four operators with modes: keys, bells, growls', look: { face: '#15171a', face2: '#0c0d0f', cap: '#2b2f35', ind: '#e9edf0', ring: '#4fd1c5', track: '#050607', ink: '#e4e8eb', ink2: '#87909a', scr: '#06090a', sw: '#1b1e23', swInk: '#4fd1c5', tex: 'none' } }, { id: 'wt', n: 'Wavetable', blurb: 'Two morphing wavetable oscillators: growls, pads, leads', look: { face: '#17161d', face2: '#0e0d12', cap: '#2c2a36', ind: '#ece9ff', ring: '#9b8cff', track: '#060509', ink: '#e8e6f2', ink2: '#8d89a3', scr: '#07060b', sw: '#1c1a24', swInk: '#9b8cff', tex: 'none' } },
   { id: 'gr', n: 'Granular', blurb: 'Clouds of grains from any sound: textures, stretches, glitches', look: { face: '#141917', face2: '#0c100e', cap: '#28302c', ind: '#e6f2ec', ring: '#5fd3a0', track: '#050706', ink: '#e3ece7', ink2: '#86978e', scr: '#060908', sw: '#19201c', swInk: '#5fd3a0', tex: 'none' } },
   { id: 'sub', n: 'Sub', blurb: 'Clean sub with harmonics above it: subs and 808s', look: { face: '#1b1517', face2: '#120d0f', cap: '#33272b', ind: '#f6e7ea', ring: '#ff6b81', track: '#070405', ink: '#f0e4e7', ink2: '#a3878e', scr: '#0a0607', sw: '#21181b', swInk: '#ff6b81', tex: 'none' } },
-  { id: 'ins', n: 'Instrument', blurb: 'Pianos, orchestral hits, strings, choirs, keys and basses', look: { face: '#1a1814', face2: '#110f0c', cap: '#2e2a22', ind: '#f3ead7', ring: '#e8c37a', track: '#060504', ink: '#efe6d4', ink2: '#a3977e', scr: '#0a0907', sw: '#1f1c16', swInk: '#e8c37a', tex: 'none' } }];
+  { id: 'ins', n: 'Instrument', blurb: 'Pianos, orchestral hits, strings, choirs, keys and basses', look: { face: '#1a1814', face2: '#110f0c', cap: '#2e2a22', ind: '#f3ead7', ring: '#e8c37a', track: '#060504', ink: '#efe6d4', ink2: '#a3977e', scr: '#0a0907', sw: '#1f1c16', swInk: '#e8c37a', tex: 'none' } },
+  { id: 'sfx', n: 'FX', blurb: 'Risers, impacts, lasers, sirens and noise', look: { face: '#14181d', face2: '#0d1014', cap: '#252b33', ind: '#e6f0ff', ring: '#5aa9ff', track: '#05070a', ink: '#e3eaf3', ink2: '#8494a8', scr: '#06080b', sw: '#191e25', swInk: '#5aa9ff', tex: 'none' } }];
 function openEnginePicker(pi) {
   openSheet('Synth engine', card => { const st = h('div', 'stack');
     for (const e of SYN_ENGINES) { const b = btn(`<b>${e.n}</b><i>${esc(e.blurb)}</i>`, () => { closeSheet(); setEngine(pi, e.id); }, 'btn prow' + (e.id === (synOf(pi).eng || 'analog') ? ' on' : '')); st.append(b); }
     st.append(''); card.append(st); });
 }
 // a new engine keeps the shared frame (sub, noise, filter, envelopes, LFOs, macros, modulation) and starts from its own Init
-function setEngine(pi, id) { const S = synOf(pi); if ((S.eng || 'analog') === id) return; pushUndo('pad:' + pi); touchPad(pi); S.eng = id; S.name = 'Init'; if (id === 'wt' && !S.wt) S.wt = { a: 'w:Basic Shapes', b: 'w:Basic Shapes' }; if (id === 'gr' && !(S.gr && S.gr.src)) S.gr = { src: P.pads[pi].sample || 'b:jvox' }; if (id === 'ins' && !S.ins) S.ins = 'i:house'; if (id === 'ins') { S.p.flt = 'Off'; S.p.as = S.p.as ?? 1; } if (id === 'sub') { S.p.flt = 'Off'; if (P.pads[pi].voice === 'poly') P.pads[pi].voice = 'mono'; } S.sig = patchSig(S); SYN_ST.pg = 0;
+function setEngine(pi, id) { const S = synOf(pi); if ((S.eng || 'analog') === id) return; pushUndo('pad:' + pi); touchPad(pi); S.eng = id; S.name = 'Init'; if (id === 'wt' && !S.wt) S.wt = { a: 'w:Basic Shapes', b: 'w:Basic Shapes' }; if (id === 'gr' && !(S.gr && S.gr.src)) S.gr = { src: P.pads[pi].sample || 'b:jvox' }; if (id === 'sfx') S.p.flt = S.p.flt || 'Off'; if (id === 'ins' && !S.ins) S.ins = 'i:house'; if (id === 'ins') { S.p.flt = 'Off'; S.p.as = S.p.as ?? 1; } if (id === 'sub') { S.p.flt = 'Off'; if (P.pads[pi].voice === 'poly') P.pads[pi].voice = 'mono'; } S.sig = patchSig(S); SYN_ST.pg = 0;
   syncPad(pi); markDirty(); renderView(); audition(pi); }
 function renderSynthSound(w, pi, head) {
   synEngPages(pi); const pad = P.pads[pi], pg = SYN_PAGES[SYN_ST.pg], tab = synTab(), eng = SYN_ENGINES.find(e => e.id === (synOf(pi).eng || 'analog')) || SYN_ENGINES[0];
@@ -177,8 +186,8 @@ function mapKey(pi) { return btn('Map', () => { UI.map = UI.map ? null : { targe
 /* ----- source and presets ----- */
 function applySynthPreset(pi, pr) {
   pushUndo('all'); const pad = P.pads[pi]; touchPad(pi); pad.src = 'synth'; pad.syn = synPatch(pr); pad.syn.sig = patchSig(pad.syn); pad.mode = 'gate';
-  if (pr.voice) pad.voice = pr.voice; else if (![SYN_INIT, SYN_FM_INIT, SYN_WT_INIT, SYN_GR_INIT, SYN_SU_INIT, SYN_IN_INIT].includes(pr)) pad.voice = 'poly'; pad.glide = pr.glide != null ? pr.glide : pad.glide; pad.poly = Math.max(pad.poly || 8, 8);
-  if (!pad.name || SYN_PRESETS.some(x => x.n === pad.name) || FM_PRESETS.some(x => x.n === pad.name) || WT_PRESETS.some(x => x.n === pad.name) || GR_PRESETS.some(x => x.n === pad.name) || SU_PRESETS.some(x => x.n === pad.name) || IN_PRESETS.some(x => x.n === pad.name) || pad.name === 'Init' || pad.name === 'Synth') pad.name = pr.n.slice(0, 12);
+  if (pr.voice) pad.voice = pr.voice; else if (![SYN_INIT, SYN_FM_INIT, SYN_WT_INIT, SYN_GR_INIT, SYN_SU_INIT, SYN_IN_INIT, SYN_FX_INIT].includes(pr)) pad.voice = 'poly'; pad.glide = pr.glide != null ? pr.glide : pad.glide; pad.poly = Math.max(pad.poly || 8, 8);
+  if (!pad.name || SYN_PRESETS.some(x => x.n === pad.name) || FM_PRESETS.some(x => x.n === pad.name) || WT_PRESETS.some(x => x.n === pad.name) || GR_PRESETS.some(x => x.n === pad.name) || SU_PRESETS.some(x => x.n === pad.name) || IN_PRESETS.some(x => x.n === pad.name) || SFX_PRESETS.some(x => x.n === pad.name) || pad.name === 'Init' || pad.name === 'Synth') pad.name = pr.n.slice(0, 12);
   const C = P.chans[pi]; if (pr.fx && !C.fx.length) { C.fx = pr.fx.map(f => newFx(f.type, null, f.mode || 0)); syncChan(pi); }
   syncPad(pi); markDirty(); renderAll(); audition(pi);
 }
@@ -197,7 +206,7 @@ let USER_PRESETS = [];
 async function loadUserPresets() { const v = await DB.get('kv', 'synPresets'); USER_PRESETS = Array.isArray(v) ? v.filter(x => x && x.n && x.syn) : []; }
 function saveUserPresets() { DB.put('kv', 'synPresets', USER_PRESETS); }
 const patchSig = s => { const j = JSON.stringify([s.p, s.mods, s.lfo, s.wt || null, s.gr || null, s.ins || null]); let hsh = 0; for (let i = 0; i < j.length; i++) hsh = (hsh * 31 + j.charCodeAt(i)) | 0; return hsh; };
-const engPresets = pi => isInPad(pi) ? [SYN_IN_INIT, ...IN_PRESETS] : isSuPad(pi) ? [SYN_SU_INIT, ...SU_PRESETS] : isFmPad(pi) ? [SYN_FM_INIT, ...FM_PRESETS] : isWtPad(pi) ? [SYN_WT_INIT, ...WT_PRESETS] : isGrPad(pi) ? [SYN_GR_INIT, ...GR_PRESETS] : [SYN_INIT, ...SYN_PRESETS];
+const engPresets = pi => isXPad(pi) ? [SYN_FX_INIT, ...SFX_PRESETS] : isInPad(pi) ? [SYN_IN_INIT, ...IN_PRESETS] : isSuPad(pi) ? [SYN_SU_INIT, ...SU_PRESETS] : isFmPad(pi) ? [SYN_FM_INIT, ...FM_PRESETS] : isWtPad(pi) ? [SYN_WT_INIT, ...WT_PRESETS] : isGrPad(pi) ? [SYN_GR_INIT, ...GR_PRESETS] : [SYN_INIT, ...SYN_PRESETS];
 const sameEng = (u, pi) => (u.eng || 'analog') === engOf(pi);
 function presetList(pi) { return [engPresets(pi)[0], ...USER_PRESETS.filter(u => sameEng(u, pi)).map(u => Object.assign({ user: true }, u)), ...engPresets(pi).slice(1)]; }
 function loadPresetEntry(pi, pr) { if (pr.user) applyUserPreset(pi, pr); else applySynthPreset(pi, pr); }
@@ -243,6 +252,7 @@ function drawSynDisp() {
   const wave = (w, ph, pw) => { ph -= Math.floor(ph); switch (w) { case 'Sine': return Math.sin(ph * 2 * Math.PI); case 'Triangle': return ph < .5 ? 4 * ph - 1 : 3 - 4 * ph; case 'Saw': return 2 * ph - 1; case 'Square': return ph < .5 ? 1 : -1; default: return ph < pw ? 1 : -1; } };
   if (isFmPad(pi) && (tab === 'fa' || /^f\d$/.test(tab) || tab === 'vo')) { drawFmDisp(g, W, H, v, tab, txt, grid, col); return; }
   if (isWtPad(pi) && (tab === 'wa' || tab === 'wb' || tab === 'vo')) { drawWtDisp(g, W, H, v, tab, txt, grid, col, S); return; }
+  if (isXPad(pi) && /^(x\d|sv)$/.test(tab)) { drawXDisp(g, W, H, v, txt, col, grid); return; }
   if (isInPad(pi) && (tab === 'in' || tab === 'sv')) { drawInDisp(g, W, H, v, txt, col, synOf(pi)); return; }
   if (isSuPad(pi) && /^s[uh8v]$/.test(tab)) { drawSuDisp(g, W, H, v, tab, txt, grid, col); return; }
   if (isGrPad(pi) && (tab === 'gr' || tab === 'g2' || tab === 'vo')) { drawGrDisp(g, W, H, v, tab, txt, grid, col, S, cv); return; }
@@ -353,6 +363,17 @@ function drawFmDisp(g, W, H, v, tab, txt, grid, col) {
 const tableName = key => !key ? 'None' : key.startsWith('w:') ? key.slice(2) : (SAMPLES.get(key) || {}).name || 'Missing';
 // Sub: the waveform (clean fundamental faint behind it), the harmonics as bars with the crossover marked; 808: the pitch drop and the tail
 // Instrument: its key map (zones as blocks along the keyboard, velocity layers stacked) and the zone a middle C plays, as a waveform
+// FX: the sweep over its time (pitch in the colour, level faint behind it), with the wobble riding on it
+function drawXDisp(g, W, H, v, txt, col, grid) {
+  grid(); const sync = v('xss'), T = sync === 'Free' ? v('xst') : null, cv = (x, c) => c === 0 ? x : (Math.exp(c * .85 * 4 * x) - 1) / (Math.exp(c * .85 * 4) - 1), c = v('xsc'), lp = v('xsl');
+  const sw = v('xsa'), wa = v('xwa'), sh = v('xwh'), cyc = v('xwy') === 'Sync' ? 8 : Math.max(1, Math.min(40, v('xwr') * (T || 2))), rise = v('xwu'), vs = v('xsv');
+  const prog = x => { const u = x * (lp === 'Once' ? 1 : 2); return lp === 'Once' ? u : lp === 'Repeat' ? u % 1 : (u % 2 > 1 ? 2 - u % 2 : u % 2); };
+  const wob = x => { const k = cv(prog(x), c), ph = (x * cyc * Math.pow(2, rise * 4 * k * .5)) % 1; return sh === 'Sine' ? Math.sin(2 * Math.PI * ph) : sh === 'Triangle' ? (ph < .5 ? 4 * ph - 1 : 3 - 4 * ph) : sh === 'Square' ? (ph < .5 ? 1 : -1) : sh === 'Saw up' ? 2 * ph - 1 : sh === 'Saw down' ? 1 - 2 * ph : Math.sin(ph * 40) * .8; };
+  const span = Math.max(12, Math.abs(sw) + wa + 4), Y = st => H / 2 - st / span * (H / 2 - 16);
+  g.beginPath(); for (let x = 0; x <= W; x += 2) { const k = cv(prog(x / W), c), lv = vs >= 0 ? 1 - vs * (1 - k) : 1 + vs * k, y = H - 6 - lv * (H - 26); x ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = COL.mute; g.globalAlpha = .5; g.lineWidth = 1.2; g.stroke(); g.globalAlpha = 1;
+  g.beginPath(); for (let x = 0; x <= W; x += 1) { const k = cv(prog(x / W), c), y = Y(sw * k + wa * wob(x / W)); x ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = col; g.lineWidth = 2; g.stroke();
+  txt(Math.abs(sw) < .05 ? (wa > .05 ? `Wobble ±${wa.toFixed(1)} st` : 'Steady') : `Sweep ${sw > 0 ? '+' : ''}${sw.toFixed(0)} st`, 8, 12); txt((T == null ? sync : T < 1 ? Math.round(T * 1000) + ' ms' : T.toFixed(1) + ' s') + (lp === 'Once' ? '' : ' · ' + lp.toLowerCase()), W - 8, 12, COL.mute, 'right');
+}
 function drawInDisp(g, W, H, v, txt, col, S) {
   const key = S.ins, d = insInfo(key); if (!d) { txt('Pick an instrument', W / 2, H / 2, COL.dim, 'center'); return; }
   const Z = insZones(key), lo = Math.max(-48, Math.min(...Z.map(z => z.root)) - 12), hi = Math.min(60, Math.max(...Z.map(z => z.root)) + 12), X = n => 8 + (W - 16) * (n - lo) / (hi - lo);

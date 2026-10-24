@@ -65,6 +65,9 @@ const LOOKS = {
   '18:0': { face: '#1b2421', face2: '#141b18', cap: '#26322e', ring: '#5fd3a0', alt: '#5fd3a0' },
   '19:0': { face: '#221a2c', face2: '#191321', cap: '#2e2340', ring: '#c592ff', alt: '#c592ff' },
   '20:0': { face: '#1a1714', face2: '#120f0d', cap: '#2b2520', ring: '#e8b26a', alt: '#e8b26a', scr: '#0b0908' },
+  '22:0': { face: '#2a2410', face2: '#1f1a0b', cap: '#3a3215', ring: '#ffd23f', alt: '#ffd23f' }, '22:1': { face: '#13202c', face2: '#0e1821', cap: '#1d3040', ring: '#7cc4ff', alt: '#7cc4ff' },
+  '22:2': { face: '#13241a', face2: '#0e1b13', cap: '#1c3526', ring: '#7ee08a', alt: '#7ee08a' }, '22:3': { face: '#2a1414', face2: '#200e0e', cap: '#3a1c1c', ring: '#ff6b5a', alt: '#ff6b5a' },
+  '22:4': { face: '#221630', face2: '#190f24', cap: '#2f2042', ring: '#c592ff', alt: '#c592ff' }, '22:5': { face: '#2b1c10', face2: '#20140b', cap: '#3c2817', ring: '#ff9a3d', alt: '#ff9a3d' },
   '21:0': { face: '#1c1d22', face2: '#141519', cap: '#2a2c33', ring: '#f2b544', alt: '#f2b544' },
 };
 const fxLook = (t, m) => Object.assign({}, LOOK_BASE, LOOKS[t + ':' + m] || LOOKS[t + ':0'] || {});
