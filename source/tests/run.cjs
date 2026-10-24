@@ -243,6 +243,13 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
   { let bad = 0, n = 0, lv = [], longest = 0; for (const mod in DR.DRUM_MODS) for (const type in DR.DRUM_MODS[mod].types) { const r = DR.drumRender(DR.drumDefault(mod, type, 3), { key: { root: 0 } }); n++;
       let pk = 0; for (let i = 0; i < r.L.length; i++) { if (!(r.L[i] === r.L[i]) || !(r.R[i] === r.R[i])) bad++; pk = Math.max(pk, Math.abs(r.L[i]), Math.abs(r.R[i])); } lv.push(pk); longest = Math.max(longest, r.L.length / r.sr); }
     ok(!bad && lv.every(p => p > .5 && p <= .9) && longest <= 4, `all ${n} drum types render cleanly at a matched level (peaks ${Math.min(...lv).toFixed(2)}–${Math.max(...lv).toFixed(2)}, longest ${longest.toFixed(1)} s)`); }
+  { let bad = 0, n = 0, lv = [], dif = 0; for (const mc of DR.DRUM_MACHINES.slice(1)) for (const mod in DR.DRUM_MODS) for (const type in DR.DRUM_MODS[mod].types) {
+      const d = DR.drumDefault(mod, type, 3); d.mach = mc; const r = DR.drumRender(d, { key: { root: 0 } }), m = DR.drumRender(DR.drumDefault(mod, type, 3), { key: { root: 0 } }); n++;
+      let pk = 0, nan = false; for (let i = 0; i < r.L.length; i++) { if (!isFinite(r.L[i]) || !isFinite(r.R[i])) nan = true; pk = Math.max(pk, Math.abs(r.L[i]), Math.abs(r.R[i])); } if (nan) bad++; lv.push(pk);
+      if (r.L.length !== m.L.length || r.L.some((v, i) => Math.abs(v - m.L[i]) > 1e-3)) dif++; }
+    const keys = new Set(DR.DRUM_MACHINES.map(mc => { const d = DR.drumDefault('kick', 'Techno', 3); d.mach = mc; return DR.drumKey(d, null, null); }));
+    ok(!bad && lv.every(p => p > .5 && p <= .9) && dif >= n * .9 && keys.size === DR.DRUM_MACHINES.length, `all ${n} machine variations render cleanly, mostly sound different from Modern (${dif}/${n}), and cache separately (peaks ${Math.min(...lv).toFixed(2)}–${Math.max(...lv).toFixed(2)})`);
+    const K = DR.drumKit('Analog Punch', 5); ok(K.pieces.every(p => p.d.mach === 'Punch'), 'machine kits set the machine on every piece'); }
   { const d = DR.drumDefault('kick', 'Deep 808', 1); d.key = 'Root'; const k = DR.drumEffective(d, null), hz = 35 * Math.pow(2, k.tune * 1.25), a = DR.keySnap(hz, 'Root', { root: 7 }), b = DR.keySnap(hz, 'Fifth', { root: 0 });
     const m = x => ((Math.round(12 * Math.log2(x / 440) + 69) % 12) + 12) % 12; ok(m(a) === 7 && m(b) === 7, `tuned drums lock to the key (root G → ${a.toFixed(1)} Hz, fifth of C → ${b.toFixed(1)} Hz)`); }
   { const d = DR.drumDefault('snare', 'DnB Crack', 1); d.locks = ['tune', 'tone']; const v = DR.drumVariation(d, 12345); const moved = Object.keys(d.k).filter(id => Math.abs(v.k[id] - d.k[id]) > 1e-9);
