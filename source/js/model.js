@@ -4,7 +4,7 @@
 
 const NPADS = 64, NSCENES = 16, NCHANS = 83, G0 = 64, B0 = 72, R0 = 80, MASTER = 82, NSLOTS = 8, MAX_DUCKERS = 8, BAR = 384, BEAT = 96;
 const BANKS = 'ABCD';
-const PROJECT_VERSION = 2;
+const PROJECT_VERSION = 3;
 
 /* ---------- built-in sounds (synthesized, deterministic) ---------- */
 const KIT_SR = 44100;
@@ -217,8 +217,12 @@ const JUNGLE_PAD = { jreese: { loopS: .15, xf: .005 }, jsub: { loopS: .2, xf: .0
   jatmos: { loopS: .25, xf: .02, atk: .9 }, jvox: { loopS: .3, xf: .02, atk: .06 }, jvinyl: { loopS: .05, xf: .3 } };
 
 // A starter project with the jungle pack: kit and break on bank A, keys and pads on bank B (set up for Chords), F minor at 174
-function jungleProject() {
-  const p = newProject(true), HM = HMN(), prog = n => HM.PROGS.findIndex(x => x.n === n) + 1; p.name = 'Liquid jungle'; p.bpm = 174; p.key = { root: 5, scale: 5 };
+// the starter songs are written with the v2 mixer values and go through the same migration as saved projects
+const v2Base = p => { p.chans.forEach(c => { c.vol = .7; }); return p; };   // the v2 default fader
+const asV2 = p => migrate(Object.assign(p, { v: 2 }));
+function jungleProject() { return asV2(jungleV2()); }
+function jungleV2() {
+  const p = v2Base(newProject(true)), HM = HMN(), prog = n => HM.PROGS.findIndex(x => x.n === n) + 1; p.name = 'Liquid jungle'; p.bpm = 174; p.key = { root: 5, scale: 5 };
   JUNGLE.forEach(([k, name, color, mode, rel], i) => Object.assign(p.pads[i], { name, sample: 'b:' + k, color, mode, rel }, JUNGLE_PAD[k] || {}));
   const kx = (pi, o) => { p.pads[pi].kx = HM.normalizeKx(Object.assign({ mode: 'chords' }, o)); p.pads[pi].poly = 12; };
   kx(16, { prog: prog('Liquid roll'), voicing: 'piano', strum: 10, feel: .6 }); kx(17, { prog: prog('Two of a kind'), voicing: 'rootless', feel: .6 });
@@ -284,7 +288,7 @@ const DELAY_P = [P_('Sync', 1, null, ['Off', 'On']), P_('Division', .7, null, ['
 const ANALOG_FILT = third => [P_('Cutoff', .7, v => fHz(expmap(v, 20, 20000))), P_('Resonance', .3, fPct), P_('Drive', 0, v => fDb(linmap(v, 0, 24))), third, P_('Mix', 1, fPct),
   P_('LFO rate', .5, v => expmap(v, .05, 20).toFixed(2) + ' Hz'), P_('LFO depth', 0, v => linmap(v, 0, 4).toFixed(1) + ' oct'), P_('Envelope', .5, v => { const o = linmap(v, -4, 4); return (o > 0.05 ? '+' : '') + o.toFixed(1) + ' oct'; })];
 const SAT_P = [P_('Drive', .333, v => fDb(linmap(v, 0, 36))), P_('Tone', .5, v => { const t = Math.round((v * 2 - 1) * 100); return t === 0 ? '0' : (t > 0 ? '+' : '−') + Math.abs(t); }), P_('Punish', 0, null, ['Off', 'On']),
-  P_('Mix', 1, fPct), P_('Output', .8, v => fDb(linmap(v, -24, 6))), P_('Low cut', 0, fHzOff(20, 500)), P_('High cut', 1, v => fHz(expmap(v, 1000, 20000)))];
+  P_('Mix', 1, fPct), P_('Output', .8, v => fDb(linmap(v, -24, 6))), P_('Low cut', 0, fHzOff(20, 500)), P_('High cut', 1, v => fHz(expmap(v, 1000, 20000))), P_('Auto gain', 1, null, ['Off', 'On'])];
 const CLIP_P = [P_('Drive', 0, v => fDb(linmap(v, 0, 24))), P_('Ceiling', 1, v => fDb(linmap(v, -24, 0))), P_('Knee', .2, fPct), P_('Mix', 1, fPct)];
 const LIM_P = [P_('Gain', 0, v => '+' + linmap(v, 0, 24).toFixed(1) + ' dB'), P_('Ceiling', .975, v => fDb(linmap(v, -12, 0))), P_('Release', .5, v => fMs(expmap(v, 1, 1000))), P_('Lookahead', .692, v => fMs(expmap(v, .1, 5))), P_('True peak', 1, null, ['Off', 'On'])];
 const XO = [P_('Low split', .5, v => fHz(expmap(v, 60, 600))), P_('High split', .5, v => fHz(expmap(v, 1000, 10000)))];
@@ -362,7 +366,7 @@ const FX_DEFS = [
   { name: 'Filter', short: 'Filter', params: [P_('Type', 0, null, ['LP', 'HP', 'BP', 'Notch']), P_('Cutoff', .7, v => fHz(expmap(v, 20, 20000))), P_('Resonance', .1, v => (0.5 + v * v * 19.5).toFixed(1)),
     P_('Slope', 0, null, ['12 dB', '24 dB']), P_('Drive', 0, v => fDb(linmap(v, 0, 24))), P_('Mix', 1, fPct)] },
   { name: 'Saturation', short: 'Sat', params: [P_('Type', 0, null, ['Soft', 'Hard', 'Tube', 'Fold']), P_('Drive', .333, v => fDb(linmap(v, 0, 36))), P_('Tone', .5, v => { const t = Math.round((v * 2 - 1) * 100); return t === 0 ? '0' : (t > 0 ? '+' : '−') + Math.abs(t); }),
-    P_('Mix', 1, fPct), P_('Output', .8, v => fDb(linmap(v, -24, 6)))] },
+    P_('Mix', 1, fPct), P_('Output', .8, v => fDb(linmap(v, -24, 6))), P_('Auto gain', 1, null, ['Off', 'On'])] },
   { name: 'Delay', short: 'Delay', params: [P_('Sync', 1, null, ['Off', 'On']), P_('Division', .7, null, ['1/32', '1/16T', '1/16', '1/8T', '1/16D', '1/8', '1/4T', '1/8D', '1/4', '1/4D', '1/2']), P_('Time', .726, v => fMs(expmap(v, 1, 2000))),
     P_('Feedback', .42, v => fPct(linmap(v, 0, .95))), P_('Mix', .35, fPct), P_('Ping-pong', 0, null, ['Off', 'On']), P_('Low cut', .35, v => fHz(expmap(v, 20, 2000))), P_('High cut', .598, v => fHz(expmap(v, 1000, 20000)))] },
   { name: 'Reverb', short: 'Verb', params: [P_('Size', .5, fPct), P_('Decay', .548, v => fMs(expmap(v, .2, 20) * 1000)), P_('Damping', .598, v => fHz(expmap(v, 1000, 20000))), P_('Predelay', .05, v => fMs(linmap(v, 0, 200))),
@@ -414,7 +418,7 @@ const optVal = (k, n) => n > 1 ? k / (n - 1) : 0;
 function chanKind(c) { return c < G0 ? 'pad' : c < B0 ? 'group' : c < R0 ? 'bus' : c < MASTER ? 'return' : 'master'; }
 function chanDefaultName(c) { const k = chanKind(c); return k === 'group' ? 'Group ' + (c - G0 + 1) : k === 'bus' ? 'Bus ' + (c - B0 + 1) : k === 'return' ? 'Return ' + 'AB'[c - R0] : k === 'master' ? 'Master' : ''; }
 function defaultChan(c) {
-  const ch = { name: chanDefaultName(c), vol: .7, pan: .5, sa: 0, sb: 0, mute: false, solo: false, out: MASTER, fx: [] };
+  const ch = { name: chanDefaultName(c), vol: .85, pan: .5, sa: 0, sb: 0, mute: false, solo: false, out: MASTER, fx: [] };
   if (c === R0) ch.fx.push(newFx(FX_TYPES.DELAY, { 1: optVal(4, 11), 3: .368, 4: 1, 6: .4375, 7: .502 }));
   if (c === R0 + 1) ch.fx.push(newFx(FX_TYPES.REVERB, { 4: 1 }));
   return ch;
@@ -480,7 +484,15 @@ function migrate(src) {
     n.scenes = Array.from({ length: NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}), auto = {};
       for (const pi in (s.auto || {})) for (const prm in s.auto[pi]) if (keyOf[prm] && s.auto[pi][prm].length) auto[pi + keyOf[prm]] = s.auto[pi][prm];
       s.auto = auto; s.notes = s.notes || {}; return s; });
-    p = n;
+    p = n; p.v = 2;
+  }
+  if (p.v < 3) {   // v2 → v3: the mixer moved to Live's tapers and pan law; levels carry over exactly (pads were 3 dB down at centre)
+    const F = FDR(), vol = (c, v) => F.tfFaderPos(2 * v * v * (c < G0 ? Math.SQRT1_2 : 1)), snd = v => F.tfSendPos(Math.max(0, v));
+    (p.chans || []).forEach((C, c) => { if (!C) return; if (typeof C.vol === 'number') C.vol = vol(c, C.vol); if (typeof C.sa === 'number') C.sa = snd(C.sa); if (typeof C.sb === 'number') C.sb = snd(C.sb);
+      (C.fx || []).forEach(f => { if (f && f.type === FX_TYPES.SAT && Array.isArray(f.p)) f.p[(f.mode | 0) ? 7 : 5] = 0; }); });   // saturators made before auto gain keep their level
+    (p.scenes || []).forEach(s => { for (const k in (s && s.auto) || {}) { const m = /^(\d+)\.-1\.([023])$/.exec(k); if (!m) continue; const c = +m[1], i = +m[2];
+      s.auto[k] = s.auto[k].map(q => Object.assign({}, q, { v: i === 0 ? vol(c, q.v) : snd(q.v) })); } });
+    p.v = 3;
   }
   return normalize(p);
 }
@@ -490,6 +502,7 @@ const c01 = (v, d) => typeof v === 'number' && v === v ? Math.max(0, Math.min(1,
 const STN = () => typeof stretchNormalize === 'function' ? { stretchNormalize } : require('./stretch.js');
 const DRN = () => typeof drumNormalize === 'function' ? { drumNormalize } : require('./drums.js');
 const SPN = () => typeof normalizeSyn === 'function' ? { normalizeSyn, SYN_PRESETS, FM_PRESETS, synPatch } : require('./synthpresets.js');
+const FDR = () => typeof tfFaderPos === 'function' ? { tfFaderPos, tfSendPos } : require('./host.js');
 const HMN = () => typeof normalizeKx === 'function' ? { normalizeKx, normalizeKey, PROGS, chordPads, voiceChord } : require('./harmony.js');
 function normalize(p) {
   const n = newProject(true); Object.assign(n, p); n.v = PROJECT_VERSION;
@@ -520,8 +533,9 @@ function normalize(p) {
   n.bpm = Math.min(220, Math.max(40, +n.bpm || 96)); n.swing = clamp01(+n.swing || 0);
   return n;
 }
-function demoProject() {
-  const p = newProject(); p.name = 'Demo · 174'; p.bpm = 174; p.swing = 0; const S = p.scenes, q = 24;
+function demoProject() { return asV2(demoV2()); }
+function demoV2() {
+  const p = v2Base(newProject()); p.name = 'Demo · 174'; p.bpm = 174; p.swing = 0; const S = p.scenes, q = 24;
   Object.assign(S[0], { name: 'Intro' }); Object.assign(S[1], { name: 'Drop', repeat: 2 }); Object.assign(S[2], { name: 'Drop 2', repeat: 2 }); Object.assign(S[3], { name: 'Outro' });
   const add = (s, pi, t, len, pp = 0, v = .9) => { (S[s].notes[pi] = S[s].notes[pi] || []).push({ t, len, p: pp, v }); };
   // pads: 0 kick 1 snare 2 clap 3 hat 4 open hat 5 ride 6 perc 7 impact 8 sub 9 reese 10 growl 11 horn 12 hoover 13 rave 14 hey 15 riser
@@ -566,8 +580,9 @@ function demoProject() {
 /* A deliberately maxed-out project for measuring performance: all 64 pads in use (drums, the break, keys and pads on
    bank B, two banks of synths), dense patterns and big chords in every bar, heavy effects on every channel (oversampled
    saturation, multiband squash, 48-stage disperser, huge reverbs, limiters) and automation moving all the time. */
-function stressProject() {
-  const p = jungleProject(), SPM = SPN(), S = p.scenes, q = 24, F = FX_TYPES; p.name = 'Stress test';
+function stressProject() { return asV2(stressV2()); }
+function stressV2() {
+  const p = jungleV2(), SPM = SPN(), S = p.scenes, q = 24, F = FX_TYPES; p.name = 'Stress test';
   const add = (s, pi, t, len, pp = 0, v = .85) => { (S[s].notes[pi] = S[s].notes[pi] || []).push({ t, len, p: pp, v }); };
   const syn = ['Supersaw', 'Reese', 'Hoover Bass', 'Juno Strings', 'Warm Pad', 'Trance Pad', 'Sweep Pad', 'Acid Line', 'Sync Lead', 'Brass Lead', 'Poly Stab', 'Rave Stab', '80s Poly Keys', 'Folded Bass', 'Wobble', 'Jump Up Wobble',
     'Trance Pluck', 'Tech Stab', 'Digital Brass', 'Glass Pad', 'Neuro Growl', 'Reese FM', 'E. Piano', 'Bells', 'Breath Pad'];   // Analog and FM

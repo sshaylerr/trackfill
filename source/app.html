@@ -545,8 +545,8 @@ function h(tag, cls, html) { const e = document.createElement(tag); if (cls) e.c
 const noteName = p => NOTE_NAMES[((p % 12) + 12) % 12] + (3 + Math.floor(p / 12));
 const pct = v => Math.round(v * 100) + '%';
 const gainDb = g => { if (g <= 0.0001) return '−∞ dB'; const d = 20 * Math.log10(g); return (d > 0.05 ? '+' : '') + d.toFixed(1) + ' dB'; };
-const volFmt = v => gainDb(2 * v * v);
-const panFmt = v => { const p = Math.round((v * 2 - 1) * 100); return p === 0 ? 'C' : (p < 0 ? 'L' + (-p) : 'R' + p); };
+const volFmt = v => gainDb(tfFaderGain(v)), sendFmt = v => gainDb(tfSendGain(v));
+const panFmt = v => { const p = Math.round((v * 2 - 1) * 100); return p === 0 ? 'C' : (p < 0 ? (-p) + 'L' : p + 'R'); };
 const padLabel = i => BANKS[Math.floor(i / 16)] + String(i % 16 + 1).padStart(2, '0');
 const chanLabel = c => c < G0 ? padLabel(c) : c < B0 ? 'G' + (c - G0 + 1) : c < R0 ? 'B' + (c - B0 + 1) : c < MASTER ? 'R' + 'AB'[c - R0] : 'M';
 const chanName = c => c < G0 ? (P.pads[c].name || padLabel(c)) : (P.chans[c].name || chanDefaultName(c));
@@ -856,8 +856,8 @@ async function freezePad(pi) {
 /*@CONTROLS@*/
 
 /* ---------- parameter metadata by key ---------- */
-const STRIP = [{ label: 'Volume', short: 'Vol', def: .7, fmt: volFmt, step: .005, coarse: .03 }, { label: 'Pan', short: 'Pan', def: .5, fmt: panFmt, bipolar: true, step: .005, coarse: .05 },
-  { label: 'Send A', short: 'Send A', def: 0, fmt: pct, step: .01, coarse: .05 }, { label: 'Send B', short: 'Send B', def: 0, fmt: pct, step: .01, coarse: .05 }];
+const STRIP = [{ label: 'Volume', short: 'Vol', def: .85, fmt: volFmt, step: .0025, coarse: .025 }, { label: 'Pan', short: 'Pan', def: .5, fmt: panFmt, bipolar: true, step: .005, coarse: .05 },
+  { label: 'Send A', short: 'Send A', def: 0, fmt: sendFmt, step: .0025, coarse: .025 }, { label: 'Send B', short: 'Send B', def: 0, fmt: sendFmt, step: .0025, coarse: .025 }];
 const SOUNDP = [{ label: 'Cutoff', short: 'Cutoff', def: 1, fmt: v => { const f = 20 * Math.pow(1000, v); return f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + ' kHz' : Math.round(f) + ' Hz'; }, step: .002, coarse: .025 },
   { label: 'Resonance', short: 'Reso', def: .08, fmt: v => (.7 + v * v * 18).toFixed(1), step: .005, coarse: .03 }];
 function keyMeta(key) {
@@ -1100,11 +1100,19 @@ function drawRuler(g) {
     if (t % BAR === 0) { g.fillStyle = COL.ink; if (t < len) g.fillText(String(t / BAR + 1), x + 4, RULER_H / 2 + 1); g.fillStyle = COL.dim; g.fillRect(x, 0, 1, RULER_H); } else { g.fillStyle = COL.dim; g.fillRect(x, RULER_H - 5, 1, 5); } }
   g.fillStyle = COL.raised; g.fillRect(0, 0, LABEL_W, RULER_H); g.fillStyle = COL.mute; g.fillText(posStr(Math.max(0, Math.floor(tl.sx))).split('.').slice(0, 2).join('.'), 5, RULER_H / 2 + 1);
 }
+// The timeline is drawn whole into a cached bitmap; while playing, most frames only copy it and draw the playhead over it
+// (a full redraw a few times a second still picks up anything that changed, like notes being recorded).
 function drawTL() {
-  if (!TL.cv || !TL.cv.isConnected || !TL.W) return; const g = TL.cx, W = TL.W, H = TL.H; tlClamp(); g.setTransform(TL.dpr, 0, 0, TL.dpr, 0, 0);
+  if (!TL.cv || !TL.cv.isConnected || !TL.W) return; const W = TL.W, H = TL.H, pw = TL.cv.width, ph = TL.cv.height; tlClamp();
+  let C = TL.cache; if (!C || C.width !== pw || C.height !== ph) { C = TL.cache = document.createElement('canvas'); C.width = pw; C.height = ph; TL.cacheCx = C.getContext('2d'); }
+  const g = TL.cacheCx; g.setTransform(TL.dpr, 0, 0, TL.dpr, 0, 0);
   g.fillStyle = COL.panel; g.fillRect(0, 0, W, H); if (UI.tl.lane === 'notes') drawNotesLane(g); else drawAutoLane(g); drawRuler(g);
-  const pos = heardPos(); if (pos && pos.scene === UI.scene) { const x = t2x(pos.tick); if (x >= LABEL_W && x <= W) { g.fillStyle = COL.play; g.fillRect(x - 1, 0, 2, H); } }
+  TL.cacheSx = UI.tl.sx; TL.cacheAge = 0; tlBlit();
 }
+function tlBlit() { const g = TL.cx; g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(TL.cache, 0, 0); g.setTransform(TL.dpr, 0, 0, TL.dpr, 0, 0);
+  const pos = heardPos(); if (pos && pos.scene === UI.scene) { const x = t2x(pos.tick); if (x >= LABEL_W && x <= TL.W) { g.fillStyle = COL.play; g.fillRect(x - 1, 0, 2, TL.H); } } }
+function drawTLFrame() { if (!TL.cv || !TL.cv.isConnected || !TL.W) return;
+  if (!TL.cache || TL.cache.width !== TL.cv.width || TL.cache.height !== TL.cv.height || TL.cacheSx !== UI.tl.sx || ++TL.cacheAge >= (T.rec ? 4 : 8)) drawTL(); else tlBlit(); }
 function drawNotesLane(g) {
   const tl = UI.tl, W = TL.W, H = TL.H, rh = rowH(), sc = P.scenes[UI.scene];
   g.save(); g.beginPath(); g.rect(0, RULER_H, W, H - RULER_H); g.clip();
@@ -1776,14 +1784,14 @@ function frame(ts) {
   const busy = scoping || T.playing || METER.l > 1e-4 || METER.r > 1e-4 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v > 1e-4));
   if (busy) requestAnimationFrame(frame); else { frameOn = false; return; }   // nothing moving: stop drawing until woken
   if (!ctx) return;
-  if (UI.view === 'mix') for (const m of STRIP_METERS) { const pk = REP.cm[m.c] || 0; m.v = Math.max(pk, m.v * .9); const db = m.v > 1e-5 ? 20 * Math.log10(m.v) : -99, f = clamp((db + 48) / 54, 0, 1);
+  if (UI.view === 'mix') for (const m of STRIP_METERS) { const pk = REP.cm[m.c] || 0; m.v = Math.max(pk, m.v * .9); const db = m.v > 1e-5 ? 20 * Math.log10(m.v) : -99, f = tfFaderPos(m.v);   // on the fader's own scale: 0 dBFS sits on the unity mark
     m.el.style.height = (f * 100).toFixed(1) + '%'; m.el.style.background = db > 0 ? COL.rec : db > -6 ? COL.accent : COL.play; }
   const pos = heardPos();
   if (pos) {
     if (pos.scene !== lastHeard) { lastHeard = pos.scene; if (pos.scene !== UI.scene && !TL.drag) { UI.scene = pos.scene; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.sx = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else if (UI.view === 'seq') renderView(); } }
     updatePlayingSlot(pos);
     if (UI.view === 'seq' && pos.scene === UI.scene && !TL.drag) { const x = t2x(pos.tick); if (x > TL.W - 4 || x < LABEL_W) UI.tl.sx = Math.floor(pos.tick / BAR) * BAR; }
-    if (UI.view === 'seq') drawTL();
+    if (UI.view === 'seq') drawTLFrame();
   } else if (lastHeard !== -1) { lastHeard = -1; updatePlayingSlot(null); }
 }
 

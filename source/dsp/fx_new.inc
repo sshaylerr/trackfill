@@ -1,7 +1,7 @@
 /* ================= rhythm and character effects: Autopan, LFO Tool, Vinyl, Step FX =================
    The synced ones follow the song: the host sends the beat at the start of every block (tf_set_pos); when the transport
    is stopped it keeps counting, so the effects still move while you audition. */
-static double gBeat = 0.0; static i32 gPlay = 0;
+
 static inline double floor_dd(double x) { long long i = (long long)x; return (double)i > x ? (double)(i - 1) : (double)i; }
 static inline float fmodpos(float a, float b) { return a - floorf_(a / b) * b; }
 EX void tf_set_pos(double beat, i32 play) { gBeat = beat == beat ? beat : 0.0; gPlay = play ? 1 : 0; }
@@ -44,15 +44,15 @@ static void fx_lfotool(Fx* f, float* L, float* R, i32 n) {
 /* ----- Vinyl: wear (band-limit, a little grit, narrower), crackle and pops, hiss and rumble, wow; and the turntable stop ----- */
 // params: Crackle, Noise, Wear, Wow, Stop (off/on), Stop time, Start time, Mix
 enum { VLEN = 131072 };
-struct VinSt { float b[2][VLEN]; u32 w; double rd, xo; float xc, sp, t, lag0, wph, ck, ckz, pop, popz, rum, lp[2][2], hp[2]; i32 state; u32 rng; };   // state: 0 playing, 1 stopping, 2 stopped, 3 starting
+struct VinSt { float b[2][VLEN]; u32 w; double rd, xo; float xc, sp, t, lag0, wph, ck, ckz, pop, popz, rum, lp[2][2], hp[2], ng; i32 state; u32 rng; };   // state: 0 playing, 1 stopping, 2 stopped, 3 starting
 static inline float vrnd(u32* r) { *r ^= *r << 13; *r ^= *r >> 17; *r ^= *r << 5; return (float)(*r & 0xffffff) / 8388608.f - 1.f; }
 static void fx_vinyl(Fx* f, float* L, float* R, i32 n) {
   VinSt* v = (VinSt*)f->st; float* s = f->s; if (!v->rng) { v->rng = 0x1234567u; v->sp = 1.f; }
-  const float crk = s[0] * s[0], nz = s[1] * s[1], wear = s[2], wow = s[3], mix = s[7], tStop = expmap(s[5], .05f, 4.f), tStart = expmap(s[6], .05f, 4.f), D0 = 0.012f * SR;
+  const float ngt = noiseGate(&v->ng, L, R, n), crk = s[0] * s[0] * ngt, nz = s[1] * s[1] * ngt, wear = s[2], wow = s[3], mix = s[7], tStop = expmap(s[5], .05f, 4.f), tStart = expmap(s[6], .05f, 4.f), D0 = 0.012f * SR;
   const i32 want = s[4] > .5f;
   if (want && (v->state == 0 || v->state == 3)) { v->state = 1; v->t = 0; }
   if (!want && (v->state == 1 || v->state == 2)) { v->state = 3; v->t = 0; v->rd = (double)v->w - D0; }   // spin up from where the music is now
-  const float lpA = 1.f - fexp(-6.28318531f * expmap(1.f - wear, 3500.f, 20000.f) / SR), hpA = 1.f - fexp(-6.28318531f * expmap(wear, 20.f, 180.f) / SR), drv = 1.f + wear * 2.f, side = 1.f - wear * .7f;
+  const float lpA = 1.f - fexp(-6.28318531f * expmap(1.f - wear, 3500.f, 20000.f) / SR), hpA = 1.f - fexp(-6.28318531f * expmap(wear, 20.f, 180.f) / SR), drv = 1.f + wear * 2.f, side = 1.f - wear * .7f, wc = 0.25f / fsat(0.25f * drv);   // wear drive matched in level at -12 dBFS
   const float ckRate = crk * 45.f / SR, popRate = crk * 1.5f / SR;
   for (i32 i = 0; i < n; i++) {
     v->b[0][v->w & (VLEN - 1)] = L[i]; v->b[1][v->w & (VLEN - 1)] = R[i]; v->w++;
@@ -73,7 +73,7 @@ static void fx_vinyl(Fx* f, float* L, float* R, i32 n) {
     float dL = y[0], dR = y[1];
     if (mix > 0.0005f) {
       const float m = (dL + dR) * .5f, sd = (dL - dR) * .5f * side; float c2[2] = { m + sd, m - sd };
-      for (i32 c = 0; c < 2; c++) { float x = c2[c]; v->lp[c][0] += (x - v->lp[c][0]) * lpA; v->lp[c][1] += (v->lp[c][0] - v->lp[c][1]) * lpA; x = v->lp[c][1]; v->hp[c] += (x - v->hp[c]) * hpA; x -= v->hp[c]; c2[c] = fsat(x * drv) / fsat(drv); }
+      for (i32 c = 0; c < 2; c++) { float x = c2[c]; v->lp[c][0] += (x - v->lp[c][0]) * lpA; v->lp[c][1] += (v->lp[c][0] - v->lp[c][1]) * lpA; x = v->lp[c][1]; v->hp[c] += (x - v->hp[c]) * hpA; x -= v->hp[c]; c2[c] = fsat(x * drv) * wc; }
       float noise = 0;
       if (v->sp > 0.01f) { if ((vrnd(&v->rng) * .5f + .5f) < ckRate) v->ck = vrnd(&v->rng) * (0.2f + 0.8f * (vrnd(&v->rng) * .5f + .5f)); v->ckz = v->ck - v->ckz * 0.2f; v->ck *= 0.55f;   // crackle: short bright ticks
         if ((vrnd(&v->rng) * .5f + .5f) < popRate) v->pop = vrnd(&v->rng) > 0 ? .9f : -.9f; v->popz += (v->pop - v->popz) * .08f; v->pop *= .985f;   // the odd pop

@@ -131,7 +131,8 @@ static void fx_eq2(Fx* f, float* L, float* R, i32 n) {
   const float dcA = 1.f - 6.28318531f * 10.f / SR; const i32 nb = f->mode == 1 ? 4 : 5;
   for (i32 c = 0; c < 2; c++) { float* x = c ? R : L;
     for (i32 i = 0; i < n; i++) { float y = x[i]; for (i32 b = 0; b < nb; b++) y = bq2(&e->q[b], c, y);
-      if (e->drive > 0.001f) { float k = 1.f + 3.f * e->drive; y = y + (fsat(y * k + 0.1f * e->drive) / k - y) * e->drive; float o = y - e->dc[c] + dcA * e->dcy[c]; e->dc[c] = y; e->dcy[c] = o; y = o; }
+      if (e->drive > 0.001f) { float k = 1.f + 3.f * e->drive, bias = 0.1f * e->drive; y = y + ((fsat(y * k + bias) - fsat(bias)) / k - y) * e->drive;
+        float o = y - e->dc[c] + dcA * e->dcy[c]; e->dc[c] = y; e->dcy[c] = o; y = o; }   // the drive is biased for even harmonics but zero at zero (no DC step)
       x[i] = y * e->og; } }
 }
 
@@ -163,7 +164,7 @@ static void fx_filt2(Fx* f, float* L, float* R, i32 n) {
     float co[3][4]; for (i32 k = 0; k < 3; k++) { float fq = (FT[vi][k] + (FT[vi + 1][k] - FT[vi][k]) * vf) * sh; svf_coef(fq, Q, &co[k][0], &co[k][1], &co[k][2], &co[k][3]); }
     for (i32 c = 0; c < 2; c++) { float* x = c ? R : L;
       for (i32 i = 0; i < n; i++) { float in = dg > 1.01f ? fsat(x[i] * dg) : x[i], y = 0;
-        for (i32 k = 0; k < 3; k++) { float lp, bp; svf_tick(&t->fm[k], c, in, co[k][0], co[k][1], co[k][2], &lp, &bp); y += bp * co[k][3] * FG[k] * 1.6f; }
+        for (i32 k = 0; k < 3; k++) { float lp, bp; svf_tick(&t->fm[k], c, in, co[k][0], co[k][1], co[k][2], &lp, &bp); y += bp * co[k][3] * FG[k] * 5.f; }   // three narrow bands pass little energy: +10 dB brings the vowel up to the dry level
         x[i] += (y - x[i]) * mix; } }
     return; }
   // analog models (1 Ladder, 2 Diode, 3 Screamer, 4 Morph): Cutoff, Resonance, Drive, Type/Morph, Mix, Rate, Depth, Env, Bass
@@ -188,39 +189,53 @@ static void fx_filt2(Fx* f, float* L, float* R, i32 n) {
   // Ladder (Moog-like, four saturating one-poles in a feedback loop) and Diode (303-like: coupled stages, high-passed feedback), both at 2x
   const float g = 1.f - fexp(-6.28318531f * fc / (2.f * SR)), kq = res * 1.04f * minf(9.5f, 4.1f + 2.f * g + 14.f * g * g) * (m == 2 ? 0.92f : 1.f), hpA = onepole(m == 2 ? expmap(s[3], 40.f, 400.f) : 1.f) * 0.5f;   // diode: Squelch = how much low end the resonance ignores
   i32 typ = m == 1 ? disc(s[3], 4) : 0; float bass = m == 1 ? s[8] : 0.f;
+  // resonance makeup: the ladder's feedback costs passband level (1 / (1 + k)); give most of it back so turning up resonance
+  // doesn't make the sound fall away. The diode's feedback is high-passed, so its passband barely moves.
+  const float rmk = m == 2 ? 1.f + kq * 0.5f : typ == 0 ? 1.f + kq * 0.9f : 1.f + kq * 0.4f;
   for (i32 c = 0; c < 2; c++) { float* x = c ? R : L, *y4 = t->st[c];
     for (i32 i = 0; i < n; i++) { float u[2], o[2]; osUp(&t->os[c], x[i] * dg, &u[0], &u[1]);
       for (i32 j = 0; j < 2; j++) {
         float fbs = y4[3]; if (m == 2) { t->hpf[c] += (fbs - t->hpf[c]) * hpA; fbs -= t->hpf[c]; }
         float in = fsat(u[j] * (1.f + bass * kq * 0.25f) - kq * fbs);
         if (m == 2) {   // diode coupling: each stage also feels the next one
-          y4[0] += g * (in - fsat(y4[0] - 0.4f * y4[1]) ); y4[1] += g * (fsat(y4[0]) - fsat(y4[1] - 0.4f * y4[2])); y4[2] += g * (fsat(y4[1]) - fsat(y4[2] - 0.4f * y4[3])); y4[3] += g * (fsat(y4[2]) - fsat(y4[3]));
-          o[j] = 0.65f * y4[2] + 0.55f * y4[3];
+          // (each stage is pulled toward the next one; at DC every stage settles on the input, so the passband is unity)
+          const float s0 = fsat(y4[0]), s1 = fsat(y4[1]), s2 = fsat(y4[2]), s3 = fsat(y4[3]);
+          y4[0] += g * (in - s0 + 0.4f * (s1 - s0)); y4[1] += g * (s0 - s1 + 0.4f * (s2 - s1)); y4[2] += g * (s1 - s2 + 0.4f * (s3 - s2)); y4[3] += g * (s2 - s3);
+          o[j] = (0.65f * y4[2] + 0.55f * y4[3]) * 0.833333f;
         } else {
           y4[0] += g * (in - fsat(y4[0])); y4[1] += g * (fsat(y4[0]) - fsat(y4[1])); y4[2] += g * (fsat(y4[1]) - fsat(y4[2])); y4[3] += g * (fsat(y4[2]) - fsat(y4[3]));
           o[j] = typ == 0 ? y4[3] : typ == 1 ? y4[1] : typ == 2 ? (y4[1] - y4[3]) * 2.f : u[j] * 0.5f - 2.f * y4[0] + 3.f * y4[1] - 2.f * y4[2] + 0.5f * y4[3];
         } }
-      float y = osDown(&t->os[c], o[0], o[1]) * mkup * (1.f + kq * 0.18f); x[i] += (y - x[i]) * mix; } }
+      float y = osDown(&t->os[c], o[0], o[1]) * mkup * rmk; x[i] += (y - x[i]) * mix; } }
 }
 
 /* ================= Saturation: Tube, Tape, Transistor, Console, Fuzz (2x oversampled) ================= */
 struct Sat2St { OS2 os[2]; float hp[2], lp[2], tl[2], em[2], de[2], dc[2], dcy[2]; };
+static inline float sat2Curve(i32 m, float a) {
+  switch (m) { case 1: return fsat(a + 0.25f) - fsat(0.25f);                                   // tube: asymmetric, even harmonics
+    case 2: return fsat(a * 0.8f) * 1.25f;                                                  // tape: soft and round
+    case 3: return clampf(a * 1.1f, -1.f, 1.f) * 0.6f + fsat(a * 1.6f) * 0.4f;              // transistor: harder knee
+    case 4: return fsat(a * 0.6f) / 0.6f * 0.8f + a * 0.2f / (1.f + fabsf_(a) * 0.2f);      // console: gentle
+    default: return clampf(a * 3.f + 0.35f * fabsf_(a), -1.f, 1.f) * 0.8f; }                // fuzz: square-ish, asymmetric
+}
+// Auto gain: drive changes the tone, not the level. A static gain (no envelope, nothing pumps) matched at -12 dBFS, about where
+// mixes sit: quieter material gets a little louder as it saturates, louder material a little quieter.
+static float satAuto(i32 m, float dg, i32 classic) {
+  const float A = 0.25f; float y;
+  if (classic) { float a = A * dg; y = m == 1 ? minf(a, 1.f) : m == 2 ? 0.5f * (fabsf_(ftanh(a + 0.25f) - ftanh(0.25f)) + fabsf_(ftanh(-a + 0.25f) - ftanh(0.25f))) : ftanh(a); }   // fold measured as soft
+  else y = 0.5f * (fabsf_(sat2Curve(m, A * dg)) + fabsf_(sat2Curve(m, -A * dg)));
+  return clampf(A / maxf(y, 1e-6f), 1.f / dg, 1.f);
+}
 static void fx_sat2(Fx* f, float* L, float* R, i32 n) {
   Sat2St* t = (Sat2St*)f->st; float* s = f->s; const i32 m = f->mode;
   float dg = db2lin(linmap(s[0], 0, 36) + (disc(s[2], 2) ? 20.f : 0.f)), tone = linmap(s[1], -1, 1), mix = s[3], og = db2lin(linmap(s[4], -24, 6));
   float hpA = s[5] > 0.001f ? onepole(expmap(s[5], 20, 500)) : 0.f, lpA = onepole(expmap(s[6], 1000, 20000)), tlA = onepole(900.f), emA = onepole(3000.f), dcA = 1.f - 6.28318531f * 10.f / SR;
-  const float comp = 1.f;
+  const float comp = s[7] > 0.5f ? satAuto(m, dg, 0) : 1.f;
   for (i32 c = 0; c < 2; c++) { float* x = c ? R : L;
     for (i32 i = 0; i < n; i++) { float dry = x[i], v = dry; if (hpA > 0.f) v -= op1(&t->hp[c], v, hpA);
       if (m == 2) v += 1.2f * (v - op1(&t->em[c], v, emA));   // tape: pre-emphasis, so highs distort less once de-emphasised
       float u[2]; osUp(&t->os[c], v * dg, &u[0], &u[1]);
-      for (i32 j = 0; j < 2; j++) { float a = u[j], y;
-        switch (m) { case 1: y = fsat(a + 0.25f) - 0.2449f; break;                                // tube: asymmetric, even harmonics
-          case 2: y = fsat(a * 0.8f) * 1.25f; break;                                            // tape: soft and round
-          case 3: y = clampf(a * 1.1f, -1.f, 1.f) * 0.6f + fsat(a * 1.6f) * 0.4f; break;        // transistor: harder knee
-          case 4: y = fsat(a * 0.6f) / 0.6f * 0.8f + a * 0.2f / (1.f + fabsf_(a) * 0.2f); break; // console: gentle
-          default: y = clampf(a * 3.f + 0.35f * fabsf_(a), -1.f, 1.f) * 0.8f; }                 // fuzz: square-ish, asymmetric
-        u[j] = y; }
+      for (i32 j = 0; j < 2; j++) u[j] = sat2Curve(m, u[j]);
       float y = osDown(&t->os[c], u[0], u[1]);
       if (m == 2) { float lo = op1(&t->de[c], y, emA); y = lo + (y - lo) / 2.2f; }   // de-emphasis
       { float o = y - t->dc[c] + dcA * t->dcy[c]; t->dc[c] = y; t->dcy[c] = o; y = o; }
@@ -236,7 +251,7 @@ static void fx_delay2(Fx* f, float* L, float* R, i32 n) {
   i32 sync = disc(s[0], 2), div = disc(s[1], 11), pp = disc(s[5], 2);
   float target = clampf(sync ? DIVS[div] * 60.f / BPM * SR : expmap(s[2], 1, 2000) * 0.001f * SR, 1.f, (float)(DLEN - 4 - 0.02f * SR));
   if (d->d < 1.f) d->d = target;
-  float fb = linmap(s[3], 0, 0.95f), mix = s[4], drive = s[8], wow = s[9], flt = s[10], age = s[11];
+  float fb = linmap(s[3], 0, 0.95f), mix = s[4], drive = s[8], wow = s[9], flt = s[10], age = s[11]; const float nrm = epMix(mix);
   float hcHz = expmap(s[7], 1000, 20000) * (1.f - 0.75f * age);
   if (m == 2) hcHz = minf(hcHz, clampf(2400.f * sqrtf_(0.5f * SR / maxf(d->d, 1.f)), 1500.f, 12000.f));   // analog: darker as the delay gets longer, like a bucket brigade
   float hc = onepole(hcHz), lc = onepole(expmap(s[6], 20, 2000)), dk = 1.f + 3.f * drive;
@@ -255,7 +270,7 @@ static void fx_delay2(Fx* f, float* L, float* R, i32 n) {
     float xl = L[i], xr = R[i];
     if (pp) { d->bL[d->w] = (xl + xr) * 0.5f + rr * fb; d->bR[d->w] = rl * fb; } else { d->bL[d->w] = xl + rl * fb; d->bR[d->w] = xr + rr * fb; }
     d->w = (d->w + 1) & (DLEN - 1);
-    L[i] = xl + (rl - xl) * mix; R[i] = xr + (rr - xr) * mix;
+    L[i] = (xl + (rl - xl) * mix) * nrm; R[i] = (xr + (rr - xr) * mix) * nrm;
   }
 }
 
@@ -280,7 +295,7 @@ static void fx_fdn(Fx* f, float* L, float* R, i32 n) {
     hcut = expmap(s[7], 1000, 20000) * (color == 0 ? 0.36f : color == 1 ? 0.55f : 0.85f); lcut = expmap(s[8], 20, 1000); bassM = expmap(s[9], 0.25f, 4.f); highM = color == 0 ? 0.35f : 0.5f; highX = 5000.f; diff = linmap(s[10], 0.3f, 0.78f); depth = 1.f; }
   else { mix = s[0]; pre = linmap(s[1], 0, 300); size = linmap(s[2], 0.5f, 3.5f); decay = expmap(s[3], 1.f, 100.f); grav = linmap(s[4], -1, 1); modD = s[5] * 24.f; modR = expmap(s[6], 0.25f, 4.f);
     lcut = expmap(s[7], 20, 1000); hcut = expmap(s[8], 1000, 20000); freeze = disc(s[9], 2); highM = 0.6f; highX = 7000.f; diff = 0.78f; depth = 1.f; }
-  const float lA = onepole(bassX), hA = onepole(highX), wlA = onepole(hcut), whA = onepole(lcut);
+  const float lA = onepole(bassX), hA = onepole(highX), wlA = onepole(hcut), whA = onepole(lcut); const float nrm = epMix(mix);
   float gl[16], gm[16], gh[16], len[16];
   for (i32 k = 0; k < 16; k++) { float ln = clampf(FDN_MS[k] * 0.001f * SR * size, 16.f, (float)(RL - 64)); len[k] = ln;
     if (freeze) { gl[k] = gm[k] = gh[k] = 1.f; continue; }
@@ -316,7 +331,7 @@ static void fx_fdn(Fx* f, float* L, float* R, i32 n) {
     if (grav < -0.01f) {   // Huge, negative gravity: the tail swells in instead of starting loud
       float a = maxf(fabsf_(wl), fabsf_(wr)); r->fe += (a - r->fe) * (a > r->fe ? 0.05f : 0.0005f); r->se += (a - r->se) * (1.f / (0.25f * decay * SR + 1.f));
       float k2 = clampf(r->se / (r->fe + 1e-6f), 0.f, 1.f), g = 1.f + (k2 - 1.f) * -grav; wl *= g; wr *= g; }
-    L[i] = xl + (wl - xl) * mix; R[i] = xr + (wr - xr) * mix;
+    L[i] = (xl + (wl - xl) * mix) * nrm; R[i] = (xr + (wr - xr) * mix) * nrm;
   }
 }
 // Plate (Dattorro's figure-of-eight tank). Params: Mix, Predelay, Decay, Damping, Bandwidth, Size, Mod, Low cut, Width
@@ -324,7 +339,7 @@ enum { PA = 2048, PB = 8192, PC = 16384, PD = 32768 };
 struct PlateSt { float pre[PLEN]; u32 pw; float bw, hp, dampA, dampB, lA, lB; float ap[4][PA]; u32 apw[4]; float mA[PB], mB[PB]; u32 mw; float dA1[PD], dA2[PD], dB1[PD], dB2[PD]; u32 dw; float aA[PC], aB[PC]; u32 aw; float ph; };
 static void fx_plate(Fx* f, float* L, float* R, i32 n) {
   PlateSt* p = (PlateSt*)f->st; float* s = f->s; const float sc = SR / 29761.f * linmap(s[5], 0.5f, 1.5f);
-  float mix = s[0], decay = expmap(s[2], 0.2f, 20.f), damp = onepole(expmap(s[3], 1000, 20000)), bw = onepole(expmap(s[4], 1000, 20000)), ex = s[6] * 16.f * SR / 48000.f, lc = onepole(expmap(s[7], 20, 1000)), width = s[8];
+  float mix = s[0], nrm = epMix(mix), decay = expmap(s[2], 0.2f, 20.f), damp = onepole(expmap(s[3], 1000, 20000)), bw = onepole(expmap(s[4], 1000, 20000)), ex = s[6] * 16.f * SR / 48000.f, lc = onepole(expmap(s[7], 20, 1000)), width = s[8];
   u32 pd = (u32)clampf(linmap(s[1], 0, 200) * 0.001f * SR, 0.f, (float)(PLEN - 2));
   const float IL[4] = { 142, 107, 379, 277 }, IG[4] = { 0.75f, 0.75f, 0.625f, 0.625f };
   u32 il[4]; for (i32 k = 0; k < 4; k++) il[k] = (u32)clampf(IL[k] * sc, 4.f, PA - 2.f);
@@ -357,7 +372,7 @@ static void fx_plate(Fx* f, float* L, float* R, i32 n) {
     float yr = tap(p->dB1, PD - 1, p->dw, 353) + tap(p->dB1, PD - 1, p->dw, 3627) - tap(p->aB, PC - 1, p->aw, 1228) + tap(p->dB2, PD - 1, p->dw, 2673) - tap(p->dA1, PD - 1, p->dw, 2111) - tap(p->aA, PC - 1, p->aw, 335) - tap(p->dA2, PD - 1, p->dw, 121);
     p->mw = (p->mw + 1) & (PB - 1); p->dw = (p->dw + 1) & (PD - 1); p->aw = (p->aw + 1) & (PC - 1);
     yl *= 0.6f; yr *= 0.6f; float mm = (yl + yr) * 0.5f, sd = (yl - yr) * 0.5f * width; yl = mm + sd; yr = mm - sd;
-    L[i] = xl + (yl - xl) * mix; R[i] = xr + (yr - xr) * mix;
+    L[i] = (xl + (yl - xl) * mix) * nrm; R[i] = (xr + (yr - xr) * mix) * nrm;
   }
 }
 
@@ -369,23 +384,25 @@ static void fx_chorus2(Fx* f, float* L, float* R, i32 n) {
   Chorus2St* c = (Chorus2St*)f->st; float* s = f->s; const i32 m = f->mode; const float ms = 0.001f * SR;
   if (m == 3) {   // Flanger: Rate, Depth, Manual, Feedback, Mix, Stereo
     float rate = expmap(s[0], 0.02f, 5.f), dep = s[1], man = expmap(s[2], 0.1f, 10.f) * ms, fb = linmap(s[3], -0.95f, 0.95f), mix = s[4], st = s[5] * 0.5f;
+    const float wp = 1.3f * mix * mix / (1.f - fb * fb), nrm = 1.f / sqrtf_(1.f + wp);   // dry and wet add up in power: keep the overall level where it was
     for (i32 i = 0; i < n; i++) { c->ph += rate / SR; if (c->ph >= 1.f) c->ph -= 1.f;
       float pl = c->ph, pr = c->ph + st; if (pr >= 1.f) pr -= 1.f;
       float dlv = clampf(man * (1.f + dep * 0.9f * tri(pl)), 1.f, CLEN - 4.f), drv = clampf(man * (1.f + dep * 0.9f * tri(pr)), 1.f, CLEN - 4.f);
       float ol = chRead(c->bL, c->w, dlv), orr = chRead(c->bR, c->w, drv), xl = L[i], xr = R[i];
       c->bL[c->w] = xl + fsat(ol * fb); c->bR[c->w] = xr + fsat(orr * fb); c->w = (c->w + 1) & (CLEN - 1);
-      L[i] = xl + ol * mix * 0.7f; R[i] = xr + orr * mix * 0.7f; }
+      L[i] = (xl + ol * mix * 0.7f) * nrm; R[i] = (xr + orr * mix * 0.7f) * nrm; }
     return; }
   float rate, dep, base, mix = s[1], lpa = onepole(m == 1 ? 9000.f : 11000.f);
+  const float nrm = 1.f / sqrtf_(1.f + mix * mix * (m == 1 ? 1.f : 0.78f));   // the same power balance for the ensemble modes
   if (m == 1) { i32 md = disc(s[0], 3); const float rt[3] = { 0.513f, 0.863f, 9.75f }, dp[3] = { 1.85f, 1.85f, 0.25f }; rate = rt[md]; dep = dp[md] * ms; base = 3.5f * ms; }   // Juno-60 chorus I, II, I+II
   else { i32 md = disc(s[0], 4); const float dp[4] = { 0.35f, 0.6f, 0.9f, 1.3f }; rate = md < 3 ? 0.25f : 0.5f; dep = dp[md] * ms; base = 5.f * ms; }                     // Dimension 1-4
   for (i32 i = 0; i < n; i++) { c->ph += rate / SR; if (c->ph >= 1.f) c->ph -= 1.f; float t = tri(c->ph), xl = L[i], xr = R[i], mono = (xl + xr) * 0.5f;
     if (m == 1) {   // one bucket-brigade line, the second output reads it with the opposite LFO
       c->bL[c->w] = mono; float a = op1(&c->lp[0], chRead(c->bL, c->w, base + dep * t), lpa), b = op1(&c->lp[1], chRead(c->bL, c->w, base - dep * t), lpa);
-      L[i] = xl + a * mix; R[i] = xr + b * mix; }
+      L[i] = (xl + a * mix) * nrm; R[i] = (xr + b * mix) * nrm; }
     else {          // two lines with opposite LFOs, cross-mixed: wide and still mono-safe
       c->bL[c->w] = xl; c->bR[c->w] = xr; float a = op1(&c->lp[0], chRead(c->bL, c->w, base + dep * t), lpa), b = op1(&c->lp[1], chRead(c->bR, c->w, base - dep * t), lpa);
-      L[i] = xl + (a - 0.45f * b) * mix * 0.8f; R[i] = xr + (b - 0.45f * a) * mix * 0.8f; }
+      L[i] = (xl + (a - 0.45f * b) * mix * 0.8f) * nrm; R[i] = (xr + (b - 0.45f * a) * mix * 0.8f) * nrm; }
     c->w = (c->w + 1) & (CLEN - 1); }
 }
 
@@ -407,7 +424,7 @@ static void fx_clip2(Fx* f, float* L, float* R, i32 n) {
 }
 
 /* ================= Bitcrush: SP-1200, SP-404 ================= */
-struct Crush2St { float hL, hR, cnt, comp; SVF sv[2]; u32 rng; float nz; };
+struct Crush2St { float hL, hR, cnt, comp; SVF sv[2]; u32 rng; float nz, ng; };
 static void fx_crush2(Fx* f, float* L, float* R, i32 n) {
   Crush2St* c = (Crush2St*)f->st; float* s = f->s;
   if (f->mode == 1) {   // SP-1200: 26.04 kHz with no anti-alias filter, 12-bit, then a 4-pole low-pass. Params Drive, Filter, Resonance, Mix
@@ -417,7 +434,7 @@ static void fx_crush2(Fx* f, float* L, float* R, i32 n) {
       L[i] += (yl - L[i]) * mix; R[i] += (yr - R[i]) * mix; }
     return; }
   // SP-404 lo-fi: Amount (bits and rate), Tone, Noise, Compress, Mix
-  float amt = s[0], bits = linmap(amt, 14, 6), steps = fexp(bits * 0.693147181f) * 0.5f, step = expmap(1.f - amt, 6000.f, 44100.f) / SR, mix = s[4], noise = s[2] * s[2] * 0.03f, cmp = s[3];
+  float amt = s[0], bits = linmap(amt, 14, 6), steps = fexp(bits * 0.693147181f) * 0.5f, step = expmap(1.f - amt, 6000.f, 44100.f) / SR, mix = s[4], noise = s[2] * s[2] * 0.03f * noiseGate(&c->ng, L, R, n), cmp = s[3];
   float a1, a2, a3, k; svf_coef(expmap(s[1], 800, 16000), 0.707f, &a1, &a2, &a3, &k);
   for (i32 i = 0; i < n; i++) {
     float lvl = maxf(fabsf_(L[i]), fabsf_(R[i])); c->comp += (lvl - c->comp) * (lvl > c->comp ? 0.01f : 0.0002f); float g = cmp > 0.001f ? 1.f / (1.f + cmp * 4.f * c->comp) * (1.f + cmp) : 1.f;
@@ -508,7 +525,7 @@ static void fx_mband(Fx* f, float* L, float* R, i32 n) {
     for (i32 b = 0; b < 3; b++) {
       float ld = lin2db(m->env[b] + 1e-9f), gd = 0;
       if (ld > thrA) gd = slA * (ld - thrA);                                   // downward above the top threshold
-      else if (ld < thrB && ld > -80.f) gd = minf(slB * (thrB - ld), 30.f);   // upward below the bottom one (never lifts true silence)
+      else if (ld < thrB) gd = minf(slB * (thrB - ld), 30.f) * clampf((ld + 80.f) * 0.05f, 0.f, 1.f);   // upward below the bottom one, fading out from -60 to -80 dB: never lifts the noise floor or true silence
       f->vis[b] = gd;
       float g1 = db2lin(gd) * gb[b] * outg, g0 = m->init ? m->g[b] : g1, dg = (g1 - g0) / nn; m->g[b] = g1;
       float* bl = bd[b][0]; float* br = bd[b][1];
@@ -521,11 +538,11 @@ static void fx_mband(Fx* f, float* L, float* R, i32 n) {
 
 /* ================= Tape: Studio, Cassette, Worn ================= */
 enum { TBL = 8192 };
-struct TapeSt { float b[2][TBL]; u32 w; float em[2], de[2], lp[2], hp[2], wph, fph, wn, wnz, dz, drop; u32 rng; BQ2 bump; float lastBump; };
+struct TapeSt { float b[2][TBL]; u32 w; float em[2], de[2], lp[2], hp[2], wph, fph, wn, wnz, dz, drop; u32 rng; BQ2 bump; float lastBump, ng; };
 // params: Drive, Bump, Wow, Flutter, Hiss, Tone, Mix, Output
 static void fx_tape(Fx* f, float* L, float* R, i32 n) {
   TapeSt* t = (TapeSt*)f->st; float* s = f->s; const i32 m = f->mode;
-  float dg = db2lin(linmap(s[0], -6, 24)), wow = s[2] * (m == 0 ? 1.f : m == 1 ? 2.2f : 3.5f), flt = s[3] * (m == 0 ? 1.f : 2.f), hiss = s[4] * s[4] * (m == 1 ? 0.012f : 0.005f);
+  float dg = db2lin(linmap(s[0], -6, 24)), wow = s[2] * (m == 0 ? 1.f : m == 1 ? 2.2f : 3.5f), flt = s[3] * (m == 0 ? 1.f : 2.f), hiss = s[4] * s[4] * (m == 1 ? 0.012f : 0.005f) * noiseGate(&t->ng, L, R, n);
   float lpHz = expmap(1.f - s[5], 3000.f, 20000.f) * (m == 0 ? 1.f : m == 1 ? 0.6f : 0.4f), mix = s[6], og = db2lin(linmap(s[7], -12, 12));
   float bump = s[1] * 6.f; if (bump != t->lastBump) { t->lastBump = bump; bq2Set(&t->bump, BQ_PEAK, 75.f, 0.9f, bump); }
   const float emA = onepole(2500.f), lpA = onepole(lpHz), hpA = onepole(25.f), base = 0.006f * SR, wD = wow * 0.0025f * SR, fD = flt * 0.0003f * SR;

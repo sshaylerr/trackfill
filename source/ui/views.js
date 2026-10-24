@@ -178,7 +178,7 @@ function drawDisp() {
   // MIX: where this pad's sound goes
   const C = P.chans[pi], path = []; let d = tfDest(P, pi); while (d >= 0) { path.push(chanName(d)); d = tfDest(P, d); }
   // MIX: the live analyzer and meters for this pad, with its routing on top
-  const l1 = (C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' › ') + ' › ' : '') + path.join(' › '), l2 = `A ${pct(C.sa)} · B ${pct(C.sb)} · ${volFmt(C.vol)} · ${panFmt(C.pan)}${C.mute ? ' · muted' : ''}${C.solo ? ' · solo' : ''}${pad.frz ? ' · frozen' : ''}`;
+  const l1 = (C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' › ') + ' › ' : '') + path.join(' › '), l2 = `A ${sendFmt(C.sa)} · B ${sendFmt(C.sb)} · ${volFmt(C.vol)} · ${panFmt(C.pan)}${C.mute ? ' · muted' : ''}${C.solo ? ' · solo' : ''}${pad.frz ? ' · frozen' : ''}`;
   const tall = H > 120, top = tall ? 40 : 4; if (tall) { txt(l1, 8, 12, COL.ink, 'left', 11); txt(l2, 8, 28, COL.mute, 'left', 10.5); }
   const mw = H > 90 ? 56 : 34; drawSpectrum(g, 0, top, W - mw - 6, H - top - 4, { grid: true, labels: H > 90 }); drawMeters(g, W - mw, top, mw, H - top - 4, { scale: H > 90 });
 }
@@ -199,7 +199,7 @@ const MIX_PAGES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'Grp', 'Bus',
 const STRIP_METERS = [];
 function destName(c) { const d = tfDest(P, c); return d < 0 ? '—' : d === MASTER ? 'Master' : chanName(d); }
 function mixChans(p) { return p < 8 ? [...Array(8)].map((_, i) => p * 8 + i) : p === 8 ? [...Array(8)].map((_, i) => G0 + i) : p === 9 ? [...Array(8)].map((_, i) => B0 + i) : [R0, R0 + 1, MASTER]; }
-const shortDb = v => { const g = 2 * v * v; if (g <= .0001) return '-∞'; const d = 20 * Math.log10(g); return (d > .05 ? '+' : '') + d.toFixed(1); };
+const shortDb = v => { const g = tfFaderGain(v); if (g <= .0001) return '-∞'; const d = 20 * Math.log10(g); return (d > .05 ? '+' : '') + d.toFixed(1); };
 function renderMix(V) {
   const w = h('div', 'mixView'), pages = h('div', 'pages'), chs = mixChans(UI.mixPage);
   MIX_PAGES.forEach((l, i) => pages.append(btn(l, () => { UI.mixPage = i; UI.mixSel = mixChans(i)[0]; renderView(); }, 'key' + (UI.mixPage === i ? ' on' : ''))));
@@ -217,7 +217,7 @@ function stripEl(c) {
   const C = P.chans[c], isPad = c < G0, el = h('div', 'strip' + (c === UI.mixSel ? ' sel' : '') + (isPad && !P.pads[c].sample ? ' empty' : ''));
   const nm = h('button', 'sname'); nm.innerHTML = `<em>${chanLabel(c)}</em><b>${esc(isPad ? (P.pads[c].name || (P.pads[c].sample ? 'Sound' : '—')) : chanName(c))}</b><i style="background:${isPad ? PAD_COLORS[P.pads[c].color] : 'var(--dim)'}"></i>`;
   nm.onclick = () => { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); };
-  const fd = keyParam(c + '.-1.0', { kind: 'fader', label: chanLabel(c) + ' volume', fmt: shortDb, unity: Math.SQRT1_2, onSwipe: mixSwipe, onTap: () => { if (UI.mixSel !== c) { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); } } });
+  const fd = keyParam(c + '.-1.0', { kind: 'fader', label: chanLabel(c) + ' volume', fmt: shortDb, unity: .85, onSwipe: mixSwipe, onTap: () => { if (UI.mixSel !== c) { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); } } });
   STRIP_METERS.push({ c, el: fd._meter, v: 0 });
   const pan = keyParam(c + '.-1.1', { cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe });
   const ms = h('div', 'ms2');
@@ -270,8 +270,8 @@ const FX_LAY = {
   '2:4': [['Cutoff', 'Resonance', 'Morph', 'Drive'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
   '2:5': [['Vowel', 'Shift', 'Resonance', 'Drive'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
   '2:6': [['Freq', 'Feedback', 'Damping'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
-  '3:0': [['Type', 'Drive', 'Tone'], ['Output', 'Mix']],
-  ...Object.fromEntries([1, 2, 3, 4, 5].map(m => ['3:' + m, [['Drive', 'Tone', 'Low cut', 'High cut'], ['Punish', 'Output', 'Mix']]])),
+  '3:0': [['Type', 'Drive', 'Tone'], ['Auto gain', 'Output', 'Mix']],
+  ...Object.fromEntries([1, 2, 3, 4, 5].map(m => ['3:' + m, [['Drive', 'Tone', 'Low cut', 'High cut'], ['Punish', 'Auto gain', 'Output', 'Mix']]])),
   '4:0': [['Sync', 'Division', 'Time', 'Feedback'], ['Ping-pong', 'Low cut', 'High cut', 'Mix']],
   ...Object.fromEntries([1, 2].map(m => ['4:' + m, [['Sync', 'Division', 'Time', 'Feedback'], ['Drive', 'Wow', 'Flutter', 'Age'], ['Ping-pong', 'Low cut', 'High cut', 'Mix']]])),
   '5:0': [['Size', 'Decay', 'Predelay', 'Damping'], ['Low cut', 'Width', 'Mix']],

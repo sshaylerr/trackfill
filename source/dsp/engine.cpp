@@ -64,6 +64,8 @@ static inline float expmap(float v, float a, float b) { return a * fexp(v * flog
 static inline float linmap(float v, float a, float b) { return a + (b - a) * v; }
 static inline i32 disc(float v, i32 n) { i32 k = (i32)floorf_(v * (n - 1) + 0.5f); return k < 0 ? 0 : (k >= n ? n - 1 : k); }
 static inline float sane(float v, float lo, float hi, float dflt) { return (v == v && v >= lo && v <= hi) ? v : (v == v ? clampf(v, lo, hi) : dflt); }
+// equal-power dry/wet: a delayed or reverberant copy is uncorrelated with the dry signal, so plain crossfading dips 3 dB at 50%
+static inline float epMix(float m) { return 1.f / sqrtf_((1.f - m) * (1.f - m) + m * m); }
 static inline float onepole(float hz) { return 1.f - fexp(-6.28318531f * hz / SR); }   // smoothing coefficient for a cutoff
 
 // Automation/ducker curve. Rational quadratic Bézier with the control point in a corner; c in [-0.97, 0.97].
@@ -236,15 +238,18 @@ struct Chan {
   float vol, pan, sa, sb, mute, cut, res;      // targets
   float cv, cp, ca, cb, cm, ccut, cres;        // smoothed
   float fz1[2], fz2[2];                        // pad filter state
-  i32 out; u32 quiet, tail; Fx fx[NSLOT];
+  i32 out; u32 quiet, tail, oq, gap; Fx fx[NSLOT];   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
 };
 static Chan chs[NCH];
 static float inL[NCH][MAXN], inR[NCH][MAXN], keyL[NCH][MAXN], keyR[NCH][MAXN], pstL[NPAD][MAXN], pstR[NPAD][MAXN];
+// which input buffers hold anything this block: every other one is all zeros, so quiet channels cost nearly nothing
+static u8 dIn[NCH], dPst[NPAD], keyZ[NCH]; static i32 prevN = MAXN;
 static float oL[MAXN], oR[MAXN];
 static float pkL = 0, pkR = 0;
 static float chBend[NPAD], chBendS[NPAD], chBendN[NPAD];   // pitch bend per pad: target and smoothed semitones, and -1..1 for the synth's Bend source
 EX void tf_ch_bend(i32 c, float semis, float norm) { if (c >= 0 && c < NPAD) { chBend[c] = sane(semis, -48.f, 48.f, 0.f); chBendN[c] = sane(norm, -1.f, 1.f, 0.f); } }
-static float chPk[NCH];   // post-fader peak per channel since the host last read it (mixer meters)
+static float chPk[NCH];
+static u32 awakeBits[3];   // diagnostics: bit c%32 of word c/32 = channel c was processed in the last block (asleep channels cost nothing)   // post-fader peak per channel since the host last read it (mixer meters)
 static i32 tripCh = -1, tripWhy = 0;
 static u32 runaway = 0;
 
@@ -262,7 +267,7 @@ EX void tf_init(float sr) {
   for (i32 c = 0; c < NCH; c++) {
     Chan* C = &chs[c];
     C->vol = C->cv = 0.98f; C->pan = C->cp = 0; C->sa = C->ca = 0; C->sb = C->cb = 0; C->mute = C->cm = 1;
-    C->cut = C->ccut = 20000.f; C->res = C->cres = 0.707f; C->out = defaultOut(c); C->tail = (u32)(0.3f * SR); C->quiet = 0;
+    C->cut = C->ccut = 20000.f; C->res = C->cres = 0.707f; C->out = defaultOut(c); C->tail = (u32)(0.3f * SR); C->gap = (u32)(0.1f * SR); C->quiet = 0; C->oq = 0;
     for (i32 s = 0; s < NSLOT; s++) C->fx[s].type = -1;
   }
 }
@@ -292,7 +297,7 @@ static u32 discMask(i32 t, i32 m) {
     case FX_EQ: return m == 1 ? B0 | B3 | B6 : m == 2 ? B0 | B2 | B4 | B6 | B7 | B8 : 0;
     case FX_COMP: return m == 1 ? B2 : m == 2 ? B4 : m == 3 ? B1 | B2 | B3 : 0;
     case FX_FILTER: return m == 0 ? B0 | B3 : m == 1 || m == 3 ? B3 : 0;
-    case FX_SAT: return m == 0 ? B0 : B2;
+    case FX_SAT: return m == 0 ? B0 | B5 : B2 | B7;
     case FX_DELAY: return B0 | B1 | B5;
     case FX_REVERB: return m == 3 ? B4 : m == 4 ? B9 : 0;
     case FX_DUCK: return B0;
@@ -367,7 +372,9 @@ static u32 fxStateBytes0(i32 t) {
   }
 }
 static u32 fxTail(const Fx* f) { if (f->type == FX_STEP || f->type == FX_VINYL || f->type == FX_GRIN) return (u32)(4.f * SR); if (f->type == FX_REVERB) return f->mode == 4 ? 0xf0000000u : (u32)(f->mode == 0 ? 30.f * SR : 60.f * SR); return f->type == FX_DELAY ? (u32)(30.f * SR) : (u32)(0.3f * SR); }
-static void chanTail(Chan* C) { u32 t = (u32)(0.3f * SR); for (i32 s = 0; s < NSLOT; s++) if (C->fx[s].type >= 0) { u32 x = fxTail(&C->fx[s]); if (x > t) t = x; } C->tail = t; }
+// the longest stretch an effect can stay silent at its output and still have sound to come (a delay between repeats, a pre-delay)
+static u32 fxGap(const Fx* f) { switch (f->type) { case FX_DELAY: return (u32)DLEN + (u32)(0.1f * SR); case FX_STEP: case FX_VINYL: case FX_GRIN: return (u32)(4.2f * SR); case FX_REVERB: return (u32)(0.6f * SR); default: return (u32)(0.1f * SR); } }
+static void chanTail(Chan* C) { u32 t = (u32)(0.3f * SR), g = (u32)(0.1f * SR); for (i32 s = 0; s < NSLOT; s++) if (C->fx[s].type >= 0) { u32 x = fxTail(&C->fx[s]); if (x > t) t = x; x = fxGap(&C->fx[s]); if (x > g) g = x; } C->tail = t; C->gap = g; }
 static void fxReset(Fx* f) { f->vis[0] = f->vis[1] = f->vis[2] = f->vis[3] = 0.f; if (f->st) zero(f->st, f->stBytes); for (i32 i = 0; i < NPARAM; i++) f->last[i] = -1.f; }
 
 static Fx* fxAt(i32 c, i32 s) { return (c >= 0 && c < NCH && s >= 0 && s < NSLOT) ? &chs[c].fx[s] : 0; }
@@ -451,15 +458,16 @@ static void fx_filter(Fx* f, float* L, float* R, i32 n) {
     }
   }
 }
+static float satAuto(i32 m, float dg, i32 classic);
 static void fx_sat(Fx* f, float* L, float* R, i32 n) {
   SatSt* st = (SatSt*)f->st; float* s = f->s;
-  i32 type = disc(s[0], 4); float dg = db2lin(linmap(s[1], 0, 36)), tone = linmap(s[2], -1, 1), mix = s[3], og = db2lin(linmap(s[4], -24, 6));
+  i32 type = disc(s[0], 4); float dg = db2lin(linmap(s[1], 0, 36)), tone = linmap(s[2], -1, 1), mix = s[3], og = db2lin(linmap(s[4], -24, 6)) * (s[5] > 0.5f ? satAuto(type, dg, 1) : 1.f);
   float lc = onepole(1200.f), lo = tone > 0 ? 1.f - tone : 1.f, hi = tone < 0 ? 1.f + tone : 1.f;
   for (i32 c = 0; c < 2; c++) {
     float* x = c ? R : L; float z = st->lp[c];
     for (i32 i = 0; i < n; i++) {
       float dry = x[i], v = dry * dg, y;
-      switch (type) { case 0: y = ftanh(v); break; case 1: y = clampf(v, -1.f, 1.f); break; case 2: y = ftanh(v + 0.25f) - 0.24491866f; break; default: y = fsin(v); }
+      switch (type) { case 0: y = ftanh(v); break; case 1: y = clampf(v, -1.f, 1.f); break; case 2: y = ftanh(v + 0.25f) - ftanh(0.25f); break; default: y = fsin(v); }
       z += (y - z) * lc; y = z * lo + (y - z) * hi;
       x[i] = (dry + (y - dry) * mix) * og;
     }
@@ -472,7 +480,7 @@ static void fx_delay(Fx* f, float* L, float* R, i32 n) {
   float target = sync ? DIVS[div] * 60.f / BPM * SR : expmap(s[2], 1, 2000) * 0.001f * SR;
   target = clampf(target, 1.f, (float)(DLEN - 4));
   if (d->d < 1.f) d->d = target;
-  float fb = linmap(s[3], 0, 0.95f), mix = s[4], hc = onepole(expmap(s[7], 1000, 20000)), lc = onepole(expmap(s[6], 20, 2000));
+  float fb = linmap(s[3], 0, 0.95f), mix = s[4], nrm = epMix(mix), hc = onepole(expmap(s[7], 1000, 20000)), lc = onepole(expmap(s[6], 20, 2000));
   for (i32 i = 0; i < n; i++) {
     d->d += (target - d->d) * 0.0005f;
     float rp = (float)d->w - d->d; if (rp < 0) rp += DLEN;
@@ -484,14 +492,14 @@ static void fx_delay(Fx* f, float* L, float* R, i32 n) {
     if (pp) { d->bL[d->w] = (xl + xr) * 0.5f + rr * fb; d->bR[d->w] = rl * fb; }
     else { d->bL[d->w] = xl + rl * fb; d->bR[d->w] = xr + rr * fb; }
     d->w = (d->w + 1) & (DLEN - 1);
-    L[i] = xl + (rl - xl) * mix; R[i] = xr + (rr - xr) * mix;
+    L[i] = (xl + (rl - xl) * mix) * nrm; R[i] = (xr + (rr - xr) * mix) * nrm;
   }
 }
 static const u32 RBASE[8] = { 1423, 1781, 1973, 2099, 2557, 2879, 3251, 3511 };
 static void fx_reverb(Fx* f, float* L, float* R, i32 n) {
   RevSt* r = (RevSt*)f->st; float* s = f->s;
   float decay = expmap(s[1], 0.2f, 20), dampc = onepole(expmap(s[2], 1000, 20000)), pre = linmap(s[3], 0, 200) * 0.001f * SR;
-  float mix = s[4], width = s[5], lc = onepole(expmap(s[6], 20, 1000));
+  float mix = s[4], nrm = epMix(mix), width = s[5], lc = onepole(expmap(s[6], 20, 1000));
   if (r->sizeFor != s[0] + decay || r->len[0] == 0) {
     r->sizeFor = s[0] + decay; float sc = (0.35f + 1.3f * s[0]) * SR / 48000.f;
     for (i32 k = 0; k < 8; k++) { u32 l = (u32)(RBASE[k] * sc); if (l > RLEN - 2) l = RLEN - 2; if (l < 8) l = 8; r->len[k] = l; r->g[k] = db2lin(-60.f * (float)l / (decay * SR)); }
@@ -509,7 +517,7 @@ static void fx_reverb(Fx* f, float* L, float* R, i32 n) {
     r->w = (r->w + 1) & (RLEN - 1);
     float wl = (d[0] - d[2] + d[4] - d[6]) * 0.5f, wr = (d[1] - d[3] + d[5] - d[7]) * 0.5f, m = (wl + wr) * 0.5f, sd = (wl - wr) * 0.5f * width;
     wl = m + sd; wr = m - sd;
-    L[i] = xl + (wl - xl) * mix; R[i] = xr + (wr - xr) * mix;
+    L[i] = (xl + (wl - xl) * mix) * nrm; R[i] = (xr + (wr - xr) * mix) * nrm;
   }
 }
 static void fx_duck(Fx* f, float* L, float* R, i32 n, const float* kL, const float* kR) {
@@ -541,7 +549,7 @@ static void fx_duck(Fx* f, float* L, float* R, i32 n, const float* kL, const flo
 static void fx_chorus(Fx* f, float* L, float* R, i32 n) {
   ChorusSt* c = (ChorusSt*)f->st; float* s = f->s;
   float rate = expmap(s[0], 0.05f, 6.f), depth = s[1] * 0.006f * SR, base = linmap(s[2], 0.001f, 0.025f) * SR, fb = linmap(s[3], 0, 0.7f), mix = s[4];
-  float inc = rate / SR;
+  float inc = rate / SR, nrm = epMix(mix);   // the delayed copy is uncorrelated on average: an equal-power blend keeps the level
   for (i32 i = 0; i < n; i++) {
     c->ph += inc; if (c->ph >= 1.f) c->ph -= 1.f;
     float dl = base + depth * (0.5f + 0.5f * fsin(6.28318531f * c->ph)), dr = base + depth * (0.5f + 0.5f * fsin(6.28318531f * c->ph + 1.57079633f));
@@ -549,7 +557,7 @@ static void fx_chorus(Fx* f, float* L, float* R, i32 n) {
     for (i32 k = 0; k < 2; k++) { float rp = (float)c->w - dd[k]; if (rp < 0) rp += CLEN; u32 i0 = (u32)rp; float fr = rp - i0; u32 i1 = (i0 + 1) & (CLEN - 1); i0 &= CLEN - 1; out[k] = bufs[k][i0] + (bufs[k][i1] - bufs[k][i0]) * fr; }
     float xl = L[i], xr = R[i];
     c->bL[c->w] = xl + out[0] * fb; c->bR[c->w] = xr + out[1] * fb; c->w = (c->w + 1) & (CLEN - 1);
-    L[i] = xl + (out[0] - xl) * mix; R[i] = xr + (out[1] - xr) * mix;
+    L[i] = (xl + (out[0] - xl) * mix) * nrm; R[i] = (xr + (out[1] - xr) * mix) * nrm;
   }
 }
 // Clipper: drive into a ceiling, from hard to soft knee; transparent below the knee
@@ -597,6 +605,14 @@ static void fx_util(Fx* f, float* L, float* R, i32 n) {
   float* s = f->s; float g = db2lin(linmap(s[0], -24, 24)), w = linmap(s[1], 0, 2), p = linmap(s[2], -1, 1);
   float gl = g * (p > 0 ? 1.f - p : 1.f), gr = g * (p < 0 ? 1.f + p : 1.f);
   for (i32 i = 0; i < n; i++) { float m = (L[i] + R[i]) * 0.5f, sd = (L[i] - R[i]) * 0.5f * w; L[i] = (m + sd) * gl; R[i] = (m - sd) * gr; }
+}
+static double gBeat = 0.0; static i32 gPlay = 0;   // song position in beats and whether the transport runs (tf_set_pos, in fx_new.inc)
+// noise an effect makes by itself (tape hiss, record crackle) plays while the song does or while sound comes in, and fades out
+// 1.5 s after both stop: a stopped project is silent, and the channel can go to sleep
+static float noiseGate(float* g, const float* L, const float* R, i32 n) {
+  float pk = 0; for (i32 i = 0; i < n; i++) pk = maxf(pk, maxf(fabsf_(L[i]), fabsf_(R[i])));
+  const float want = (gPlay || pk > 1e-5f) ? 1.f : 0.f, a = want > *g ? 1.f - fexp(-(float)n / (0.01f * SR)) : 1.f - fexp(-(float)n / (0.5f * SR));
+  *g += (want - *g) * a; if (*g < 1e-4f) *g = 0.f; return *g;
 }
 #include "fx_modes.inc"
 #include "fx_new.inc"
@@ -659,7 +675,7 @@ static void renderVoices(i32 n) {
     Voice* v = &vc[vi]; if (!v->on) continue;
     Samp* S = &samp[v->s]; if (!S->d) { v->on = 0; continue; }
     float *L, *R;
-    if (v->post && v->ch < NPAD) { L = pstL[v->ch]; R = pstR[v->ch]; } else { L = inL[v->ch]; R = inR[v->ch]; }
+    if (v->post && v->ch < NPAD) { L = pstL[v->ch]; R = pstR[v->ch]; dPst[v->ch] = 1; } else { L = inL[v->ch]; R = inR[v->ch]; dIn[v->ch] = 1; }
     const i16* d = S->d; const i32 st = S->ch; const double first = v->first, span = v->last - v->first;
     const i32 lo = (i32)first, hi = (i32)v->last;
     const double bm = (v->ch < NPAD && !v->post && chBendS[v->ch] != 0.f) ? (double)fexp(chBendS[v->ch] * 0.0577622650f) : 1.0;   // pitch bend
@@ -683,17 +699,20 @@ static void resetChan(i32 c) {
   Chan* C = &chs[c]; C->fz1[0] = C->fz1[1] = C->fz2[0] = C->fz2[1] = 0;
   for (i32 s = 0; s < NSLOT; s++) fxReset(&C->fx[s]);
 }
-EX void tf_reset_all() { for (i32 c = 0; c < NCH; c++) { resetChan(c); chs[c].quiet = 0; } for (i32 v = 0; v < NVOICE; v++) vc[v].on = 0; synReset(); runaway = 0; }
+EX void tf_reset_all() { for (i32 c = 0; c < NCH; c++) { resetChan(c); chs[c].quiet = 0; chs[c].oq = 0; } for (i32 v = 0; v < NVOICE; v++) vc[v].on = 0; synReset(); runaway = 0; }
 
 static void processChan(i32 c, i32 n) {
-  Chan* C = &chs[c]; float *L = inL[c], *R = inR[c];
-  float mx = 0; for (i32 i = 0; i < n; i++) { float a = fabsf_(L[i]) + fabsf_(R[i]); if (a > mx) mx = a; }
-  if (c < NPAD) for (i32 i = 0; i < n; i++) { float a = fabsf_(pstL[c][i]) + fabsf_(pstR[c][i]); if (a > mx) mx = a; }
+  Chan* C = &chs[c]; float *L = inL[c], *R = inR[c]; const i32 hasPst = c < NPAD && dPst[c];
+  float mx = 0; if (dIn[c]) for (i32 i = 0; i < n; i++) { float a = fabsf_(L[i]) + fabsf_(R[i]); if (a > mx) mx = a; }
+  if (hasPst) for (i32 i = 0; i < n; i++) { float a = fabsf_(pstL[c][i]) + fabsf_(pstR[c][i]); if (a > mx) mx = a; }
   if (mx < 1e-7f) { if (C->quiet < 0xf0000000u) C->quiet += n; } else C->quiet = 0;
-  if (C->quiet > C->tail) {   // asleep: nothing to hear, skip all processing
-    zero(keyL[c], n * 4); zero(keyR[c], n * 4); for (i32 s = 0; s < NSLOT; s++) C->fx[s].vis[0] = C->fx[s].vis[1] = C->fx[s].vis[2] = C->fx[s].vis[3] = 0.f;
-    C->cv = C->vol; C->cp = C->pan; C->ca = C->sa; C->cb = C->sb; C->cm = C->mute; return;
+  // asleep: nothing in and nothing to hear: either the longest tail has passed, or the effects have gone silent (below -120 dB) for
+  // longer than any of them can hold sound back. Long reverbs stop costing anything once they've faded, not a minute later.
+  if (C->quiet > C->tail || (C->quiet > 0 && C->oq > C->gap)) {
+    if (!keyZ[c]) { zero(keyL[c], MAXN * 4); zero(keyR[c], MAXN * 4); keyZ[c] = 1; for (i32 s = 0; s < NSLOT; s++) C->fx[s].vis[0] = C->fx[s].vis[1] = C->fx[s].vis[2] = C->fx[s].vis[3] = 0.f; }
+    C->cv = C->vol; C->cp = C->pan; C->ca = C->sa; C->cb = C->sb; C->cm = C->mute; awakeBits[c >> 5] &= ~(1u << (c & 31)); return;
   }
+  awakeBits[c >> 5] |= 1u << (c & 31); dIn[c] = 1; keyZ[c] = 0;   // the effects write into the buffer from here on
   if (c < NPAD) {   // pad filter (lowpass), off when fully open
     C->ccut += (C->cut - C->ccut) * 0.3f; C->cres += (C->res - C->cres) * 0.3f;
     if (C->ccut < 19000.f || C->cres > 0.75f) {
@@ -704,31 +723,34 @@ static void processChan(i32 c, i32 n) {
     }
   }
   for (i32 s = 0; s < NSLOT; s++) { Fx* f = &C->fx[s]; if (f->type >= 0 && f->on) fx_run(c, f, L, R, n); else if (f->type == FX_DUCK && f->st) ((DuckSt*)f->st)->npend = 0; }
-  if (c < NPAD) for (i32 i = 0; i < n; i++) { L[i] += pstL[c][i]; R[i] += pstR[c][i]; }
+  if (hasPst) for (i32 i = 0; i < n; i++) { L[i] += pstL[c][i]; R[i] += pstR[c][i]; }
   // isolate broken channels: invalid numbers or absurd levels never leave the channel
-  float sum = 0; for (i32 i = 0; i < n; i++) sum += fabsf_(L[i]) + fabsf_(R[i]);
+  float sum = 0, om = 0; for (i32 i = 0; i < n; i++) { const float s1 = fabsf_(L[i]) + fabsf_(R[i]); sum += s1; if (s1 > om) om = s1; }
   if (!(sum == sum) || sum > 1e9f) { zero(L, n * 4); zero(R, n * 4); resetChan(c); tripCh = c; tripWhy = 1; }
+  if (mx < 1e-7f && om < 1e-6f) { if (C->oq < 0xf0000000u) C->oq += n; } else C->oq = 0;
   for (i32 i = 0; i < n; i++) { keyL[c][i] = L[i]; keyR[c][i] = R[i]; }
   const float a = onepole(160.f);   // ~1 ms smoothing on fader, pan, sends, mute
-  float *dL, *dR; if (c == MASTER) { dL = oL; dR = oR; } else { dL = inL[C->out]; dR = inR[C->out]; }
+  float *dL, *dR; if (c == MASTER) { dL = oL; dR = oR; } else { dL = inL[C->out]; dR = inR[C->out]; dIn[C->out] = 1; }
   const i32 sends = c < R0;
+  // pan: constant power on sine/cosine curves, 0 dB at the centre, +3 dB on the near side when hard over (as Live's mixer)
+  i32 still = fabsf_(C->pan - C->cp) < 1e-6f; if (still) C->cp = C->pan;
+  float pl = 1.f, pr = 1.f; if (still) { const float th = (C->cp + 1.f) * 0.785398163f; pl = 1.41421356f * fcos(th); pr = 1.41421356f * fsin(th); }
   for (i32 i = 0; i < n; i++) {
-    C->cv += (C->vol - C->cv) * a; C->cp += (C->pan - C->cp) * a; C->cm += (C->mute - C->cm) * a;
-    // pads: equal-power pan law (-3 dB at center, mono sources); everything else: stereo balance (unity at center)
-    float g = C->cv * C->cm, gl, gr;
-    if (c < NPAD) { gl = g * sqrtf_((1.f - C->cp) * 0.5f); gr = g * sqrtf_((1.f + C->cp) * 0.5f); }
-    else { gl = g * (C->cp > 0 ? 1.f - C->cp : 1.f); gr = g * (C->cp < 0 ? 1.f + C->cp : 1.f); }
+    C->cv += (C->vol - C->cv) * a; C->cm += (C->mute - C->cm) * a;
+    if (!still) { C->cp += (C->pan - C->cp) * a; const float th = (C->cp + 1.f) * 0.785398163f; pl = 1.41421356f * fcos(th); pr = 1.41421356f * fsin(th); }
+    float g = C->cv * C->cm, gl = g * pl, gr = g * pr;
     float l = L[i] * gl, r = R[i] * gr;
     dL[i] += l; dR[i] += r;
     float m = fabsf_(l) > fabsf_(r) ? fabsf_(l) : fabsf_(r); if (m > chPk[c]) chPk[c] = m;
-    if (sends) { C->ca += (C->sa - C->ca) * a; C->cb += (C->sb - C->cb) * a; inL[R0][i] += l * C->ca; inR[R0][i] += r * C->ca; inL[R0 + 1][i] += l * C->cb; inR[R0 + 1][i] += r * C->cb; }
+    if (sends && (C->sa > 0.f || C->ca > 1e-7f || C->sb > 0.f || C->cb > 1e-7f)) { dIn[R0] = dIn[R0 + 1] = 1; C->ca += (C->sa - C->ca) * a; C->cb += (C->sb - C->cb) * a; inL[R0][i] += l * C->ca; inR[R0][i] += r * C->ca; inL[R0 + 1][i] += l * C->cb; inR[R0 + 1][i] += r * C->cb; }
   }
 }
 
 EX void tf_render(i32 n) {
   if (n <= 0) return; if (n > MAXN) n = MAXN;
-  for (i32 c = 0; c < NCH; c++) { zero(inL[c], n * 4); zero(inR[c], n * 4); }
-  for (i32 c = 0; c < NPAD; c++) { zero(pstL[c], n * 4); zero(pstR[c], n * 4); }
+  const u32 zb = (u32)prevN * 4u; prevN = n;   // only what the last block wrote
+  for (i32 c = 0; c < NCH; c++) if (dIn[c]) { zero(inL[c], zb); zero(inR[c], zb); dIn[c] = 0; }
+  for (i32 c = 0; c < NPAD; c++) if (dPst[c]) { zero(pstL[c], zb); zero(pstR[c], zb); dPst[c] = 0; }
   zero(oL, n * 4); zero(oR, n * 4);
   for (i32 c = 0; c < NPAD; c++) { float d = chBend[c] - chBendS[c]; chBendS[c] = fabsf_(d) < 1e-4f ? chBend[c] : chBendS[c] + d * 0.3f; }   // ~1 ms smoothing
   renderVoices(n); renderSynth(n);
@@ -757,3 +779,4 @@ EX float tf_peak(i32 side) { float p; if (side) { p = pkR; pkR = 0; } else { p =
 EX i32 tf_trip() { i32 t = tripCh; tripCh = -1; return t; }
 EX i32 tf_trip_why() { return tripWhy; }
 EX float tf_curve(float x, float c) { return curve_frac(x, c); }
+EX u32 tf_awake(i32 w) { return w >= 0 && w < 3 ? awakeBits[w] : 0u; }
