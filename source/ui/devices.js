@@ -50,7 +50,7 @@ const LOOKS = {
   '10:2': { face: '#1e1f1c', face2: '#161714', cap: '#2c2e29', ring: '#c8f04a', alt: '#c8f04a' },
   '11:0': { ring: '#ffd166', alt: '#ffd166' },
   '12:0': { ring: '#6fcac1', alt: '#6fcac1' },
-  '12:1': Object.assign({}, LIGHT, { face: '#e2701e', face2: '#cc6116', cap: '#1a1a1a', ring: '#1a1a1a', ink: '#1a1208', ink2: '#3b2610', scr: '#1a1208', scrInk: '#ffd8a8', scrMute: '#b8875a', scrLine: '#3a2610', alt: '#ffb35c', track: 'rgba(0,0,0,.3)', swInk: '#ffb35c' }),
+  '12:1': Object.assign({}, LIGHT, { scrAcc: '#ffb35c', face: '#e2701e', face2: '#cc6116', cap: '#1a1a1a', ring: '#1a1a1a', ink: '#1a1208', ink2: '#3b2610', scr: '#1a1208', scrInk: '#ffd8a8', scrMute: '#b8875a', scrLine: '#3a2610', alt: '#ffb35c', track: 'rgba(0,0,0,.3)', swInk: '#ffb35c' }),
   '13:0': { face: '#1a1d22', face2: '#13161a', cap: '#262a31', ring: '#f2b544', alt: '#f2b544' },
   '13:1': { face: '#1a1d22', face2: '#13161a', cap: '#262a31', ring: '#ff6b4a', alt: '#ff6b4a' },
   '13:2': { face: '#1a1d22', face2: '#13161a', cap: '#262a31', ring: '#ff3b3b', alt: '#ff3b3b' },
