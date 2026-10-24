@@ -44,7 +44,7 @@ function renderDrumPage(w, pi, head, pages) {
   dev.append(row);
   const disp = h('div', 'scr disp'), cv = h('canvas'); disp.append(cv); drumCv = cv; dev.append(disp);
   const g = h('div', 'kgrid synGrid'); for (const [id, label] of M.knobs) g.append(drumKnob(pi, id, label));
-  g.append(cellBtn('Kit', (P.drumKits || {})[Math.floor(pi / 16)] ? (P.drumKits[Math.floor(pi / 16)].vibe || 'Kit') : 'Build…', () => openKitBuilder(pi)), cellBtn('More', d.key !== 'Free' ? 'Key: ' + d.key : 'Options', () => openDrumMore(pi)));
+  g.append(cellBtn('Machine', DRUM_MACH_N[machOf(d)], () => openDrumMachines(pi)), cellBtn('More', d.key !== 'Free' ? 'Key: ' + d.key : 'Options', () => openDrumMore(pi)));
   dev.append(g); w.append(head, pages, dev); requestAnimationFrame(drawDrumDisp);
 }
 function drawDrumDisp() {
@@ -71,11 +71,12 @@ function openDrumModules(pi) {
     for (const mod in DRUM_MODS) { const M = DRUM_MODS[mod]; st.append(btn(`<b>${M.n}</b><span>${Object.keys(M.types).length} types</span><i>${esc(Object.keys(M.types).join(' · '))}</i>`, () => { closeSheet(); makeDrumPad(pi, mod, Object.keys(M.types)[0]); }, 'btn prow' + (drumOf(pi).mod === mod ? ' on' : ''))); }
     card.append(st); }); }
 function openDrumTypes(pi) { const d = drumOf(pi), M = DRUM_MODS[d.mod];
-  openSheet(M.n, card => { const st = h('div', 'stack'); card.append(st);
-    st.append(h('div', 'sec', 'Machine')); const l = h('div', 'list');
+  openSheet(M.n + ' types', card => { const g = h('div', 'g2'); for (const t in M.types) g.append(btn(esc(t), () => { closeSheet(); setDrumType(pi, t); }, 'btn' + (d.type === t ? ' on' : ''))); card.append(g); }); }
+function openDrumMachines(pi) { const d = drumOf(pi);
+  openSheet('Machine · ' + DRUM_MODS[d.mod].n, card => { const l = h('div', 'list');
     for (const m of DRUM_MACHINES) { const li = h('div', 'li' + (machOf(d) === m ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${DRUM_MACH_N[m]}</b><span>${DRUM_MACH_SUB[m]}</span></div>`;
-      li.onclick = () => { if (machOf(d) !== m) { pushUndo('pad:' + pi); touchPad(pi); d.mach = m; refreshDrum(pi); audition(pi); } closeSheet(); renderView(); }; l.append(li); }
-    st.append(l, h('div', 'sec', 'Type')); const g = h('div', 'g2'); for (const t in M.types) g.append(btn(esc(t), () => { closeSheet(); setDrumType(pi, t); }, 'btn' + (d.type === t ? ' on' : ''))); st.append(g); }); }
+      li.onclick = () => { const pad = P.pads[pi]; if (machOf(d) !== m) { pushUndo('pad:' + pi); touchPad(pi); drumSetMachine(d, m); if (!pad.name || DRUM_TYPE_NAMES.has(pad.name)) pad.name = d.type === 'Classic' ? DRUM_MODS[d.mod].n : d.type.slice(0, 12); refreshDrum(pi); audition(pi); } closeSheet(); renderView(); }; l.append(li); }
+    card.append(l); }); }
 function openDrumMore(pi) {
   const pad = P.pads[pi], d = pad.drum, M = DRUM_MODS[d.mod];
   openSheet(M.n + ' · options', card => { const st = h('div', 'stack'); card.append(st);
@@ -84,7 +85,7 @@ function openDrumMore(pi) {
     for (const [id, label] of M.knobs) lk.append(btn(label, () => { const i = d.locks.indexOf(id); if (i >= 0) d.locks.splice(i, 1); else d.locks.push(id); markDirty(); closeSheet(); openDrumMore(pi); }, 'btn' + (d.locks.includes(id) ? ' on' : ''))); st.append(lk);
     st.append(h('div', 'sec', 'This drum')); const g2 = h('div', 'g2');
     g2.append(btn('Save to library', () => { const s = SAMPLES.get(pad.sample); if (!s) return; const id = addUserSample((pad.name || d.type).slice(0, 24), s.sr, s.ch, s.data); closeSheet(); toast(`Saved "${SAMPLES.get(id).name}" to your sounds`); }),
-      btn('Reset to type', () => { closeSheet(); setDrumType(pi, d.type); }), btn('Clear slots', () => { d.slots = []; markDirty(); closeSheet(); renderView(); }),
+      btn('Reset to type', () => { closeSheet(); setDrumType(pi, d.type); }), btn('Kit builder…', () => { closeSheet(); openKitBuilder(pi); }), btn('Clear slots', () => { d.slots = []; markDirty(); closeSheet(); renderView(); }),
       btn(d.kit ? 'Leave the kit' : 'Join the bank\'s kit', () => { pushUndo('pad:' + pi); d.kit = !d.kit; refreshDrum(pi); closeSheet(); renderView(); }));
     st.append(g2); }); }
 

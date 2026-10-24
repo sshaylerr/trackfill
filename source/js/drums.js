@@ -6,13 +6,13 @@
 const DRUM_SR = 48000;
 const DRUM_MODS = {
   kick: { n: 'Kick', knobs: [['tune', 'Tune'], ['punch', 'Punch'], ['snap', 'Snap'], ['decay', 'Decay'], ['click', 'Click'], ['drive', 'Drive']], tuned: true,
-    types: { 'DnB Punch': [.45, .7, .6, .3, .5, .35], 'Jungle': [.4, .5, .4, .25, .3, .5, { grit: .5 }], 'Deep 808': [.3, .3, .1, .85, .1, .15, { hold: 1 }], 'Techno': [.4, .65, .5, .45, .4, .55],
+    types: { 'Classic': [.45, .55, .45, .4, .35, .2], 'DnB Punch': [.45, .7, .6, .3, .5, .35], 'Jungle': [.4, .5, .4, .25, .3, .5, { grit: .5 }], 'Deep 808': [.3, .3, .1, .85, .1, .15, { hold: 1 }], 'Techno': [.4, .65, .5, .45, .4, .55],
       'House': [.5, .55, .45, .4, .35, .25], 'Distorted': [.45, .7, .6, .5, .5, .9], 'Trap 808': [.3, .35, .2, 1, .15, .4, { hold: 1, glide: 1 }], 'Soft': [.5, .3, .1, .35, 0, 0, { soft: 1 }] } },
   snare: { n: 'Snare', knobs: [['tune', 'Tune'], ['body', 'Body'], ['snap', 'Snap'], ['decay', 'Decay'], ['tone', 'Tone'], ['drive', 'Drive']],
-    types: { 'DnB Crack': [.6, .45, .8, .3, .75, .35], 'Jungle Ring': [.5, .75, .55, .45, .55, .3, { ring: 1 }], 'Rimshot': [.85, .6, .6, .1, .8, .2, { rim: 1 }], 'Fat': [.25, .7, .6, .6, .4, .3],
+    types: { 'Classic': [.5, .5, .6, .35, .6, .15], 'DnB Crack': [.6, .45, .8, .3, .75, .35], 'Jungle Ring': [.5, .75, .55, .45, .55, .3, { ring: 1 }], 'Rimshot': [.85, .6, .6, .1, .8, .2, { rim: 1 }], 'Fat': [.25, .7, .6, .6, .4, .3],
       'Trap': [.55, .35, .75, .55, .85, .15], 'Lo-fi': [.45, .55, .6, .35, .45, .4, { grit: 1 }] } },
   clap: { n: 'Clap', knobs: [['tone', 'Tone'], ['spread', 'Spread'], ['decay', 'Decay'], ['snap', 'Snap'], ['room', 'Room'], ['drive', 'Drive']],
-    types: { 'Tight': [.6, .3, .25, .7, .1, .2], 'Big Room': [.5, .6, .55, .5, .7, .2, { layers: 5 }], 'Classic 808': [.45, .45, .4, .55, .25, .15], 'Snap': [.8, .15, .15, .9, .05, .1, { snap: 1 }] } },
+    types: { 'Classic': [.5, .45, .4, .55, .2, .1], 'Tight': [.6, .3, .25, .7, .1, .2], 'Big Room': [.5, .6, .55, .5, .7, .2, { layers: 5 }], 'Classic 808': [.45, .45, .4, .55, .25, .15], 'Snap': [.8, .15, .15, .9, .05, .1, { snap: 1 }] } },
   hats: { n: 'Hats & Cymbals', knobs: [['pitch', 'Pitch'], ['metal', 'Metal'], ['decay', 'Decay'], ['bright', 'Brightness'], ['width', 'Width'], ['drive', 'Drive']],
     types: { 'Closed': [.5, .6, .35, .6, .3, .1, { len: 'closed' }], 'Open': [.5, .6, .45, .6, .5, .1, { len: 'open' }], 'Ride': [.45, .8, .5, .5, .5, 0, { len: 'ride', bell: 1 }],
       'Crash': [.5, .35, .6, .7, .8, .15, { len: 'crash' }], 'Shaker': [.5, 0, .35, .55, .4, 0, { len: 'shaker', shaker: 1 }] } },
@@ -25,6 +25,13 @@ const DRUM_KEYLOCK = ['Free', 'Root', 'Fifth'];
 const DRUM_MACHINES = ['Modern', 'Boom', 'Punch', 'Mini', 'Digital'];
 const DRUM_MACH_N = { Modern: 'Modern', Boom: 'Analog Boom', Punch: 'Analog Punch', Mini: 'Analog Mini', Digital: 'Digital 80s' };
 const DRUM_MACH_SUB = { Modern: 'Clean and full: today\'s drums', Boom: 'Round, long, soft-edged', Punch: 'Hard attack, crunchy cymbals', Mini: 'Small, tight, bright', Digital: 'Early sampled: gritty 8-bit' };
+// picking a machine on a kick, snare or clap starts from that box's own sound (type Classic); hats and perc keep their type
+const MACH_KNOBS = { Boom: { kick: [.45, .4, .15, .6, .1, .1], snare: [.4, .5, .55, .35, .4, .05], clap: [.45, .45, .4, .55, .2, .1] },
+  Punch: { kick: [.5, .6, .45, .4, .55, .25], snare: [.45, .5, .7, .4, .6, .2], clap: [.55, .5, .45, .6, .25, .15] },
+  Mini: { kick: [.5, .5, .35, .35, .3, .1], snare: [.5, .3, .7, .3, .65, .05], clap: [.6, .3, .3, .65, .1, .05] },
+  Digital: { kick: [.45, .55, .4, .45, .5, .15], snare: [.5, .55, .65, .4, .55, .1], clap: [.55, .45, .45, .6, .3, .1] } };
+function drumSetMachine(d, mc) { d.mach = mc; const v = MACH_KNOBS[mc] && MACH_KNOBS[mc][d.mod]; if (!v) return d;
+  d.type = 'Classic'; DRUM_MODS[d.mod].knobs.forEach(([id], i) => { if (!d.locks.includes(id)) d.k[id] = v[i]; }); return d; }
 const machOf = d => DRUM_MACHINES.includes(d.mach) ? d.mach : 'Modern';
 const drumBaseHz = (mod, tune, mc) => mod === 'kick' ? 35 * Math.pow(2, tune * 1.25) * (mc === 'Mini' ? 1.35 : 1) : 150 * Math.pow(2, tune * 1.1) * (mc === 'Mini' ? 1.3 : 1);
 
@@ -190,4 +197,4 @@ function drumKitPiece(vibe, role, seed) {
 function drumKit(vibe, seed = 1) { const V = DRUM_VIBES.find(v => v[0] === vibe) || DRUM_VIBES[0];
   return { kit: { vibe: V[0], tune: V[7], len: V[8], bright: V[9], drive: V[10], room: V[11], seed }, pieces: KIT_ROLES.map((R, i) => ({ role: R[0], d: drumKitPiece(V[0], i, seed) })) }; }
 function drumKey(d, kit, key) { const k = drumEffective(d, kit), tuned = DRUM_MODS[d.mod].tuned && d.key !== 'Free'; return 'd:' + d.mod + ':' + d.type + (machOf(d) !== 'Modern' ? '@' + machOf(d) : '') + ':' + d.seed + ':' + Object.values(k).map(v => Math.round(v * 1000)).join(',') + (tuned && key ? ':' + key.root + d.key : '') + (kit && d.kit ? ':r' + Math.round(kit.room * 100) : ''); }
-if (typeof module !== 'undefined') module.exports = { DRUM_SR, DRUM_MODS, DRUM_KEYLOCK, DRUM_MACHINES, DRUM_MACH_N, drumBaseHz, DRUM_VIBES, KIT_ROLES, drumDefault, drumNormalize, drumRender, drumVariation, drumKit, drumKitPiece, drumKey, drumEffective, keySnap };
+if (typeof module !== 'undefined') module.exports = { DRUM_SR, DRUM_MODS, DRUM_KEYLOCK, DRUM_MACHINES, DRUM_MACH_N, drumBaseHz, drumSetMachine, DRUM_VIBES, KIT_ROLES, drumDefault, drumNormalize, drumRender, drumVariation, drumKit, drumKitPiece, drumKey, drumEffective, keySnap };
