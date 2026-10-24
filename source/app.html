@@ -1245,6 +1245,7 @@ function bindTL(cv) {
     if (d.axis === 'v') { const dy = y - d.y0; if (Math.abs(dy) > 40) tlBank(UI.bank + (dy < 0 ? 1 : -1), 'swipe'); else drawTL(); return; }
     if (d.kind === 'label' && !d.moved) { const r = y2row(y); if (r >= 0 && r <= maxRow()) { if (tl.mode === 'bank') { UI.pad = UI.bank * 16 + r; UI.tl.target = null; audition(UI.pad); } else audition(UI.pad, KR.p(r)); } drawTL(); updatePanel(); return; }
     if (d.kind === 'empty' && !d.moved) {
+      if (tl.lane === 'notes' && selItems().length) { clearSel(); drawTL(); updatePanel(); TL.lastTap = { t: now, o: null }; return; }   // first tap only deselects
       if (tl.lane === 'notes') { const r = y2row(y); if (r >= 0 && r <= maxRow()) { const s = tl.snap, t = s ? Math.floor(x2t(x) / s) * s : fixT(x2t(x)); if (t < tlLen()) addNoteAt(t, r); } }
       else { const t = clamp(snapT(x2t(x)), 0, tlLen()); pushUndo('scene:' + UI.scene); const pts = lanePts(true); pts.push({ t, v: Math.round(y2v(y) * 1000) / 1000, c: 0 }); pts.sort((a, b) => a.t - b.t); tl.selPt = pts.findIndex(p => p.t === t); afterEdit(); }
       TL.lastTap = { t: now, o: null }; return; }

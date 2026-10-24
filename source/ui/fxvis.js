@@ -30,7 +30,7 @@ const fsatJ = x => x > 3 ? 1 : x < -3 ? -1 : x * (27 + x * x) / (27 + 9 * x * x)
 function drawFxVis(cv, c, s) {
   if (!cv || !cv.isConnected) return; const f = P.chans[c].fx[s]; if (!f) return;
   const { g, W, H } = prepCanvas(cv), p = f.p, T = FX_TYPES, m = f.mode | 0, top = 6, h = H - 12, lk = cv._lk || {};
-  const K = { bg: lk.scr || COL.bg, ink: lk.scrInk || COL.ink, mute: lk.scrMute || COL.mute, line: lk.scrLine || COL.line, acc: lk.ring || COL.accent, alt: lk.alt || COL.play };
+  const K = { bg: lk.scr || COL.bg, ink: lk.scrInk || COL.ink, mute: lk.scrMute || COL.mute, line: lk.scrLine || COL.line, acc: lk.scrAcc || lk.ring || COL.accent, alt: lk.alt || COL.play };
   g.fillStyle = K.bg; g.fillRect(0, 0, W, H);
   const live = SCOPE.fc === c && SCOPE.fs === s, gr = live ? SCOPE.visD : 0;
   const T2 = (t, x, y, col = K.mute, al = 'left', sz = 10.5, wt = 500) => vText(g, t, x, y, col, al, sz, wt);
@@ -39,7 +39,7 @@ function drawFxVis(cv, c, s) {
   const curve = (fn, lo, hi, fillTo) => { g.beginPath(); for (let x = 0; x <= W; x += 2) { const fr = SPEC_LO * Math.pow(SPEC_HI / SPEC_LO, x / W), y = dB2y(fn(fr), top, h, lo, hi); x ? g.lineTo(x, y) : g.moveTo(x, y); }
     g.strokeStyle = K.acc; g.lineWidth = 2; g.stroke(); if (fillTo != null) { g.lineTo(W, dB2y(fillTo, top, h, lo, hi)); g.lineTo(0, dB2y(fillTo, top, h, lo, hi)); g.closePath(); g.globalAlpha = .14; g.fillStyle = K.acc; g.fill(); g.globalAlpha = 1; } };
   const spec = () => { if (SCOPE.ch === c) drawSpectrum(g, 0, top, W, h, { alpha: .14, line: .35, col: K.alt }); };
-  const xfer = (fn, lo = -1.5, hi = 1.5) => { const S = Math.min(W - 80, h), x0 = 10, X = v => x0 + S * (v - lo) / (hi - lo), Y = v => top + h - h * (v - lo) / (hi - lo);
+  const xfer = (fn, lo = -1.5, hi = 1.5, right = 10) => { const x0 = 10, S = W - x0 - right, X = v => x0 + S * (v - lo) / (hi - lo), Y = v => top + h - h * (v - lo) / (hi - lo);
     g.fillStyle = K.line; g.fillRect(x0, Math.round(Y(0)), S, 1); g.fillRect(Math.round(X(0)), top, 1, h);
     g.strokeStyle = K.mute; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(X(lo), Y(lo)); g.lineTo(X(hi), Y(hi)); g.stroke(); g.setLineDash([]);
     g.beginPath(); for (let k = 0; k <= 120; k++) { const x = lo + (hi - lo) * k / 120, y = Y(Math.max(lo, Math.min(hi, fn(x)))); k ? g.lineTo(X(x), y) : g.moveTo(X(x), y); } g.strokeStyle = K.acc; g.lineWidth = 2; g.stroke(); return x0 + S; };
@@ -100,16 +100,16 @@ function drawFxVis(cv, c, s) {
       if (m === 1) { needle(gr, 'Gain reduction'); break; }
       if (m === 2) { needle(gr, 'Ratio ' + ['4', '8', '12', '20', 'All'][dsc(p[4], 5)]); break; }
       if (m === 3) { leds(gr, 20, `Threshold ${lin(p[0], -40, 0).toFixed(0)} dB · ratio ${['2', '4', '10'][dsc(p[1], 3)]}:1`); break; }
-      const thr = lin(p[0], -60, 0), ratio = ex(p[1], 1, 20), knee = lin(p[4], 0, 18), slope = 1 / ratio - 1, S = Math.min(W - 70, h), x0 = 10;
+      const thr = lin(p[0], -60, 0), ratio = ex(p[1], 1, 20), knee = lin(p[4], 0, 18), slope = 1 / ratio - 1, S = W - 40, x0 = 10;
       const X = d => x0 + S * (d + 60) / 60, Y = d => top + h - h * (d + 60) / 60, out = d => { const o = d - thr; return d + (knee > 0 && 2 * Math.abs(o) <= knee ? slope * (o + knee / 2) ** 2 / (2 * knee) : o > 0 ? slope * o : 0); };
       g.fillStyle = K.line; for (const d of [-48, -36, -24, -12]) { g.fillRect(Math.round(X(d)), top, 1, h); g.fillRect(x0, Math.round(Y(d)), S, 1); }
       g.beginPath(); for (let d = -60; d <= 0; d += .5) { const y = Y(out(d)); d === -60 ? g.moveTo(X(d), y) : g.lineTo(X(d), y); } g.strokeStyle = K.acc; g.lineWidth = 2; g.stroke();
-      g.fillStyle = K.ink; g.fillRect(Math.round(X(thr)), top, 1, h); T2('Threshold ' + thr.toFixed(0) + ' dB', X(thr) + 4, top + h - 8, K.mute, 'left', 10);
+      g.fillStyle = K.ink; g.fillRect(Math.round(X(thr)), top, 1, h); T2('Threshold ' + thr.toFixed(0) + ' dB', Math.min(X(thr) + 4, W - 130), top + h - 8, K.mute, 'left', 10);
       if (gr < -.05 && slope < 0) { const d = Math.min(0, thr + gr / slope); g.beginPath(); g.arc(X(d), Y(out(d)), 5, 0, 7); g.fillStyle = K.ink; g.fill(); }
-      T2(ratio.toFixed(1) + ':1', x0 + S + 8, top + 8, K.mute, 'left', 10.5); grBar(gr, 24); break; }
+      T2(ratio.toFixed(1) + ':1', 16, top + 10, K.ink, 'left', 11, 600); grBar(gr, 24); break; }
     case T.DUCK: { const depth = lin(p[1], 0, 60), floor = Math.pow(10, -depth / 20), atk = lin(p[2], 0, 50), hold = lin(p[3], 0, 500), rel = ex(p[4], 10, 1000), cur = lin(p[5], -1, 1) * .97;
-      const span = Math.max(250, atk + hold + rel) * 1.1, X = t => 10 + (W - 90) * t / span, Y = gl => top + 14 + (h - 20) * (1 - gl);
-      g.fillStyle = K.line; g.fillRect(10, Math.round(Y(1)), W - 90, 1); g.fillRect(10, Math.round(Y(floor)), W - 90, 1);
+      const span = Math.max(250, atk + hold + rel) * 1.1, X = t => 10 + (W - 40) * t / span, Y = gl => top + 24 + (h - 30) * (1 - gl);
+      g.fillStyle = K.line; g.fillRect(10, Math.round(Y(1)), W - 40, 1); g.fillRect(10, Math.round(Y(floor)), W - 40, 1);
       g.beginPath(); g.moveTo(X(0), Y(1)); g.lineTo(X(atk), Y(floor)); g.lineTo(X(atk + hold), Y(floor));
       for (let k = 1; k <= 40; k++) { const u = k / 40, e = 1 - tfCurve(u, cur); g.lineTo(X(atk + hold + rel * u), Y(1 - (1 - floor) * e)); } g.lineTo(X(span), Y(1));
       g.strokeStyle = K.acc; g.lineWidth = 2; g.stroke(); T2('−' + depth.toFixed(0) + ' dB', 12, Y(floor) - 8, K.mute, 'left', 10); grBar(gr, Math.max(6, depth)); break; }
@@ -119,14 +119,14 @@ function drawFxVis(cv, c, s) {
       else { const dg = Math.pow(10, (lin(p[0], 0, 36) + (dsc(p[2], 2) ? 20 : 0)) / 20), mix = p[3], og = Math.pow(10, lin(p[4], -24, 6) / 20);
         const cv2 = [null, a => fsatJ(a + .25) - .2449, a => fsatJ(a * .8) * 1.25, a => Math.max(-1, Math.min(1, a * 1.1)) * .6 + fsatJ(a * 1.6) * .4, a => fsatJ(a * .6) / .6 * .8 + a * .2 / (1 + Math.abs(a) * .2), a => Math.max(-1, Math.min(1, a * 3 + .35 * Math.abs(a))) * .8][m];
         fn = x => (x + (cv2(x * dg) - x) * mix) * og; }
-      const xe = xfer(fn); T2(FX_DEFS[3].modes[m].n, xe + 8, top + 8, K.ink, 'left', 11, 600); break; }
+      xfer(fn); T2(FX_DEFS[3].modes[m].n, 16, top + 10, K.ink, 'left', 11, 600); break; }
     case T.CLIP: { const dg = Math.pow(10, lin(p[0], 0, 24) / 20), ce = Math.pow(10, lin(p[1], -24, 0) / 20), kn = p[2], mix = p[3];
       const fn = x => { const v = x * dg / ce, av = Math.abs(v); let y;
         if (m === 0) { const hh = Math.max(-1, Math.min(1, v)); y = kn > .001 ? hh + (Math.tanh(v) - hh) * kn : hh; }
         else if (m === 1) { const k = .05 + .6 * kn; y = av <= 1 - k ? v : Math.sign(v) * (1 - k + k * fsatJ((av - 1 + k) / k)); }
         else y = (fsatJ(v * (1 + kn) + .12) - fsatJ(.12)) / (1 + kn * .2);
         return x + (y * ce - x) * mix; };
-      const xe = xfer(fn); T2('ceiling ' + lin(p[1], -24, 0).toFixed(1) + ' dB', xe + 8, top + 26, K.mute, 'left', 10); grBar(gr, 12); break; }
+      xfer(fn, -1.5, 1.5, 30); T2('Ceiling ' + lin(p[1], -24, 0).toFixed(1) + ' dB', 16, top + 10, K.mute, 'left', 10.5); grBar(gr, 12); break; }
     case T.DELAY: { const sync = p[0] > .5, divs = [.125, 1 / 6, .25, 1 / 3, .375, .5, 2 / 3, .75, 1, 1.5, 2], ms = sync ? divs[Math.round(p[1] * 10)] * 60000 / P.bpm : ex(p[2], 1, 2000);
       const fb = lin(p[3], 0, .95), pp = p[5] > .5, span = Math.max(ms * 8, 400), X = t => 12 + (W - 24) * t / span, mid = top + h / 2, age = m ? p[11] : 0;
       g.fillStyle = K.line; g.fillRect(0, Math.round(mid), W, 1); g.fillStyle = K.ink; g.fillRect(X(0) - 1.5, top + 4, 3, h - 8);
@@ -167,7 +167,7 @@ function drawFxVis(cv, c, s) {
       g.beginPath(); let held = 0; for (let k = 0; k <= 400; k++) { if (k % Math.max(1, Math.round(hold)) === 0) held = Math.round(Math.sin(2 * Math.PI * k / 200) * Math.min(steps, 8)) / Math.min(steps, 8); k ? g.lineTo(X(k), Y(held)) : g.moveTo(X(k), Y(held)); }
       g.strokeStyle = K.acc; g.lineWidth = 2; g.stroke(); if (m === 2 && p[2] > .05) { g.fillStyle = K.ink; for (let k = 0; k < 40 * p[2]; k++) g.fillRect(10 + ((k * 97) % (W - 20)), top + ((k * 53) % h), 1.5, 1.5); }
       T2(label, W - 8, top + 8, K.mute, 'right', 10.5); break; }
-    case T.TRANS: { const atk = lin(p[0], -1, 1), sus = lin(p[1], -1, 1), X = t => 10 + (W - 90) * t, Y = v => top + h - (h - 8) * v;
+    case T.TRANS: { const atk = lin(p[0], -1, 1), sus = lin(p[1], -1, 1), X = t => 10 + (W - 40) * t, Y = v => top + h - (h - 22) * v;
       const env = t => t < .04 ? t / .04 : Math.exp(-(t - .04) * 5), shaped = t => { const e = env(t), g2 = t < .12 ? 1 + atk * .8 * (1 - t / .12) : 1 + sus * .6 * Math.min(1, (t - .12) * 3); return Math.min(1.25, e * g2) / 1.25; };
       for (const [fn, col, w] of [[t => env(t) / 1.25, K.mute, 1], [shaped, K.acc, 2]]) { g.beginPath(); for (let k = 0; k <= 100; k++) { const t = k / 100; k ? g.lineTo(X(t), Y(fn(t))) : g.moveTo(X(t), Y(fn(t))); } g.strokeStyle = col; g.lineWidth = w; g.stroke(); }
       T2('attack', X(.03), top + 8, K.mute, 'left', 10); T2('sustain', X(.45), top + 8, K.mute, 'left', 10); grBar(gr, 12); break; }
@@ -189,7 +189,7 @@ function drawFxVis(cv, c, s) {
         g.fillStyle = d < 0 ? K.acc : K.alt; if (d < 0) g.fillRect(x, mid, w, -d * sc); else g.fillRect(x, mid - d * sc, w, d * sc);
         T2(nm, x + w / 2, top + 8, K.ink, 'center', 10, 600); T2((d > .05 ? '+' : '') + d.toFixed(1), x + w / 2, top + h - 8, Math.abs(d) > .05 ? (d < 0 ? K.acc : K.alt) : K.mute, 'center', 10); });
       T2(fmtHz(f1), 10 + bw, mid - 8, K.mute, 'center', 9.5, 400); T2(fmtHz(f2), 10 + 2 * bw, mid - 8, K.mute, 'center', 9.5, 400); break; }
-    case T.TAPE: { const r = Math.min(h / 2 - 4, W / 6), y = top + r + 2, x1 = W / 2 - r * 1.6, x2 = W / 2 + r * 1.6;
+    case T.TAPE: { const r = Math.min(h / 2 - 12, W / 7), y = top + h / 2 + 2, x1 = W / 2 - r * 1.6, x2 = W / 2 + r * 1.6;
       for (const x of [x1, x2]) { g.beginPath(); g.arc(x, y, r, 0, 7); g.strokeStyle = K.ink; g.lineWidth = 1.5; g.stroke(); g.beginPath(); g.arc(x, y, r * .3, 0, 7); g.stroke();
         for (let k = 0; k < 3; k++) { const a = .4 + k * 2.094; g.beginPath(); g.moveTo(x + Math.cos(a) * r * .32, y + Math.sin(a) * r * .32); g.lineTo(x + Math.cos(a) * r * .85, y + Math.sin(a) * r * .85); g.stroke(); } }
       g.strokeStyle = K.acc; g.lineWidth = 2; g.beginPath(); g.moveTo(x1, y + r); const wob = p[2] * 3 + p[3] * 1.5; for (let k = 0; k <= 40; k++) { const x = x1 + (x2 - x1) * k / 40; g.lineTo(x, y + r + 4 + Math.sin(k * .9) * wob * (m + 1) * .6); } g.lineTo(x2, y + r); g.stroke();
