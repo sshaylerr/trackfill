@@ -207,33 +207,40 @@ function shapesFor(style, iv, anchorPc) {
   const ext = iv.filter(x => x > 12).map(mod12), low = anchorPc;
   const upper = () => { const u = [third, sev != null ? sev : fifth, ...ext].filter(x => x != null); if (u.length < 4 && fifth != null && !u.includes(fifth)) u.push(fifth); if (u.length < 3) u.push(0); return u; };
   switch (style) {
-    case 'open': return closeShapes(pcs).map(s => s.length >= 3 ? [s[0], s[2], s[1] + 12, ...s.slice(3).map(x => x + 12)].sort((a, b) => a - b) : s);
+    case 'open': return closeShapes(pcs.length > 5 ? pcs.filter(x => x !== 7) : pcs).map(s => s.length >= 3 ? [s[0], s[2], s[1] + 12, ...s.slice(3).map(x => x + 12)].sort((a, b) => a - b) : s);
     case 'drop2': return closeShapes(pcs).map(s => { const t = s.slice(-4), r = t.slice(); if (r.length >= 3) r[r.length - 2] -= 12; return r.sort((a, b) => a - b); });
     case 'shell': { const above = (x, pc) => x + (mod12(pc - x) || 12), t = third != null ? third : 7, s = sev != null ? sev : has(9) ? 9 : fifth != null ? fifth : 7;
       const a = [low], b = [low]; a.push(above(low, t)); a.push(above(a[1], s)); b.push(above(low, s)); b.push(above(b[1], t));
       if (ext.length) { a.push(above(a[2], ext[0])); b.push(above(b[2], ext[0])); }
       return [a, b].map(x => [...new Set(x)]); }
     case 'rootless': { const u = upper(); return closeShapes(u.length >= 3 ? u : pcs.filter(x => x !== 0).concat([0])); }
-    case 'quartal': { const set = pcs.slice(); if (!ext.length) { if (third === 3) set.push(5, 10); else if (third === 4) set.push(2); } return quartalShapes(set); }
+    case 'quartal': { if (fifth != null && fifth !== 7) return shapesFor('open', iv, anchorPc);   // diminished and augmented chords don't stack in fourths
+      const set = pcs.slice(); if (!ext.length) { if (third === 3) set.push(5, 10); else if (third === 4) set.push(2); } return quartalShapes(set); }
     case 'piano': return closeShapes(upper()).map(s => [low - 12, low - 12 + (low === 0 && fifth != null ? fifth : low === 0 ? 7 : 12), ...s.map(x => x + (x < low ? 12 : 0))]);
-    case 'wide': return closeShapes(upper()).map(s => [low - 12, low - 5, ...s.map(x => x + (x < low + 3 ? 12 : 0))]);
+    case 'wide': return closeShapes(upper()).map(s => [low - 12, low - 12 + (low === 0 && fifth != null ? fifth : low === 0 ? 7 : 12), ...s.map(x => x + (x < low + 3 ? 12 : 0))]);
     case 'stab': { const u = upper(); return closeShapes(u.length >= 3 ? u : pcs); }
     default: return closeShapes(pcs.length > 5 ? pcs.filter(x => x !== 7) : pcs);   // close: a six-note chord drops its fifth to fit
   }
 }
-// pick the shape and octave. The register is pinned: the upper voices stay within a fixed window around the centre (voice leading only
-// chooses the inversion inside it, so a run of chords never drifts), and a left hand or bass voice always sits in its own fixed octave.
-const LH_KEEP = { piano: 2, wide: 2, shell: 1 }, RH_LIFT = { piano: 5, wide: 9, stab: 9 };
+// The bass: a chord's root (or its slash bass) always sits lowest, in a fixed window around the key's root (from a fourth below
+// to a fifth above), so the same chord always has the same bass note and the bass line moves the way a player's would.
+function bassNote(pc, keyRoot, centre) { const ref = keyRoot + 12 * Math.round((centre - 12 - keyRoot) / 12); return ref - 5 + mod12(pc - (ref - 5)); }
+// Pick the shape and octave above that bass. The upper voices stay within a fixed window around the centre; voice leading only
+// chooses the inversion inside it (so a run of chords never drifts and never pulls the bass along). Rootless and stab voicings
+// have no bass by design: they're upper voices only, voice-led the same way.
+const LH_KEEP = { piano: 2, wide: 2, shell: 1 }, RH_LIFT = { piano: 5, wide: 9, stab: 9 }, NO_BASS = { rootless: 1, stab: 1 };
 function voiceChord(chord, style, prev, opt = {}) {
-  const centre = opt.centre == null ? 5 : opt.centre, keep = LH_KEEP[style] || 0, rc = centre + (RH_LIFT[style] || 0), lead = opt.lead !== false && prev && prev.length > keep;
+  const centre = opt.centre == null ? 5 : opt.centre, keyRoot = opt.keyRoot == null ? 0 : opt.keyRoot, keep = NO_BASS[style] ? 0 : LH_KEEP[style] || 1, rc = centre + (RH_LIFT[style] || 0);
   const root = chord.root, anchor = chord.bass != null ? mod12(chord.bass - root) : 0, shapes = shapesFor(style, chord.iv, anchor), cands = [];
-  shapes.forEach((sh, si) => {
-    let lh = sh.slice(0, keep).map(x => x + root); if (lh.length) { const lo = centre - 19, sh0 = lo + mod12(lh[0] - lo) - lh[0]; lh = lh.map(x => x + sh0); }   // bass in [centre-19, centre-7)
-    const top = lh.length ? Math.max(...lh) : -99;
-    for (let k = -3; k <= 3; k++) { const rh = sh.slice(keep).map(x => x + root + 12 * k).sort((x, y) => x - y); if (!rh.length) continue;
-      const mean = rh.reduce((x, y) => x + y, 0) / rh.length; if (Math.abs(mean - rc) > 6.5 || rh[0] <= top) continue; cands.push({ lh, rh, si, mean }); } });
-  if (!cands.length) { const sh = shapes[0]; return [...new Set(sh.map(x => x + root))].sort((x, y) => x - y); }
-  const pr = lead ? prev.slice(keep) : null; let best = null, bc = 1e9;
+  const bass = keep ? bassNote(root + anchor, keyRoot, centre) : null, lead = opt.lead !== false && prev && prev.length > keep;
+  for (const win of [6.5, 12, 99]) { if (cands.length) break; shapes.forEach((sh, si) => {
+    // the left hand: the bass, and for piano and wide pads its second note kept the same distance above it
+    let lh = []; if (keep) { if (LH_KEEP[style] >= 2) { const s0 = sh[0]; lh = sh.slice(0, keep).map(x => bass + (x - s0)); } else lh = [bass]; }
+    const top = lh.length ? Math.max(...lh) : -99, body = LH_KEEP[style] ? sh.slice(keep) : sh.filter((x, i) => !(i === 0 && mod12(x) === anchor) || sh.length < 3);
+    for (let k = -3; k <= 3; k++) { const rh = body.map(x => x + root + 12 * k).sort((x, y) => x - y); if (!rh.length) continue;
+      const mean = rh.reduce((x, y) => x + y, 0) / rh.length; if (Math.abs(mean - rc) > win || rh[0] <= top + (keep ? 2 : 0)) continue; cands.push({ lh, rh, si, mean }); } }); }   // a wide shape that can't fit the window gets a looser one
+  if (!cands.length) { const sh = shapes[0].map(x => x + root); const lo = keep ? bass + 3 : rc - 6; const k = Math.ceil((lo - Math.min(...sh)) / 12); return [...new Set((keep ? [bass] : []).concat(sh.map(x => x + 12 * k)))].sort((x, y) => x - y); }   // last resort: just above the bass
+  const pr = lead ? prev.slice(prev.length - Math.max(1, prev.length - keep)) : null; let best = null, bc = 1e9;
   for (const c of cands) {
     let cost;
     if (pr) { let mv = 0; for (const x of c.rh) mv += Math.min(...pr.map(y => Math.abs(x - y))); for (const y of pr) mv += Math.min(...c.rh.map(x => Math.abs(x - y))) * .5;
@@ -244,7 +251,7 @@ function voiceChord(chord, style, prev, opt = {}) {
 }
 function addBass(notes, chord, mode) {
   if (mode === 'off' || !notes.length) return notes;
-  const pc = chord.bass != null ? chord.bass : chord.root; let b = notes[0] - mod12(notes[0] - pc); if (b === notes[0] || b > notes[0] - 5) b -= 12; if (mode === 'low') b -= 12;
+  const pc = chord.bass != null ? chord.bass : chord.root; let b = notes[0] - mod12(notes[0] - pc); if (b === notes[0] || b > notes[0] - 5) b -= 12; if (mode === 'low') b -= 12;   // below whatever the voicing put lowest
   return [b].concat(notes);
 }
 
