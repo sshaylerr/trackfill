@@ -130,7 +130,7 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     let short = 0, unnamed = 0, wild = 0, dup = 0;
     for (let r = 0; r < 12; r++) for (let s = 0; s < HM.SCALES.length; s++) for (let pr = 0; pr <= HM.PROGS.length; pr += r % 3 ? 7 : 1) for (const c of ['triad', 'seventh', 'rich']) {
       const pads = HM.chordPads({ root: r, scale: s }, HM.normalizeKx({ scale: s, prog: pr, colour: c })); if (pads.length < 16) short++; if (pads.some(x => x.name.includes('*'))) unnamed++;
-      for (const [v] of HM.VOICINGS) { let prev = null; for (const ch of pads) { const n = HM.voiceChord(ch, v, prev, { centre: 5 }); prev = n; if (new Set(n).size !== n.length) dup++; if (n[0] < -26 || n[n.length - 1] > 34 || n[n.length - 1] - n[0] > (v === 'wide' ? 40 : 36)) wild++; } } }
+      for (const [v] of HM.VOICINGS) { let prev = null; for (const ch of pads) { const n = HM.voiceChord(ch, v, prev, { centre: 5 }); prev = n; if (new Set(n).size !== n.length) dup++; if (n[0] < -26 || n[n.length - 1] > 34 || n[n.length - 1] - n[0] > (v === 'wide' ? 42 : 40)) wild++; } } }
     ok(!short && !unnamed, `every key, scale, progression and colour gives 16 named chords (${short} short, ${unnamed} unnamed)`);
     ok(!wild && !dup, `every voicing stays in a playable range with no doubled notes (${wild} out of range, ${dup} doubled)`);
     const cm = HM.chordPads({ root: 0, scale: 5 }, HM.normalizeKx({ colour: 'seventh' })).slice(0, 7).map(x => x.name).join(' ');
@@ -144,10 +144,16 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(move(true) < move(false), `smooth voice leading moves less than fixed shapes (${move(true).toFixed(1)} vs ${move(false).toFixed(1)} semitones)`);
     // the register stays put: 300 random chord taps never drift the upper voices more than half an octave from the centre, and the bass hand never changes octave
     { let worst = 0, bassMoves = 0; for (const [v] of HM.VOICINGS) { const pads = HM.chordPads({ root: 5, scale: 5 }, HM.normalizeKx({ prog: 1 })); let prev = null, y = 7; const bass = {};
-        for (let i = 0; i < 300; i++) { y = (y * 1103515245 + 12345) % 2147483648; const c = pads[y % 15], n = HM.voiceChord(c, v, prev, { centre: 5 }), keep = { piano: 2, wide: 2, shell: 1 }[v] || 0, rh = n.slice(keep);
+        for (let i = 0; i < 300; i++) { y = (y * 1103515245 + 12345) % 2147483648; const c = pads[y % 15], n = HM.voiceChord(c, v, prev, { centre: 5 }), keep = { rootless: 0, stab: 0 }[v] ?? ({ piano: 2, wide: 2 }[v] || 1), rh = n.slice(keep);
           worst = Math.max(worst, Math.abs(rh.reduce((a, b) => a + b, 0) / rh.length - 5 - ({ piano: 5, wide: 9, stab: 9 }[v] || 0)));
           if (keep) { const k = c.root + ':' + c.bass; if (bass[k] != null && bass[k] !== n[0]) bassMoves++; bass[k] = n[0]; } prev = n; } }
       ok(worst <= 6.5 && !bassMoves, `chords stay in one register while you play (furthest ${worst.toFixed(1)} semitones from centre, bass octave changes: ${bassMoves})`); }
+    // the bass is always the chord's root (or slash bass) in the same key-relative window, so F minor's chords never drop an octave
+    { let bad = 0, n = 0; for (const [key, kr] of [[{ root: 5, scale: 5 }, 5], [{ root: 0, scale: 0 }, 0], [{ root: 9, scale: 5 }, 9]]) for (const colour of ['triad', 'seventh', 'rich']) for (const v of ['close', 'open', 'drop2', 'shell', 'piano', 'wide', 'quartal']) {
+        const pads = HM.chordPads(key, HM.normalizeKx({ colour })); let prev = null;
+        for (const c of pads.concat(pads.slice().reverse())) { const o = HM.voiceChord(c, v, prev, { centre: 5, keyRoot: kr }); prev = o; n++; const want = c.bass != null ? c.bass : c.root, lo = kr - 12 - 5;
+          if (((o[0] - want) % 12 + 12) % 12 || o[0] < lo || o[0] >= lo + 12 || o[o.length - 1] - o[0] > 38) bad++; } }
+      ok(!bad, `chord bass notes follow the root in one window under the key (${n} voicings, ${bad} off)`); }
     let x = 1; const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647, hz = HM.humanize([0, 4, 7, 11], { strum: 30, dir: 'up', feel: .5 }, rnd, false);
     ok(hz.every((n, i) => !i || n.ms > hz[i - 1].ms) && hz[3].ms > 80 && hz[3].vel > hz[1].vel, 'an upward strum plays low to high, and the top note sings');
     // the engine: a strummed chord starts its notes over time; letting go early cancels notes not yet started

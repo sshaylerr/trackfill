@@ -951,7 +951,7 @@ function setKx(pi, ch) { const p = P.pads[pi]; p.kx = Object.assign({}, kxOf(pi)
 // a chord as a person would play it: voiced, voice-led from the last chord on this pad, with strum and feel
 function playChord(pi, c) {
   const kx = kxOf(pi), centre = 5 + UI.oct * 12 + (c.up ? 12 : 0);
-  const notes = voiceChord(c, kx.voicing, KEYS.prev[pi], { lead: kx.lead, centre }); KEYS.prev[pi] = notes;
+  const notes = voiceChord(c, kx.voicing, KEYS.prev[pi], { lead: kx.lead, centre, keyRoot: padKey(pi).root + UI.oct * 12 }); KEYS.prev[pi] = notes;
   const all = addBass(notes, c, kx.bass); KEYS.flip[pi] = !KEYS.flip[pi];
   return humanize(all, { strum: kx.strum, dir: kx.dir, feel: kx.feel, bassFirst: kx.bass !== 'off' }, Math.random, KEYS.flip[pi]);
 }
