@@ -15,8 +15,7 @@ function renderPads(V) {
   top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'));
   const grid = h('div', 'grid');
   for (const cell of padOrder(16)) { const pd = h('div', 'pad'); pd.dataset.cell = cell;
-    pd.addEventListener('pointerdown', e => { e.preventDefault(); try { pd.setPointerCapture(e.pointerId); } catch (_) {} padDown(cell); });
-    const up = () => padUp(cell); pd.addEventListener('pointerup', up); pd.addEventListener('pointercancel', up); grid.append(pd); }
+    pd.addEventListener('pointerdown', e => padPress(e, () => padDown(cell), () => padUp(cell))); grid.append(pd); }   // no pointer capture: see padPress
   const chop = padChop(); if (chop) w.classList.add('chopping');
   w.append(top); if (chop) w.append(chopWave(UI.pad)); w.append(grid); V.append(w); refreshPadDots(); if (chop) requestAnimationFrame(drawChop);
 }
