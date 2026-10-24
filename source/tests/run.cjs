@@ -271,6 +271,30 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     { const s = mk(SP.synPatch(SP.SU_PRESETS[3]), { voice: 'poly', poly: 16 }); for (let k = 0; k < 16; k++) s.host.msg({ t: 'hit', pad: 20, semi: k - 8, vel: .8, tag: k + 1 });
       s.run(20); const t0 = Date.now(); s.run(375 * 2); const ms = Date.now() - t0; console.log(`    16 sub notes (harmonics, hard drive, width): ${(ms / 20).toFixed(1)}% of real time on this machine`); ok(ms < 2000, 'sub processing stays well within real time'); }
   }
+  console.log('instruments');
+  { const IN = require('../js/instruments.js');
+    const mk = (pr, pad = {}) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; });
+      const syn = SP.synPatch(pr); Object.assign(Q.pads[20], { src: 'synth', syn, mode: 'gate', voice: pr.voice || 'poly', poly: 8, glide: 0 }, pad);
+      const smp = IN.insSample(syn.ins); host.msg({ t: 'ins', key: syn.ins, zones: IN.insZones(syn.ins) }); host.msg({ t: 'sample', key: syn.ins, data: smp.data, frames: smp.frames, ch: 1, sr: smp.sr }); host.msg({ t: 'project', P: Q });
+      const L = new Float32Array(128), R = new Float32Array(128), run = n => { const o = { e: 0, bad: 0, x: [] }; for (let i = 0; i < n; i++) { host.render(128, L, R); for (let j = 0; j < 128; j++) { if (!(L[j] === L[j])) o.bad++; o.e += L[j] * L[j]; o.x.push(L[j]); } } return o; };
+      return { ex, host, run }; };
+    const P_ = id => SP.IN_PRESETS.find(p => p.ins === 'i:' + id);
+    { let bad = 0, silent = [], stuck = []; for (const pr of SP.IN_PRESETS) { const s = mk(pr); s.host.msg({ t: 'hit', pad: 20, semi: 0, vel: .85, tag: 7 }); const a = s.run(300); s.host.msg({ t: 'rel', tag: 7, rel: .1 }); s.run(375 * 12);
+        bad += a.bad; if (a.e < 1e-6) silent.push(pr.n); if (s.ex.tf_voices()) stuck.push(pr.n); }
+      ok(!bad && !silent.length && !stuck.length, `all ${SP.IN_PRESETS.length} instruments play, stay finite and let go (${silent.length ? 'silent: ' + silent.join(', ') : ''}${stuck.length ? ' stuck: ' + stuck.join(', ') : ''})`); }
+    { const LB = require('../tools/instruments/lib.cjs'), zc = x => LB.detectPitch(Float32Array.from(x), 48000, 60, 1000);
+      const a = mk(P_('strmach')), b = mk(P_('strmach')); a.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); b.host.msg({ t: 'hit', pad: 20, semi: 7, vel: 1, tag: 1 }); a.run(200); b.run(200);
+      const fa = zc(a.run(375).x), fb = zc(b.run(375).x);
+      ok(Math.abs(12 * Math.log2(fa / 130.81)) < .5 && Math.abs(12 * Math.log2(fb / fa) - 7) < .3, `zones play in tune: C3 at ${fa.toFixed(1)} Hz, a fifth up at ×${(fb / fa).toFixed(3)} (between zones)`); }
+    { const st = mk(P_('strings')); st.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); st.run(375); const late = st.run(375 * 2).e / (375 * 2);
+      const oh = mk(P_('orch')); oh.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); oh.run(375 * 2); const v = oh.ex.tf_voices();
+      ok(late > 1e-4 && v === 0, `loops hold a held note (strings still at ${(10 * Math.log10(late)).toFixed(0)} dB after 3 s); one-shots end on their own (orch hit voices after 2 s: ${v})`); }
+    { const soft = mk(P_('grand')), loud = mk(P_('grand')); soft.host.msg({ t: 'hit', pad: 20, semi: 0, vel: .3, tag: 1 }); loud.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 });
+      const bright = x => { let d = 0, e = 0; for (let i = 1; i < x.length; i++) { d += (x[i] - x[i - 1]) ** 2; e += x[i] * x[i]; } return d / e; }, bs = bright(soft.run(100).x), bl = bright(loud.run(100).x);
+      ok(bl > bs * 1.3, `velocity picks the layer and the tone: a hard grand note is brighter (×${(bl / bs).toFixed(2)})`); }
+    { const n = Object.keys(require('../js/instdata.js').INST_DATA).length, kb = Object.values(require('../js/instdata.js').INST_DATA).reduce((a, d) => a + d.d.length, 0) / 1024;
+      ok(n >= 26 && kb < 3000, `${n} instruments ship in ${(kb / 1024).toFixed(2)} MB`); }
+  }
   console.log('drum synth');
   { let bad = 0, n = 0, lv = [], longest = 0; for (const mod in DR.DRUM_MODS) for (const type in DR.DRUM_MODS[mod].types) { const r = DR.drumRender(DR.drumDefault(mod, type, 3), { key: { root: 0 } }); n++;
       let pk = 0; for (let i = 0; i < r.L.length; i++) { if (!(r.L[i] === r.L[i]) || !(r.R[i] === r.R[i])) bad++; pk = Math.max(pk, Math.abs(r.L[i]), Math.abs(r.R[i])); } lv.push(pk); longest = Math.max(longest, r.L.length / r.sr); }

@@ -673,10 +673,14 @@ function ensureTable(key) { if (!key || ENG.sent.has('T' + key) || !ENG.node) re
 function ensureSample(id) { if (!id || ENG.sent.has(id) || !ENG.node) return; const s = SAMPLES.get(id); if (!s || s.wt) return;
   send({ t: 'sample', key: id, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr }); ENG.sent.add(id); }
 function syncScene(i) { const sc = P.scenes[i]; send({ t: 'scene', i, v: sc }); for (const k in sc.notes) for (const n of sc.notes[k]) if (n.f) delete n.f; }
-function syncPad(i) { const p = P.pads[i]; ensureSample(p.sample); if (p.stx) ensureSample(p.stx); if (typeof stretchCheck === 'function') stretchCheck(i); const gs = grSrc(p); if (gs) { if (gs.startsWith('b:')) buildBuiltin(gs.slice(2)); ensureSample(gs); } for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
+// instruments: decoded on first use, zone table to the engine, then the sample
+function ensureIns(key) { if (!key || !key.startsWith('i:')) return; if (!SAMPLES.has(key)) { const s = insSample(key); if (!s) return; SAMPLES.set(key, s); }
+  if (ENG.node && !ENG.sent.has('Z' + key)) { send({ t: 'ins', key, zones: insZones(key) }); ENG.sent.add('Z' + key); } ensureSample(key); }
+const insOf = p => p && p.src === 'synth' && p.syn && p.syn.eng === 'ins' && p.syn.ins || null;
+function syncPad(i) { const p = P.pads[i]; ensureIns(insOf(p)); ensureSample(p.sample); if (p.stx) ensureSample(p.stx); if (typeof stretchCheck === 'function') stretchCheck(i); const gs = grSrc(p); if (gs) { if (gs.startsWith('b:')) buildBuiltin(gs.slice(2)); ensureSample(gs); } for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
 function syncChan(c) { send({ t: 'chan', i: c, v: P.chans[c] }); }
 function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing } }); updateTransport(); if (typeof stretchAllSoon === 'function') stretchAllSoon(); }   // stretched pads follow the tempo
-function syncProject() { if (!ENG.node) return; for (const id of usedSampleIds()) ensureSample(id); for (const k of tableKeys()) ensureTable(k); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
+function syncProject() { if (!ENG.node) return; for (const p of P.pads) ensureIns(insOf(p)); for (const id of usedSampleIds()) ensureSample(id); for (const k of tableKeys()) ensureTable(k); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
 function sendParam(key, v) { send({ t: 'param', key, v }); }
 function silentWavUrl() { const sr = 8000, n = sr / 2, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), ws = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
   ws(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE'); ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, n * 2, true);
@@ -1307,7 +1311,7 @@ function openLibrary() {
     const top = h('div', 'row'), q = h('input', 'textin'); q.placeholder = 'Search sounds'; q.style.flex = '1'; top.append(q, btn('Import', () => { closeSheet(); pickAudio(UI.pad); }, 'btn on')); card.append(top);
     const box = h('div', 'stack'); box.style.marginTop = '10px'; card.append(box);
     const used = usedSampleIds();
-    const draw = () => { box.innerHTML = ''; const f = q.value.trim().toLowerCase(), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt && !s.drum && !s.x && (!f || s.name.toLowerCase().includes(f)));
+    const draw = () => { box.innerHTML = ''; const f = q.value.trim().toLowerCase(), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt && !s.drum && !s.x && !s.ins && (!f || s.name.toLowerCase().includes(f)));
       const mine = all.filter(s => !s.builtin).sort((a, b) => (b.added || 0) - (a.added || 0));
       // built-ins are listed by pack and only synthesized when you preview or use one
       const packs = PACKS.map(([title, keys]) => [title, keys.map(k => ALL_BUILTINS.find(x => x[0] === k)).filter(k => k && (!f || k[1].toLowerCase().includes(f) || title.toLowerCase().includes(f))).map(k => ({ id: 'b:' + k[0], name: k[1].replace(/ \((classic|jungle)\)$/, ''), builtin: true, kit: k }))]);

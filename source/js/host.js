@@ -18,7 +18,7 @@ const TF_LFO_DIVS = [['4 bars', 16], ['2 bars', 8], ['1 bar', 4], ['1/2', 2], ['
 // FM: algorithms as [name, targets of op 2, op 3, op 4 (bit k = feeds op k+1), carriers (bit k = op k+1 is heard)]; ops only feed lower-numbered ones
 const TF_ALGS = [['Stack', 1, 2, 4, 1], ['Y', 1, 2, 2, 1], ['Fork', 1, 1, 4, 1], ['Two pairs', 1, 0, 4, 5], ['One to three', 0, 0, 7, 7], ['Stack + sine', 0, 2, 4, 3],
   ['Two into one + sine', 0, 2, 2, 3], ['Pair + two', 0, 0, 4, 7], ['Additive', 0, 0, 0, 15], ['Diamond', 1, 1, 6, 1], ['Three into one', 1, 1, 1, 1], ['Chain to two', 0, 3, 4, 3]];
-const TF_ENGS = { analog: 'Analog', fm: 'FM', wt: 'Wavetable', gr: 'Granular', sub: 'Sub' };
+const TF_ENGS = { analog: 'Analog', fm: 'FM', wt: 'Wavetable', gr: 'Granular', sub: 'Sub', ins: 'Instrument' };
 const TF_WARPS = ['Off', 'Sync', 'Bend', 'PWM', 'Mirror', 'Quantize', 'FM', 'AM', 'Ring'];   // FM, AM and Ring take the other oscillator
 const TF_OPMODES = ['FM', 'Ring', 'Filter', 'Filter FM', 'Fold'];
 const TF_FMWAVES = ['Sine', 'Digital', 'Triangle', 'Saw', 'Square', 'Sine 1+2', 'Sine 1+3', 'Saw 3', 'Square 3', 'Noise'];
@@ -44,7 +44,7 @@ const TFSYN = (() => {
     ['l' + k + 'o', 'Smooth', 'lin', 0, 1, 0, 'l' + k], ['l' + k + 'p', 'Phase', 'lin', 0, 1, 0, 'l' + k]);
   for (let k = 1; k <= 4; k++) L.push(['m' + k, 'Macro ' + k, 'lin', 0, 1, 0, 'mc']);
   // FM engine: four operators (op 1 is the bottom of every algorithm, op 4 the top, with feedback)
-  L.push(['eng', 'Engine', 'opt', ['Analog', 'FM', 'Wavetable', 'Granular', 'Sub'], 0, 'Analog', 'en'], ['alg', 'Algorithm', 'opt', TF_ALGS.map(a => a[0]), 0, TF_ALGS[0][0], 'fa'],
+  L.push(['eng', 'Engine', 'opt', ['Analog', 'FM', 'Wavetable', 'Granular', 'Sub', 'Instrument'], 0, 'Analog', 'en'], ['alg', 'Algorithm', 'opt', TF_ALGS.map(a => a[0]), 0, TF_ALGS[0][0], 'fa'],
     ['fmd', 'FM depth', 'lin', 0, 1, .5, 'fa'], ['ffb', 'Feedback', 'lin', 0, 1, 0, 'fa']);
   for (let k = 1; k <= 4; k++) { const f = 'f' + k, t = 'f' + k;
     L.push([f + 'm', 'Mode', 'opt', TF_OPMODES, 0, 'FM', t], [f + 'w', 'Wave', 'opt', TF_FMWAVES, 0, 'Sine', t], [f + 'c', 'Ratio', 'int', 0, 16, k === 1 ? 1 : k, t], [f + 'f', 'Fine', 'lin', 0, 1, 0, t],
@@ -64,6 +64,9 @@ const TFSYN = (() => {
     ['sh2', '2nd', 'lin', 0, 1, 0, 'sh'], ['sh3', '3rd', 'lin', 0, 1, 0, 'sh'], ['sh4', '4th', 'lin', 0, 1, 0, 'sh'], ['sh5', '5th', 'lin', 0, 1, 0, 'sh'],
     ['shm', 'Amount', 'lin', 0, 1, 1, 'sh'], ['sho', 'Odd / even', 'bip', -1, 1, 0, 'sh'], ['sht', 'Tilt', 'bip', -1, 1, 0, 'sh'], ['shw', 'Width', 'lin', 0, 1, 0, 'sh'],
     ['spa', 'Drop', 'lin', 0, 36, 0, 's8'], ['spt', 'Drop time', 'exp', .005, 1, .06, 's8'], ['spc', 'Drop curve', 'bip', -1, 1, 0, 's8'], ['ckl', 'Click', 'lin', 0, 1, 0, 's8'], ['ckt', 'Click tone', 'exp', 300, 12000, 3000, 's8']);
+  // Instrument engine: multisampled instruments (the zones come with the instrument, not the patch)
+  L.push(['ioc', 'Octave', 'int', -3, 3, 0, 'in'], ['ise', 'Semi', 'lin', -12, 12, 0, 'in'], ['ifi', 'Fine', 'lin', -100, 100, 0, 'in'], ['ist', 'Start', 'lin', 0, 1, 0, 'in'],
+    ['ivt', 'Vel → tone', 'lin', 0, 1, .4, 'in'], ['ilo', 'Loop', 'opt', ['On', 'Off'], 0, 'On', 'in'], ['iwd', 'Width', 'lin', 0, 1, 0, 'in']);
   return L.map(([id, l, k, a, b, d, tab], i) => ({ i, id, l, k, a, b, d, tab }));
 })();
 const TFSYN_ID = Object.fromEntries(TFSYN.map(p => [p.id, p]));
@@ -218,6 +221,7 @@ class TFHost {
       case 'chans': for (const [i, v] of m.v) { P.chans[i] = v; this.syncChan(i); } this.syncMutes(); this.buildDuck(); break;
       case 'song': if (m.v.swing !== P.swing) this.idx = []; Object.assign(P, m.v); this.ex.tf_set_bpm(P.bpm); break;
       case 'sample': this.addSample(m.key, m.data, m.frames, m.ch, m.sr); break;
+      case 'ins': this.setIns(m.key, m.zones); break;
       case 'wtable': this.addTable(m.key, m.F, m.lv, m.fund); break;
       case 'sampleDel': this.removeSample(m.key); break;
       case 'play': this.start(m.scene, m.loop, m.count || 0); break;
@@ -299,7 +303,7 @@ class TFHost {
     new Int16Array(ex.memory.buffer, ptr, data.length).set(data);
     const id = ex.tf_sample_add(ptr, frames, ch, sr);
     if (id) this.sm.set(key, { id, frames, sr }); else ex.tf_free(ptr);
-    if (id && this.P) this.P.pads.forEach((p, pi) => { if (p && p.src === 'synth' && p.syn && p.syn.eng === 'gr' && p.syn.gr && p.syn.gr.src === key) this.syncSynth(pi); });   // a granular source arrived
+    if (id && this.P) this.P.pads.forEach((p, pi) => { if (p && p.src === 'synth' && p.syn && ((p.syn.eng === 'gr' && p.syn.gr && p.syn.gr.src === key) || (p.syn.eng === 'ins' && p.syn.ins === key))) this.syncSynth(pi); });   // a granular source or an instrument arrived
   }
   /* ---------- wavetables (prepared on the main thread): copied into the engine once, shared by every pad that uses them ---------- */
   addTable(key, F, lv, fund) {
@@ -309,6 +313,8 @@ class TFHost {
     new Float32Array(ex.memory.buffer, ex.tf_wt_fund(id), F * 2).set(fund); this.wtm.set(key, id);
     if (this.P) this.P.pads.forEach((p, pi) => { if (p && p.src === 'synth' && p.syn && p.syn.eng === 'wt' && p.syn.wt && (p.syn.wt.a === key || p.syn.wt.b === key)) this.syncSynth(pi); });
   }
+  // instruments: one sample per instrument (zones back to back) plus its zone table, sent by the app before the sample
+  setIns(key, zones) { (this.insZ = this.insZ || new Map()).set(key, zones); }
   removeSample(key) { const e = this.sm.get(key); if (e) { this.ex.tf_sample_remove(e.id); this.sm.delete(key); } }
   /* ---------- synth pads: push the patch into the engine (parameters 0..1, drawn LFOs as tables, routes) ---------- */
   syncSynth(pi) {
@@ -317,6 +323,8 @@ class TFHost {
     (this.synOn = this.synOn || [])[pi] = 1; const S = pad.syn;
     for (const p of TFSYN) ex.tf_syn_param(pi, p.i, tfSynNorm(p, p.id === 'eng' ? (TF_ENGS[S.eng] || 'Analog') : S.p ? S.p[p.id] : undefined));
     if (ex.tf_syn_gr) { const g = S.gr && S.gr.src && this.sm.get(S.gr.src); ex.tf_syn_gr(pi, S.eng === 'gr' && g ? g.id : 0); }
+    if (ex.tf_syn_ins) { const e = S.eng === 'ins' && S.ins && this.sm.get(S.ins), Z = e && this.insZ && this.insZ.get(S.ins); ex.tf_syn_ins(pi, Z ? e.id : 0, Z ? Math.min(Z.length, 48) : 0);
+      if (Z) Z.slice(0, 48).forEach((z, k) => ex.tf_syn_zone(pi, k, z.root, z.lo, z.hi, z.vlo, z.vhi, z.st, z.en, z.ls, z.le, z.g == null ? 1 : z.g)); }
     if (ex.tf_syn_wt) { const W = S.wt || {}, id = k => (k && this.wtm && this.wtm.get(k)) || 0; ex.tf_syn_wt(pi, 0, id(W.a)); ex.tf_syn_wt(pi, 1, id(W.b)); }
     for (let k = 0; k < 4; k++) { const ptr = ex.tf_syn_lfo(pi, k); if (ptr) new Float32Array(ex.memory.buffer, ptr, 256).set(tfLfoTable(S.lfo && S.lfo[k])); }
     const mods = (S.mods || []).filter(r => TFSYN_ID[r.d] && r.s >= 0 && r.s < TF_SRC.length).slice(0, 32); ex.tf_syn_routes(pi, mods.length);

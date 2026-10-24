@@ -190,6 +190,23 @@ const SU_PRESETS = [
   suPreset('Trap Slide', '808', { as: 0, ad: 3, ar: .5, spa: 7, spt: .05, ckl: .2, sh2: .25, sdr: .35 }, { voice: 'legato', glide: .12 }),
   suPreset('Distorted 808', '808', { as: 0, ad: 2.2, ar: .4, spa: 12, spt: .04, ckl: .4, sdr: .8, sdm: 'Hard', sto: 4000, shw: .5 }, { voice: 'mono' }),
 ];
+/* ----- Instrument presets: one per shipped instrument, with an envelope that suits it. Macro 1 darkens (cutoff), Macro 2 widens ----- */
+function inPreset(id, n, g, p, x) { return Object.assign({ n, g, eng: 'ins', ins: 'i:' + id, p: Object.assign({ flt: 'Clean', cut: 20000, res: 0, key: 0, aa: .001, ad: .4, as: 1, ar: .3 }, p),
+  mods: [synMod('Macro 1', 'cut', -.55), synMod('Macro 2', 'iwd', .6)] }, x || {}); }
+const DECAY = (d, r = .4) => ({ ad: d, as: 0, ar: r }), ONE = { ad: 10, as: 1, ar: .3 };
+const IN_PRESETS = [
+  inPreset('house', 'House Piano', 'Keys', Object.assign(DECAY(3.5, .35), { ivt: .45 })), inPreset('grand', 'Grand Piano', 'Keys', Object.assign(DECAY(7, .7), { ivt: .3 })),
+  inPreset('tine', 'Tine EP', 'Keys', Object.assign(DECAY(5, .45), { ivt: .25, iwd: .25 })), inPreset('organ', 'Rave Organ', 'Keys', { ar: .08 }),
+  inPreset('orch', 'Orch Hit', 'Hits', ONE), inPreset('orchmin', 'Orch Hit Minor', 'Hits', ONE), inPreset('orchmaj', 'Orch Hit Major', 'Hits', ONE),
+  inPreset('strstab', 'String Stab', 'Hits', ONE), inPreset('brassstab', 'Brass Stab', 'Hits', ONE), inPreset('choirhit', 'Choir Hit', 'Hits', ONE),
+  inPreset('timpani', 'Timpani', 'Hits', ONE), inPreset('timproll', 'Timpani Roll', 'Hits', ONE), inPreset('impact', 'Impact', 'Hits', ONE), inPreset('swell', 'Cymbal Swell', 'Hits', ONE),
+  inPreset('strings', 'Strings', 'Pads', { aa: .25, ar: .7, iwd: .35 }), inPreset('choir', 'Choir Aah', 'Pads', { aa: .35, ar: .9, iwd: .3 }),
+  inPreset('strmach', 'String Machine', 'Pads', { aa: .18, ar: .8, iwd: .5 }), inPreset('glass', 'Glass Pad', 'Pads', { aa: .45, ar: 1.4, iwd: .3 }),
+  inPreset('harp', 'Harp', 'Melodic', DECAY(4, .6)), inPreset('harpgl', 'Harp Gliss', 'Melodic', ONE), inPreset('vibes', 'Vibes', 'Melodic', Object.assign(DECAY(4.5, .8), { ivt: .35 })),
+  inPreset('flute', 'Flute', 'Melodic', { aa: .03, ar: .25 }), inPreset('synbrass', 'Synth Brass', 'Melodic', { aa: .015, ar: .3, iwd: .3 }),
+  inPreset('bassf', 'Finger Bass', 'Bass', DECAY(2.5, .08), { voice: 'mono' }), inPreset('bassp', 'Pick Bass', 'Bass', DECAY(2.5, .08), { voice: 'mono' }), inPreset('bassm', 'Muted Bass', 'Bass', ONE, { voice: 'mono' }),
+];
+const SYN_IN_INIT = { n: 'Init', g: 'Init', eng: 'ins', ins: 'i:house', p: { flt: 'Off' }, mods: [] };
 const SYN_SU_INIT = { n: 'Init', g: 'Init', eng: 'sub', p: { flt: 'Off', ar: .12 }, mods: [] };
 const SYN_FM_INIT = { n: 'Init', g: 'Init', eng: 'fm', p: { flt: 'Off', ad: 2, as: 1, ar: .35 }, mods: [] };
 // output level per preset (dB), measured so every preset plays at about the same loudness
@@ -205,14 +222,16 @@ function synPatch(pr) {
   const o = { eng: pr.eng || 'analog', name: pr.n, p, mods: (pr.mods || []).map(m => Object.assign({}, m)), lfo };
   if (o.eng === 'wt') o.wt = Object.assign({ a: 'w:Basic Shapes', b: 'w:Basic Shapes' }, pr.wt || {});
   if (o.eng === 'gr') o.gr = Object.assign({ src: null }, pr.gr || {});
+  if (o.eng === 'ins') o.ins = pr.ins || 'i:house';
   return o;
 }
 function normalizeSyn(s) {
   if (!s || typeof s !== 'object') return null;
-  const o = { eng: ['fm', 'wt', 'gr', 'sub'].includes(s.eng) ? s.eng : 'analog', sig: typeof s.sig === 'number' ? s.sig : undefined, name: String(s.name || ''), p: Object.assign({}, s.p || {}), mods: Array.isArray(s.mods) ? s.mods.filter(m => m && typeof m.d === 'string' && m.s >= 0 && m.s < SYN_SRC.length).slice(0, 32).map(m => ({ s: m.s | 0, d: m.d, a: Math.max(-1, Math.min(1, +m.a || 0)), c: Math.max(0, Math.min(3, m.c | 0)), v: m.v == null ? undefined : m.v | 0 })) : [] };
+  const o = { eng: ['fm', 'wt', 'gr', 'sub', 'ins'].includes(s.eng) ? s.eng : 'analog', sig: typeof s.sig === 'number' ? s.sig : undefined, name: String(s.name || ''), p: Object.assign({}, s.p || {}), mods: Array.isArray(s.mods) ? s.mods.filter(m => m && typeof m.d === 'string' && m.s >= 0 && m.s < SYN_SRC.length).slice(0, 32).map(m => ({ s: m.s | 0, d: m.d, a: Math.max(-1, Math.min(1, +m.a || 0)), c: Math.max(0, Math.min(3, m.c | 0)), v: m.v == null ? undefined : m.v | 0 })) : [] };
+  if (o.eng === 'ins' || s.ins) o.ins = typeof s.ins === 'string' && /^i:[a-z0-9]+$/.test(s.ins) ? s.ins : 'i:house';
   if (o.eng === 'gr' || s.gr) o.gr = { src: typeof (s.gr && s.gr.src) === 'string' ? s.gr.src : null };
   if (o.eng === 'wt' || s.wt) o.wt = { a: typeof (s.wt && s.wt.a) === 'string' ? s.wt.a : 'w:Basic Shapes', b: typeof (s.wt && s.wt.b) === 'string' ? s.wt.b : 'w:Basic Shapes' };
   o.lfo = [0, 1, 2, 3].map(k => Array.isArray(s.lfo && s.lfo[k]) && s.lfo[k].length ? s.lfo[k].slice(0, 32).map(q => ({ x: Math.max(0, Math.min(1, +q.x || 0)), y: Math.max(0, Math.min(1, +q.y || 0)), c: Math.max(-.97, Math.min(.97, +q.c || 0)) })) : LFO_SHAPES.Sine.map(q => Object.assign({}, q)));
   return o;
 }
-if (typeof module !== 'undefined') module.exports = { SU_PRESETS, SYN_SU_INIT, GR_PRESETS, SYN_GR_INIT, WT_PRESETS, SYN_WT_INIT, FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };
+if (typeof module !== 'undefined') module.exports = { IN_PRESETS, SYN_IN_INIT, SU_PRESETS, SYN_SU_INIT, GR_PRESETS, SYN_GR_INIT, WT_PRESETS, SYN_WT_INIT, FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };
