@@ -10,6 +10,19 @@
 const TF = { PPQ: 96, BAR: 384, NCH: 83, NPAD: 64, G0: 64, B0: 72, R0: 80, MASTER: 82, NSLOT: 8, SUB: 16,
   ARP_TAG: 1 << 24, FRZ_TAG: 1 << 20, PREVIEW_TAG: (1 << 20) - 1, CLICK_TAG: (1 << 20) - 2 };
 
+/* ---------- mixer tapers, matched to Live's mixer ----------
+   Fader: 0 dB at 85% of its travel, +6 dB at the top; above -18 dB each 10% of travel is 4 dB, below that the taper steepens to
+   -68 dB just above the bottom, which is silence. Sends: the same taper with the top at 0 dB (from silence to unity).
+   Pan: constant power on sine/cosine curves, 0 dB at the centre and +3 dB on the near side when panned hard. */
+const TF_FADER_LO = [-68, -48, -34, -24, -18];   // dB at 0.0, 0.1, 0.2, 0.3, 0.4
+function tfFaderDb(v) { if (!(v > 0)) return -Infinity; if (v >= .4) return 40 * (Math.min(1, v) - .85); const k = Math.min(3, Math.floor(v * 10)), f = v * 10 - k; return TF_FADER_LO[k] + (TF_FADER_LO[k + 1] - TF_FADER_LO[k]) * f; }
+function tfFaderGain(v) { return v > 0 ? Math.pow(10, tfFaderDb(v) / 20) : 0; }
+function tfFaderPos(g) { if (!(g > 0)) return 0; const d = 20 * Math.log10(g); if (d >= -18) return Math.min(1, .85 + d / 40); if (d <= -68) return 0;
+  let k = 3; while (k > 0 && d < TF_FADER_LO[k]) k--; return (k + (d - TF_FADER_LO[k]) / (TF_FADER_LO[k + 1] - TF_FADER_LO[k])) / 10; }
+function tfSendGain(v) { return tfFaderGain(v * .85); }
+function tfSendPos(g) { return Math.min(1, tfFaderPos(g) / .85); }
+function tfPanGains(p) { const th = (Math.max(-1, Math.min(1, p)) + 1) * Math.PI / 4; return [Math.SQRT2 * Math.cos(th), Math.SQRT2 * Math.sin(th)]; }
+
 /* ---------- synth parameters: the single list the engine (generated header), host and UI all use ----------
    [id, label, kind, a, b, default, tab]   kinds: lin a..b · exp a..b · int a..b · opt (a = labels) · bip -1..1 scaled to a..b · db (a..b dB, engine gets gain)
    Patches store physical values by id; the engine works on 0..1 per parameter so modulation is uniform. */
@@ -252,7 +265,7 @@ class TFHost {
   applyKey(k, v) {
     const { c, s, i } = tfParseKey(k), ex = this.ex;
     if (v == null || !(v === v)) return;
-    if (s === -1) { if (i === 0) ex.tf_ch_set(c, 0, 2 * v * v); else if (i === 1) ex.tf_ch_set(c, 1, v * 2 - 1); else ex.tf_ch_set(c, i, v); }
+    if (s === -1) { if (i === 0) ex.tf_ch_set(c, 0, tfFaderGain(v)); else if (i === 1) ex.tf_ch_set(c, 1, v * 2 - 1); else ex.tf_ch_set(c, i, tfSendGain(v)); }
     else if (s === -2 && i === 2) { const p = this.P.pads[c]; ex.tf_ch_bend(c, (v * 2 - 1) * ((p && p.bendR) || 2), v * 2 - 1); }   // pitch bend: ± the pad's bend range
     else if (s === -3) { if (ex.tf_syn_param) ex.tf_syn_param(c, i, v); }
     else if (s === -2) { if (this.frozen(c)) return; ex.tf_ch_set(c, i === 0 ? 5 : 6, i === 0 ? 20 * Math.pow(1000, v) : 0.7 + v * v * 18); }
@@ -581,4 +594,4 @@ async function tfRenderOffline(module, P, samples, opts) {
   }
   return { L, R, sr };
 }
-if (typeof module !== 'undefined') module.exports = { TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

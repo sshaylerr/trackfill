@@ -415,11 +415,53 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const withClick = run(0, true), noClick = run(0, false); let diff = 0; for (let i = 0; i < withClick.out.length; i++) diff = Math.max(diff, Math.abs(withClick.out[i] - noClick.out[i]));
     ok(diff > .01, 'the click plays when switched on');
   }
+  console.log('mixer');
+  { // Live's tapers: fader 0 dB at 0.85, +6 at the top, 4 dB per 10% above -18 dB; sends top out at 0 dB; pan 0 dB centre, +3 dB hard over
+    const f = [[1, 6], [.85, 0], [.7, -6], [.4, -18], [.2, -34], [.1, -48]].every(([v, d]) => Math.abs(H.tfFaderDb(v) - d) < .01) && H.tfFaderGain(0) === 0;
+    let rt = 0; for (let v = .01; v <= 1; v += .01) rt = Math.max(rt, Math.abs(H.tfFaderPos(H.tfFaderGain(v)) - v));
+    const [cl, cr] = H.tfPanGains(0), [hl, hr] = H.tfPanGains(1);
+    ok(f && rt < 1e-9 && Math.abs(H.tfSendGain(1) - 1) < 1e-9 && Math.abs(cl - 1) < 1e-9 && Math.abs(cr - 1) < 1e-9 && hl < 1e-9 && Math.abs(20 * Math.log10(hr) - 3.01) < .01, 'fader, send and pan curves match Live (0 dB at 85%, +6 dB top, pan 0 dB centre / +3 dB hard)');
+    // a new project's channels sit at exactly 0 dB, and the engine's pan matches the curve: render a 0 dBFS-peak tone through a pad panned 40% right
+    const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.newProject(true), n = 48000, d = new Int16Array(n); for (let i = 0; i < n; i++) d[i] = Math.round(16384 * Math.sin(2 * Math.PI * 440 * i / 48000));
+    Q.pads[0].sample = 'tone'; Q.pads[0].mode = 'one'; Q.chans[0].pan = .7; host.msg({ t: 'project', P: Q }); host.msg({ t: 'sample', key: 'tone', data: d, frames: n, ch: 1, sr: 48000 });
+    host.msg({ t: 'hit', pad: 0, semi: 0, vel: 1, tag: 3 }); const L = new Float32Array(128), R = new Float32Array(128); let pl = 0, pr = 0; for (let b = 0; b < 200; b++) { host.render(128, L, R); if (b > 20) for (let j = 0; j < 128; j++) { pl = Math.max(pl, Math.abs(L[j])); pr = Math.max(pr, Math.abs(R[j])); } }
+    const [gl, gr] = H.tfPanGains(.4), want = 16384 / 32768;
+    ok(Q.chans.every(c => Math.abs(H.tfFaderDb(c.vol)) < 1e-9) && Math.abs(pl - want * gl) < .002 && Math.abs(pr - want * gr) < .002, `new channels are at 0 dB and the engine pans on the same curve (L ${(pl / want).toFixed(3)} want ${gl.toFixed(3)}, R ${(pr / want).toFixed(3)} want ${gr.toFixed(3)})`); }
+  { // every effect at its default settings keeps the level within 1.5 dB on pink noise at -18 dBFS RMS
+    // (compressors and the multiband excepted: turning things down is their job; Fuzz is an extreme curve, allowed 4 dB; filters 2.5)
+    const n = 36000, d = new Int16Array(n); let x = 7, b0 = 0, b1 = 0, b2 = 0; const w = () => (x = (x * 16807) % 2147483647) / 2147483647 * 2 - 1, t = new Float32Array(n); let ss = 0;
+    for (let i = 0; i < n; i++) { const v = w(); b0 = .99765 * b0 + v * .099046; b1 = .963 * b1 + v * .2965164; b2 = .57 * b2 + v * 1.0526913; t[i] = b0 + b1 + b2 + v * .1848; ss += t[i] ** 2; }
+    const g = .1259 / Math.sqrt(ss / n); for (let i = 0; i < n; i++) d[i] = Math.round(t[i] * g * 32767);
+    const lvl = async fx => { const Q = M.newProject(true); Object.assign(Q.pads[0], { sample: 'pn', mode: 'one', rel: .001 }); Q.chans[0].fx = fx ? [fx] : [];
+      Q.scenes[0] = Object.assign(M.emptyScene(), { bars: 1, notes: { 0: [{ t: 0, len: 24, p: 0, v: 1 }] } }); Q.bpm = 120;
+      const r = await H.tfRenderOffline(wasm, Q, new Map([['pn', { id: 'pn', data: d, frames: n, ch: 1, sr: 48000 }]]), { order: [{ scene: 0, reps: 1 }], tail: 0 }); return stats(r.L, r.R, 9600, 33600).rms; };
+    const dry = await lvl(null), off = [];
+    for (let ty = 0; ty < M.FX_DEFS.length; ty++) { if (ty === M.FX_TYPES.COMP || ty === M.FX_TYPES.MBAND) continue;
+      for (let mo = 0; mo < M.FX_DEFS[ty].modes.length; mo++) { const dd = 20 * Math.log10(await lvl(M.newFx(ty, null, mo)) / dry), lim = ty === M.FX_TYPES.SAT && mo === 5 ? 4 : ty === M.FX_TYPES.FILTER || ty === M.FX_TYPES.VINYL ? 2.5 : 1.5;   // filters and vinyl wear take away frequencies by design
+        if (!(Math.abs(dd) <= lim)) off.push(`${M.FX_DEFS[ty].name}/${M.FX_DEFS[ty].modes[mo].n} ${dd.toFixed(1)} dB`); } }
+    ok(!off.length, `every effect and mode at its defaults keeps the level (${off.length ? off.join(', ') : 'all within 1.5 dB'})`); }
+  { // a channel goes to sleep once its effects fade below -120 dB, not after their worst-case tail; nothing audible is cut off,
+    // and a delay keeps its repeats through the silence between them
+    const tone = new Int16Array(4800); for (let i = 0; i < 4800; i++) tone[i] = Math.round(20000 * Math.sin(2 * Math.PI * 300 * i / 48000) * (1 - i / 4800));
+    const rt = async (fx, tail) => { const Q = M.newProject(true); Object.assign(Q.pads[0], { sample: 'tn', mode: 'one', rel: .001 }); Q.chans[0].fx = [fx];
+      Q.scenes[0] = Object.assign(M.emptyScene(), { bars: 1, notes: { 0: [{ t: 0, len: 24, p: 0, v: 1 }] } }); Q.bpm = 120;
+      return H.tfRenderOffline(wasm, Q, new Map([['tn', { id: 'tn', data: tone, frames: 4800, ch: 1, sr: 48000 }]]), { order: [{ scene: 0, reps: 1 }], tail }); };
+    const r = await rt(M.newFx(M.FX_TYPES.REVERB, { 4: 1 }, 4), 30), last = (() => { for (let i = r.L.length - 1; i >= 0; i--) if (r.L[i] !== 0 || r.R[i] !== 0) return i; return 0; })();
+    const before = stats(r.L, r.R, Math.max(0, last - 4800), last).pk;
+    // a 2 s delay at full feedback-free mix: the repeat 2 s later must still arrive although the output is silent in between
+    const d = await rt(M.newFx(M.FX_TYPES.DELAY, { 0: 0, 2: 1, 3: 0, 4: 1 }, 0), 4), rep = stats(d.L, d.R, Math.round(2.0 * 48000), Math.round(2.2 * 48000)).pk;
+    ok(last < r.L.length - 48000 && before < 1e-5 && rep > .1, `faded effects stop processing (silent ${((r.L.length - last) / 48000).toFixed(1)} s before the end, last level ${(20 * Math.log10(before + 1e-12)).toFixed(0)} dB) and delays keep their repeats (${rep.toFixed(2)})`); }
+  { // silence in, silence out: no effect makes a click, thump or hiss on its own when nothing is playing (transport stopped)
+    const noisy = []; for (let ty = 0; ty < M.FX_DEFS.length; ty++) for (let mo = 0; mo < M.FX_DEFS[ty].modes.length; mo++) {
+      const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.newProject(true); Q.chans[0].fx = [M.newFx(ty, null, mo)]; host.msg({ t: 'project', P: Q });
+      const L = new Float32Array(128), R = new Float32Array(128); let pk = 0; for (let b = 0; b < 400; b++) { host.render(128, L, R); for (let j = 0; j < 128; j++) pk = Math.max(pk, Math.abs(L[j]), Math.abs(R[j])); }
+      if (pk > 1e-6) noisy.push(`${M.FX_DEFS[ty].name}/${M.FX_DEFS[ty].modes[mo].n} ${(20 * Math.log10(pk)).toFixed(0)} dB`); }
+    ok(!noisy.length, `every effect is silent on silence (${noisy.length ? noisy.join(', ') : 'all below -120 dB'})`); }
   console.log('migration');
   { const v1 = { name: 'Old', bpm: 100, master: { vol: .8, dlyTime: 3, dlyFb: .5, rvbSize: .2 }, pads: [{ name: 'K', sample: 'b:kick', vol: .5, pan: .2, dly: .3, rvb: .4, cut: .5 }],
       scenes: [{ name: 'A', bars: 2, notes: { 0: [{ t: 0, len: 24, p: 0, v: .9 }] }, auto: { 0: { cut: [{ t: 0, v: .1, c: 0 }], rvb: [{ t: 0, v: .5, c: 0 }] } } }] };
     const p = M.migrate(v1);
-    ok(p.v === 2 && p.chans.length === 83 && p.pads[0].cut === .5 && p.chans[0].vol === .5 && p.chans[0].sb === .4, 'v1 pad settings move to channel strips');
+    ok(p.v === 3 && p.chans.length === 83 && p.pads[0].cut === .5 && Math.abs(H.tfFaderGain(p.chans[0].vol) - 2 * .25 * Math.SQRT1_2) < 1e-6 && Math.abs(H.tfSendGain(p.chans[0].sb) - .4) < 1e-6, 'v1 pad settings move to channel strips at the same levels');
     ok(p.scenes[0].auto['0.-2.0'] && p.scenes[0].auto['0.-1.3'], 'v1 automation keys are converted');
     ok(p.chans[80].fx[0].type === 4 && p.chans[81].fx[0].type === 5, 'v1 master delay/reverb become Return A/B');
     const r = await H.tfRenderOffline(wasm, p, kit, { order: [{ scene: 0, reps: 1 }] }); ok(stats(r.L, r.R).rms > 0, 'migrated project renders');

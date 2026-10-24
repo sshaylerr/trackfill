@@ -271,7 +271,7 @@ static void renderSynth(i32 n) {
       P->gph[k] += hz * dt; P->gph[k] -= floorf_(P->gph[k]); } }
   for (i32 vi = 0; vi < NSV; vi++) {
     SVoice* v = &sv[vi]; if (!v->on) continue; Patch* P = pat[v->pad]; if (!P || !P->on) { v->on = 0; continue; }
-    float* m = v->m; float* L = inL[v->pad], *R = inR[v->pad];
+    float* m = v->m; float* L = inL[v->pad], *R = inR[v->pad]; dIn[v->pad] = 1;
     // gate
     if (v->held && v->relIn >= 0.0) { v->relIn -= n; if (v->relIn <= 0.0) svRelease(v); }
     // LFOs (rates from last block's modulated values: sources can modulate sources)

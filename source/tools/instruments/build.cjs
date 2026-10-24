@@ -179,9 +179,14 @@ delete I._harpSet;
 let prev = {}; if (only.length && fs.existsSync(OUT)) { const m = { exports: {} }; new Function('module', fs.readFileSync(OUT, 'utf8') + ';module.exports = INST_DATA;')(m); prev = m.exports; }
 const outObj = Object.assign({}, prev); let total = 0;
 for (const [id, inst] of Object.entries(I)) {
-  // one stream per instrument; levels evened so every instrument peaks at the same point
-  const p = Math.max(...inst.zones.map(z => peak(z.y))) || 1, g = .89 / p, parts = [], z = []; let pos = 0;
-  for (const zz of inst.zones) { const y = scale(Float32Array.from(zz.y), g); parts.push(y); z.push([zz.root - 48, zz.lo - 48, zz.hi - 48, +zz.vlo.toFixed(3), +zz.vhi.toFixed(3), pos, pos + y.length, zz.le ? pos + zz.ls : 0, zz.le ? pos + zz.le : 0]); pos += y.length + 1; parts.push(new Float32Array(1)); }
+  // notes evened out: within each velocity layer every zone is matched on its loudest 100 ms to the layer's median (the recordings
+  // vary by up to 20 dB across the range; a playable instrument shouldn't), keeping the differences between layers. Then one stream
+  // per instrument, levels evened so every instrument peaks at the same point.
+  const st = y => { const w = Math.round(inst.sr * .1); let best = 0; for (let i = 0; i < y.length; i += w >> 1) { let e = 0; const e1 = Math.min(y.length, i + w); for (let j = i; j < e1; j++) e += y[j] * y[j]; best = Math.max(best, Math.sqrt(e / w)); } return best || 1e-9; };
+  const layers = {}; inst.zones.forEach(zz => { (layers[zz.vlo + ':' + zz.vhi] = layers[zz.vlo + ':' + zz.vhi] || []).push(zz); });
+  const zg = new Map(); for (const zs of Object.values(layers)) { const lv = zs.map(zz => st(zz.y)), med = lv.slice().sort((a, b) => a - b)[lv.length >> 1]; zs.forEach((zz, k) => zg.set(zz, Math.max(.25, Math.min(4, med / lv[k])))); }
+  const p = Math.max(...inst.zones.map(zz => peak(zz.y) * zg.get(zz))) || 1, g = .89 / p, parts = [], z = []; let pos = 0;
+  for (const zz of inst.zones) { const y = scale(Float32Array.from(zz.y), g * zg.get(zz)); parts.push(y); z.push([zz.root - 48, zz.lo - 48, zz.hi - 48, +zz.vlo.toFixed(3), +zz.vhi.toFixed(3), pos, pos + y.length, zz.le ? pos + zz.ls : 0, zz.le ? pos + zz.le : 0]); pos += y.length + 1; parts.push(new Float32Array(1)); }
   const all = new Float32Array(pos); let o = 0; for (const q of parts) { all.set(q, o); o += q.length; }
   const b = L.adpcmEncode(all).toString('base64'); total += b.length;
   outObj[id] = { n: inst.n, g: inst.g, sr: inst.sr, len: pos, z, d: b };

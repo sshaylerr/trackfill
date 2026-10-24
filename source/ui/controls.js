@@ -13,7 +13,7 @@ function makeCtl(o, kind) {
     el = h('div', 'fader'); el.innerHTML = '<div class="fval"></div><div class="ftrack"><div class="fmeter"><i></i></div><div class="fslot"></div><div class="funity"></div><div class="fcap"></div></div>';
     track = el.querySelector('.ftrack'); const cap = el.querySelector('.fcap'), val = el.querySelector('.fval'), un = el.querySelector('.funity');
     upd = () => { const v = o.get(), f = clamp((v - mn) / (mx - mn), 0, 1), H = track.clientHeight || 100; cap.style.top = ((1 - f) * (H - 16)) + 'px'; val.textContent = o.fmt(v);
-      un.style.top = ((1 - (o.unity ?? .7071)) * (H - 16) + 8) + 'px'; };
+      un.style.top = ((1 - (o.unity ?? .85)) * (H - 16) + 8) + 'px'; };
     el._meter = el.querySelector('.fmeter i');
   } else {
     el = h('div', 'param' + (o.cls ? ' ' + o.cls : ''));
