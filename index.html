@@ -2958,9 +2958,10 @@ function doCapture() {
   if (!fresh.length) { toast('Nothing to capture yet. Play some pads first.'); return; }
   pushUndo('all'); let placed = 0, dropped = 0;
   const live = fresh.filter(e => e.pos), loose = fresh.filter(e => !e.pos);
-  for (const e of live) { const sc = P.scenes[e.pos.scene]; (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(e.pos.tick), len: e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); }
+  const qz = t => { const g = UI.tl.snap; return g ? Math.round(t / g) * g : t; };   // captured notes follow Snap, like recorded ones
+  for (const e of live) { const sc = P.scenes[e.pos.scene], L = sceneLen(e.pos.scene); (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(qz(e.pos.tick) % L), len: UI.tl.snap || e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); }
   if (loose.length) { const sc = P.scenes[UI.scene], len = sc.bars * BAR, t0 = loose[0].at, tpsec = 1 / spt();
-    for (const e of loose) { const t = (e.at - t0) * tpsec; if (t >= len) { dropped++; continue; } (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(t), len: e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); } }
+    for (const e of loose) { const t = (e.at - t0) * tpsec; if (t >= len) { dropped++; continue; } const tq = qz(t); if (tq >= len) { dropped++; continue; } (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(tq), len: UI.tl.snap || e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); } }
   P.scenes.forEach((_, i) => syncScene(i)); markDirty(); renderAll();
   toast(`Captured ${placed} note${placed === 1 ? '' : 's'}` + (dropped ? `; ${dropped} past the end of the scene were left out` : '') + '.');
 }
@@ -5237,6 +5238,13 @@ function pasteNotes() { if (!clipIs('notes')) return; const tl = UI.tl, d = CLIP
   if (at >= sceneLen(UI.scene)) { toast('No room after this'); return; }
   const map = x => ({ pi: tl.mode === 'keys' && d.one ? UI.pad : UI.bank * 16 + x.pi % 16, n: x.n });
   pushUndo('scene:' + UI.scene); showNotes(placeNotes(at, d.items.map(map))); }
+// Quantize: the selection (or every note in the lane) toward the Snap grid (1/16 when Snap is off); strength keeps some of the feel
+function quantizeNotes(strength = 1) { const tl = UI.tl, sc = P.scenes[UI.scene], g = tl.snap || 24, L = sceneLen(UI.scene);
+  let items = selItems(); if (!items.length) items = notesInBox(0, L, 0, maxRow());
+  if (!items.length) { toast('No notes to quantize'); return; } pushUndo('scene:' + UI.scene); let moved = 0;
+  for (const x of items) { const t = x.n.t, q = Math.round(t / g) * g, nt = fixT(Math.min(L - g, Math.max(0, t + (q - t) * strength))); if (Math.abs(nt - t) > 1e-6) { x.n.t = nt; moved++; touchPad(x.pi); } }
+  for (const pi of new Set(items.map(x => x.pi))) if (sc.notes[pi]) sc.notes[pi].sort((a, b) => a.t - b.t);
+  afterEdit(); toast(moved ? `Quantized ${moved} note${moved === 1 ? '' : 's'} to ${(SNAPS.find(s => s.t === g) || { l: '1/16' }).l}${strength < 1 ? ' at ' + Math.round(strength * 100) + '%' : ''}` : 'Already on the grid'); }
 function duplicateNote(fill) { const items = selItems(); if (!items.length) { toast('Select notes first'); return; } const { lo, span } = selSpan(items), L = sceneLen(UI.scene);
   if (lo + span >= L) { toast('No room after this'); return; } pushUndo('scene:' + UI.scene);
   const rel = items.map(x => ({ pi: x.pi, n: Object.assign({}, x.n, { t: fixT(x.n.t - lo) }) })); let copies = [];
@@ -5260,7 +5268,7 @@ function editContext() {
   if (UI.view === 'mix') return UI.mixSel < G0 ? 'pad' : 'chan';
   return 'pad';
 }
-const ED = { tab: {} };
+const ED = { tab: {}, qs: 1 };
 // the scene in miniature: notes, the selection in the accent colour, the bar range when on Bars
 function edOverview(body, bars) {
   const box = h('div', 'edview'), cv = h('canvas'); box.append(cv); body.append(box);
@@ -5291,7 +5299,8 @@ function openEdit() {
       if ((tab === 'Notes' || tab === 'Bars') && UI.view === 'seq' && tl.lane === 'notes') edOverview(body, tab === 'Bars');
       if (tab === 'Notes') {
         grid(key('Copy', () => copyNotes(), n > 0), key('Cut', () => copyNotes(true), n > 0), key('Paste', pasteNotes, clipIs('notes'), { stay: 1 }), key('Delete', deleteSel, n > 0, { cls: 'warn' }),
-          key('Duplicate', () => duplicateNote(), n > 0, { stay: 1, w: 2, cls: 'hot' }), key('Fill to end', () => duplicateNote(true), n > 0, { stay: 1 }), key('Select all', selectAll, true, { stay: 1 })); }
+          key('Duplicate', () => duplicateNote(), n > 0, { stay: 1, w: 2, cls: 'hot' }), key('Fill to end', () => duplicateNote(true), n > 0, { stay: 1 }), key('Select all', selectAll, true, { stay: 1 }),
+          key(n ? 'Quantize' : 'Quantize all', () => quantizeNotes(ED.qs), true, { stay: 1 }), ...[1, .75, .5].map(q => key(Math.round(q * 100) + '%', () => { ED.qs = q; }, true, { stay: 1, cls: 'sm' + (ED.qs === q ? ' on' : '') }))); }
       if (tab === 'Bars') { const lab = h('div', 'lcdbox edr', `Bar ${EDR.from + 1}${EDR.len > 1 ? '–' + (EDR.from + EDR.len) : ''} / ${sc.bars}`); lab.style.gridColumn = 'span 2';
         grid(key('◀', () => { EDR.from = Math.max(0, EDR.from - 1); }, EDR.from > 0, { stay: 1 }), lab, key('▶', () => { EDR.from = Math.min(sc.bars - 1, EDR.from + 1); EDR.len = Math.min(EDR.len, sc.bars - EDR.from); }, EDR.from < sc.bars - 1, { stay: 1 }),
           ...[1, 2, 4, 8].map(k => key(k + (k > 1 ? ' bars' : ' bar'), () => { EDR.len = k; }, EDR.from + k <= sc.bars, { stay: 1, cls: 'sm' + (EDR.len === k ? ' on' : '') })),

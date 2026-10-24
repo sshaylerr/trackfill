@@ -812,9 +812,10 @@ function doCapture() {
   if (!fresh.length) { toast('Nothing to capture yet. Play some pads first.'); return; }
   pushUndo('all'); let placed = 0, dropped = 0;
   const live = fresh.filter(e => e.pos), loose = fresh.filter(e => !e.pos);
-  for (const e of live) { const sc = P.scenes[e.pos.scene]; (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(e.pos.tick), len: e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); }
+  const qz = t => { const g = UI.tl.snap; return g ? Math.round(t / g) * g : t; };   // captured notes follow Snap, like recorded ones
+  for (const e of live) { const sc = P.scenes[e.pos.scene], L = sceneLen(e.pos.scene); (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(qz(e.pos.tick) % L), len: UI.tl.snap || e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); }
   if (loose.length) { const sc = P.scenes[UI.scene], len = sc.bars * BAR, t0 = loose[0].at, tpsec = 1 / spt();
-    for (const e of loose) { const t = (e.at - t0) * tpsec; if (t >= len) { dropped++; continue; } (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(t), len: e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); } }
+    for (const e of loose) { const t = (e.at - t0) * tpsec; if (t >= len) { dropped++; continue; } const tq = qz(t); if (tq >= len) { dropped++; continue; } (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(tq), len: UI.tl.snap || e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); } }
   P.scenes.forEach((_, i) => syncScene(i)); markDirty(); renderAll();
   toast(`Captured ${placed} note${placed === 1 ? '' : 's'}` + (dropped ? `; ${dropped} past the end of the scene were left out` : '') + '.');
 }
