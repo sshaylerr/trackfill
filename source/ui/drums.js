@@ -17,13 +17,13 @@ let drumT = 0, drumPend = new Set();
 function scheduleDrum(pi) { drumPend.add(pi); if (drumT) return; drumT = setTimeout(() => { drumT = 0; const s = [...drumPend]; drumPend.clear(); for (const p of s) refreshDrum(p); }, 45); }
 // the project key changed: tuned drums follow it
 function drumsFollowKey() { P.pads.forEach((p, i) => { if (p.src === 'drum' && p.drum && p.drum.key !== 'Free') refreshDrum(i, true); }); }
-function makeDrumPad(pi, mod, type) { const pad = P.pads[pi]; pushUndo('pad:' + pi); touchPad(pi); pad.drum = drumDefault(mod, type, 1 + Math.floor(Math.random() * 9999)); pad.src = 'drum'; pad.mode = 'one';
+function makeDrumPad(pi, mod, type) { const pad = P.pads[pi]; pushUndo('pad:' + pi); touchPad(pi); const was = pad.drum; pad.drum = drumDefault(mod, type, 1 + Math.floor(Math.random() * 9999)); if (was) pad.drum.mach = machOf(was); pad.src = 'drum'; pad.mode = 'one';
   if (!pad.name || DRUM_TYPE_NAMES.has(pad.name)) pad.name = type.slice(0, 12); refreshDrum(pi); renderAll(); audition(pi); }
 const DRUM_TYPE_NAMES = new Set(Object.values(DRUM_MODS).flatMap(m => Object.keys(m.types)));
 
 function drumFmt(d, id, v) {
-  if (id === 'tune' || id === 'pitch') { const M = d.mod; let hz = M === 'kick' ? 35 * Math.pow(2, v * 1.25) : M === 'snare' ? 150 * Math.pow(2, v * 1.1) : null;
-    if (M === 'perc') { const kind = (DRUM_MODS.perc.types[d.type][6] || {}).kind, base = { tom: 70, conga: 170, bongo: 300, rim: 480, cowbell: 540, clave: 2200, wood: 750, zap: 120 }[kind]; hz = base * Math.pow(2, (v - (kind === 'tom' ? 0 : .5)) * (kind === 'tom' ? 2 : 1)); }
+  if (id === 'tune' || id === 'pitch') { const M = d.mod; let hz = M === 'kick' || M === 'snare' ? drumBaseHz(M, v, machOf(d)) : null;
+    if (M === 'perc') { const kind = (DRUM_MODS.perc.types[d.type][6] || {}).kind, base = { tom: 70, conga: 170, bongo: 300, rim: 480, cowbell: 540, clave: 2200, wood: 750, zap: 120 }[kind]; hz = base * Math.pow(2, (v - (kind === 'tom' ? 0 : .5)) * (kind === 'tom' ? 2 : 1)) * (machOf(d) === 'Mini' ? 1.25 : 1); }
     if (hz) { if (DRUM_MODS[M].tuned && d.key !== 'Free') hz = keySnap(hz, d.key, P.key); const m = Math.round(12 * Math.log2(hz / 440) + 69); return Math.round(hz) + ' Hz · ' + NOTE_NAMES[((m % 12) + 12) % 12]; } }
   return Math.round(v * 100) + '%'; }
 function drumKnob(pi, id, label) {
@@ -37,7 +37,7 @@ function renderDrumPage(w, pi, head, pages) {
   const pad = P.pads[pi], d = pad.drum, M = DRUM_MODS[d.mod], types = Object.keys(M.types);
   const dev = h('div', 'dev synDev drumDev'); applyLook(dev, Object.assign({}, LOOK_BASE, DRUM_LOOK)); dev.dataset.eng = 'drum';
   const dh = h('div', 'devHead'), step = k => { const i = types.indexOf(d.type), t = types[(i + k + types.length) % types.length]; setDrumType(pi, t); };
-  const lcd = btn(`<span>${esc(d.type)}</span>${d.kit ? '<i>kit</i>' : ''}`, () => openDrumTypes(pi), 'presetLcd');
+  const sub = [machOf(d) !== 'Modern' ? DRUM_MACH_N[machOf(d)] : '', d.kit ? 'kit' : ''].filter(Boolean).join(' · '), lcd = btn(`<span>${esc(d.type)}</span>${sub ? '<i>' + esc(sub) + '</i>' : ''}`, () => openDrumTypes(pi), 'presetLcd');
   dh.append(btn(`<b>${esc(M.n)}</b><span class="car">▾</span>`, () => openDrumModules(pi), 'engKey'), btn(IC.left, () => step(-1), 'key sm ic pstep'), lcd, btn(IC.right, () => step(1), 'key sm ic pstep')); dev.append(dh);
   const row = h('div', 'keys synTabs drumRow'); row.append(btn('More like this', () => drumMoreLike(pi), 'key sm likeKey'));
   for (let i = 0; i < 4; i++) { const s = d.slots[i]; row.append(btn(s ? 'ABCD'[i] : '·', () => { if (s) drumSwapSlot(pi, i); }, 'key sm slotKey' + (s ? '' : ' empty'))); }
@@ -55,12 +55,12 @@ function drawDrumDisp() {
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H); const col = PAD_COLORS[pad.color];
   g.fillStyle = COL.line; for (let k = 1; k < 4; k++) g.fillRect(Math.round(W * k / 4), 0, 1, H); g.fillRect(0, Math.round(H / 2 + 8), W, 1);
   if (s) { const pk = samplePeaks(s, W), mid = H / 2 + 8, a = (H - 30) * .46; g.fillStyle = col; for (let x = 0; x < W; x++) { const mn = pk[x * 2], mx = pk[x * 2 + 1]; g.fillRect(x, mid - mx * a, 1, Math.max(1, (mx - mn) * a)); }
-    if (d.mod === 'kick') { const k = drumEffective(d, kitOf(pi)), hz = 35 * Math.pow(2, k.tune * 1.25), depth = 1.5 + k.punch * 9, tp = .012 + (1 - k.punch) * .05, dur = s.frames / s.sr; g.beginPath();
+    if (d.mod === 'kick' && machOf(d) === 'Modern') { const k = drumEffective(d, kitOf(pi)), hz = 35 * Math.pow(2, k.tune * 1.25), depth = 1.5 + k.punch * 9, tp = .012 + (1 - k.punch) * .05, dur = s.frames / s.sr; g.beginPath();
       for (let x = 0; x <= W; x += 2) { const t = x / W * dur, f = hz + (hz * depth - hz) * Math.exp(-t / tp), y = 22 + (1 - Math.log(f / 30) / Math.log(20)) * (H - 40); x ? g.lineTo(x, y) : g.moveTo(x, y); }
       g.strokeStyle = COL.accent; g.lineWidth = 1.5; g.globalAlpha = .8; g.stroke(); g.globalAlpha = 1; }
-    g.fillStyle = COL.mute; g.font = `500 10.5px ${FONT_LCD}`; g.textBaseline = 'middle'; g.fillText(`${DRUM_MODS[d.mod].n} · ${d.type} · ${(s.frames / s.sr * 1000).toFixed(0)} ms` + (d.mod === 'kick' ? ' · pitch drop' : '') + (d.kit ? ' · in kit' : ''), 8, 12); }
+    g.fillStyle = COL.mute; g.font = `500 10.5px ${FONT_LCD}`; g.textBaseline = 'middle'; g.fillText(`${DRUM_MODS[d.mod].n} · ${d.type}${machOf(d) !== 'Modern' ? ' · ' + DRUM_MACH_N[machOf(d)] : ''} · ${(s.frames / s.sr * 1000).toFixed(0)} ms` + (d.mod === 'kick' ? ' · pitch drop' : '') + (d.kit ? ' · in kit' : ''), 8, 12); }
 }
-function setDrumType(pi, type) { const pad = P.pads[pi], d = pad.drum; pushUndo('pad:' + pi); touchPad(pi); const nd = drumDefault(d.mod, type, d.seed); nd.kit = d.kit; nd.key = d.key; nd.locks = d.locks; nd.slots = d.slots;
+function setDrumType(pi, type) { const pad = P.pads[pi], d = pad.drum; pushUndo('pad:' + pi); touchPad(pi); const nd = drumDefault(d.mod, type, d.seed); nd.kit = d.kit; nd.mach = machOf(d); nd.key = d.key; nd.locks = d.locks; nd.slots = d.slots;
   for (const id of d.locks) nd.k[id] = d.k[id]; pad.drum = nd; if (!pad.name || DRUM_TYPE_NAMES.has(pad.name)) pad.name = type.slice(0, 12); refreshDrum(pi); renderView(); audition(pi); }
 function pushSlot(d) { const snap = JSON.parse(JSON.stringify(Object.assign({}, d, { slots: [] }))); d.slots = [snap, ...d.slots].slice(0, 4); }
 function drumMoreLike(pi) { const pad = P.pads[pi], d = pad.drum; pushUndo('pad:' + pi); touchPad(pi); pushSlot(d); const v = drumVariation(d, Math.floor(Math.random() * 1e9)); v.slots = d.slots; pad.drum = v; refreshDrum(pi); renderView(); audition(pi); }
@@ -71,7 +71,11 @@ function openDrumModules(pi) {
     for (const mod in DRUM_MODS) { const M = DRUM_MODS[mod]; st.append(btn(`<b>${M.n}</b><span>${Object.keys(M.types).length} types</span><i>${esc(Object.keys(M.types).join(' · '))}</i>`, () => { closeSheet(); makeDrumPad(pi, mod, Object.keys(M.types)[0]); }, 'btn prow' + (drumOf(pi).mod === mod ? ' on' : ''))); }
     card.append(st); }); }
 function openDrumTypes(pi) { const d = drumOf(pi), M = DRUM_MODS[d.mod];
-  openSheet(M.n + ' types', card => { const g = h('div', 'g2'); for (const t in M.types) g.append(btn(esc(t), () => { closeSheet(); setDrumType(pi, t); }, 'btn' + (d.type === t ? ' on' : ''))); card.append(g); }); }
+  openSheet(M.n, card => { const st = h('div', 'stack'); card.append(st);
+    st.append(h('div', 'sec', 'Machine')); const l = h('div', 'list');
+    for (const m of DRUM_MACHINES) { const li = h('div', 'li' + (machOf(d) === m ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${DRUM_MACH_N[m]}</b><span>${DRUM_MACH_SUB[m]}</span></div>`;
+      li.onclick = () => { if (machOf(d) !== m) { pushUndo('pad:' + pi); touchPad(pi); d.mach = m; refreshDrum(pi); audition(pi); } closeSheet(); renderView(); }; l.append(li); }
+    st.append(l, h('div', 'sec', 'Type')); const g = h('div', 'g2'); for (const t in M.types) g.append(btn(esc(t), () => { closeSheet(); setDrumType(pi, t); }, 'btn' + (d.type === t ? ' on' : ''))); st.append(g); }); }
 function openDrumMore(pi) {
   const pad = P.pads[pi], d = pad.drum, M = DRUM_MODS[d.mod];
   openSheet(M.n + ' · options', card => { const st = h('div', 'stack'); card.append(st);

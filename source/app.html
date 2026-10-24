@@ -415,9 +415,8 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 
 /* ---------- sheet + toast ---------- */
 /* menus are windows on the device's screen: they open over the view area (timeline, mixer, pads), the rest of the device stays put */
-#sheet{position:fixed;z-index:20;background:rgba(0,0,0,.55);display:flex;align-items:stretch;justify-content:center;padding:4px;border-radius:6px}
-#sheet .card{width:100%;max-width:780px;max-height:100%;align-self:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--bg);border:1px solid #000;border-radius:5px;
-  box-shadow:inset 0 2px 10px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.05),0 10px 30px rgba(0,0,0,.7);padding:0 10px 12px}
+#sheet{position:fixed;z-index:20;background:var(--bg);display:flex;align-items:stretch;justify-content:center;padding:0;border-radius:6px}
+#sheet .card{width:100%;max-width:780px;height:100%;max-height:100%;align-self:stretch;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--bg);border:1px solid var(--line);border-radius:6px;box-shadow:none;padding:0 10px 12px}
 .shTitle{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 -10px 6px;padding:0 6px 0 12px;height:38px;background:var(--panel);border-bottom:1px solid var(--line)}
 .shTitle span{font:600 12px var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .shTitle .btn{height:28px;font-size:12px}
@@ -432,9 +431,8 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 #sheet .card :is(.g2,.g3,.g4):not(.hrow)>.btn:active,#sheet .card .stack>.btn:active{background:var(--raised)}
 #sheet .card :is(.g2,.g3,.g4):not(.hrow)>.btn:disabled{opacity:.35}
 #sheet .card .btn.prow{display:grid;height:auto;min-height:50px;padding:7px 10px} #sheet .card .btn.prow.on::after{display:none}
-#sheet .card .list{gap:0;border-top:1px solid var(--line)} #sheet .card .li{background:none;border:0;border-bottom:1px solid var(--line);border-radius:0} #sheet .card .li.on{background:color-mix(in srgb,var(--accent) 10%,transparent)}
-#sheet.dock{background:rgba(0,0,0,.18)} #sheet.dock .card{align-self:flex-end;box-shadow:0 -6px 24px rgba(0,0,0,.5)}
-#sheet .edit{display:flex;flex-direction:column;gap:6px;padding:2px 0 4px;min-height:180px} #sheet .edg{gap:4px} #sheet .edg>.btn,#sheet .edg>.lcdbox{height:46px;min-height:46px;margin:0}
+#sheet .card .list{gap:0;border-top:1px solid var(--line)} #sheet .card .li{background:none;border:0;border-bottom:1px solid var(--line);border-radius:0} #sheet .card .li.on{background:color-mix(in srgb,var(--accent) 10%,transparent)} #sheet .card .li.on b{color:var(--accent)} #sheet .card .li.on::after{content:"●";margin-left:auto;padding-left:8px;font-size:9px;color:var(--accent)}
+#sheet .edit{display:flex;flex-direction:column;gap:6px;padding:2px 0 4px} #sheet .edview{height:92px;border:1px solid var(--line);border-radius:4px;background:var(--panel);overflow:hidden} #sheet .edview canvas{display:block;width:100%;height:100%} #sheet .edg{gap:4px} #sheet .edg>.btn,#sheet .edg>.lcdbox{height:46px;min-height:46px;margin:0}
 #sheet .edg>.btn.sm{height:34px;min-height:34px} #sheet .edtabs{gap:4px} #sheet .edtabs>.btn{height:30px;min-height:30px}
 #sheet .edg>.btn.hot:not(:disabled){color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,var(--line))} #sheet .edg>.btn.warn{color:var(--rec)}
 .shTitle .clipline{font-style:normal;color:var(--dim);font-weight:400;margin-left:2px}
@@ -1151,7 +1149,7 @@ function moveSelRows(d) { const tl = UI.tl, sc = P.scenes[UI.scene], items = sel
 // hear the selection: its first chord (every note starting with the earliest one, up to 8)
 function auditionSel() { const items = selItems(); if (!items.length || !ENG.node) return; const t0 = Math.min(...items.map(x => x.n.t));
   for (const x of items.filter(x => x.n.t - t0 < STACK_T).slice(0, 8)) { const pad = P.pads[x.pi]; if (!hasSound(pad)) continue; if (pad.sample) ensureSample(pad.sample); send({ t: 'hit', pad: x.pi, semi: x.n.p, vel: x.n.v, gate: .3, tag: 0 }); } }
-function selectAll() { const tl = UI.tl; setGroup(notesInBox(0, tlLen(), 0, maxRow())); if (tl.sel && tl.mode === 'bank') UI.pad = tl.sel.pi; drawTL(); updatePanel(); haptic(); toast(selItems().length + ' notes'); }
+function selectAll() { const tl = UI.tl; setGroup(notesInBox(0, tlLen(), 0, maxRow())); if (tl.sel && tl.mode === 'bank') UI.pad = tl.sel.pi; drawTL(); updatePanel(); haptic(); { const c = selItems().length; toast(c + (c === 1 ? ' note' : ' notes')); }; }
 function deleteSel() { const items = selItems(); if (!items.length) { toast('Select a note first'); return; } pushUndo('scene:' + UI.scene); const sc = P.scenes[UI.scene];
   for (const x of items) { touchPad(x.pi); const arr = sc.notes[x.pi]; if (!arr) continue; const i = arr.indexOf(x.n); if (i >= 0) arr.splice(i, 1); if (!arr.length) delete sc.notes[x.pi]; }
   clearSel(); afterEdit(); }
@@ -1325,7 +1323,7 @@ function openLibrary() {
 // the menu window sits exactly over the view area (and the scene strip above it when that leaves too little room)
 function placeSheet() { const S = $('#sheet'); if (S.hidden) return; const v = $('#view').getBoundingClientRect(), sc = $('#scenes').getBoundingClientRect(), top = v.height < 300 ? sc.top : v.top;
   Object.assign(S.style, { left: v.left + 'px', top: top + 'px', width: v.width + 'px', height: (v.bottom - top) + 'px' }); }
-function openSheet(title, build, onClose) { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } UI.sheetClose = onClose || null; navReset(); const S = $('#sheet'), card = S.querySelector('.card'); S.classList.remove('dock'); card.innerHTML = ''; const hd = h('div', 'shTitle'); hd.append(h('span', '', esc(title)), btn('Close', closeSheet, 'btn sm')); card.append(hd); build(card); S.hidden = false; UI.sheet = true; placeSheet(); card.scrollTop = 0; if (UI.panel) requestAnimationFrame(updatePanel); }
+function openSheet(title, build, onClose) { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } UI.sheetClose = onClose || null; navReset(); const S = $('#sheet'), card = S.querySelector('.card'); card.innerHTML = ''; const hd = h('div', 'shTitle'); hd.append(h('span', '', esc(title)), btn('Close', closeSheet, 'btn sm')); card.append(hd); build(card); S.hidden = false; UI.sheet = true; placeSheet(); card.scrollTop = 0; if (UI.panel) requestAnimationFrame(updatePanel); }
 function closeSheet() { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } navReset(); $('#sheet').hidden = true; UI.sheet = false; renderScenes(); renderView(); }
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 function confirmBtn(label, again, fn, cls = 'btn warn') { const b = btn(label, e => { if (e) e.stopPropagation(); if (b._armed) { fn(); return; } b._armed = true; b.textContent = again; setTimeout(() => { b._armed = false; b.textContent = label; }, 3000); }, cls); return b; }

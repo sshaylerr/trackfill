@@ -1,5 +1,5 @@
 /* ---------- Edit: one clipboard for pads, scenes, timeline bars, effect devices and channel strips ----------
-   The Edit key (top bar, or Shift + OK on the d-pad) opens it, docked at the bottom. Shift + Del duplicates the selected notes. */
+   The Edit key (top bar, or Shift + OK on the d-pad) opens it. Shift + Del duplicates the selected notes. */
 let CLIP = null;   // { kind: 'pad' | 'scene' | 'bars' | 'fx' | 'chain' | 'chan', label, data }
 const clone = o => JSON.parse(JSON.stringify(o));
 function setClip(kind, label, data) { CLIP = { kind, label, data: clone(data) }; toast('Copied: ' + label); }
@@ -122,7 +122,7 @@ function pasteChain(c) { if (!clipIs('chain')) return; pushUndo('chan:' + c); P.
 function copyChan(c) { const C = P.chans[c]; setClip('chan', `Channel ${chanName(c)}`, { vol: C.vol, pan: C.pan, sa: C.sa, sb: C.sb, fx: C.fx }); }
 function pasteChan(c) { if (!clipIs('chan')) return; pushUndo('chan:' + c); Object.assign(P.chans[c], clone(CLIP.data)); fxChanged(c); toast(`Pasted onto ${chanName(c)} (name and routing kept)`); }
 
-/* ----- the Edit sheet: docked at the bottom so the work stays in view; a few tabs, one grid of keys each, nothing to scroll ----- */
+/* ----- the Edit sheet: a few tabs, one grid of keys each, nothing to scroll; a small overview of the scene shows each edit land ----- */
 function editContext() {
   if (UI.view === 'seq') return 'bars';
   if (UI.view === 'fx') return 'fx';
@@ -130,6 +130,20 @@ function editContext() {
   return 'pad';
 }
 const ED = { tab: {} };
+// the scene in miniature: notes, the selection in the accent colour, the bar range when on Bars
+function edOverview(body, bars) {
+  const box = h('div', 'edview'), cv = h('canvas'); box.append(cv); body.append(box);
+  requestAnimationFrame(() => { if (!cv.isConnected) return; const r = box.getBoundingClientRect(), dpr = devicePixelRatio || 1, W = Math.max(1, r.width - 2), H = Math.max(1, r.height - 2);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sc = P.scenes[UI.scene], tl = UI.tl, L = sceneLen(UI.scene), x = t => 4 + t / L * (W - 8), sel = new Set(selItems().map(q => q.n));
+    if (bars) { g.fillStyle = COL.accent; g.globalAlpha = .14; g.fillRect(x(EDR.from * BAR), 0, x((EDR.from + EDR.len) * BAR) - x(EDR.from * BAR), H); g.globalAlpha = 1; }
+    g.fillStyle = COL.line; for (let b = 0; b <= sc.bars; b++) g.fillRect(Math.round(x(b * BAR)), 0, 1, H);
+    let rows, rowOf; if (tl.mode === 'keys') { const ns = sc.notes[UI.pad] || [], ps = ns.map(n => n.p); const lo = Math.min(...ps, 0) - 1, hi = Math.max(...ps, 12) + 1; rows = [[UI.pad, ns]]; rowOf = (pi, n) => (hi - n.p) / (hi - lo); }
+    else { rows = []; for (let k = 0; k < 16; k++) rows.push([UI.bank * 16 + k, sc.notes[UI.bank * 16 + k] || []]); rowOf = pi => (pi % 16 + .5) / 16; }
+    const rh = Math.max(2, Math.min(5, (H - 8) / (tl.mode === 'keys' ? 26 : 16)));
+    for (const [pi, ns] of rows) for (const n of ns) { const y = 4 + rowOf(pi, n) * (H - 8) - rh / 2, on = sel.has(n);
+      g.fillStyle = on ? COL.accent : PAD_COLORS[P.pads[pi].color]; g.globalAlpha = on ? 1 : .55; g.fillRect(x(n.t), y, Math.max(2, x(n.t + n.len) - x(n.t) - 1), rh); }
+    g.globalAlpha = 1; }); }
 function openEdit() {
   const ctx = editContext(), tl = UI.tl, notes = ctx === 'bars' && tl.lane === 'notes';
   if (ctx === 'bars') { const t = tl.sel ? tl.sel.n.t : tl.cursor.t || 0; EDR.from = clamp(Math.floor(t / BAR), 0, P.scenes[UI.scene].bars - 1); EDR.len = Math.min(EDR.len || 1, P.scenes[UI.scene].bars - EDR.from) || 1; }
@@ -143,6 +157,7 @@ function openEdit() {
     const draw = () => { const keys = () => [...body.querySelectorAll('.btn')], fi = NAV.el && body.contains(NAV.el) ? keys().indexOf(NAV.el) : -1; body.innerHTML = ''; title.innerHTML = 'Edit' + (CLIP ? ` <i class="clipline">· Clip <b>${esc(CLIP.label)}</b></i>` : '');
       if (tabs.length > 1) { const tb = h('div', 'g' + tabs.length + ' hrow edtabs'); for (const t of tabs) tb.append(btn(t, () => { tab = ED.tab[ctx] = t; draw(); }, 'btn sm' + (t === tab ? ' on' : ''))); body.append(tb); }
       const n = selItems().length, sc = P.scenes[UI.scene];
+      if ((tab === 'Notes' || tab === 'Bars') && UI.view === 'seq' && tl.lane === 'notes') edOverview(body, tab === 'Bars');
       if (tab === 'Notes') {
         grid(key('Copy', () => copyNotes(), n > 0), key('Cut', () => copyNotes(true), n > 0), key('Paste', pasteNotes, clipIs('notes'), { stay: 1 }), key('Delete', deleteSel, n > 0, { cls: 'warn' }),
           key('Duplicate', () => duplicateNote(), n > 0, { stay: 1, w: 2, cls: 'hot' }), key('Fill to end', () => duplicateNote(true), n > 0, { stay: 1 }), key('Select all', selectAll, true, { stay: 1 })); }
@@ -165,5 +180,4 @@ function openEdit() {
       if (UI.panel) requestAnimationFrame(updatePanel); };
     draw();
   });
-  $('#sheet').classList.add('dock'); placeSheet();
 }
