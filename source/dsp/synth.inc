@@ -12,7 +12,10 @@ enum { NSV = 32, NROUTE = 32, LFOT = 256, MAXUNI = 7, CMB = 2048 };
 struct Route { i32 src, dst, curve, via; float amt; };
 struct Grain { double pos; float inc, t, len, gl, gr; i32 on; };
 enum { NGRAIN = 24, GRAIN_CAP = 128 };
+struct Zone { float root, lo, hi, vlo, vhi, g; u32 st, en, ls, le; };
+enum { NZONE = 48 };
 struct Patch {
+  i32 isid, inz; Zone iz[NZONE];   // instrument: one sample, its zones
   i32 gsrc;    // granular source (an engine sample id; 0: none)
   i32 wt[2];   // wavetable ids for oscillators A and B (0: none)
   float p[NSP]; float lfo[4][LFOT]; Route r[NROUTE]; i32 nr, on, mode, poly; float glide;
@@ -37,6 +40,7 @@ struct SVoice {
   i32 ost[4]; float oev[4], oet[4], oef[4], oamp[4];
   // Sub engine: time since the note began (pitch drop), phase, crossover low-pass (clean sub, mono) and high-pass + tone (per channel), click
   float sut, suph, slo[4], shi[2][4], sto[2][2], ckz; i32 ckn;
+  i32 izn, idone; double ipos[2]; float ilp[2];   // Instrument: zone, read positions (second one for Width), velocity tone filter
   float cmb[2][CMB]; i32 cw;
 };
 static Patch* pat[NPAD];
@@ -59,6 +63,9 @@ static Patch* patch(i32 pad) {
 EX void tf_syn_on(i32 pad, i32 on) { Patch* P = patch(pad); if (P) P->on = on ? 1 : 0; if (!on) for (i32 v = 0; v < NSV; v++) if (sv[v].on && sv[v].pad == pad) sv[v].on = 0; }
 EX void tf_syn_param(i32 pad, i32 i, float v) { Patch* P = patch(pad); if (P && i >= 0 && i < NSP) P->p[i] = sane(v, 0.f, 1.f, 0.f); }
 EX float* tf_syn_lfo(i32 pad, i32 k) { Patch* P = patch(pad); return P && k >= 0 && k < 4 ? P->lfo[k] : 0; }
+EX void tf_syn_ins(i32 pad, i32 sid, i32 nz) { Patch* P = patch(pad); if (!P) return; P->isid = sid > 0 && sid < NSAMP && samp[sid].d ? sid : 0; P->inz = nz < 0 ? 0 : (nz > NZONE ? NZONE : nz); }
+EX void tf_syn_zone(i32 pad, i32 k, float root, float lo, float hi, float vlo, float vhi, u32 st, u32 en, u32 ls, u32 le, float g) { Patch* P = patch(pad); if (!P || k < 0 || k >= NZONE) return;
+  Zone* z = &P->iz[k]; z->root = root; z->lo = lo; z->hi = hi; z->vlo = vlo; z->vhi = vhi; z->st = st; z->en = en; z->ls = ls; z->le = le; z->g = sane(g, 0.f, 8.f, 1.f); }
 EX void tf_syn_voice(i32 pad, i32 mode, i32 poly, float glide) { Patch* P = patch(pad); if (!P) return; P->mode = mode < 0 || mode > 2 ? 0 : mode; P->poly = poly < 1 ? 1 : (poly > NSV ? NSV : poly); P->glide = sane(glide, 0.f, 10.f, 0.f); }
 EX void tf_syn_routes(i32 pad, i32 n) { Patch* P = patch(pad); if (!P) return; P->nr = n < 0 ? 0 : (n > NROUTE ? NROUTE : n); for (i32 i = 0; i < NSP; i++) P->used[i] = 0; P->srcUsed = 0; }
 EX void tf_syn_route(i32 pad, i32 k, i32 src, i32 dst, float amt, i32 curve, i32 via) {
@@ -97,6 +104,11 @@ EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 ta
   if (!retrig) { for (i32 o = 0; o < 2; o++) for (i32 u = 0; u < MAXUNI; u++) v->wph[o][u] = (frnd(&svRng) + 1.f) * 0.5f; v->sph = (frnd(&svRng) + 1.f) * 0.5f; for (i32 k = 0; k < 4; k++) for (i32 u = 0; u < MAXUNI; u++) v->fph[k][u] = (frnd(&svRng) + 1.f) * 0.5f; }
   for (i32 k = 0; k < 4; k++) { v->lph[k] = P->p[SP_L1P + k * 6]; v->ldone[k] = 0; }
   if (disc(P->p[SP_SUP], 2)) v->suph = (frnd(&svRng) + 1.f) * 0.5f;
+  v->izn = -1; if (P->isid && P->inz) {   // instrument: the zone for this key and velocity (or the nearest root), started at Start
+    const Samp* S = &samp[P->isid]; float best = 1e9f; const float vv = sane(vel, 0.f, 1.f, .8f);
+    for (i32 k = 0; k < P->inz; k++) { const Zone* z = &P->iz[k]; const i32 inV = vv >= z->vlo - 1e-4f && vv <= z->vhi + 1e-4f; if (!inV) continue;
+      const float d = (semi >= z->lo && semi <= z->hi) ? -1.f : fabsf_(semi - z->root); if (d < best) { best = d; v->izn = k; } }
+    if (v->izn >= 0 && S->d) { const Zone* z = &P->iz[v->izn]; const float off = P->p[SP_IST] * minf(0.5f * S->sr, (float)(z->en - z->st) * 0.5f); v->ipos[0] = v->ipos[1] = z->st + off; } }
   v->gtm = 0.f; v->grng = 0x9e3779b9u ^ (svAge * 2654435761u); v->gph = -1.0;
   v->ampPrev = 0.f;   // sequencer offsets within a 16-sample block start at the block (under 0.4 ms)
   return slot;
@@ -346,12 +358,20 @@ static void renderSynth(i32 n) {
       xg = ftan(3.14159265f * clampf(spPhys(SP_SXO, m[SP_SXO]), 20.f, 0.4f * SR) / SR); tg = ftan(3.14159265f * clampf(spPhys(SP_STO, m[SP_STO]), 40.f, 0.42f * SR) / SR);
       sdM = disc(m[SP_SDM], 3); sdG = 1.f + m[SP_SDR] * m[SP_SDR] * 24.f; sdN = 1.f / fsat(sdG); if (m[SP_SDR] < 0.001f) sdM = -1;
       ckA = m[SP_CKL]; ckC = onepole(spPhys(SP_CKT, m[SP_CKT])); }
+    // Instrument engine: the zone's sample, repitched from its root; loops between its loop points (or plays once); Width adds a detuned second read
+    const i32 isIN = disc(m[SP_ENG], NENG) == 5; const Samp* IS = 0; const Zone* IZ = 0; float iInc = 0, iInc2 = 0, iG = 0, iLp = 0; i32 iLoop = 0, iW = 0;
+    if (isIN) { nOn = 0; if (v->idone) { v->on = 0; continue; }
+      if (P->isid && v->izn >= 0 && v->izn < P->inz && samp[P->isid].d) { IS = &samp[P->isid]; IZ = &P->iz[v->izn];
+        const float semis = v->semi + chBendS[v->pad] + spPhys(SP_IOC, m[SP_IOC]) * 12.f + spPhys(SP_ISE, m[SP_ISE]) + spPhys(SP_IFI, m[SP_IFI]) * 0.01f - IZ->root;
+        iInc = fexp(semis * 0.0577622650f) * IS->sr / SR; iW = m[SP_IWD] > 0.001f; iInc2 = iInc * fexp(m[SP_IWD] * 0.12f * 0.0577622650f); iInc *= fexp(-m[SP_IWD] * 0.12f * 0.0577622650f);
+        iLoop = !disc(m[SP_ILO], 2) && IZ->le > IZ->ls + 8; iG = IZ->g;
+        iLp = onepole(minf(0.45f * SR, 20000.f * fexp(-m[SP_IVT] * (1.f - v->vel) * 4.f * 0.693147181f))); } }
     const i32 sync = disc(m[SP_O2Y], 2); const float fm = m[SP_O2M];
     const i32 U = (i32)spPhys(SP_UNI, m[SP_UNI]); const float det = m[SP_DET], spr = U > 1 ? m[SP_SPR] : 0.f, ug = 1.f / sqrtf_((float)U);
     float dm[MAXUNI], panL[MAXUNI], panR[MAXUNI];
     for (i32 u = 0; u < U; u++) { float x = U > 1 ? (2.f * u / (U - 1) - 1.f) : 0.f; dm[u] = fexp(x * det * det * 0.6f * 0.0577622650f * (1.f + 0.4f * fabsf_(x)));   // JP-style: outer voices spread further
       float pn = x * spr; panL[u] = sqrtf_(0.5f * (1.f - pn)) * 1.41421356f * ug; panR[u] = sqrtf_(0.5f * (1.f + pn)) * 1.41421356f * ug; }
-    const i32 stereo = (spr > 0.001f && !isSU) || isGR || (isSU && suW);
+    const i32 stereo = (spr > 0.001f && !isSU && !isIN) || isGR || (isSU && suW) || (isIN && iW);
     // filter
     const i32 ftype = disc(m[SP_FLT], 7);
     float fc = spPhys(SP_CUT, m[SP_CUT]) * fexp((m[SP_KEY] * v->semi / 12.f + linmap(m[SP_FEN], -1, 1) * 5.f * v->ev[1]) * 0.693147181f);
@@ -402,6 +422,15 @@ static void renderSynth(i32 n) {
           G->pos += G->inc; if (G->pos >= fr) G->pos -= fr; else if (G->pos < 0.0) G->pos += fr; G->t += 1.f; if (G->t >= G->len) G->on = 0; }
       }
       else if (isSU) {}
+      else if (IS) {   // instrument: linear reads (the instruments are stored at a low rate, like the old ROM players)
+        const i16* d = IS->d; const i32 ch = IS->ch; float y[2] = { 0, 0 };
+        for (i32 r = 0; r < (iW ? 2 : 1); r++) { double& p = v->ipos[r]; if (p >= IZ->en - 1) { v->idone = 1; continue; }
+          const i32 i0 = (i32)p; const float f = (float)(p - i0); i32 i1 = i0 + 1; if (iLoop && (u32)i1 >= IZ->le) i1 = IZ->ls;
+          float a = d[i0 * ch], b = d[i1 * ch]; if (ch == 2) { a = (a + d[i0 * 2 + 1]) * 0.5f; b = (b + d[i1 * 2 + 1]) * 0.5f; }
+          y[r] = (a + (b - a) * f) * 3.0517578e-5f * iG; p += r ? iInc2 : iInc;
+          if (iLoop) { const double L = (double)(IZ->le - IZ->ls); while (p >= IZ->le) p -= L; } }
+        if (!iW) y[1] = y[0]; else if (v->idone) { v->idone = (v->ipos[0] >= IZ->en - 1 && v->ipos[1] >= IZ->en - 1); }
+        v->ilp[0] += (y[0] - v->ilp[0]) * iLp; v->ilp[1] += (y[1] - v->ilp[1]) * iLp; sL = v->ilp[0]; sR = v->ilp[1]; }
       else if (isWT) for (i32 u = 0; u < U; u++) {   // B first (A can take it for FM/AM/Ring), then A; B's cross-modulation uses A's last sample
         float x = 0;
         for (i32 oo = 1; oo >= 0; oo--) { if (!((wOn >> oo) & 1)) { v->wlast[oo][u] = 0.f; continue; } const i32 o = oo, w = wW[o]; float& ph = v->wph[o][u]; const float other = v->wlast[1 - o][u], a = wAmt[o];
