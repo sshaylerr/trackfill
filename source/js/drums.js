@@ -26,10 +26,13 @@ const DRUM_HAND = [
   ['perc', 'Clave', 'Modern', { tL: 1, f0: 2500, tD: .022, shape: .2, cL: .2, cF: 5000, cD: .0005 }],
   ['perc', 'Wood', 'Modern', { tL: 1, f0: 900, tD: .03, a2: .5, r2: 2.7, d2: .015, shape: .3, nL: .2, nD: .006, nHp: 1500, cL: .3, cF: 3000, cD: .0008 }],
   ['perc', 'Zap', 'Modern', { tL: 1, f0: 140, sw: 40, swT: .025, tD: .12, shape: .6, td: .3 }]];
+// peak level per kind of drum (dBFS), the way a mixed kit sits: kick loudest, hats and cymbals well under it
+const DRUM_PEAK = { kick: -1, snare: -3, clap: -4, snap: -6, tom: -4, perc: -7, 'closed hat': -10, 'open hat': -9, ride: -11, crash: -10, shaker: -12 };
 // modules and their types: { name: { m: machine, v: voice } } in machine order
 const DRUM_MODS = (() => { const M = {}; for (const mod of Object.keys(DRUM_KNOBS)) M[mod] = { n: DRUM_MOD_N[mod], knobs: DRUM_KNOBS[mod], tuned: mod === 'kick' || mod === 'perc', types: {} };
-  const all = [...DRP(), ...DRUM_HAND]; for (const mc of DRUM_MACHINES) for (const [mod, name, m, v] of all) if (m === mc && M[mod]) M[mod].types[mc === 'Modern' ? name : mc + ' ' + name] = { m, n: name, v };   // ids stay unique across machines
+  const all = [...DRP(), ...DRUM_HAND]; for (const mc of DRUM_MACHINES) for (const [mod, name, m, v, , kind] of all) if (m === mc && M[mod]) M[mod].types[mc === 'Modern' ? name : mc + ' ' + name] = { m, n: name, v, kind: DRUM_PEAK[kind] ? kind : 'perc' };   // ids stay unique across machines
   return M; })();
+const drumKind = d => { const t = DRUM_MODS[d.mod] && DRUM_MODS[d.mod].types[d.type]; return t ? t.kind : 'perc'; };
 const DRUM_KEYLOCK = ['Free', 'Root', 'Fifth'];
 const drumTypeName = (mod, type) => { const t = DRUM_MODS[mod] && DRUM_MODS[mod].types[type]; return t ? t.n : type; };
 const machOf = d => DRUM_MACHINES.includes(d.mach) ? d.mach : 'Modern';
@@ -100,10 +103,10 @@ function drumRender(d, opts = {}) {
   const out = DVD().dvRender(v, { sr: DRUM_SR, seed: d.seed || 1, width: w }); let L, R; if (out.L) { L = out.L; R = out.R; } else { L = out; R = Float32Array.from(out); }
   const room = opts.kit && d.kit ? opts.kit.room : (d.mod === 'clap' ? k.room : 0);
   if (room > .01) { const pad = Math.round(DRUM_SR * (.15 + room * .6)), L2 = new Float32Array(L.length + pad), R2 = new Float32Array(R.length + pad); L2.set(L); R2.set(R); L = L2; R = R2; roomize(L, R, room, rnd); }
-  // trim the silent tail and normalise to about -1 dBFS so every drum lands at the same level
+  // trim the silent tail and set the peak for its kind (DRUM_PEAK), so a fresh kit is already roughly balanced
   let pk = 1e-9; for (let i = 0; i < L.length; i++) pk = Math.max(pk, Math.abs(L[i]), Math.abs(R[i]));
   let end = L.length; const th = pk * 3e-4; while (end > 64 && Math.abs(L[end - 1]) < th && Math.abs(R[end - 1]) < th) end--;
-  const g = .89 / pk, fade = Math.min(256, end); for (let i = 0; i < end; i++) { const f = i > end - fade ? (end - i) / fade : 1; L[i] *= g * f; R[i] *= g * f; }
+  const g = Math.pow(10, DRUM_PEAK[drumKind(d)] / 20) / pk, fade = Math.min(256, end); for (let i = 0; i < end; i++) { const f = i > end - fade ? (end - i) / fade : 1; L[i] *= g * f; R[i] *= g * f; }
   return { L: L.subarray(0, end), R: R.subarray(0, end), sr: DRUM_SR };
 }
 // a small stereo room: early reflections plus a short diffuse tail
@@ -159,5 +162,5 @@ function drumKit(vibe, seed = 1) { const V = DRUM_VIBES.find(v => v[0] === vibe)
   return { kit: { vibe: V[0], tune: V[12], len: V[13], bright: V[14], drive: V[15], room: V[16], seed }, pieces: KIT_ROLES.map((R, i) => ({ role: R[0], d: drumKitPiece(V[0], i, seed) })) }; }
 function drumKey(d, kit, key) { const k = drumEffective(d, kit), tuned = DRUM_MODS[d.mod].tuned && d.key !== 'Free';
   return 'd:' + d.mod + ':' + d.type + ':' + d.seed + (d.vj ? 'v' + Math.round(d.vj * 100) : '') + ':' + Object.values(k).map(v => Math.round(v * 1000)).join(',') + (tuned && key ? ':' + key.root + d.key : '') + (kit && d.kit ? ':r' + Math.round(kit.room * 100) : ''); }
-if (typeof module !== 'undefined') module.exports = { DRUM_SR, DRUM_MODS, DRUM_KEYLOCK, DRUM_MACHINES, DRUM_MACH_N, DRUM_MACH_SUB, drumTypesFor, drumMachinesFor, drumTypeName, drumHz, drumVoice, drumSetMachine, DRUM_VIBES, KIT_ROLES,
+if (typeof module !== 'undefined') module.exports = { DRUM_SR, DRUM_PEAK, drumKind, DRUM_MODS, DRUM_KEYLOCK, DRUM_MACHINES, DRUM_MACH_N, DRUM_MACH_SUB, drumTypesFor, drumMachinesFor, drumTypeName, drumHz, drumVoice, drumSetMachine, DRUM_VIBES, KIT_ROLES,
   drumDefault, drumNormalize, drumRender, drumVariation, drumKit, drumKitPiece, drumKey, drumEffective, keySnap, machOf, knobDef };

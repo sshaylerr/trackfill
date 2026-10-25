@@ -3,7 +3,7 @@
    and a strip of slice pads below that light up (with a playhead on the waveform) as slices play.
    D-pad on the waveform: ←→ pick a slice and play it, ↑↓ zoom, hold OK + ←→ move its start, Del removes it. */
 const CHOP_BY = ['t', 'e', 'm'], OV_H = 16;
-const CV = { cv: null, W: 0, H: 0, pi: -1, a: 0, b: 1, ph: null, raf: 0, drag: null, byWas: null };
+const CV = { cv: null, W: 0, H: 0, pi: -1, a: 0, b: 1, ph: null, raf: 0, drag: null, pinch: null, byWas: null };
 const sliceCol = k => PAD_COLORS[((k % PAD_COLORS.length) + PAD_COLORS.length) % PAD_COLORS.length];
 function sliceAt(c, f) { let k = -1; for (let i = 0; i < c.pts.length; i++) if (c.pts[i] <= f) k = i; return k; }
 const msFrac = (s, ms) => ms / 1000 * s.sr / s.frames;
@@ -72,7 +72,7 @@ function chopTick() { CV.raf = 0; const ph = CV.ph; drawChop(); if (ph && perfor
 function chopZoom(f) {
   const pad = P.pads[UI.pad], s = SAMPLES.get(pad.sample), c = chopOf(UI.pad); if (!s) return;
   let mid = (CV.a + CV.b) / 2; if (c) { const [a, b] = sliceRange(pad, UI.slice); mid = (a + b) / 2; }
-  const wdt = clamp((CV.b - CV.a) * f, Math.min(1, 256 / s.frames), 1); CV.a = clamp(mid - wdt / 2, 0, 1 - wdt); CV.b = CV.a + wdt; drawChop(); updatePanel();
+  const wdt = clamp((CV.b - CV.a) * f, chopMinW(), 1); CV.a = clamp(mid - wdt / 2, 0, 1 - wdt); CV.b = CV.a + wdt; drawChop(); updatePanel();
 }
 function chopShow(k) { const pad = P.pads[UI.pad], c = chopOf(UI.pad); if (!c) return; const [a, b] = sliceRange(pad, k), wdt = CV.b - CV.a;
   if (a < CV.a || a > CV.b - wdt * .1) { CV.a = clamp(a - wdt * .25, 0, 1 - wdt); CV.b = CV.a + wdt; } }
@@ -120,24 +120,38 @@ function drawChop() {
   txt(pad.tempo ? `${pad.tempo} → ${P.bpm} BPM` : 'Tempo off', W - 6, bot + FOOT / 2, pad.tempo ? COL.accent : COL.dim, 'right');
 }
 
-/* ---------- touch: tap a slice to play it, drag a marker to move it, drag the overview or the wave to scroll ---------- */
+/* ---------- touch: tap a slice to play it, drag a marker to move it, drag the overview or the wave to scroll; two fingers zoom and scroll, like the timeline ---------- */
+// the shortest window: 256 frames
+const chopMinW = () => { const s = SAMPLES.get(P.pads[UI.pad].sample); return s ? Math.min(1, 256 / s.frames) : 1; };
+// zoom to a width, keeping the sample position f at screen fraction xf
+function chopWindow(wdt, f, xf) { wdt = clamp(wdt, chopMinW(), 1); CV.a = clamp(f - xf * wdt, 0, 1 - wdt); CV.b = CV.a + wdt; drawChop(); }
 function bindChop(cv) {
-  const local = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-  cv.addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); try { cv.setPointerCapture(e.pointerId); } catch (_) {}
-    const { x, y } = local(e), c = chopOf(UI.pad), span = CV.b - CV.a; let d = { id: e.pointerId, x0: x, a0: CV.a, moved: false, kind: 'tap' };
+  const local = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }, ptrs = new Map();
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} const p0 = local(e); ptrs.set(e.pointerId, p0);
+    if (ptrs.size === 2) { const d = CV.drag; if (d && d.pushed) { const u = UNDO.pop(); if (u) scopeSet(u.scope, JSON.parse(u.data)); }   // a marker drag that turned into a pinch is undone
+      const [a, b] = [...ptrs.values()], span = CV.b - CV.a, cx = (a.x + b.x) / 2; CV.drag = null; CV.pinch = { dx0: Math.abs(a.x - b.x), w0: span, f0: CV.a + cx / CV.W * span }; return; }
+    if (ptrs.size > 1 || CV.pinch) return;
+    const { x, y } = p0, c = chopOf(UI.pad), span = CV.b - CV.a; let d = { id: e.pointerId, x0: x, a0: CV.a, moved: false, kind: 'tap' };
     if (y < (CV.ov || OV_H) + 3) { d.kind = 'ov'; chopCenter(x / CV.W); }
     else if (c) { let best = 14, k = -1; c.pts.forEach((v, i) => { const dd = Math.abs((v - CV.a) / span * CV.W - x); if (dd < best) { best = dd; k = i; } });
       if (k >= 0) { d.kind = 'mk'; d.k = k; selectSlice(k); } }
     CV.drag = d; });
-  cv.addEventListener('pointermove', e => { const d = CV.drag; if (!d || e.pointerId !== d.id) return; const { x } = local(e); if (!d.moved && Math.abs(x - d.x0) > 6) d.moved = true; if (!d.moved) return;
+  cv.addEventListener('pointermove', e => { if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, local(e));
+    const pz = CV.pinch; if (pz) { if (ptrs.size < 2) return; const [a, b] = [...ptrs.values()], dx = Math.abs(a.x - b.x), cx = (a.x + b.x) / 2;
+      chopWindow(pz.dx0 > 40 ? pz.w0 * pz.dx0 / Math.max(1, dx) : pz.w0, pz.f0, cx / CV.W); return; }
+    const d = CV.drag; if (!d || e.pointerId !== d.id) return; const { x } = local(e); if (!d.moved && Math.abs(x - d.x0) > 6) d.moved = true; if (!d.moved) return;
     if (d.kind === 'ov') { chopCenter(x / CV.W); return; }
     if (d.kind === 'tap') { const span = CV.b - CV.a; CV.a = clamp(d.a0 - (x - d.x0) / CV.W * span, 0, 1 - span); CV.b = CV.a + span; drawChop(); return; }
     if (d.kind === 'mk') { if (!d.pushed) { pushUndo('pad:' + UI.pad); touchPad(UI.pad); d.pushed = true; d.by = chopOf(UI.pad).by; }
       moveSlice(d.k, CV.a + x / CV.W * (CV.b - CV.a), true); } });
-  const up = e => { const d = CV.drag; if (!d || e.pointerId !== d.id) return; CV.drag = null; const { x } = local(e), c = chopOf(UI.pad);
+  const up = e => { if (!ptrs.delete(e.pointerId)) return; if (CV.pinch) { if (!ptrs.size) { CV.pinch = null; updatePanel(); } return; }
+    const d = CV.drag; if (!d || e.pointerId !== d.id) return; CV.drag = null; const { x } = local(e), c = chopOf(UI.pad);
     if (d.kind === 'tap' && !d.moved) { if (c) { const k = sliceAt(c, CV.a + x / CV.W * (CV.b - CV.a)); if (k >= 0) playSlice(UI.pad, k, .25); } else audition(UI.pad); }
     if (d.kind === 'mk') { if (d.pushed) { if (d.by !== 'm') renderView(); else UI.regs.forEach(r => r.upd && r.upd()); } playSlice(UI.pad, d.k, .25); } };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { e.preventDefault(); const span = CV.b - CV.a, xf = clamp(local(e).x / CV.W, 0, 1);
+    if (e.ctrlKey || e.metaKey) chopWindow(span * Math.exp(e.deltaY * .01), CV.a + xf * span, xf);
+    else { const dd = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY; CV.a = clamp(CV.a + dd / CV.W * span, 0, 1 - span); CV.b = CV.a + span; drawChop(); } }, { passive: false });
 }
 function chopCenter(f) { const span = CV.b - CV.a; CV.a = clamp(f - span / 2, 0, 1 - span); CV.b = CV.a + span; drawChop(); }
 // moves a slice start, keeping 2 ms clear of its neighbours; any hand edit makes the slicing manual

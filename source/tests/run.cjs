@@ -355,9 +355,9 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       ok(n >= 26 && kb < 3000, `${n} instruments ship in ${(kb / 1024).toFixed(2)} MB`); }
   }
   console.log('drum synth');
-  { let bad = 0, n = 0, lv = [], longest = 0; for (const mod in DR.DRUM_MODS) for (const type in DR.DRUM_MODS[mod].types) { const r = DR.drumRender(DR.drumDefault(mod, type, 3), { key: { root: 0 } }); n++;
-      let pk = 0; for (let i = 0; i < r.L.length; i++) { if (!(r.L[i] === r.L[i]) || !(r.R[i] === r.R[i])) bad++; pk = Math.max(pk, Math.abs(r.L[i]), Math.abs(r.R[i])); } lv.push(pk); longest = Math.max(longest, r.L.length / r.sr); }
-    ok(!bad && lv.every(p => p > .5 && p <= .9) && longest <= 4.6, `all ${n} drum types render cleanly at a matched level (peaks ${Math.min(...lv).toFixed(2)}–${Math.max(...lv).toFixed(2)}, longest ${longest.toFixed(1)} s)`); }
+  { let bad = 0, n = 0, lv = [], longest = 0; for (const mod in DR.DRUM_MODS) for (const type in DR.DRUM_MODS[mod].types) { const d = DR.drumDefault(mod, type, 3), r = DR.drumRender(d, { key: { root: 0 } }); n++;
+      let pk = 0; for (let i = 0; i < r.L.length; i++) { if (!(r.L[i] === r.L[i]) || !(r.R[i] === r.R[i])) bad++; pk = Math.max(pk, Math.abs(r.L[i]), Math.abs(r.R[i])); } lv.push(20 * Math.log10(pk) - DR.DRUM_PEAK[DR.drumKind(d)]); longest = Math.max(longest, r.L.length / r.sr); }
+    ok(!bad && lv.every(e => Math.abs(e) < .05) && longest <= 4.6, `all ${n} drum types render cleanly at their kind's level (kick ${DR.DRUM_PEAK.kick} dB … shaker ${DR.DRUM_PEAK.shaker} dB; longest ${longest.toFixed(1)} s)`); }
   { // every fitted type sits close to its measured reference (distance on log spectrograms: two settings of one classic snare are 6-10 apart)
     const P = require('../js/drumpresets.js').DRUM_PRESETS, ds = P.map(p => p[4]), worst = P.reduce((a, p) => p[4] > a[4] ? p : a, P[0]);
     ok(P.length >= 100 && Math.max(...ds) <= 10, `${P.length} drum types fitted to measured hits (median distance ${ds.slice().sort((a, b) => a - b)[ds.length >> 1].toFixed(1)}, worst ${worst[4]} for ${worst[2]} ${worst[1]})`); }

@@ -1246,10 +1246,10 @@ function bindTL(cv) {
   const ptrs = new Map();   // every finger on the timeline: one finger edits, two fingers zoom and scroll
   const startPinch = () => { const d = TL.drag; if (d && d.pushed) { const e = UNDO.pop(); if (e) scopeSet(e.scope, JSON.parse(e.data)); }   // a one-finger edit that turned into a pinch is undone
     TL.drag = null; const [a, b] = [...ptrs.values()], tl = UI.tl;
-    TL.pinch = { dx0: Math.abs(a.x - b.x), dy0: Math.abs(a.y - b.y), cx0: (a.x + b.x) / 2, cy0: (a.y + b.y) / 2, zoom0: tl.zoom, sx0: tl.sx, rh0: rowH(), v0: vOff(), rv0: tl.rv || 16, kh0: tl.kh || KEY_H }; };
+    TL.pinch = { dx0: Math.abs(a.x - b.x), dy0: Math.abs(a.y - b.y), cx0: (a.x + b.x) / 2, cy0: (a.y + b.y) / 2, zoom0: tl.zoom, sx0: tl.sx, rows: tl.lane === 'notes', rh0: rowH(), v0: vOff(), rv0: tl.rv || 16, kh0: tl.kh || KEY_H }; };
   cv.addEventListener('pointerdown', e => {
     e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} ensureAudio(); const { x, y } = tlLocal(e), tl = UI.tl; ptrs.set(e.pointerId, { x, y });
-    if (ptrs.size === 2 && tl.lane === 'notes') { startPinch(); drawTL(); return; } if (ptrs.size > 1 || TL.pinch || TL.drag) return;
+    if (ptrs.size === 2) { startPinch(); drawTL(); return; } if (ptrs.size > 1 || TL.pinch || TL.drag) return;
     const base = { id: e.pointerId, x0: x, y0: y, x, y, sx0: tl.sx, sy0: tl.sy, by0: tl.by, moved: false };
     if (y < RULER_H) { TL.drag = Object.assign(base, { kind: 'pan' }); return; }
     if (tl.lane === 'notes') {
@@ -1265,9 +1265,9 @@ function bindTL(cv) {
     if (x < LABEL_W) { TL.drag = Object.assign(base, { kind: 'pan' }); return; }
     const pts = lanePts(false) || []; let hi = -1, best = 20; pts.forEach((p, i) => { const d = Math.hypot(t2x(p.t) - x, v2y(p.v) - y); if (d < best) { best = d; hi = i; } });
     if (hi >= 0) { tl.selPt = hi; TL.drag = Object.assign(base, { kind: 'pt', i: hi, pushed: false }); drawTL(); updatePanel(); return; }
-    if (tl.draw) { pushUndo('scene:' + UI.scene); TL.drag = Object.assign(base, { kind: 'draw', pts: [{ t: clamp(x2t(x), 0, tlLen()), v: y2v(y) }] }); return; }
+    if (tl.draw) { pushUndo('scene:' + UI.scene); TL.drag = Object.assign(base, { kind: 'draw', pushed: true, pts: [{ t: clamp(x2t(x), 0, tlLen()), v: y2v(y) }] }); return; }
     if (pts.length > 1) { const t = x2t(x); let si = -1; for (let i = 0; i < pts.length - 1; i++) if (t > pts[i].t && t < pts[i + 1].t) si = i;
-      if (si >= 0 && Math.abs(v2y(valueAt(pts, t)) - y) < 22 && Math.abs(pts[si + 1].v - pts[si].v) > .02) { pushUndo('scene:' + UI.scene); const a = pts[si], b = pts[si + 1]; TL.drag = Object.assign(base, { kind: 'bend', si, xf: clamp((t - a.t) / (b.t - a.t), .06, .94) }); return; } }
+      if (si >= 0 && Math.abs(v2y(valueAt(pts, t)) - y) < 22 && Math.abs(pts[si + 1].v - pts[si].v) > .02) { pushUndo('scene:' + UI.scene); const a = pts[si], b = pts[si + 1]; TL.drag = Object.assign(base, { kind: 'bend', pushed: true, si, xf: clamp((t - a.t) / (b.t - a.t), .06, .94) }); return; } }
     TL.drag = Object.assign(base, { kind: 'empty' });
   });
   cv.addEventListener('pointermove', e => {
@@ -1275,6 +1275,7 @@ function bindTL(cv) {
     const pz = TL.pinch; if (pz) { if (ptrs.size < 2) return; const [a, b] = [...ptrs.values()], dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
       if (pz.dx0 > 40) { const z = clamp(pz.zoom0 * dx / pz.dx0, (TL.W - LABEL_W) / (tlLen() * 1.02), 3), tm = pz.sx0 + (pz.cx0 - LABEL_W) / pz.zoom0; tl.zoom = z; tl.sx = tm - (cx - LABEL_W) / z; }
       else tl.sx = pz.sx0 - (cx - pz.cx0) / tl.zoom;
+      if (!pz.rows) { tlClamp(); drawTL(); return; }   // automation lanes: time only, the value range always fills the height
       if (pz.dy0 > 40) { const f = dy / pz.dy0; if (tl.mode === 'bank') tl.rv = clamp(pz.rv0 / f, 4, 16); else tl.kh = clamp(pz.kh0 * f, 14, 56); }
       const row = (pz.v0 + pz.cy0 - RULER_H) / pz.rh0, v = row * rowH() - (cy - RULER_H); if (tl.mode === 'bank') tl.by = v; else tl.sy = v; drawTL(); return; }
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; const len = tlLen(); d.x = x; d.y = y;
@@ -1319,6 +1320,11 @@ function bindTL(cv) {
     if (d.kind !== 'pan' && d.kind !== 'empty') afterEdit();
   };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { e.preventDefault(); const tl = UI.tl, { x } = tlLocal(e);
+    if (e.ctrlKey || e.metaKey) { const tm = x2t(Math.max(LABEL_W, x)), z = clamp(tl.zoom * Math.exp(-e.deltaY * .01), (TL.W - LABEL_W) / (tlLen() * 1.02), 3); tl.zoom = z; tl.sx = tm - (Math.max(LABEL_W, x) - LABEL_W) / z; }
+    else { const h = e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX, v = e.shiftKey && !e.deltaX ? 0 : e.deltaY; tl.sx += h / tl.zoom;
+      if (tl.lane === 'notes' && v) { if (tl.mode === 'keys') tl.sy += v; else tl.by = (tl.by || 0) + v; } else if (!e.deltaX && !e.shiftKey) tl.sx += v / tl.zoom; }
+    tlClamp(); drawTL(); }, { passive: false });
 }
 function simplify(pts, eps) { if (pts.length < 3) return pts.slice(); const sx = p => t2x(p.t), sy = p => v2y(p.v); let dmax = 0, idx = 0; const a = pts[0], b = pts[pts.length - 1];
   for (let i = 1; i < pts.length - 1; i++) { const p = pts[i], num = Math.abs((sy(b) - sy(a)) * sx(p) - (sx(b) - sx(a)) * sy(p) + sx(b) * sy(a) - sy(b) * sx(a)), den = Math.hypot(sy(b) - sy(a), sx(b) - sx(a)) || 1; if (num / den > dmax) { dmax = num / den; idx = i; } }
