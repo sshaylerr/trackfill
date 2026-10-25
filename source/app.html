@@ -78,8 +78,8 @@ body{font-variant-numeric:tabular-nums}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .btn:disabled{opacity:.32;pointer-events:none} .clipline b{color:var(--accent);font-weight:600} .lcdbox.edr{display:flex;align-items:center;justify-content:center;height:36px;font:500 12px var(--font-lcd);color:var(--accent)}
 .grid.swapping .pad:not(.sel){animation:swapPulse 1s ease-in-out infinite alternate} @keyframes swapPulse{from{box-shadow:0 3px 0 #050506,inset 0 0 0 1px transparent}to{box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)}}
-.synDev .devHead{gap:5px;padding:0} .engKey{flex:none;height:28px;padding:0 4px 0 2px;background:none;border:0;display:flex;align-items:baseline;gap:4px;color:var(--d-ink)}
-.engKey b{font:800 15px/1 var(--font-ui);letter-spacing:.12em;text-transform:uppercase} .engKey .car{font-size:9px;opacity:.7}
+.synDev .devHead{gap:5px;padding:0} .engKey{flex:none;align-self:stretch;min-height:28px;padding:0 4px 0 2px;background:none;border:0;display:flex;align-items:center;justify-content:center;gap:4px;color:var(--d-ink)}
+.engKey b{font:800 15px/1 var(--font-ui);letter-spacing:.12em;margin-right:-.12em;text-transform:uppercase;display:block} .engKey .car{font-size:9px;line-height:1;opacity:.7;display:block}
 .presetLcd{flex:1;min-width:0;height:28px;border-radius:3px;background:var(--d-scr);border:1px solid #000;box-shadow:inset 0 1px 5px rgba(0,0,0,.8);display:flex;align-items:center;gap:8px;padding:0 9px;text-align:left}
 .presetLcd span{flex:1;min-width:0;font:500 14px var(--font-lcd);color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .presetLcd i{font:500 10px var(--font-lcd);font-style:normal;color:var(--mute);flex:none}
 .synDev .pstep{flex:none;width:28px;min-width:28px;height:28px;padding:0}
@@ -116,8 +116,8 @@ body{font-variant-numeric:tabular-nums}
 /* pad styles: dark (default), tinted with the pad's colour, or fully coloured */
 body[data-pads="tint"] .pad:not(.empty){background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 20%,#323237),color-mix(in srgb,var(--pc) 13%,#28282c) 60%,color-mix(in srgb,var(--pc) 10%,#242428))}
 body[data-pads="bright"] .pad:not(.empty){background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 62%,#3a3a3f),color-mix(in srgb,var(--pc) 48%,#2a2a2e))} body[data-pads="bright"] .pad:not(.empty) .nm,body[data-pads="bright"] .pad:not(.empty) .pn{color:#111;text-shadow:0 1px 0 rgba(255,255,255,.2)}
-body[data-pads="bright"] .pad:not(.empty)::after{background:color-mix(in srgb,var(--pc) 40%,#000)} body[data-pads="bright"] .pad.hit::after{background:#fff}
-body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightness(1.3)}
+body[data-pads="bright"] .pad:not(.empty)::after{background:color-mix(in srgb,var(--pc) 40%,#000)} body[data-pads="bright"] .pad.hit::after,body[data-pads="bright"] .pad.held::after{background:#fff}
+body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads="tint"] .pad.held,body[data-pads="bright"] .pad.held{filter:brightness(1.3)}
 .g6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px} .g6 .btn{padding-left:0;padding-right:0;min-width:0}
 .btn.wide{width:100%}
 .btn.prow{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:2px 10px;text-align:left;width:100%;margin-bottom:6px;height:auto;min-height:50px;padding:8px 12px}
@@ -219,8 +219,8 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 .pad.empty{background:linear-gradient(180deg,#2a2a2e,#232326)} .pad.empty::after{background:#17171a}
 .pad.empty .nm{color:var(--dim)}
 .pad.sel{border-color:#070708;box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)} .pad.sel .pn{color:var(--accent)}
-.pad.hit{transform:translateY(2px);box-shadow:0 1px 0 #050506,inset 0 1px 0 rgba(255,255,255,.05);background:linear-gradient(180deg,#38383e,#2e2e33)}
-.pad.hit::after{transition:none;background:var(--pc);box-shadow:0 0 8px var(--pc),0 0 2px #fff}
+.pad.hit,.pad.held{transform:translateY(2px);box-shadow:0 1px 0 #050506,inset 0 1px 0 rgba(255,255,255,.05);background:linear-gradient(180deg,#38383e,#2e2e33)}
+.pad.hit::after,.pad.held::after{transition:none;background:var(--pc);box-shadow:0 0 8px var(--pc),0 0 2px #fff}
 .pad.has .pn::after{content:"";display:inline-block;width:5px;height:5px;border-radius:1px;background:var(--pc);margin-left:5px;vertical-align:1px}
 .pad.frz .nm::before{content:"❄ ";}
 .pad.kp .nm{font:500 14px var(--font-lcd);text-transform:none}
@@ -671,7 +671,7 @@ function undoGroup(k, scope) { const n = Date.now(); if (k !== ugKey || n - ugTi
 function applyHistory(from, to, label) { if (!from.length) { toast('Nothing to ' + label); return; } const e = from.pop();
   to.push({ scope: e.scope, data: JSON.stringify(scopeGet(e.scope)) }); scopeSet(e.scope, JSON.parse(e.data));
   UI.tl.sel = null; UI.tl.selPt = -1; markDirty(); renderAll(); toast(label === 'undo' ? 'Undone' : 'Redone'); }
-const undo = () => applyHistory(UNDO, REDO, 'undo'), redo = () => applyHistory(REDO, UNDO, 'redo');
+const undo = () => { REC.saved = -1; applyHistory(UNDO, REDO, 'undo'); }, redo = () => applyHistory(REDO, UNDO, 'redo');
 
 /* ================= audio engine bridge ================= */
 let ctx = null, wasmModule = null, mediaTag = null;
@@ -764,6 +764,7 @@ function onEngine(m) {
     for (const v of m.fl) flashPad(v & 255, (v >> 8) - 1);
     if (m.arp) arpPlayed(m.arp);
     if (m.sc) onScope(m.sc);
+    if (T.playing && T.rec) recTrack();
   } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); }
   else if (m.t === 'trip') {
     const n = Date.now(), who = m.ch === MASTER ? 'the master output' : chanName(m.ch);
@@ -789,13 +790,13 @@ function play() {
   if (T.playing) { stop(); lastStop = Date.now(); return; }
   if (Date.now() - lastStop < 450 && ctx) { panic(); lastStop = 0; return; }
   if (!ensureAudio()) return;
-  if (T.rec) pushUndo('all');
+  recReset();
   const count = T.rec ? UI.countIn : 0; T.playing = true; REP.pos = null; sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count }); updateTransport();
   if (count) toast(`Count-in: ${count} bar${count > 1 ? 's' : ''}`);
 }
 // the click: off, only while recording is armed, or always. It plays on the engine's clock, so it is sample-accurate, and never reaches exports.
 function sendClick() { send({ t: 'click', on: UI.click === 'always' || (UI.click === 'rec' && T.rec), vol: UI.clickVol }); $('#bTempo').classList.toggle('clk', UI.click === 'always' || (UI.click === 'rec' && T.rec)); }
-function stop() { T.playing = false; send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
+function stop() { T.playing = false; if (T.rec) { T.rec = false; sendClick(); } send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
 function panic(msg) { T.playing = false; send({ t: 'panic' }); KEYS.latch = null; for (const k in HELD) delete HELD[k]; METER.l = METER.r = 0; METER.clip = false; drawMeter(); updateTransport(); updatePlayingSlot(null); toast(msg || 'Panic: all sound stopped and effect tails cleared'); }
 function heardPos() {
   if (!T.playing || !REP.playing || !REP.pos || !ctx) return null;
@@ -803,8 +804,14 @@ function heardPos() {
   return { scene: sc, tick: clamp(REP.pos.tick + dt * ctx.sampleRate * REP.pos.tps, 0, sceneLen(sc) - 1e-6) };
 }
 // ms: how long after the tap this note sounded (a strum); it's kept as played, after the tap itself is snapped to the grid
+/* Undo while recording: each pass of the loop is its own step. The first thing recorded in a pass saves the scene as it was,
+   so Undo takes back the latest pass, then the one before it. Passes are counted from the heard position wrapping around. */
+const REC = { pass: 0, saved: -1, last: null };
+function recReset() { REC.pass = 0; REC.saved = -1; REC.last = null; }
+function recTrack() { const p = heardPos(); if (!p) return; const l = REC.last; if (l && (p.scene !== l.scene || p.tick < l.tick - 1)) REC.pass++; REC.last = p; }
+function recMark() { recTrack(); if (REC.saved !== REC.pass) { pushUndo('all'); REC.saved = REC.pass; } }
 function recordNote(pi, semi, vel = .9, ms = 0) {
-  const pos = heardPos(); if (!pos) return null; touchPad(pi);
+  const pos = heardPos(); if (!pos) return null; recMark(); touchPad(pi);
   const sc = P.scenes[pos.scene], len = sc.bars * BAR, s = UI.tl.snap, off = ms / 1000 / spt(); let t = pos.tick; if (s) t = Math.round(t / s) * s; t = fixT((((t + off) % len) + len) % len);
   const n = { t, len: s || 24, p: semi, v: +vel.toFixed(3) }, ahead = ((t - pos.tick - off + len) % len) * spt();
   if (ahead < .3) n.f = 1;   // the engine skips this once: you already heard it live
@@ -813,7 +820,7 @@ function recordNote(pi, semi, vel = .9, ms = 0) {
   return { n, scene: pos.scene };
 }
 function recAuto(key, v) {
-  const pos = heardPos(); if (!pos) return; const sc = P.scenes[pos.scene], t = Math.floor(pos.tick);
+  const pos = heardPos(); if (!pos) return; recMark(); const sc = P.scenes[pos.scene], t = Math.floor(pos.tick);
   let st = UI.autoRec; if (!st || st.scene !== pos.scene || st.key !== key || t < st.last) st = UI.autoRec = { scene: pos.scene, key, last: t - 1, wrote: -99 };
   if (t - st.wrote < 3) return;
   const pts = sc.auto[key] = (sc.auto[key] || []).filter(q => !(q.t > st.last && q.t <= t));
@@ -998,7 +1005,7 @@ function stopLatch() { if (KEYS.latch) { send({ t: 'arpStop', tag: KEYS.latch.ta
 function arpPlayed(list) {
   const rec = T.playing && T.rec, touched = new Set();
   for (const [pi, semi, vel, si, tick, len] of list) { const sc = P.scenes[si]; if (!sc) continue; const L = sc.bars * BAR, t = fixT(((tick % L) + L) % L);
-    if (rec) { touchPad(pi); (sc.notes[pi] = sc.notes[pi] || []).push({ t, len, p: semi, v: vel }); touched.add(si); }
+    if (rec) { if (!touched.size) recMark(); touchPad(pi); (sc.notes[pi] = sc.notes[pi] || []).push({ t, len, p: semi, v: vel }); touched.add(si); }
     else { CAP.push({ pi, semi, vel, at: ctx ? ctx.currentTime : 0, pos: { scene: si, tick: t }, len }); if (CAP.length > 512) CAP.shift(); } }
   if (touched.size) { touched.forEach(si => syncScene(si)); markDirty(); if (touched.has(UI.scene)) { refreshPadDots(); if (UI.view === 'seq') drawTL(); } renderScenes(); }
 }
@@ -1036,10 +1043,13 @@ function padRelease(e) { const f = PADPTR.get(e.pointerId); if (f) { PADPTR.dele
 addEventListener('pointerup', padRelease, true); addEventListener('pointercancel', padRelease, true);
 const releaseAllPads = () => { for (const f of PADPTR.values()) f(); PADPTR.clear(); };
 addEventListener('blur', releaseAllPads); document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAllPads(); });
+// pads under a finger (or a key) stay pressed down until let go; playback only flashes them
+const PADHELD = new Set();
+function padHeld(cell, on) { if (on) PADHELD.add(cell); else PADHELD.delete(cell); const pd = document.querySelector(`.grid .pad[data-cell="${cell}"]`); if (pd) pd.classList.toggle('held', on); }
 function padDown(cell, hk = cell) {   // hk: the key this press is held under (the panel's pad strip uses its own)
   ensureAudio(); let pi, semi = 0, kc = null;
   const chop = padChop();
-  const fromStrip = typeof hk === 'string' && hk[0] === 's', flash = fromStrip ? () => {} : flashCell;   // the panel's pads light themselves, never the big grid
+  const fromStrip = typeof hk === 'string' && hk[0] === 's', flash = fromStrip ? () => {} : flashCell; if (!fromStrip) padHeld(cell, true);   // the panel's pads light themselves, never the big grid
   if (UI.keys) { pi = UI.pad; if (!fromStrip) UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flash(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flash(cell); return; } semi = kc.semi; } }
   else if (UI.swapFrom != null) { const a = UI.swapFrom; UI.swapFrom = null; pi = UI.bank * 16 + cell; if (a === pi) { refreshPadDots(); toast('Swap cancelled'); } else { swapPads(a, pi); UI.pad = pi; } return; }
   else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; requestAnimationFrame(() => { refreshPadDots(); updatePanel(); }); } }   // screen updates wait until the note is sent
@@ -1063,7 +1073,7 @@ function padDown(cell, hk = cell) {   // hk: the key this press is held under (t
   HELD[hk] = { tag, rec: rec ? [rec] : [], cap: cap ? [cap] : [], pi, start: ctx ? ctx.currentTime : 0, ms: [0] };
 }
 function padUp(cell) {
-  const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
+  if (typeof cell === 'number') padHeld(cell, false); const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
   if (hd.arp) { send({ t: 'arpStop', tag: hd.tag }); return; }
   if (pad.mode === 'gate' || pad.mode === 'loop' || pad.src === 'synth') { send({ t: 'rel', tag: hd.tag, rel: pad.rel }); const s = UI.tl.snap || 6, held = ((ctx ? ctx.currentTime : 0) - hd.start) / spt();
     const len = k => Math.max(s, Math.round((held - (hd.ms[k] || 0) / 1000 / spt()) / s) * s);
@@ -1792,7 +1802,7 @@ function drawMeter() { [METER.l, METER.r].forEach((v, i) => { const db = v > 1e-
   const n = performance.now(); if (n - lastCpuDraw > 400) { lastCpuDraw = n; const c = ENG.ready ? Math.round(REP.cpu * 100) : null; cpuEl.textContent = c == null ? 'CPU —' : `CPU ${c}%`; cpuEl.classList.toggle('hot', c != null && c > 60); } }
 $('#meter').addEventListener('click', () => { METER.clip = false; drawMeter(); });
 $('#bPlay').onclick = play;
-$('#bRec').onclick = () => { T.rec = !T.rec; sendClick(); if (T.rec && T.playing) pushUndo('all'); updateTransport(); if (T.rec && !T.playing) toast('Record armed. Press play, then play pads or move controls.'); };
+$('#bRec').onclick = () => { T.rec = !T.rec; sendClick(); REC.saved = -1; REC.last = null; updateTransport(); if (T.rec && !T.playing) toast('Record armed. Press play, then play pads or move controls.'); };
 $('#bLoop').onclick = () => { T.loop = T.loop === 'scene' ? 'song' : 'scene'; send({ t: 'loop', v: T.loop }); updateTransport(); savePrefs(); toast(T.loop === 'song' ? 'Song mode: scenes play in order with repeats' : 'Scene mode: the selected scene loops'); };
 $('#bTempo').onclick = openTempo; $('#bUndo').onclick = undo; $('#bEdit').onclick = openEdit; $('#bPanel').onclick = togglePanel; $('#bMenu').onclick = openMenu;
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setView(b.dataset.v));

@@ -91,8 +91,8 @@ body{font-variant-numeric:tabular-nums}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .btn:disabled{opacity:.32;pointer-events:none} .clipline b{color:var(--accent);font-weight:600} .lcdbox.edr{display:flex;align-items:center;justify-content:center;height:36px;font:500 12px var(--font-lcd);color:var(--accent)}
 .grid.swapping .pad:not(.sel){animation:swapPulse 1s ease-in-out infinite alternate} @keyframes swapPulse{from{box-shadow:0 3px 0 #050506,inset 0 0 0 1px transparent}to{box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)}}
-.synDev .devHead{gap:5px;padding:0} .engKey{flex:none;height:28px;padding:0 4px 0 2px;background:none;border:0;display:flex;align-items:baseline;gap:4px;color:var(--d-ink)}
-.engKey b{font:800 15px/1 var(--font-ui);letter-spacing:.12em;text-transform:uppercase} .engKey .car{font-size:9px;opacity:.7}
+.synDev .devHead{gap:5px;padding:0} .engKey{flex:none;align-self:stretch;min-height:28px;padding:0 4px 0 2px;background:none;border:0;display:flex;align-items:center;justify-content:center;gap:4px;color:var(--d-ink)}
+.engKey b{font:800 15px/1 var(--font-ui);letter-spacing:.12em;margin-right:-.12em;text-transform:uppercase;display:block} .engKey .car{font-size:9px;line-height:1;opacity:.7;display:block}
 .presetLcd{flex:1;min-width:0;height:28px;border-radius:3px;background:var(--d-scr);border:1px solid #000;box-shadow:inset 0 1px 5px rgba(0,0,0,.8);display:flex;align-items:center;gap:8px;padding:0 9px;text-align:left}
 .presetLcd span{flex:1;min-width:0;font:500 14px var(--font-lcd);color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .presetLcd i{font:500 10px var(--font-lcd);font-style:normal;color:var(--mute);flex:none}
 .synDev .pstep{flex:none;width:28px;min-width:28px;height:28px;padding:0}
@@ -129,8 +129,8 @@ body{font-variant-numeric:tabular-nums}
 /* pad styles: dark (default), tinted with the pad's colour, or fully coloured */
 body[data-pads="tint"] .pad:not(.empty){background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 20%,#323237),color-mix(in srgb,var(--pc) 13%,#28282c) 60%,color-mix(in srgb,var(--pc) 10%,#242428))}
 body[data-pads="bright"] .pad:not(.empty){background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 62%,#3a3a3f),color-mix(in srgb,var(--pc) 48%,#2a2a2e))} body[data-pads="bright"] .pad:not(.empty) .nm,body[data-pads="bright"] .pad:not(.empty) .pn{color:#111;text-shadow:0 1px 0 rgba(255,255,255,.2)}
-body[data-pads="bright"] .pad:not(.empty)::after{background:color-mix(in srgb,var(--pc) 40%,#000)} body[data-pads="bright"] .pad.hit::after{background:#fff}
-body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightness(1.3)}
+body[data-pads="bright"] .pad:not(.empty)::after{background:color-mix(in srgb,var(--pc) 40%,#000)} body[data-pads="bright"] .pad.hit::after,body[data-pads="bright"] .pad.held::after{background:#fff}
+body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads="tint"] .pad.held,body[data-pads="bright"] .pad.held{filter:brightness(1.3)}
 .g6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px} .g6 .btn{padding-left:0;padding-right:0;min-width:0}
 .btn.wide{width:100%}
 .btn.prow{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:2px 10px;text-align:left;width:100%;margin-bottom:6px;height:auto;min-height:50px;padding:8px 12px}
@@ -232,8 +232,8 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 .pad.empty{background:linear-gradient(180deg,#2a2a2e,#232326)} .pad.empty::after{background:#17171a}
 .pad.empty .nm{color:var(--dim)}
 .pad.sel{border-color:#070708;box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)} .pad.sel .pn{color:var(--accent)}
-.pad.hit{transform:translateY(2px);box-shadow:0 1px 0 #050506,inset 0 1px 0 rgba(255,255,255,.05);background:linear-gradient(180deg,#38383e,#2e2e33)}
-.pad.hit::after{transition:none;background:var(--pc);box-shadow:0 0 8px var(--pc),0 0 2px #fff}
+.pad.hit,.pad.held{transform:translateY(2px);box-shadow:0 1px 0 #050506,inset 0 1px 0 rgba(255,255,255,.05);background:linear-gradient(180deg,#38383e,#2e2e33)}
+.pad.hit::after,.pad.held::after{transition:none;background:var(--pc);box-shadow:0 0 8px var(--pc),0 0 2px #fff}
 .pad.has .pn::after{content:"";display:inline-block;width:5px;height:5px;border-radius:1px;background:var(--pc);margin-left:5px;vertical-align:1px}
 .pad.frz .nm::before{content:"❄ ";}
 .pad.kp .nm{font:500 14px var(--font-lcd);text-transform:none}
@@ -785,7 +785,7 @@ function jungleV2() {
   Object.assign(C[12], { sb: .3, vol: .5 }); Object.assign(C[13], { sb: .3, vol: .5 }); Object.assign(C[15], { vol: .55 });
   C[R0 + 1].fx = [newFx(FX_TYPES.REVERB, { 0: 1, 2: .5 }, 2)];
   // bank B, second row: a few synth pads to try (Analog engine)
-  const SPM = SPN(); if (SPM.SYN_PRESETS) [['Reese', 24, 3], ['Supersaw', 25, 4], ['Trance Pluck', 26, 0], ['Juno Strings', 27, 5]].forEach(([n, pi, col]) => { const pr = SPM.SYN_PRESETS.find(x => x.n === n) || SPM.FM_PRESETS.find(x => x.n === n); if (!pr) return;
+  const SPM = SPN(); if (SPM.SYN_PRESETS) [['Reese', 24, 3], ['Supersaw', 25, 4], ['Trance Pluck', 26, 0], ['Chorus Strings', 27, 5]].forEach(([n, pi, col]) => { const pr = SPM.SYN_PRESETS.find(x => x.n === n) || SPM.FM_PRESETS.find(x => x.n === n); if (!pr) return;
     Object.assign(p.pads[pi], { name: n.slice(0, 12), src: 'synth', syn: SPM.synPatch(pr), mode: 'gate', color: col, voice: pr.voice || 'poly', glide: pr.glide != null ? pr.glide : .08, poly: 8 });
     if (pr.fx) C[pi].fx = pr.fx.map(f => newFx(f.type, null, f.mode || 0)); Object.assign(C[pi], { sb: .25, vol: .5 }); });
   C[MASTER].fx = [newFx(FX_TYPES.LIMIT, null, 0)]; C[MASTER].vol = .62;
@@ -1111,7 +1111,7 @@ function stressProject() { return asV2(stressV2()); }
 function stressV2() {
   const p = jungleV2(), SPM = SPN(), S = p.scenes, q = 24, F = FX_TYPES; p.name = 'Stress test';
   const add = (s, pi, t, len, pp = 0, v = .85) => { (S[s].notes[pi] = S[s].notes[pi] || []).push({ t, len, p: pp, v }); };
-  const syn = ['Supersaw', 'Reese', 'Hoover Bass', 'Juno Strings', 'Warm Pad', 'Trance Pad', 'Sweep Pad', 'Acid Line', 'Sync Lead', 'Brass Lead', 'Poly Stab', 'Rave Stab', '80s Poly Keys', 'Folded Bass', 'Wobble', 'Jump Up Wobble',
+  const syn = ['Supersaw', 'Reese', 'Hoover Bass', 'Chorus Strings', 'Warm Pad', 'Trance Pad', 'Sweep Pad', 'Acid Line', 'Sync Lead', 'Brass Lead', 'Poly Stab', 'Rave Stab', '80s Poly Keys', 'Folded Bass', 'Wobble', 'Jump Up Wobble',
     'Trance Pluck', 'Tech Stab', 'Digital Brass', 'Glass Pad', 'Neuro Growl', 'Reese FM', 'E. Piano', 'Bells', 'Breath Pad'];   // Analog and FM
   syn.forEach((n, k) => { const pi = 28 + k; if (pi >= NPADS) return; const pr = SPM.SYN_PRESETS.find(x => x.n === n); if (!pr) return;
     Object.assign(p.pads[pi], { name: n.slice(0, 12), src: 'synth', syn: SPM.synPatch(pr), mode: 'gate', color: k % 8, voice: pr.voice || 'poly', glide: pr.glide || 0, poly: 8 }); });
@@ -1465,11 +1465,11 @@ const SYN_VIBP = { l1y: 'Free', l1r: 5.6, '3a': .7, '3d': .1, '3s': 1, '3r': .5 
 const SYN_M1 = [synMod('Macro 1', 'cut', .35)];             // Macro 1 opens the filter
 const SYN_PRESETS = [
   // ----- bass -----
-  { n: 'Moog Bass', g: 'Bass', voice: 'mono', glide: .03, p: { o1o: -1, o2w: 'Square', o2o: -1, o2f: 5, o2l: .6, o3w: 'Saw', o3o: -2, o3l: .45, flt: 'Ladder', cut: 320, res: .35, drv: .3, fen: .55, key: .3, '2d': .35, '2s': .08, '2r': .2, ad: .5, as: .9, ar: .12 }, mods: [...SYN_M1, synMod('Macro 2', 'res', .35), synMod('Velocity', 'cut', .12)] },
+  { n: 'Ladder Bass', g: 'Bass', voice: 'mono', glide: .03, p: { o1o: -1, o2w: 'Square', o2o: -1, o2f: 5, o2l: .6, o3w: 'Saw', o3o: -2, o3l: .45, flt: 'Ladder', cut: 320, res: .35, drv: .3, fen: .55, key: .3, '2d': .35, '2s': .08, '2r': .2, ad: .5, as: .9, ar: .12 }, mods: [...SYN_M1, synMod('Macro 2', 'res', .35), synMod('Velocity', 'cut', .12)] },
   { n: 'Sub', g: 'Bass', voice: 'mono', p: { o1w: 'Sine', o1o: -1, o1l: 1, flt: 'Off', dri: 0, aa: .002, ad: .1, as: 1, ar: .08 }, mods: [synMod('Macro 1', 'o1w', .25), synMod('Macro 2', 'drv', .5)] },
   { n: 'Reese', g: 'Bass', voice: 'legato', glide: .06, p: { o1o: -1, o2o: -1, o2f: 12, o2l: .8, uni: 3, det: .35, spr: .3, sbl: .6, spl: .4, flt: 'Ladder', cut: 900, res: .2, drv: .4, ar: .1, l1y: 'Free', l1r: .25 }, mods: [synMod('LFO 1', 'cut', .12, 0, 'Macro 2'), ...SYN_M1, synMod('Macro 2', 'det', .3)], m: { m2: .5 } },
   { n: 'Acid Line', g: 'Bass', voice: 'legato', glide: .08, p: { o1o: -1, o1w: 'Saw', flt: 'Diode', cut: 280, res: .78, shp: .3, drv: .35, fen: .6, '2d': .22, '2s': 0, ad: .4, as: .8, ar: .06 }, mods: [synMod('Velocity', 'cut', .2), ...SYN_M1, synMod('Macro 2', 'fen', .3)] },
-  { n: 'Juno Bass', g: 'Bass', voice: 'mono', p: { o1o: -1, o1w: 'Pulse', o1p: .3, o2w: 'Square', o2o: -2, o2l: .5, flt: 'Clean', cut: 700, res: .2, fen: .35, '2d': .3, '2s': .1, ad: .6, as: .7, ar: .1 }, mods: [...SYN_M1, synMod('Macro 2', 'o1p', .3)] },
+  { n: 'Chorus Bass', g: 'Bass', voice: 'mono', p: { o1o: -1, o1w: 'Pulse', o1p: .3, o2w: 'Square', o2o: -2, o2l: .5, flt: 'Clean', cut: 700, res: .2, fen: .35, '2d': .3, '2s': .1, ad: .6, as: .7, ar: .1 }, mods: [...SYN_M1, synMod('Macro 2', 'o1p', .3)] },
   { n: 'Hoover Bass', g: 'Bass', voice: 'legato', glide: .1, p: { o1o: -1, o1w: 'Pulse', o1p: .2, o2o: -1, o2f: -10, o2l: .8, uni: 5, det: .45, spr: .7, sbl: .5, spl: .5, flt: 'Clean', cut: 3500, '3d': .25, '3s': 0, l1y: 'Free', l1r: 6, ar: .2 }, mods: [synMod('LFO 1', 'o1p', .2), synMod('Env 3', 'pit', -.15), ...SYN_M1, synMod('Macro 2', 'det', .3)] },
   { n: 'Wobble', g: 'Bass', voice: 'mono', p: { o1o: -1, o2w: 'Square', o2o: -1, o2l: .7, sbl: .7, spl: .5, flt: 'Ladder', cut: 200, res: .4, drv: .5, l1d: '1/8', ar: .08 }, lfo: [LFO_SHAPES.Triangle], mods: [synMod('LFO 1', 'cut', .45, 0, 'Macro 2'), synMod('Macro 1', 'l1d', .2)], m: { m2: .8 } },
   { n: 'Rubber', g: 'Bass', voice: 'mono', p: { o1o: -1, o1w: 'Square', flt: 'Clean', cut: 380, res: .5, fen: .5, '2d': .15, '2s': 0, ad: .3, as: .6, ar: .08 }, mods: [...SYN_M1, synMod('Macro 2', 'res', .3)] },
@@ -1483,7 +1483,7 @@ const SYN_PRESETS = [
   { n: 'Trance Lead', g: 'Leads', p: { uni: 5, det: .3, spr: .6, o2o: 1, o2l: .4, flt: 'Clean', cut: 6000, res: .15, ar: .4 }, mods: [...SYN_M1, synMod('Macro 2', 'det', .3)] },
   { n: 'G-Funk Whistle', g: 'Leads', voice: 'legato', glide: .12, p: { o1w: 'Sine', o1o: 1, flt: 'Off', aa: .02, ar: .2, ...SYN_VIBP }, mods: [synMod('LFO 1', 'pit', .012, 0, 'Env 3'), synMod('Macro 1', 'o1w', .25), synMod('Macro 2', 'pit', .008, 0, 'LFO 1')] },
   // ----- pads -----
-  { n: 'Juno Strings', g: 'Pads', p: { o2w: 'Pulse', o2p: .35, o2f: -6, o2l: .6, flt: 'Clean', cut: 4000, res: .1, aa: .35, ad: 1, as: .85, ar: 1.2, l1y: 'Free', l1r: .6 }, mods: [synMod('LFO 1', 'o2p', .3), ...SYN_M1, synMod('Macro 2', 'o2p', .2)], fx: [{ type: 8, mode: 1 }] },
+  { n: 'Chorus Strings', g: 'Pads', p: { o2w: 'Pulse', o2p: .35, o2f: -6, o2l: .6, flt: 'Clean', cut: 4000, res: .1, aa: .35, ad: 1, as: .85, ar: 1.2, l1y: 'Free', l1r: .6 }, mods: [synMod('LFO 1', 'o2p', .3), ...SYN_M1, synMod('Macro 2', 'o2p', .2)], fx: [{ type: 8, mode: 1 }] },
   { n: 'Warm Pad', g: 'Pads', p: { o2f: 7, o2l: .8, uni: 3, det: .25, spr: .7, flt: 'Ladder', cut: 1200, res: .1, fen: .25, '2a': .8, '2d': 2, '2s': .6, aa: .6, ad: 1.5, as: .9, ar: 1.8 }, mods: [...SYN_M1, synMod('Macro 2', 'det', .3)] },
   { n: 'Dark Pad', g: 'Pads', p: { o1w: 'Triangle', o2o: -1, o2l: .5, o2f: -8, flt: 'Ladder', cut: 500, res: .25, aa: 1.2, as: 1, ar: 2.5, l1y: 'Free', l1r: .1 }, mods: [synMod('LFO 1', 'cut', .15), ...SYN_M1, synMod('Macro 2', 'res', .3)] },
   { n: 'Sweep Pad', g: 'Pads', p: { o2f: 9, o2l: .8, uni: 3, det: .3, spr: .7, flt: 'Ladder', cut: 300, res: .45, aa: .4, ar: 2, l1d: '2 bars' }, lfo: [LFO_SHAPES.Triangle], mods: [synMod('LFO 1', 'cut', .5, 0, 'Macro 2'), ...SYN_M1], m: { m2: .8 } },
@@ -1675,7 +1675,7 @@ const SYN_FM_INIT = { n: 'Init', g: 'Init', eng: 'fm', p: { flt: 'Off', ad: 2, a
 // output level per preset (dB), measured so every preset plays at about the same loudness
 // preset levels (dB on Level), measured by tests/levels.cjs: a held C3 at velocity 0.8 reaches about -18 LUFS (loudest 400 ms) and peaks
 // no higher than -6 dBFS; plucks and hits top out at +6. FX-engine sweeps are only held under the peak limit. Keyed engine:name.
-const SYN_LEVELS = {"analog:Moog Bass":-6.5,"analog:Sub":-8.5,"analog:Reese":-4,"analog:Acid Line":-14.5,"analog:Juno Bass":-6.5,"analog:Hoover Bass":-6,"analog:Wobble":-3.5,"analog:Rubber":-3.5,"analog:Sync Lead":-8,"analog:Supersaw":-9,"analog:Brass Lead":-6,"analog:80s Solo Lead":-8,"analog:Chip Square":-8.5,"analog:Trance Lead":-12.5,"analog:G-Funk Whistle":-9,"analog:Juno Strings":-10,"analog:Warm Pad":-6.5,"analog:Dark Pad":-4.5,"analog:Sweep Pad":-7.5,"analog:Trance Pad":-10,"analog:Ambient Drift":-9,"analog:Pluck":6,"analog:Poly Stab":6,"analog:Brass Stab":0.5,"analog:80s Poly Keys":-1.5,"analog:Rave Stab":5.5,"analog:House Chord":2.5,"analog:Noise Sweep":-4,"analog:Laser Zap":3,"fm:E. Piano":-4,"fm:Glass Keys":-5,"fm:Clav":4,"fm:Drawbar Organ":-6.5,"fm:FM Pluck":5.5,"fm:Bells":-2.5,"fm:Marimba":5,"fm:Kalimba":3.5,"fm:Metallic Pluck":5,"fm:Lately Bass":-5,"fm:Folded Bass":-4,"fm:FM Sub":-7,"fm:Ring Bass":-1.5,"fm:Neuro Growl":-4.5,"fm:Reese FM":-2,"fm:Jump Up Wobble":-7.5,"fm:Foghorn":-2.5,"fm:Donk":5,"fm:Tech Stab":5.5,"fm:Ring Lead":-2.5,"fm:Digital Brass":-8,"fm:Chip Lead":-5.5,"fm:Filter-FM Snarl":-3.5,"fm:Glass Pad":-7.5,"fm:Breath Pad":-5.5,"fm:Dark Drone":-7.5,"fm:FM Kick":5.5,"fm:FM Snare":2.5,"fm:Metal Hit":4.5,"fm:FM Laser":3,"wt:Neuro Growl":-3.5,"wt:Riddim Wub":-7.5,"wt:Reese Table":-3.5,"wt:Hollow Bass":-2,"wt:Talking Bass":-3.5,"wt:Future Lead":-10,"wt:Digital Lead":-2.5,"wt:Sync Sweep":-5,"wt:Evolving Pad":-7,"wt:Vocal Pad":-5.5,"wt:Glass Pad":-7.5,"wt:Dark Drone":2,"wt:Future Bass Chords":-5,"wt:Wavetable Pluck":6,"wt:Bell Pluck":1.5,"wt:Riser Sweep":-7.5,"wt:Laser":5.5,"gr:Vox Cloud":-10.5,"gr:Frozen Piano":-4,"gr:Break Shimmer":1,"gr:Granular Pad":-0.5,"gr:Reverse Swell":3.5,"gr:Glitch Stutter":-2,"gr:Time Stretch":-10.5,"sub:Liquid Sine":-3,"sub:Clean DnB Sub":-3,"sub:Warm Sub":-3.5,"sub:Growl Sub":-6.5,"sub:Sub Layer":-3.5,"sub:808 Long":1.5,"sub:808 Punch":1,"sub:Trap Slide":0.5,"sub:Distorted 808":-1,"ins:House Piano":6,"ins:Grand Piano":6,"ins:Tine EP":2,"ins:Rave Organ":-4.5,"ins:Orch Hit":-2.5,"ins:Orch Hit Minor":-2.5,"ins:Orch Hit Major":-3,"ins:String Stab":1.5,"ins:Brass Stab":2,"ins:Choir Hit":-1.5,"ins:Timpani":2,"ins:Impact":2,"ins:Cymbal Swell":6,"ins:Strings":-2,"ins:Choir Aah":-1.5,"ins:String Machine":-2,"ins:Glass Pad":-4.5,"ins:Harp":5,"ins:Harp Gliss":-3,"ins:Vibes":1.5,"ins:Flute":-3.5,"ins:Synth Brass":-4.5,"ins:Finger Bass":4,"ins:Pick Bass":6,"ins:Muted Bass":6};
+const SYN_LEVELS = {"analog:Ladder Bass":-6.5,"analog:Sub":-8.5,"analog:Reese":-4,"analog:Acid Line":-14.5,"analog:Chorus Bass":-6.5,"analog:Hoover Bass":-6,"analog:Wobble":-3.5,"analog:Rubber":-3.5,"analog:Sync Lead":-8,"analog:Supersaw":-9,"analog:Brass Lead":-6,"analog:80s Solo Lead":-8,"analog:Chip Square":-8.5,"analog:Trance Lead":-12.5,"analog:G-Funk Whistle":-9,"analog:Chorus Strings":-10,"analog:Warm Pad":-6.5,"analog:Dark Pad":-4.5,"analog:Sweep Pad":-7.5,"analog:Trance Pad":-10,"analog:Ambient Drift":-9,"analog:Pluck":6,"analog:Poly Stab":6,"analog:Brass Stab":0.5,"analog:80s Poly Keys":-1.5,"analog:Rave Stab":5.5,"analog:House Chord":2.5,"analog:Noise Sweep":-4,"analog:Laser Zap":3,"fm:E. Piano":-4,"fm:Glass Keys":-5,"fm:Clav":4,"fm:Drawbar Organ":-6.5,"fm:FM Pluck":5.5,"fm:Bells":-2.5,"fm:Marimba":5,"fm:Kalimba":3.5,"fm:Metallic Pluck":5,"fm:Lately Bass":-5,"fm:Folded Bass":-4,"fm:FM Sub":-7,"fm:Ring Bass":-1.5,"fm:Neuro Growl":-4.5,"fm:Reese FM":-2,"fm:Jump Up Wobble":-7.5,"fm:Foghorn":-2.5,"fm:Donk":5,"fm:Tech Stab":5.5,"fm:Ring Lead":-2.5,"fm:Digital Brass":-8,"fm:Chip Lead":-5.5,"fm:Filter-FM Snarl":-3.5,"fm:Glass Pad":-7.5,"fm:Breath Pad":-5.5,"fm:Dark Drone":-7.5,"fm:FM Kick":5.5,"fm:FM Snare":2.5,"fm:Metal Hit":4.5,"fm:FM Laser":3,"wt:Neuro Growl":-3.5,"wt:Riddim Wub":-7.5,"wt:Reese Table":-3.5,"wt:Hollow Bass":-2,"wt:Talking Bass":-3.5,"wt:Future Lead":-10,"wt:Digital Lead":-2.5,"wt:Sync Sweep":-5,"wt:Evolving Pad":-7,"wt:Vocal Pad":-5.5,"wt:Glass Pad":-7.5,"wt:Dark Drone":2,"wt:Future Bass Chords":-5,"wt:Wavetable Pluck":6,"wt:Bell Pluck":1.5,"wt:Riser Sweep":-7.5,"wt:Laser":5.5,"gr:Vox Cloud":-10.5,"gr:Frozen Piano":-4,"gr:Break Shimmer":1,"gr:Granular Pad":-0.5,"gr:Reverse Swell":3.5,"gr:Glitch Stutter":-2,"gr:Time Stretch":-10.5,"sub:Liquid Sine":-3,"sub:Clean DnB Sub":-3,"sub:Warm Sub":-3.5,"sub:Growl Sub":-6.5,"sub:Sub Layer":-3.5,"sub:808 Long":1.5,"sub:808 Punch":1,"sub:Trap Slide":0.5,"sub:Distorted 808":-1,"ins:House Piano":6,"ins:Grand Piano":6,"ins:Tine EP":2,"ins:Rave Organ":-4.5,"ins:Orch Hit":-2.5,"ins:Orch Hit Minor":-2.5,"ins:Orch Hit Major":-3,"ins:String Stab":1.5,"ins:Brass Stab":2,"ins:Choir Hit":-1.5,"ins:Timpani":2,"ins:Impact":2,"ins:Cymbal Swell":6,"ins:Strings":-2,"ins:Choir Aah":-1.5,"ins:String Machine":-2,"ins:Glass Pad":-4.5,"ins:Harp":5,"ins:Harp Gliss":-3,"ins:Vibes":1.5,"ins:Flute":-3.5,"ins:Synth Brass":-4.5,"ins:Finger Bass":4,"ins:Pick Bass":6,"ins:Muted Bass":6};
 const SYN_INIT = { n: 'Init', g: 'Init', p: {}, mods: [] };
 // a new patch from a preset: physical values, routes, drawn LFOs (missing ones get a sine), macros
 function synPatch(pr) {
@@ -3077,7 +3077,7 @@ function undoGroup(k, scope) { const n = Date.now(); if (k !== ugKey || n - ugTi
 function applyHistory(from, to, label) { if (!from.length) { toast('Nothing to ' + label); return; } const e = from.pop();
   to.push({ scope: e.scope, data: JSON.stringify(scopeGet(e.scope)) }); scopeSet(e.scope, JSON.parse(e.data));
   UI.tl.sel = null; UI.tl.selPt = -1; markDirty(); renderAll(); toast(label === 'undo' ? 'Undone' : 'Redone'); }
-const undo = () => applyHistory(UNDO, REDO, 'undo'), redo = () => applyHistory(REDO, UNDO, 'redo');
+const undo = () => { REC.saved = -1; applyHistory(UNDO, REDO, 'undo'); }, redo = () => applyHistory(REDO, UNDO, 'redo');
 
 /* ================= audio engine bridge ================= */
 let ctx = null, wasmModule = null, mediaTag = null;
@@ -3170,6 +3170,7 @@ function onEngine(m) {
     for (const v of m.fl) flashPad(v & 255, (v >> 8) - 1);
     if (m.arp) arpPlayed(m.arp);
     if (m.sc) onScope(m.sc);
+    if (T.playing && T.rec) recTrack();
   } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); }
   else if (m.t === 'trip') {
     const n = Date.now(), who = m.ch === MASTER ? 'the master output' : chanName(m.ch);
@@ -3195,13 +3196,13 @@ function play() {
   if (T.playing) { stop(); lastStop = Date.now(); return; }
   if (Date.now() - lastStop < 450 && ctx) { panic(); lastStop = 0; return; }
   if (!ensureAudio()) return;
-  if (T.rec) pushUndo('all');
+  recReset();
   const count = T.rec ? UI.countIn : 0; T.playing = true; REP.pos = null; sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count }); updateTransport();
   if (count) toast(`Count-in: ${count} bar${count > 1 ? 's' : ''}`);
 }
 // the click: off, only while recording is armed, or always. It plays on the engine's clock, so it is sample-accurate, and never reaches exports.
 function sendClick() { send({ t: 'click', on: UI.click === 'always' || (UI.click === 'rec' && T.rec), vol: UI.clickVol }); $('#bTempo').classList.toggle('clk', UI.click === 'always' || (UI.click === 'rec' && T.rec)); }
-function stop() { T.playing = false; send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
+function stop() { T.playing = false; if (T.rec) { T.rec = false; sendClick(); } send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
 function panic(msg) { T.playing = false; send({ t: 'panic' }); KEYS.latch = null; for (const k in HELD) delete HELD[k]; METER.l = METER.r = 0; METER.clip = false; drawMeter(); updateTransport(); updatePlayingSlot(null); toast(msg || 'Panic: all sound stopped and effect tails cleared'); }
 function heardPos() {
   if (!T.playing || !REP.playing || !REP.pos || !ctx) return null;
@@ -3209,8 +3210,14 @@ function heardPos() {
   return { scene: sc, tick: clamp(REP.pos.tick + dt * ctx.sampleRate * REP.pos.tps, 0, sceneLen(sc) - 1e-6) };
 }
 // ms: how long after the tap this note sounded (a strum); it's kept as played, after the tap itself is snapped to the grid
+/* Undo while recording: each pass of the loop is its own step. The first thing recorded in a pass saves the scene as it was,
+   so Undo takes back the latest pass, then the one before it. Passes are counted from the heard position wrapping around. */
+const REC = { pass: 0, saved: -1, last: null };
+function recReset() { REC.pass = 0; REC.saved = -1; REC.last = null; }
+function recTrack() { const p = heardPos(); if (!p) return; const l = REC.last; if (l && (p.scene !== l.scene || p.tick < l.tick - 1)) REC.pass++; REC.last = p; }
+function recMark() { recTrack(); if (REC.saved !== REC.pass) { pushUndo('all'); REC.saved = REC.pass; } }
 function recordNote(pi, semi, vel = .9, ms = 0) {
-  const pos = heardPos(); if (!pos) return null; touchPad(pi);
+  const pos = heardPos(); if (!pos) return null; recMark(); touchPad(pi);
   const sc = P.scenes[pos.scene], len = sc.bars * BAR, s = UI.tl.snap, off = ms / 1000 / spt(); let t = pos.tick; if (s) t = Math.round(t / s) * s; t = fixT((((t + off) % len) + len) % len);
   const n = { t, len: s || 24, p: semi, v: +vel.toFixed(3) }, ahead = ((t - pos.tick - off + len) % len) * spt();
   if (ahead < .3) n.f = 1;   // the engine skips this once: you already heard it live
@@ -3219,7 +3226,7 @@ function recordNote(pi, semi, vel = .9, ms = 0) {
   return { n, scene: pos.scene };
 }
 function recAuto(key, v) {
-  const pos = heardPos(); if (!pos) return; const sc = P.scenes[pos.scene], t = Math.floor(pos.tick);
+  const pos = heardPos(); if (!pos) return; recMark(); const sc = P.scenes[pos.scene], t = Math.floor(pos.tick);
   let st = UI.autoRec; if (!st || st.scene !== pos.scene || st.key !== key || t < st.last) st = UI.autoRec = { scene: pos.scene, key, last: t - 1, wrote: -99 };
   if (t - st.wrote < 3) return;
   const pts = sc.auto[key] = (sc.auto[key] || []).filter(q => !(q.t > st.last && q.t <= t));
@@ -3484,7 +3491,7 @@ function stopLatch() { if (KEYS.latch) { send({ t: 'arpStop', tag: KEYS.latch.ta
 function arpPlayed(list) {
   const rec = T.playing && T.rec, touched = new Set();
   for (const [pi, semi, vel, si, tick, len] of list) { const sc = P.scenes[si]; if (!sc) continue; const L = sc.bars * BAR, t = fixT(((tick % L) + L) % L);
-    if (rec) { touchPad(pi); (sc.notes[pi] = sc.notes[pi] || []).push({ t, len, p: semi, v: vel }); touched.add(si); }
+    if (rec) { if (!touched.size) recMark(); touchPad(pi); (sc.notes[pi] = sc.notes[pi] || []).push({ t, len, p: semi, v: vel }); touched.add(si); }
     else { CAP.push({ pi, semi, vel, at: ctx ? ctx.currentTime : 0, pos: { scene: si, tick: t }, len }); if (CAP.length > 512) CAP.shift(); } }
   if (touched.size) { touched.forEach(si => syncScene(si)); markDirty(); if (touched.has(UI.scene)) { refreshPadDots(); if (UI.view === 'seq') drawTL(); } renderScenes(); }
 }
@@ -3522,10 +3529,13 @@ function padRelease(e) { const f = PADPTR.get(e.pointerId); if (f) { PADPTR.dele
 addEventListener('pointerup', padRelease, true); addEventListener('pointercancel', padRelease, true);
 const releaseAllPads = () => { for (const f of PADPTR.values()) f(); PADPTR.clear(); };
 addEventListener('blur', releaseAllPads); document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAllPads(); });
+// pads under a finger (or a key) stay pressed down until let go; playback only flashes them
+const PADHELD = new Set();
+function padHeld(cell, on) { if (on) PADHELD.add(cell); else PADHELD.delete(cell); const pd = document.querySelector(`.grid .pad[data-cell="${cell}"]`); if (pd) pd.classList.toggle('held', on); }
 function padDown(cell, hk = cell) {   // hk: the key this press is held under (the panel's pad strip uses its own)
   ensureAudio(); let pi, semi = 0, kc = null;
   const chop = padChop();
-  const fromStrip = typeof hk === 'string' && hk[0] === 's', flash = fromStrip ? () => {} : flashCell;   // the panel's pads light themselves, never the big grid
+  const fromStrip = typeof hk === 'string' && hk[0] === 's', flash = fromStrip ? () => {} : flashCell; if (!fromStrip) padHeld(cell, true);   // the panel's pads light themselves, never the big grid
   if (UI.keys) { pi = UI.pad; if (!fromStrip) UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flash(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flash(cell); return; } semi = kc.semi; } }
   else if (UI.swapFrom != null) { const a = UI.swapFrom; UI.swapFrom = null; pi = UI.bank * 16 + cell; if (a === pi) { refreshPadDots(); toast('Swap cancelled'); } else { swapPads(a, pi); UI.pad = pi; } return; }
   else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; requestAnimationFrame(() => { refreshPadDots(); updatePanel(); }); } }   // screen updates wait until the note is sent
@@ -3549,7 +3559,7 @@ function padDown(cell, hk = cell) {   // hk: the key this press is held under (t
   HELD[hk] = { tag, rec: rec ? [rec] : [], cap: cap ? [cap] : [], pi, start: ctx ? ctx.currentTime : 0, ms: [0] };
 }
 function padUp(cell) {
-  const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
+  if (typeof cell === 'number') padHeld(cell, false); const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
   if (hd.arp) { send({ t: 'arpStop', tag: hd.tag }); return; }
   if (pad.mode === 'gate' || pad.mode === 'loop' || pad.src === 'synth') { send({ t: 'rel', tag: hd.tag, rel: pad.rel }); const s = UI.tl.snap || 6, held = ((ctx ? ctx.currentTime : 0) - hd.start) / spt();
     const len = k => Math.max(s, Math.round((held - (hd.ms[k] || 0) / 1000 / spt()) / s) * s);
@@ -4356,7 +4366,7 @@ function renderPads(V) {
   else top.append(seg(['A', 'B', 'C', 'D'], UI.bank, i => { UI.bank = i; UI.pad = i * 16 + UI.pad % 16; renderView(); savePrefs(); }), btn(ck(), () => { UI.keys = true; renderView(); }, 'key sm kbtn'), btn('Import', () => pickAudio(null), 'key sm'));
   top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'));
   const grid = h('div', 'grid');
-  for (const cell of padOrder(16)) { const pd = h('div', 'pad'); pd.dataset.cell = cell;
+  for (const cell of padOrder(16)) { const pd = h('div', 'pad' + (PADHELD.has(cell) ? ' held' : '')); pd.dataset.cell = cell;
     pd.addEventListener('pointerdown', e => padPress(e, () => padDown(cell), () => padUp(cell))); grid.append(pd); }   // no pointer capture: see padPress
   const chop = padChop(); if (chop) w.classList.add('chopping');
   w.append(top); if (chop) w.append(chopWave(UI.pad)); w.append(grid); V.append(w); refreshPadDots(); if (chop) requestAnimationFrame(drawChop);
@@ -6910,7 +6920,7 @@ function drawMeter() { [METER.l, METER.r].forEach((v, i) => { const db = v > 1e-
   const n = performance.now(); if (n - lastCpuDraw > 400) { lastCpuDraw = n; const c = ENG.ready ? Math.round(REP.cpu * 100) : null; cpuEl.textContent = c == null ? 'CPU —' : `CPU ${c}%`; cpuEl.classList.toggle('hot', c != null && c > 60); } }
 $('#meter').addEventListener('click', () => { METER.clip = false; drawMeter(); });
 $('#bPlay').onclick = play;
-$('#bRec').onclick = () => { T.rec = !T.rec; sendClick(); if (T.rec && T.playing) pushUndo('all'); updateTransport(); if (T.rec && !T.playing) toast('Record armed. Press play, then play pads or move controls.'); };
+$('#bRec').onclick = () => { T.rec = !T.rec; sendClick(); REC.saved = -1; REC.last = null; updateTransport(); if (T.rec && !T.playing) toast('Record armed. Press play, then play pads or move controls.'); };
 $('#bLoop').onclick = () => { T.loop = T.loop === 'scene' ? 'song' : 'scene'; send({ t: 'loop', v: T.loop }); updateTransport(); savePrefs(); toast(T.loop === 'song' ? 'Song mode: scenes play in order with repeats' : 'Scene mode: the selected scene loops'); };
 $('#bTempo').onclick = openTempo; $('#bUndo').onclick = undo; $('#bEdit').onclick = openEdit; $('#bPanel').onclick = togglePanel; $('#bMenu').onclick = openMenu;
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setView(b.dataset.v));

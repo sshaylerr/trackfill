@@ -258,7 +258,7 @@ function jungleV2() {
   Object.assign(C[12], { sb: .3, vol: .5 }); Object.assign(C[13], { sb: .3, vol: .5 }); Object.assign(C[15], { vol: .55 });
   C[R0 + 1].fx = [newFx(FX_TYPES.REVERB, { 0: 1, 2: .5 }, 2)];
   // bank B, second row: a few synth pads to try (Analog engine)
-  const SPM = SPN(); if (SPM.SYN_PRESETS) [['Reese', 24, 3], ['Supersaw', 25, 4], ['Trance Pluck', 26, 0], ['Juno Strings', 27, 5]].forEach(([n, pi, col]) => { const pr = SPM.SYN_PRESETS.find(x => x.n === n) || SPM.FM_PRESETS.find(x => x.n === n); if (!pr) return;
+  const SPM = SPN(); if (SPM.SYN_PRESETS) [['Reese', 24, 3], ['Supersaw', 25, 4], ['Trance Pluck', 26, 0], ['Chorus Strings', 27, 5]].forEach(([n, pi, col]) => { const pr = SPM.SYN_PRESETS.find(x => x.n === n) || SPM.FM_PRESETS.find(x => x.n === n); if (!pr) return;
     Object.assign(p.pads[pi], { name: n.slice(0, 12), src: 'synth', syn: SPM.synPatch(pr), mode: 'gate', color: col, voice: pr.voice || 'poly', glide: pr.glide != null ? pr.glide : .08, poly: 8 });
     if (pr.fx) C[pi].fx = pr.fx.map(f => newFx(f.type, null, f.mode || 0)); Object.assign(C[pi], { sb: .25, vol: .5 }); });
   C[MASTER].fx = [newFx(FX_TYPES.LIMIT, null, 0)]; C[MASTER].vol = .62;
@@ -584,7 +584,7 @@ function stressProject() { return asV2(stressV2()); }
 function stressV2() {
   const p = jungleV2(), SPM = SPN(), S = p.scenes, q = 24, F = FX_TYPES; p.name = 'Stress test';
   const add = (s, pi, t, len, pp = 0, v = .85) => { (S[s].notes[pi] = S[s].notes[pi] || []).push({ t, len, p: pp, v }); };
-  const syn = ['Supersaw', 'Reese', 'Hoover Bass', 'Juno Strings', 'Warm Pad', 'Trance Pad', 'Sweep Pad', 'Acid Line', 'Sync Lead', 'Brass Lead', 'Poly Stab', 'Rave Stab', '80s Poly Keys', 'Folded Bass', 'Wobble', 'Jump Up Wobble',
+  const syn = ['Supersaw', 'Reese', 'Hoover Bass', 'Chorus Strings', 'Warm Pad', 'Trance Pad', 'Sweep Pad', 'Acid Line', 'Sync Lead', 'Brass Lead', 'Poly Stab', 'Rave Stab', '80s Poly Keys', 'Folded Bass', 'Wobble', 'Jump Up Wobble',
     'Trance Pluck', 'Tech Stab', 'Digital Brass', 'Glass Pad', 'Neuro Growl', 'Reese FM', 'E. Piano', 'Bells', 'Breath Pad'];   // Analog and FM
   syn.forEach((n, k) => { const pi = 28 + k; if (pi >= NPADS) return; const pr = SPM.SYN_PRESETS.find(x => x.n === n); if (!pr) return;
     Object.assign(p.pads[pi], { name: n.slice(0, 12), src: 'synth', syn: SPM.synPatch(pr), mode: 'gate', color: k % 8, voice: pr.voice || 'poly', glide: pr.glide || 0, poly: 8 }); });
