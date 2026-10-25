@@ -1910,11 +1910,11 @@ function dvWave(ph, dt, shape) {   // sine → triangle → square, the square b
   const tri = ph < .25 ? 4 * ph : ph < .75 ? 2 - 4 * ph : 4 * ph - 4; if (shape <= 1) return s + (tri - s) * shape;
   let sq = ph < .5 ? 1 : -1; sq += blep(ph, dt) - blep((ph + .5) % 1, dt); return tri + (sq - tri) * (shape - 1); }
 
-// how long the voice rings (to about -80 dB), capped at 4 s
-function dvLength(v) { const tone = v.tL > 0 ? v.tH + v.tD * 9.2 : 0, part = Math.max(v.a2 > 0 ? v.d2 * 9.2 : 0, v.a3 > 0 ? v.d3 * 9.2 : 0, v.a4 > 0 ? v.d4 * 9.2 : 0) + v.tH;
-  const bank = v.bL > 0 ? v.bD * Math.pow(v.bLo / 1000, -v.bS) * 9.2 : 0;
-  const met = Math.max(bank, v.mL > 0 ? v.mD * 9.2 : 0), nz = v.nL > 0 ? Math.max(v.nH + v.nD * 9.2, v.nT > 0 ? v.nTD * 9.2 : 0) + (v.nB - 1) * v.nBg : 0;
-  const len = Math.max(.03, tone, part, met, nz, v.cL > 0 ? v.cD * 9.2 : 0) + .01; return Math.min(4, v.gC > 0 ? Math.min(len, v.gC + v.gF * 9.2) : len); }
+// how long the voice rings (to about -66 dB, under where the hit is trimmed anyway), capped at 4 s
+function dvLength(v) { const tone = v.tL > 0 ? v.tH + v.tD * 7.6 : 0, part = Math.max(v.a2 > 0 ? v.d2 * 7.6 : 0, v.a3 > 0 ? v.d3 * 7.6 : 0, v.a4 > 0 ? v.d4 * 7.6 : 0) + v.tH;
+  const bank = v.bL > 0 ? v.bD * Math.pow(v.bLo / 1000, -v.bS) * 7.6 : 0;
+  const met = Math.max(bank, v.mL > 0 ? v.mD * 7.6 : 0), nz = v.nL > 0 ? Math.max(v.nH + v.nD * 7.6, v.nT > 0 ? v.nTD * 7.6 : 0) + (v.nB - 1) * v.nBg : 0;
+  const len = Math.max(.03, tone, part, met, nz, v.cL > 0 ? v.cD * 7.6 : 0) + .01; return Math.min(4, v.gC > 0 ? Math.min(len, v.gC + v.gF * 7.6) : len); }
 
 // render one hit: Float32Array (mono), or { L, R } when opts.width > 0 (noise and metal decorrelated between the sides)
 function dvRender(p, opts = {}) {
@@ -1929,11 +1929,11 @@ function dvRender(p, opts = {}) {
       let y = 0; for (let k = 0; k < K; k++) { const dt = f * r[k] / sr; if (dt < .5) { let q = ph[k] + dt; q -= q >= 1 ? 1 : 0; ph[k] = q; y += e[k] * dvWave(q, dt, shape); } if (i >= tH) e[k] *= m[k]; }
       y *= (i < tAn ? i / tAn : 1) * v.tL; if (v.td > 0) y = Math.tanh(y * tg) / tn; L[i] += y; if (st) R[i] += y; } }
   // metal
-  if (v.mL > 0) { const sides = st ? 2 : 1, md = decay(v.mD), mAn = Math.max(1, v.mA * sr);
+  if (v.mL > 0) { const sides = 1, md = decay(v.mD), mAn = Math.max(1, v.mA * sr);   // one pass, both sides (the noise and the partials carry the width)
     for (let c = 0; c < sides; c++) { const bp = dvBiq('bp', v.mBp, v.mQ, sr), bp2 = dvBiq('bp', v.mBp, v.mQ, sr), hp = dvBiq('hp', v.mHp, .7, sr), det = c ? 1 + w * .006 : 1, out = c ? R : L;
       const ph = DV_METAL.map((_, k) => ((opts.seed || 1) * (k + 1) * .618) % 1), dt = DV_METAL.map(x => v.mF * x * det / sr); let e = 1;
       for (let i = 0; i < n; i++) { let y = 0; for (let k = 0; k < 6; k++) { let q = ph[k] + dt[k]; q -= q >= 1 ? 1 : 0; ph[k] = q; let s = q < .5 ? 1 : -1; s += blep(q, dt[k]) - blep(q >= .5 ? q - .5 : q + .5, dt[k]); y += s; }
-        out[i] += hp(bp2(bp(y / 6))) * 4 * e * (i < mAn ? i / mAn : 1) * v.mL; e *= md; } } }
+        const o = hp(bp2(bp(y / 6))) * 4 * e * (i < mAn ? i / mAn : 1) * v.mL; out[i] += o; if (st) R[i] += o; e *= md; } } }
   // noise
   if (v.nL > 0) { const sides = st ? 2 : 1, B = Math.round(v.nB), nAn = Math.max(1, v.nA * sr), nH = Math.round(v.nH * sr), mD = decay(v.nD), mT = decay(v.nTD), mB = decay(v.nBd), gap = Math.round(v.nBg * sr), sweep = v.nLe > 0, mS = decay(Math.max(.003, v.nD)), bpg = Math.sqrt(v.nQ);
     for (let c = 0; c < sides; c++) { const hp = dvBiq('hp', v.nHp, .7, sr), lp = dvSvf(sr), bp = dvBiq('bp', v.nBp, v.nQ, sr), out = c ? R : L, be = new Float64Array(Math.max(0, B - 1));
@@ -1945,12 +1945,12 @@ function dvRender(p, opts = {}) {
         if (sweep && (i & 15) === 0) { fc = Math.min(20000, v.nLp * Math.pow(2, v.nLe * se)); } if (sweep) se *= mS;
         const y = lp(hp(x), fc, .7), z = v.nBm > 0 ? y + (bp(y) * bpg - y) * v.nBm : y; out[i] += z * env * v.nL; } } }
   // cymbal bank: partial frequencies, levels and decays come from a seeded list, so a preset always sounds the same
-  if (v.bL > 0) { const N = 48, r0 = dvRng(Math.round(v.bSd) * 977 + 13), sides = st ? 2 : 1, bAn = Math.max(1, v.bA * sr);
+  if (v.bL > 0) { const N = 48, r0 = dvRng(Math.round(v.bSd) * 977 + 13), sides = 1, bAn = Math.max(1, v.bA * sr);
     const fq = [], am = [], dm = []; for (let k = 0; k < N; k++) { const u = (k + .5 + r0() * .9) / N, f = v.bLo * Math.pow(v.bHi / v.bLo, Math.max(0, Math.min(1, u))); fq.push(f); am.push((.55 + .45 * Math.abs(r0())) * Math.pow(f / 1000, v.bT / 6.02)); dm.push(decay(v.bD * Math.pow(f / 1000, -v.bS) * (.8 + .4 * Math.abs(r0())))); }
     let norm = 0; for (const a of am) norm += a * a; norm = 1 / Math.sqrt(norm);
     for (let c = 0; c < sides; c++) { const out = c ? R : L, det = c ? 1 + w * .004 : 1;
       for (let k = 0; k < N; k++) { const f = fq[k] * det; if (f >= sr * .45) continue; const th = 2 * Math.PI * f / sr, cr = Math.cos(th), ci = Math.sin(th); let re = Math.cos(k * 2.399), im = Math.sin(k * 2.399), e = am[k] * norm * 1.6 * v.bL; const m = dm[k];
-        for (let i = 0; i < n; i++) { const t = re * cr - im * ci; im = re * ci + im * cr; re = t; out[i] += im * e * (i < bAn ? i / bAn : 1); e *= m; if (e < 1e-6) break; }} } }
+        for (let i = 0; i < n; i++) { const t = re * cr - im * ci; im = re * ci + im * cr; re = t; const o = im * e * (i < bAn ? i / bAn : 1); out[i] += o; if (st) R[i] += o; e *= m; if (e < 1e-6) break; }} } }
   // click
   if (v.cL > 0) { const hp = dvBiq('hp', v.cF, .7, sr), m = Math.min(n, Math.round(v.cD * 12 * sr)), mc = decay(v.cD); let e = 1;
     for (let i = 0; i < m; i++) { const y = hp((i === 0 ? 4 : 0) + rnd() * .6) * e * v.cL; e *= mc; L[i] += y; if (st) R[i] += y; } }
@@ -3387,13 +3387,15 @@ function updateTransport() {
 }
 // while the sound is off the screen dims; the tap that wakes it is swallowed whole (down, up and click) so it can't press anything
 function updateSoundChip() { let c = $('#wakeShade'); const need = !ctx || ctx.state !== 'running';
-  if (need && !c && !WAKE.hold) { c = h('div', ''); c.id = 'wakeShade'; c.innerHTML = '<div></div>'; document.body.append(c);
+  if (need && !c && !WAKE.hold && !WAKE.off) { c = h('div', ''); c.id = 'wakeShade'; c.innerHTML = '<div></div>'; document.body.append(c);
     const eat = e => { e.preventDefault(); e.stopPropagation(); };
     c.addEventListener('pointerdown', e => { eat(e); WAKE.hold = true; ensureAudio(); }); c.addEventListener('click', eat);
-    c.addEventListener('pointerup', e => { eat(e); WAKE.hold = true; setTimeout(() => { c.remove(); WAKE.hold = false; if (!ctx || ctx.state !== 'running') updateSoundChip(); }, 350); }); }
-  else if (!need) { if (c && !WAKE.hold) c.remove(); ENG.slept = false; }
+    c.addEventListener('pointerup', e => { eat(e); WAKE.hold = true; setTimeout(() => { c.remove(); WAKE.hold = false;
+      // if sound can't start (the browser refuses), never trap the screen: after two tries the shade stays away and says so once
+      setTimeout(() => { if (ctx && ctx.state === 'running') { WAKE.fails = 0; return; } if (++WAKE.fails >= 2) { WAKE.off = true; toast('Sound could not start: try closing and reopening the app'); } else updateSoundChip(); }, 1200); }, 350); }); }
+  else if (!need) { if (c && !WAKE.hold) c.remove(); ENG.slept = false; WAKE.off = false; WAKE.fails = 0; }
   if (c && need) c.firstChild.textContent = ENG.slept ? 'Sound is asleep · tap to wake' : 'Tap to turn on sound'; }
-const WAKE = { hold: false };
+const WAKE = { hold: false, fails: 0, off: false };
 
 // after 2 minutes with nothing playing and no touches, audio sleeps to save battery; the first tap wakes it (expect a short delay on that tap)
 let lastAct = Date.now();

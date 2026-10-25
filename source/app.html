@@ -904,13 +904,15 @@ function updateTransport() {
 }
 // while the sound is off the screen dims; the tap that wakes it is swallowed whole (down, up and click) so it can't press anything
 function updateSoundChip() { let c = $('#wakeShade'); const need = !ctx || ctx.state !== 'running';
-  if (need && !c && !WAKE.hold) { c = h('div', ''); c.id = 'wakeShade'; c.innerHTML = '<div></div>'; document.body.append(c);
+  if (need && !c && !WAKE.hold && !WAKE.off) { c = h('div', ''); c.id = 'wakeShade'; c.innerHTML = '<div></div>'; document.body.append(c);
     const eat = e => { e.preventDefault(); e.stopPropagation(); };
     c.addEventListener('pointerdown', e => { eat(e); WAKE.hold = true; ensureAudio(); }); c.addEventListener('click', eat);
-    c.addEventListener('pointerup', e => { eat(e); WAKE.hold = true; setTimeout(() => { c.remove(); WAKE.hold = false; if (!ctx || ctx.state !== 'running') updateSoundChip(); }, 350); }); }
-  else if (!need) { if (c && !WAKE.hold) c.remove(); ENG.slept = false; }
+    c.addEventListener('pointerup', e => { eat(e); WAKE.hold = true; setTimeout(() => { c.remove(); WAKE.hold = false;
+      // if sound can't start (the browser refuses), never trap the screen: after two tries the shade stays away and says so once
+      setTimeout(() => { if (ctx && ctx.state === 'running') { WAKE.fails = 0; return; } if (++WAKE.fails >= 2) { WAKE.off = true; toast('Sound could not start: try closing and reopening the app'); } else updateSoundChip(); }, 1200); }, 350); }); }
+  else if (!need) { if (c && !WAKE.hold) c.remove(); ENG.slept = false; WAKE.off = false; WAKE.fails = 0; }
   if (c && need) c.firstChild.textContent = ENG.slept ? 'Sound is asleep · tap to wake' : 'Tap to turn on sound'; }
-const WAKE = { hold: false };
+const WAKE = { hold: false, fails: 0, off: false };
 
 // after 2 minutes with nothing playing and no touches, audio sleeps to save battery; the first tap wakes it (expect a short delay on that tap)
 let lastAct = Date.now();
