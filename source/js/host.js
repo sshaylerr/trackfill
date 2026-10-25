@@ -41,7 +41,7 @@ const TFSYN = (() => {
       [o + 'l', 'Level', 'lin', 0, 1, def.l, o], [o + 'p', 'Width', 'lin', .05, .95, .5, o]); };
   osc(1, { w: 'Saw', l: .8 }); osc(2, { w: 'Saw', l: 0, f: 7 }); L.push(['o2y', 'Sync', 'opt', ['Off', 'On'], 0, 'Off', 'o2'], ['o2m', 'FM', 'lin', 0, 1, 0, 'o2']);
   osc(3, { w: 'Square', l: 0, o: -1 }); L.push(['o3x', 'Mode', 'opt', ['Audio', 'LFO'], 0, 'Audio', 'o3'], ['o3r', 'LFO rate', 'exp', .05, 20, 2, 'o3']);
-  L.push(['dri', 'Drift', 'lin', 0, 1, .15, 'vo'], ['ret', 'Retrig', 'opt', ['Off', 'On'], 0, 'On', 'vo'], ['fbk', 'Feedback', 'lin', 0, 1, 0, 'vo'], ['uni', 'Unison', 'int', 1, 7, 1, 'vo'],
+  L.push(['dri', 'Drift', 'lin', 0, 1, .15, 'vo'], ['fbk', 'Feedback', 'lin', 0, 1, 0, 'vo'], ['uni', 'Unison', 'int', 1, 7, 1, 'vo'],
     ['det', 'Detune', 'lin', 0, 1, .25, 'vo'], ['spr', 'Spread', 'lin', 0, 1, .6, 'vo'], ['vel', 'Velocity', 'lin', 0, 1, .5, 'vo'], ['pit', 'Pitch', 'lin', -24, 24, 0, 'vo'], ['gan', 'Level', 'db', -24, 6, 0, 'vo']);
   L.push(['sbl', 'Sub', 'lin', 0, 1, 0, 'sb'], ['sbo', 'Octave', 'opt', ['−1 oct', '−2 oct'], 0, '−1 oct', 'sb'], ['sbw', 'Wave', 'opt', ['Sine', 'Triangle', 'Square'], 0, 'Sine', 'sb'],
     ['spl', 'Split', 'lin', 0, 1, 0, 'sb'], ['spn', 'Split below', 'int', 24, 96, 96, 'sb']);
@@ -87,6 +87,10 @@ const TFSYN = (() => {
     ['xsf', 'Filter sweep', 'bip', -1, 1, 0, 'x2'], ['xsv', 'Level sweep', 'bip', -1, 1, 0, 'x2'], ['xsl', 'Loop', 'opt', ['Once', 'Repeat', 'Back and forth'], 0, 'Once', 'x2'],
     ['xwr', 'Rate', 'exp', .05, 40, 2, 'x3'], ['xwy', 'Sync', 'opt', ['Free', 'Sync'], 0, 'Free', 'x3'], ['xwi', 'Rate', 'opt', TF_LFO_DIVS.map(d => d[0]), 0, '1/8', 'x3'], ['xwa', 'Depth', 'lin', 0, 24, 0, 'x3'],
     ['xwh', 'Shape', 'opt', ['Sine', 'Triangle', 'Square', 'Saw up', 'Saw down', 'Random'], 0, 'Sine', 'x3'], ['xwu', 'Rate rise', 'bip', -1, 1, 0, 'x3'], ['xwf', 'To filter', 'bip', -1, 1, 0, 'x3'], ['xwl', 'To level', 'lin', 0, 1, 0, 'x3']);
+  // start phase: where each oscillator begins on a new note (degrees), and how far each note scatters from it (0 = always the same, 100% = anywhere)
+  L.push(['o1h', 'Osc 1 phase', 'lin', 0, 360, 0, 'ph'], ['o2h', 'Osc 2 phase', 'lin', 0, 360, 0, 'ph'], ['o3h', 'Osc 3 phase', 'lin', 0, 360, 0, 'ph'], ['rph', 'Random', 'lin', 0, 1, 0, 'ph'],
+    ['wa9', 'Osc A phase', 'lin', 0, 360, 0, 'ph'], ['wb9', 'Osc B phase', 'lin', 0, 360, 0, 'ph'], ['f1h', 'Op 1 phase', 'lin', 0, 360, 0, 'ph'], ['f2h', 'Op 2 phase', 'lin', 0, 360, 0, 'ph'],
+    ['f3h', 'Op 3 phase', 'lin', 0, 360, 0, 'ph'], ['f4h', 'Op 4 phase', 'lin', 0, 360, 0, 'ph']);
   return L.map(([id, l, k, a, b, d, tab], i) => ({ i, id, l, k, a, b, d, tab }));
 })();
 const TFSYN_ID = Object.fromEntries(TFSYN.map(p => [p.id, p]));

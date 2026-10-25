@@ -193,6 +193,14 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     // parameter maps: the engine and the app agree on every parameter
     { const { ex } = mk(SP.synPatch()); let worst = 0; for (const p of H.TFSYN) if (p.k !== 'opt') for (const n of [0, .13, .5, .77, 1]) { const a = ex.tf_syn_map(p.i, n), b = p.k === 'db' ? Math.pow(10, H.tfSynPhys(p, n) / 20) : H.tfSynPhys(p, n); worst = Math.max(worst, Math.abs(a - b) / Math.max(1, Math.abs(b))); }
       ok(worst < 2e-3, `engine and app read all ${H.TFSYN.length} synth parameters the same way (worst ${worst.toExponential(1)})`); }
+    // start phase: Osc 1 at 90° starts a sine at its peak, at 0° at zero; Random 0 repeats exactly, Random 100% doesn't
+    { const first = (p, n = 2) => { const out = [], s = mk(SP.synPatch({ p: Object.assign({ o1w: 'Sine', o2l: 0, flt: 'Off', dri: 0, aa: .001, as: 1, ar: .001, uni: 1 }, p) })), L = new Float32Array(128), R = new Float32Array(128);
+          for (let k = 0; k < n; k++) { s.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 3 + k }); s.host.render(128, L, R); const i = L.findIndex(x => x !== 0); out.push(L.slice(i, i + 64));
+            s.ex.tf_release_all(.001); for (let b = 0; b < 40; b++) s.host.render(128, L, R); } return out; };
+      const at0 = first({ o1h: 0 })[0], at90 = first({ o1h: 90 })[0], rnd = first({ rph: 1 }, 3).slice(1), fix = first({ rph: 0 }, 3).slice(1);   // (the first note after load meets settling smoothers)
+      const same = (a, b) => a.every((x, i) => Math.abs(x - b[i]) < 1e-7);
+      ok(Math.abs(at0[10]) < Math.abs(at90[10]) * .3 && same(fix[0], fix[1]) && !same(rnd[0], rnd[1]) && SP.normalizeSyn({ p: { ret: 'Off' } }).p.rph === 1,
+        `oscillator start phase and Random work, and old Retrig Off patches become Random 100% (sample 10 at 0°: ${at0[10].toFixed(4)}, at 90°: ${at90[10].toFixed(4)}; fixed repeats ${same(fix[0], fix[1])}, random differs ${!same(rnd[0], rnd[1])})`); }
     // every preset plays cleanly and lets go
     { let bad = 0, silent = [], stuck = []; for (const pr of [SP.SYN_INIT, ...SP.SYN_PRESETS]) { const s = mk(SP.synPatch(pr), { voice: pr.voice || 'poly', glide: pr.glide || 0 });
         [0, 4, 7].forEach((semi, i) => s.host.msg({ t: 'hit', pad: 20, semi, vel: .85, tag: 10 + i })); const a = s.run(375); [0, 1, 2].forEach(i => s.host.msg({ t: 'rel', tag: 10 + i, rel: .1 })); s.run(375 * 4);
