@@ -22,7 +22,7 @@
   --font-lcd:"Figtree", system-ui, sans-serif;   /* values: same family as the UI, lighter weight, fixed-width digits */
 }
 [hidden]{display:none!important}
-html{height:100%;box-sizing:border-box;overscroll-behavior:none}
+html{height:100%;box-sizing:border-box;overscroll-behavior:none;background:#0b0b0c}   /* what iOS shows in any strip outside the page (it keeps the colour it saw at launch): dark, so it reads as the phone's edge */
 *,*::before,*::after{box-sizing:border-box}
 body{height:100%;overscroll-behavior:none;background:var(--body) radial-gradient(140% 70% at 50% 0%,var(--glow) 0%,var(--body) 60%);color:var(--ink);font-family:var(--font-ui);font-size:14px;overflow:hidden;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
@@ -437,20 +437,16 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 .shTitle .clipline{font-style:normal;color:var(--dim);font-weight:400;margin-left:2px}
 #sheet .card .note{font-size:12px;color:var(--dim)} #sheet .card .param{background:var(--panel)}
 /* messages: a small readout in the bottom-left corner, just above the mode keys */
-/* messages: a small box that slides up from the bottom-left corner. On a home-screen iPhone the strip under the app (by the
-   home bar, --chin tall) is where it lives; elsewhere it sits just above the mode keys */
-:root{--chin:0px}
-#toast{position:fixed;left:max(16px,env(safe-area-inset-left,0px),calc(50% - 374px));bottom:calc(max(6px,env(safe-area-inset-bottom,0px)) + 52px);z-index:30;
+/* messages: a small box in the bottom-left corner that slides up from behind the mode keys */
+#toast{position:fixed;left:max(16px,env(safe-area-inset-left,0px),calc(50% - 374px));bottom:calc(max(6px,env(safe-area-inset-bottom,0px)) + 50px);z-index:30;
   max-width:min(60%,300px);display:flex;align-items:center;gap:8px;padding:0 12px 0 10px;height:30px;border-radius:7px;
   background:linear-gradient(180deg,#1d1d21,#131316);border:1px solid var(--edge);box-shadow:0 4px 14px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);
   color:var(--ink);font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  transform:translateY(calc(100% + 60px));transition:transform .22s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+  opacity:0;transform:translateY(18px);transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .15s;pointer-events:none}
 #toast::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)}
-#toast.show{transform:none}
-body.chin #toast{bottom:calc(-1 * var(--chin) + (var(--chin) - 30px) / 2);transform:translateY(calc(var(--chin) + 40px))}
-body.chin #toast.show{transform:none}
+#toast.show{opacity:1;transform:none}
 /* sound asleep (or not started): the screen dims, and the first tap only wakes the sound */
-#wakeShade{position:fixed;inset:0 0 calc(-1 * var(--chin)) 0;padding-bottom:var(--chin);box-sizing:border-box;z-index:40;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
+#wakeShade{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
 #wakeShade>div{display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;background:linear-gradient(180deg,#1b1b1f,#121215);border:1px solid var(--edge);
   color:var(--ink);font-weight:600;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
 #wakeShade>div::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
@@ -663,9 +659,13 @@ const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
 function scopeGet(sc) { const [k, i] = sc.split(':'), n = +i;
   switch (k) { case 'scene': return P.scenes[n]; case 'pad': return P.pads[n]; case 'chan': return P.chans[n];
     case 'song': return { name: P.name, bpm: P.bpm, swing: P.swing, key: P.key }; default: return P; } }
+// undo and redo can bring back a pad whose rendered sound (drum hit, stretched sample) was dropped when it changed: render it again
+function reviveRenders(pi) { const pad = P.pads[pi]; if (!pad) return;
+  if (pad.drum && !SAMPLES.has(pad.sample) && typeof drumSampleId === 'function') pad.sample = drumSampleId(pi);
+  if (pad.stx && !SAMPLES.has(pad.stx)) { pad.stx = null; if (typeof stretchCheck === 'function') stretchCheck(pi); } }
 function scopeSet(sc, v) { const [k, i] = sc.split(':'), n = +i;
-  switch (k) { case 'scene': P.scenes[n] = v; syncScene(n); break; case 'pad': P.pads[n] = v; syncPad(n); break; case 'chan': P.chans[n] = v; syncChan(n); break;
-    case 'song': Object.assign(P, v); syncSong(); break; default: P = v; syncProject(); } }
+  switch (k) { case 'scene': P.scenes[n] = v; syncScene(n); break; case 'pad': P.pads[n] = v; reviveRenders(n); syncPad(n); break; case 'chan': P.chans[n] = v; syncChan(n); break;
+    case 'song': Object.assign(P, v); syncSong(); break; default: P = v; P.pads.forEach((_, j) => reviveRenders(j)); syncProject(); } }
 function pushUndo(scope = 'all') { UNDO.push({ scope, data: JSON.stringify(scopeGet(scope)) }); if (UNDO.length > 200) UNDO.shift(); REDO.length = 0; ugKey = null; }
 function undoGroup(k, scope) { const n = Date.now(); if (k !== ugKey || n - ugTime > 1500) { pushUndo(scope); ugKey = k; } ugTime = n; }
 function applyHistory(from, to, label) { if (!from.length) { toast('Nothing to ' + label); return; } const e = from.pop();
@@ -911,12 +911,7 @@ function updateSoundChip() { let c = $('#wakeShade'); const need = !ctx || ctx.s
   else if (!need) { if (c && !WAKE.hold) c.remove(); ENG.slept = false; }
   if (c && need) c.firstChild.textContent = ENG.slept ? 'Sound is asleep · tap to wake' : 'Tap to turn on sound'; }
 const WAKE = { hold: false };
-// the strip a home-screen iPhone leaves under the page (the layout stops short of the screen's bottom edge): measured so the
-// message box can sit in it and the sleep shade can cover it
-function measureChin() { const sa = window.matchMedia && matchMedia('(display-mode: standalone)').matches || navigator.standalone, portrait = innerHeight > innerWidth;
-  const c = sa && portrait && screen.height > innerHeight ? Math.min(60, Math.round(screen.height - innerHeight)) : 0;
-  document.documentElement.style.setProperty('--chin', c + 'px'); document.body.classList.toggle('chin', c >= 30); }
-measureChin(); addEventListener('resize', measureChin); addEventListener('orientationchange', () => setTimeout(measureChin, 300));
+
 // after 2 minutes with nothing playing and no touches, audio sleeps to save battery; the first tap wakes it (expect a short delay on that tap)
 let lastAct = Date.now();
 for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { lastAct = Date.now(); wake(); if (ENG.slept) ensureAudio(); }, true);
@@ -1457,7 +1452,7 @@ async function runChecks() {
   const rows = [], add = (st, name, detail) => rows.push({ st, name, detail }); ensureAudio();
   const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   add('ok', 'Device', `${ios ? 'iOS' : 'other'} · ${navigator.hardwareConcurrency || '?'} cores · ${screen.width}×${screen.height} @${devicePixelRatio}x`);
-  add('ok', 'Screen', `${innerWidth}×${innerHeight} of ${screen.width}×${screen.height} · strip below ${getComputedStyle(document.documentElement).getPropertyValue('--chin').trim()}`);
+  add('ok', 'Screen', `${innerWidth}×${innerHeight} of ${screen.width}×${screen.height}`);
   add(ctx && ctx.state === 'running' ? 'ok' : 'warn', 'Audio', ctx ? `${ctx.state} · ${ctx.sampleRate} Hz · base ${((ctx.baseLatency || 0) * 1000).toFixed(1)} ms · output ${((ctx.outputLatency || 0) * 1000).toFixed(1)} ms` : 'not started');
   if (ENG.errLog && ENG.errLog.length) add('fail', 'Engine errors', ENG.errLog.join(' | '));
   add(ENG.ready ? 'ok' : 'fail', 'Audio engine', ENG.ready ? `running · CPU ${Math.round(REP.cpu * 100)}% · ${REP.voices} voices` : (ENG.err || 'starting…'));

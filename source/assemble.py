@@ -46,7 +46,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   });
 }
 </script>"""
-page = head + app[:cut] + '\n<style>html,body{margin:0;height:100%;background:#1c1c1f}</style>\n</head>\n<body>\n' + app[cut:] + '\n' + sw + '\n</body>\n</html>\n'
+page = head + app[:cut] + '\n<style>html{margin:0;height:100%;background:#0b0b0c}body{margin:0;height:100%;background:#1c1c1f}</style>\n</head>\n<body>\n' + app[cut:] + '\n' + sw + '\n</body>\n</html>\n'
 build = hashlib.sha1(page.encode()).hexdigest()[:10]   # changes whenever the page does, so phones see sw.js change and update
 (web / 'index.html').write_text(page)
 shutil.copy(root / 'web/manifest.webmanifest', web)
