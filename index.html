@@ -170,7 +170,6 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 
 /* ---------- view & mode keys ---------- */
 #view{flex:1;min-height:0;position:relative;overflow:hidden}
-#soundChip{position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:5;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:12.5px;padding:6px 12px;border-radius:999px;pointer-events:none;white-space:nowrap}
 #tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;flex:none;height:42px}
 #tabs button{height:40px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.08);
   font:600 13px var(--font-ui);color:var(--print);display:flex;align-items:center;justify-content:center;gap:5px;overflow:hidden;white-space:nowrap;min-width:0}
@@ -450,8 +449,18 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit{filter:brightn
 #sheet .edg>.btn.hot:not(:disabled){color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,var(--line))} #sheet .edg>.btn.warn{color:var(--rec)}
 .shTitle .clipline{font-style:normal;color:var(--dim);font-weight:400;margin-left:2px}
 #sheet .card .note{font-size:12px;color:var(--dim)} #sheet .card .param{background:var(--panel)}
-#toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:30;background:var(--ink);color:#111;font-weight:600;font-size:13.5px;padding:9px 14px;border-radius:9px;max-width:calc(100% - 32px);text-align:center;opacity:0;transition:opacity .2s;pointer-events:none}
-#toast.show{opacity:1}
+/* messages: a small readout in the bottom-left corner, just above the mode keys */
+#toast{position:fixed;left:max(16px,env(safe-area-inset-left,0px),calc(50% - 374px));bottom:calc(max(6px,env(safe-area-inset-bottom,0px)) + 52px);z-index:30;
+  max-width:min(72%,340px);display:flex;align-items:center;gap:9px;padding:8px 12px 8px 10px;border-radius:5px;
+  background:linear-gradient(180deg,#1b1b1f,#121215);border:1px solid var(--edge);border-left:3px solid var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05);
+  color:var(--ink);font:600 13px/1.25 var(--font,inherit);text-align:left;opacity:0;transform:translateY(6px);transition:opacity .18s,transform .18s;pointer-events:none}
+#toast::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)}
+#toast.show{opacity:1;transform:none}
+/* sound asleep (or not started): the screen dims, and the first tap only wakes the sound */
+#wakeShade{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
+#wakeShade>div{display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;background:linear-gradient(180deg,#1b1b1f,#121215);border:1px solid var(--edge);
+  color:var(--ink);font-weight:600;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+#wakeShade>div::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media (max-width:420px){#top{gap:3px}.tb.ic{width:36px;min-width:36px}#bLoop{width:48px}#bTempo{width:50px}}
 @media (max-width:370px){.tb.ic{width:34px;min-width:34px}.dpad{grid-template-columns:repeat(3,36px);grid-template-rows:repeat(3,34px)}.pact .pk{width:50px;height:50px}.pmid .pk{width:50px}.knob svg{width:42px;height:42px}}
@@ -3183,9 +3192,15 @@ function updateTransport() {
   $('#bPlay').classList.toggle('on', T.playing); const r = $('#bRec'); r.classList.toggle('armed', T.rec && !T.playing); r.classList.toggle('on', T.rec && T.playing);
   $('#bLoop').innerHTML = T.loop === 'scene' ? '<b>⟲</b><small>Scene</small>' : '<b>▶▶</b><small>Song</small>'; $('#bTempo b').textContent = String(+P.bpm.toFixed(1));
 }
-function updateSoundChip() { let c = $('#soundChip'); const need = !ctx || ctx.state !== 'running';
-  if (need && !c) { c = h('div', ''); c.id = 'soundChip'; $('#view').append(c); } else if (!need && c) { c.remove(); ENG.slept = false; }
-  if (c && need) c.textContent = ENG.slept ? 'Sound is asleep · tap anywhere to wake it' : 'Tap anywhere to turn on sound'; }
+// while the sound is off the screen dims; the tap that wakes it is swallowed whole (down, up and click) so it can't press anything
+function updateSoundChip() { let c = $('#wakeShade'); const need = !ctx || ctx.state !== 'running';
+  if (need && !c && !WAKE.hold) { c = h('div', ''); c.id = 'wakeShade'; c.innerHTML = '<div></div>'; document.body.append(c);
+    const eat = e => { e.preventDefault(); e.stopPropagation(); };
+    c.addEventListener('pointerdown', e => { eat(e); WAKE.hold = true; ensureAudio(); }); c.addEventListener('click', eat);
+    c.addEventListener('pointerup', e => { eat(e); WAKE.hold = true; setTimeout(() => { c.remove(); WAKE.hold = false; if (!ctx || ctx.state !== 'running') updateSoundChip(); }, 350); }); }
+  else if (!need) { if (c && !WAKE.hold) c.remove(); ENG.slept = false; }
+  if (c && need) c.firstChild.textContent = ENG.slept ? 'Sound is asleep · tap to wake' : 'Tap to turn on sound'; }
+const WAKE = { hold: false };
 // after 2 minutes with nothing playing and no touches, audio sleeps to save battery; the first tap wakes it (expect a short delay on that tap)
 let lastAct = Date.now();
 for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { lastAct = Date.now(); wake(); if (ENG.slept) ensureAudio(); }, true);
