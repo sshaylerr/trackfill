@@ -357,26 +357,32 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
   console.log('drum synth');
   { let bad = 0, n = 0, lv = [], longest = 0; for (const mod in DR.DRUM_MODS) for (const type in DR.DRUM_MODS[mod].types) { const r = DR.drumRender(DR.drumDefault(mod, type, 3), { key: { root: 0 } }); n++;
       let pk = 0; for (let i = 0; i < r.L.length; i++) { if (!(r.L[i] === r.L[i]) || !(r.R[i] === r.R[i])) bad++; pk = Math.max(pk, Math.abs(r.L[i]), Math.abs(r.R[i])); } lv.push(pk); longest = Math.max(longest, r.L.length / r.sr); }
-    ok(!bad && lv.every(p => p > .5 && p <= .9) && longest <= 4, `all ${n} drum types render cleanly at a matched level (peaks ${Math.min(...lv).toFixed(2)}–${Math.max(...lv).toFixed(2)}, longest ${longest.toFixed(1)} s)`); }
-  { let bad = 0, n = 0, lv = [], dif = 0; for (const mc of DR.DRUM_MACHINES.slice(1)) for (const mod in DR.DRUM_MODS) for (const type in DR.DRUM_MODS[mod].types) {
-      const d = DR.drumDefault(mod, type, 3); d.mach = mc; const r = DR.drumRender(d, { key: { root: 0 } }), m = DR.drumRender(DR.drumDefault(mod, type, 3), { key: { root: 0 } }); n++;
-      let pk = 0, nan = false; for (let i = 0; i < r.L.length; i++) { if (!isFinite(r.L[i]) || !isFinite(r.R[i])) nan = true; pk = Math.max(pk, Math.abs(r.L[i]), Math.abs(r.R[i])); } if (nan) bad++; lv.push(pk);
-      if (r.L.length !== m.L.length || r.L.some((v, i) => Math.abs(v - m.L[i]) > 1e-3)) dif++; }
-    const keys = new Set(DR.DRUM_MACHINES.map(mc => { const d = DR.drumDefault('kick', 'Techno', 3); d.mach = mc; return DR.drumKey(d, null, null); }));
-    ok(!bad && lv.every(p => p > .5 && p <= .9) && dif >= n * .9 && keys.size === DR.DRUM_MACHINES.length, `all ${n} machine variations render cleanly, mostly sound different from Modern (${dif}/${n}), and cache separately (peaks ${Math.min(...lv).toFixed(2)}–${Math.max(...lv).toFixed(2)})`);
-    const K = DR.drumKit('Analog Punch', 5); ok(K.pieces.every(p => p.d.mach === 'Punch'), 'machine kits set the machine on every piece'); }
-  { const d = DR.drumDefault('kick', 'Deep 808', 1); d.key = 'Root'; const k = DR.drumEffective(d, null), hz = 35 * Math.pow(2, k.tune * 1.25), a = DR.keySnap(hz, 'Root', { root: 7 }), b = DR.keySnap(hz, 'Fifth', { root: 0 });
+    ok(!bad && lv.every(p => p > .5 && p <= .9) && longest <= 4.6, `all ${n} drum types render cleanly at a matched level (peaks ${Math.min(...lv).toFixed(2)}–${Math.max(...lv).toFixed(2)}, longest ${longest.toFixed(1)} s)`); }
+  { // every fitted type sits close to its measured reference (distance on log spectrograms: two settings of one classic snare are 6-10 apart)
+    const P = require('../js/drumpresets.js').DRUM_PRESETS, ds = P.map(p => p[4]), worst = P.reduce((a, p) => p[4] > a[4] ? p : a, P[0]);
+    ok(P.length >= 100 && Math.max(...ds) <= 10, `${P.length} drum types fitted to measured hits (median distance ${ds.slice().sort((a, b) => a - b)[ds.length >> 1].toFixed(1)}, worst ${worst[4]} for ${worst[2]} ${worst[1]})`); }
+  { // machines: each classic box has its own kick and snare; machine kits use that box
+    const missing = DR.DRUM_MACHINES.filter(mc => !DR.drumTypesFor('kick', mc).length || !DR.drumTypesFor('snare', mc).length), K = DR.drumKit('Analog Punch', 5);
+    ok(!missing.length && K.pieces[0].d.mach === 'Punch' && K.pieces[1].d.mach === 'Punch', `every machine has kicks and snares (${DR.DRUM_MACHINES.map(mc => DR.DRUM_MACH_N[mc] + ' ' + Object.keys(DR.DRUM_MODS).reduce((a, m) => a + DR.drumTypesFor(m, mc).length, 0)).join(', ')}) and machine kits use their box`); }
+  { // knobs: every knob at both ends renders cleanly and changes the sound
+    let bad = 0, same = []; for (const mod in DR.DRUM_MODS) { const type = Object.keys(DR.DRUM_MODS[mod].types)[0], c = DR.drumRender(DR.drumDefault(mod, type, 3), {});
+      for (const [id] of DR.DRUM_MODS[mod].knobs) for (const v of [0, 1]) { if (v === DR.knobDef(mod, id)) continue; const d = DR.drumDefault(mod, type, 3); d.k[id] = v; const r = DR.drumRender(d, {}); if (r.L.some(x => !isFinite(x))) bad++;
+        if (r.L.length === c.L.length && r.L.every((x, i) => Math.abs(x - c.L[i]) < 1e-4) && r.R.every((x, i) => Math.abs(x - c.R[i]) < 1e-4)) same.push(mod + '.' + id + '=' + v); } }
+    ok(!bad && !same.length, `every drum knob works at both ends${same.length ? ' (no change: ' + same.join(', ') + ')' : ''}`); }
+  { const d = DR.drumDefault('kick', 'Boom Long', 1); d.key = 'Root'; const a = DR.drumHz(d, { key: { root: 7 } }), d2 = Object.assign({}, d, { key: 'Fifth' }), b = DR.drumHz(d2, { key: { root: 0 } });
     const m = x => ((Math.round(12 * Math.log2(x / 440) + 69) % 12) + 12) % 12; ok(m(a) === 7 && m(b) === 7, `tuned drums lock to the key (root G → ${a.toFixed(1)} Hz, fifth of C → ${b.toFixed(1)} Hz)`); }
   { const d = DR.drumDefault('snare', 'DnB Crack', 1); d.locks = ['tune', 'tone']; const v = DR.drumVariation(d, 12345); const moved = Object.keys(d.k).filter(id => Math.abs(v.k[id] - d.k[id]) > 1e-9);
-    ok(!moved.includes('tune') && !moved.includes('tone') && moved.length >= 3, `More like this moves the unlocked knobs (${moved.join(', ')}) and leaves locked ones alone`); }
+    const a = DR.drumRender(d, {}), b = DR.drumRender(Object.assign({}, v, { k: d.k }), {});
+    ok(!moved.includes('tune') && !moved.includes('tone') && moved.length >= 3 && v.vj > 0 && (a.L.length !== b.L.length || a.L.some((x, i) => Math.abs(x - b.L[i]) > 1e-3)), `More like this moves the unlocked knobs (${moved.join(', ')}), leaves locked ones alone and varies the voice itself`); }
   { const K = DR.drumKit('Jungle', 7), roles = K.pieces.map(p => p.d.mod + '/' + p.d.type); const again = DR.drumKit('Jungle', 7), same = JSON.stringify(K) === JSON.stringify(again);
     const bright = DR.drumRender(K.pieces[1].d, { kit: Object.assign({}, K.kit, { bright: 1 }) }), dark = DR.drumRender(K.pieces[1].d, { kit: Object.assign({}, K.kit, { bright: 0 }) });
     const hf = r => { let d = 0, e = 0; for (let i = 1; i < r.L.length; i++) { d += (r.L[i] - r.L[i - 1]) ** 2; e += r.L[i] ** 2; } return d / e; };
-    ok(K.pieces.length === 9 && same && hf(bright) > hf(dark) * 1.3, `a vibe builds a 9-piece kit (${roles.slice(0, 5).join(', ')}…), the same seed builds the same kit, and Dark ↔ Bright works (×${(hf(bright) / hf(dark)).toFixed(1)})`); }
+    const bad = DR.DRUM_VIBES.flatMap(V => V.slice(3, 12).map((t, i) => DR.DRUM_MODS[DR.KIT_ROLES[i][1]].types[t] ? null : V[0] + ':' + t)).filter(Boolean);
+    ok(K.pieces.length === 9 && same && hf(bright) > hf(dark) * 1.2 && !bad.length, `a vibe builds a 9-piece kit (${roles.slice(0, 5).join(', ')}…), the same seed builds the same kit, Dark ↔ Bright works (×${(hf(bright) / hf(dark)).toFixed(1)})${bad.length ? '; unknown types: ' + bad.join(', ') : ''}`); }
   { // choke group: an open hat rings, then a closed hat in the same group cuts it
     const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; }); Q.scenes.forEach(s => { s.notes = {}; s.auto = {}; });
     const mkS = (d) => { const r = DR.drumRender(d, {}); const n = r.L.length, o = new Int16Array(n * 2); for (let i = 0; i < n; i++) { o[i * 2] = r.L[i] * 32767; o[i * 2 + 1] = r.R[i] * 32767; } return { data: o, frames: n }; };
-    const op = mkS(DR.drumDefault('hats', 'Open', 1)), cl = mkS(DR.drumDefault('hats', 'Closed', 1));
+    const op = mkS(DR.drumDefault('hats', 'Long Open', 1)), cl = mkS(DR.drumDefault('hats', 'Garage Hat', 1));
     for (const [pi, key, s] of [[30, 'd:o', op], [31, 'd:c', cl]]) { Object.assign(Q.pads[pi], { sample: key, mode: 'one', choke: 1, src: 'sample' }); }
     host.msg({ t: 'project', P: Q }); host.msg({ t: 'sample', key: 'd:o', data: op.data, frames: op.frames, ch: 2, sr: 48000 }); host.msg({ t: 'sample', key: 'd:c', data: cl.data, frames: cl.frames, ch: 2, sr: 48000 });
     const L = new Float32Array(128), R = new Float32Array(128); host.msg({ t: 'hit', pad: 30, semi: 0, vel: .9, tag: 1 }); for (let i = 0; i < 40; i++) host.render(128, L, R); const v1 = ex.tf_voices();

@@ -199,7 +199,7 @@ function openSynthSource(pi) {
   openSheet('Sound source · ' + padLabel(pi), card => { const st = h('div', 'stack');
     st.append(btn(`Sample <span class="lsub">${esc(smp)}</span>`, () => { if (pad.src === 'sample') { closeSheet(); return; } pushUndo('pad:' + pi); pad.src = 'sample'; syncPad(pi); markDirty(); closeSheet(); renderAll(); }, 'btn' + (pad.src === 'sample' ? ' on' : '')),
       btn(`Synth <span class="lsub">${pad.syn ? (TF_ENGS[pad.syn.eng] || 'Analog') + ' · ' + esc(pad.syn.name || 'Init') : 'Analog · Init'}</span>`, () => { closeSheet(); if (pad.src === 'synth' && pad.syn) return; if (pad.syn) { pushUndo('pad:' + pi); pad.src = 'synth'; pad.mode = 'gate'; syncPad(pi); markDirty(); renderAll(); } else applySynthPreset(pi, SYN_INIT); }, 'btn' + (pad.src === 'synth' ? ' on' : '')));
-    st.append(btn(`Drum <span class="lsub">${pad.drum ? esc(DRUM_MODS[pad.drum.mod].n + ' · ' + pad.drum.type) : 'Kick, snare, clap, hats, perc · or a whole kit'}</span>`, () => { closeSheet(); if (pad.src === 'drum') return;
+    st.append(btn(`Drum <span class="lsub">${pad.drum ? esc(DRUM_MODS[pad.drum.mod].n + ' · ' + drumTypeName(pad.drum.mod, pad.drum.type)) : 'Kick, snare, clap, hats, perc · or a whole kit'}</span>`, () => { closeSheet(); if (pad.src === 'drum') return;
       if (pad.drum) { pushUndo('pad:' + pi); pad.src = 'drum'; pad.mode = 'one'; refreshDrum(pi); renderAll(); } else { makeDrumPad(pi, 'kick', 'DnB Punch'); UI.snd = 0; renderAll(); } }, 'btn' + (pad.src === 'drum' ? ' on' : '')));
     st.append(''); card.append(st); });
 }

@@ -1,49 +1,53 @@
 'use strict';
 /* Trackfill drum synth: five modules (Kick, Snare, Clap, Hats & Cymbals, Perc & Toms) rendered to short samples.
-   Every change renders the hit again (a few milliseconds), so playback is as light as any sample and every sample feature works.
-   Six knobs per module, ranged so every position is usable; types are starting points; kits are built from vibes.
-   Shared by the app and the tests (pure functions, deterministic for a given seed). */
+   Every hit is the layered drum voice (drumvoice.js). Each type is a voice fitted to a measured reference hit (tools/drumref),
+   so tones, partials, noise colour and lengths match the real thing; the six knobs are moves around that point
+   (centre = the type exactly). Every change renders the hit again (a few milliseconds), so playback is as light as any sample. */
 const DRUM_SR = 48000;
-const DRUM_MODS = {
-  kick: { n: 'Kick', knobs: [['tune', 'Tune'], ['punch', 'Punch'], ['snap', 'Snap'], ['decay', 'Decay'], ['click', 'Click'], ['drive', 'Drive']], tuned: true,
-    types: { 'Classic': [.45, .55, .45, .4, .35, .2], 'DnB Punch': [.45, .7, .6, .3, .5, .35], 'Jungle': [.4, .5, .4, .25, .3, .5, { grit: .5 }], 'Deep 808': [.3, .3, .1, .85, .1, .15, { hold: 1 }], 'Techno': [.4, .65, .5, .45, .4, .55],
-      'House': [.5, .55, .45, .4, .35, .25], 'Distorted': [.45, .7, .6, .5, .5, .9], 'Trap 808': [.3, .35, .2, 1, .15, .4, { hold: 1, glide: 1 }], 'Soft': [.5, .3, .1, .35, 0, 0, { soft: 1 }] } },
-  snare: { n: 'Snare', knobs: [['tune', 'Tune'], ['body', 'Body'], ['snap', 'Snap'], ['decay', 'Decay'], ['tone', 'Tone'], ['drive', 'Drive']],
-    types: { 'Classic': [.5, .5, .6, .35, .6, .15], 'DnB Crack': [.6, .45, .8, .3, .75, .35], 'Jungle Ring': [.5, .75, .55, .45, .55, .3, { ring: 1 }], 'Rimshot': [.85, .6, .6, .1, .8, .2, { rim: 1 }], 'Fat': [.25, .7, .6, .6, .4, .3],
-      'Trap': [.55, .35, .75, .55, .85, .15], 'Lo-fi': [.45, .55, .6, .35, .45, .4, { grit: 1 }] } },
-  clap: { n: 'Clap', knobs: [['tone', 'Tone'], ['spread', 'Spread'], ['decay', 'Decay'], ['snap', 'Snap'], ['room', 'Room'], ['drive', 'Drive']],
-    types: { 'Classic': [.5, .45, .4, .55, .2, .1], 'Tight': [.6, .3, .25, .7, .1, .2], 'Big Room': [.5, .6, .55, .5, .7, .2, { layers: 5 }], 'Classic 808': [.45, .45, .4, .55, .25, .15], 'Snap': [.8, .15, .15, .9, .05, .1, { snap: 1 }] } },
-  hats: { n: 'Hats & Cymbals', knobs: [['pitch', 'Pitch'], ['metal', 'Metal'], ['decay', 'Decay'], ['bright', 'Brightness'], ['width', 'Width'], ['drive', 'Drive']],
-    types: { 'Closed': [.5, .6, .35, .6, .3, .1, { len: 'closed' }], 'Open': [.5, .6, .45, .6, .5, .1, { len: 'open' }], 'Ride': [.45, .8, .5, .5, .5, 0, { len: 'ride', bell: 1 }],
-      'Crash': [.5, .35, .6, .7, .8, .15, { len: 'crash' }], 'Shaker': [.5, 0, .35, .55, .4, 0, { len: 'shaker', shaker: 1 }] } },
-  perc: { n: 'Perc & Toms', knobs: [['tune', 'Tune'], ['decay', 'Decay'], ['tone', 'Tone'], ['snap', 'Snap'], ['bend', 'Bend'], ['drive', 'Drive']], tuned: true,
-    types: { 'Tom': [.4, .5, .35, .4, .5, .15, { kind: 'tom' }], 'Conga': [.45, .4, .5, .55, .3, .05, { kind: 'conga' }], 'Bongo': [.55, .3, .55, .6, .25, .05, { kind: 'bongo' }],
-      'Rim': [.5, .2, .6, .7, .1, .1, { kind: 'rim' }], 'Cowbell': [.5, .45, .5, .5, 0, .2, { kind: 'cowbell' }], 'Clave': [.5, .2, .5, .6, 0, 0, { kind: 'clave' }],
-      'Wood': [.5, .25, .55, .6, .1, .05, { kind: 'wood' }], 'Zap': [.5, .35, .5, .5, .7, .2, { kind: 'zap' }] } } };
+const DVD = () => typeof dvRender === 'function' ? { dvRender, dvFull } : require('./drumvoice.js');
+const DRP = () => typeof DRUM_PRESETS !== 'undefined' ? DRUM_PRESETS : require('./drumpresets.js').DRUM_PRESETS;
+// machines: Modern (today's packs) and four classic boxes, by sound rather than by name
+const DRUM_MACHINES = ['Modern', 'Boom', 'Punch', 'Digital', 'Mini'];
+const DRUM_MACH_N = { Modern: 'Modern', Boom: 'Analog Boom', Punch: 'Analog Punch', Digital: 'Digital 80s', Mini: 'Analog Mini' };
+const DRUM_MACH_SUB = { Modern: 'Today\'s drums: DnB, house, garage, dubstep, trap', Boom: 'The deep analogue box: long booms, tuned snares, pure metal cymbals', Punch: 'The punchy analogue box: driven kicks, noisy snares, sampled cymbals',
+  Digital: 'The early sampled box: 8-bit grit, short and bright', Mini: 'The small analogue box: tight, bright, simple' };
+const DRUM_KNOBS = {
+  kick: [['tune', 'Tune'], ['punch', 'Punch'], ['click', 'Click'], ['decay', 'Decay'], ['tone', 'Tone'], ['drive', 'Drive']],
+  snare: [['tune', 'Tune'], ['body', 'Body'], ['wires', 'Wires'], ['tone', 'Tone'], ['decay', 'Decay'], ['drive', 'Drive']],
+  clap: [['tone', 'Tone'], ['spread', 'Spread'], ['decay', 'Decay'], ['snap', 'Snap'], ['room', 'Room'], ['drive', 'Drive']],
+  hats: [['pitch', 'Pitch'], ['metal', 'Metal'], ['decay', 'Decay'], ['tone', 'Tone'], ['width', 'Width'], ['drive', 'Drive']],
+  perc: [['tune', 'Tune'], ['decay', 'Decay'], ['tone', 'Tone'], ['snap', 'Snap'], ['bend', 'Bend'], ['drive', 'Drive']] };
+const DRUM_MOD_N = { kick: 'Kick', snare: 'Snare', clap: 'Clap', hats: 'Hats & Cymbals', perc: 'Perc & Toms' };
+// hand-made modern percussion (no reference packs for these yet): the same voice, set by ear
+const DRUM_HAND = [
+  ['perc', 'Conga', 'Modern', { tL: 1, f0: 210, sw: 5, swT: .006, tD: .12, a2: .3, r2: 1.52, d2: .05, cL: .3, cF: 2500, cD: .001, nL: .1, nD: .01, nHp: 2000 }],
+  ['perc', 'Bongo', 'Modern', { tL: 1, f0: 390, sw: 4, swT: .005, tD: .07, a2: .25, r2: 1.6, d2: .03, cL: .35, cF: 3000, cD: .001 }],
+  ['perc', 'Rim', 'Modern', { tL: 1, f0: 480, tD: .012, a2: .6, r2: 2.2, d2: .01, shape: .5, nL: .5, nD: .006, nHp: 2500, cL: .5, cF: 4000, cD: .0008 }],
+  ['perc', 'Clave', 'Modern', { tL: 1, f0: 2500, tD: .022, shape: .2, cL: .2, cF: 5000, cD: .0005 }],
+  ['perc', 'Wood', 'Modern', { tL: 1, f0: 900, tD: .03, a2: .5, r2: 2.7, d2: .015, shape: .3, nL: .2, nD: .006, nHp: 1500, cL: .3, cF: 3000, cD: .0008 }],
+  ['perc', 'Zap', 'Modern', { tL: 1, f0: 140, sw: 40, swT: .025, tD: .12, shape: .6, td: .3 }]];
+// modules and their types: { name: { m: machine, v: voice } } in machine order
+const DRUM_MODS = (() => { const M = {}; for (const mod of Object.keys(DRUM_KNOBS)) M[mod] = { n: DRUM_MOD_N[mod], knobs: DRUM_KNOBS[mod], tuned: mod === 'kick' || mod === 'perc', types: {} };
+  const all = [...DRP(), ...DRUM_HAND]; for (const mc of DRUM_MACHINES) for (const [mod, name, m, v] of all) if (m === mc && M[mod]) M[mod].types[mc === 'Modern' ? name : mc + ' ' + name] = { m, n: name, v };   // ids stay unique across machines
+  return M; })();
 const DRUM_KEYLOCK = ['Free', 'Root', 'Fifth'];
-// machines: the same module drawn after one of the classic boxes (the circuit changes; the knobs keep their jobs)
-const DRUM_MACHINES = ['Modern', 'Boom', 'Punch', 'Mini', 'Digital'];
-const DRUM_MACH_N = { Modern: 'Modern', Boom: 'Analog Boom', Punch: 'Analog Punch', Mini: 'Analog Mini', Digital: 'Digital 80s' };
-const DRUM_MACH_SUB = { Modern: 'Clean and full: today\'s drums', Boom: 'Round, long, soft-edged', Punch: 'Hard attack, crunchy cymbals', Mini: 'Small, tight, bright', Digital: 'Early sampled: gritty 8-bit' };
-// picking a machine on a kick, snare or clap starts from that box's own sound (type Classic); hats and perc keep their type
-const MACH_KNOBS = { Boom: { kick: [.45, .4, .15, .6, .1, .1], snare: [.4, .5, .55, .35, .4, .05], clap: [.45, .45, .4, .55, .2, .1] },
-  Punch: { kick: [.5, .6, .45, .4, .55, .25], snare: [.45, .5, .7, .4, .6, .2], clap: [.55, .5, .45, .6, .25, .15] },
-  Mini: { kick: [.5, .5, .35, .35, .3, .1], snare: [.5, .3, .7, .3, .65, .05], clap: [.6, .3, .3, .65, .1, .05] },
-  Digital: { kick: [.45, .55, .4, .45, .5, .15], snare: [.5, .55, .65, .4, .55, .1], clap: [.55, .45, .45, .6, .3, .1] } };
-function drumSetMachine(d, mc) { d.mach = mc; const v = MACH_KNOBS[mc] && MACH_KNOBS[mc][d.mod]; if (!v) return d;
-  d.type = 'Classic'; DRUM_MODS[d.mod].knobs.forEach(([id], i) => { if (!d.locks.includes(id)) d.k[id] = v[i]; }); return d; }
+const drumTypeName = (mod, type) => { const t = DRUM_MODS[mod] && DRUM_MODS[mod].types[type]; return t ? t.n : type; };
 const machOf = d => DRUM_MACHINES.includes(d.mach) ? d.mach : 'Modern';
-const drumBaseHz = (mod, tune, mc) => mod === 'kick' ? 35 * Math.pow(2, tune * 1.25) * (mc === 'Mini' ? 1.35 : 1) : 150 * Math.pow(2, tune * 1.1) * (mc === 'Mini' ? 1.3 : 1);
-
+const drumTypesFor = (mod, mc) => Object.keys(DRUM_MODS[mod].types).filter(t => DRUM_MODS[mod].types[t].m === mc);
+const drumMachinesFor = mod => DRUM_MACHINES.filter(mc => drumTypesFor(mod, mc).length);
+const knobDef = (mod, id) => id === 'room' ? 0 : id === 'width' ? .35 : .5;
 function drumDefault(mod, type, seed) {
-  const M = DRUM_MODS[mod] || DRUM_MODS.kick; type = M.types[type] ? type : Object.keys(M.types)[0]; const t = M.types[type], k = {};
-  M.knobs.forEach(([id], i) => { k[id] = t[i]; });
-  return { mod: DRUM_MODS[mod] ? mod : 'kick', type, mach: 'Modern', k, key: 'Free', seed: seed == null ? 1 : seed | 0, locks: [], slots: [], kit: false };
+  const M = DRUM_MODS[mod] || DRUM_MODS.kick; mod = DRUM_MODS[mod] ? mod : 'kick'; type = M.types[type] ? type : Object.keys(M.types)[0]; const k = {};
+  M.knobs.forEach(([id]) => { k[id] = knobDef(mod, id); });
+  return { mod, type, mach: M.types[type].m, k, key: 'Free', seed: seed == null ? 1 : seed | 0, vj: 0, locks: [], slots: [], kit: false };
 }
+// a machine: its first type for this module (knobs back to centre, locked ones kept)
+function drumSetMachine(d, mc) { const ts = drumTypesFor(d.mod, mc); if (!ts.length) return d; d.mach = mc; d.type = ts[0]; d.vj = 0;
+  DRUM_MODS[d.mod].knobs.forEach(([id]) => { if (!d.locks.includes(id)) d.k[id] = knobDef(d.mod, id); }); return d; }
 function drumNormalize(d) {
-  if (!d || typeof d !== 'object' || !DRUM_MODS[d.mod]) return null; const M = DRUM_MODS[d.mod], o = drumDefault(d.mod, d.type, d.seed);
-  for (const [id] of M.knobs) if (typeof (d.k && d.k[id]) === 'number') o.k[id] = Math.max(0, Math.min(1, d.k[id]));
-  o.key = DRUM_KEYLOCK.includes(d.key) ? d.key : 'Free'; o.mach = machOf(d); o.locks = Array.isArray(d.locks) ? d.locks.filter(x => M.knobs.some(k => k[0] === x)) : []; o.kit = !!d.kit;
+  if (!d || typeof d !== 'object' || !DRUM_MODS[d.mod]) return null; const M = DRUM_MODS[d.mod], o = drumDefault(d.mod, M.types[d.type] ? d.type : null, d.seed);
+  for (const [id] of M.knobs) if (typeof (d.k && d.k[id]) === 'number' && M.types[d.type]) o.k[id] = Math.max(0, Math.min(1, d.k[id]));   // knobs only carry over within a known type
+  o.key = DRUM_KEYLOCK.includes(d.key) ? d.key : 'Free'; o.vj = Math.max(0, Math.min(1, +d.vj || 0)); o.locks = Array.isArray(d.locks) ? d.locks.filter(x => M.knobs.some(k => k[0] === x)) : []; o.kit = !!d.kit;
   o.slots = Array.isArray(d.slots) ? d.slots.slice(0, 4).map(s => s && drumNormalize(Object.assign({}, s, { slots: [] }))).filter(Boolean) : []; return o;
 }
 function drumRng(seed) { let s = (seed * 2654435761) >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
@@ -54,7 +58,7 @@ function drumEffective(d, kit) {
   const off = (v, c) => dClamp(v + (c - .5) * .5);
   for (const id of ['tune', 'pitch']) if (id in k) k[id] = off(k[id], kit.tune);
   if ('decay' in k) k.decay = off(k.decay, kit.len);
-  for (const id of ['tone', 'bright', 'click', 'snap']) if (id in k) k[id] = off(k[id], kit.bright);
+  for (const id of ['tone']) if (id in k) k[id] = off(k[id], kit.bright);
   if ('drive' in k) k.drive = dClamp(k.drive + (kit.drive - .5) * .6); return k;
 }
 // key lock: snap a pitch to the nearest root (or fifth) of the project key
@@ -63,90 +67,44 @@ function keySnap(hz, mode, key) {
   let best = m, bd = 99; for (let o = -2; o <= 10; o++) { const c = pc + 12 * o; if (Math.abs(c - m) < bd) { bd = Math.abs(c - m); best = c; } }
   return 440 * Math.pow(2, (best - 69) / 12);
 }
-// small helpers for rendering
-function hp1(a) { let x1 = 0, y1 = 0; return x => { const y = a * (y1 + x - x1); x1 = x; y1 = y; return y; }; }
-function lp1(a) { let y = 0; return x => (y += a * (x - y)); }
-function dBp(fc, q, sr) { const w = 2 * Math.PI * fc / sr, al = Math.sin(w) / (2 * q), a0 = 1 + al, b0 = al / a0, a1 = -2 * Math.cos(w) / a0, a2 = (1 - al) / a0; let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-  return x => { const y = b0 * x - b0 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = x; y2 = y1; y1 = y; return y; }; }
-const lpA = (fc, sr) => 1 - Math.exp(-2 * Math.PI * fc / sr), hpA = (fc, sr) => 1 / (1 + 2 * Math.PI * fc / sr);
-function sat(x, d) { if (d < .01) return x; const g = 1 + d * 7; return Math.tanh(x * g) / Math.tanh(g); }
-
-function drumRender(d, opts = {}) {
-  const sr = DRUM_SR, M = DRUM_MODS[d.mod], t0 = M.types[d.type] || [], fl = (t0[6] || {}), k = drumEffective(d, opts.kit), rnd = drumRng(d.seed || 1), noise = () => rnd() * 2 - 1;
-  const mc = machOf(d); let len = 1, L, R; const room = opts.kit && d.kit ? opts.kit.room : (d.mod === 'clap' ? k.room : 0);
-  const make = secs => { len = Math.ceil(Math.min(4, secs) * sr); L = new Float32Array(len); R = new Float32Array(len); };
-  if (d.mod === 'kick') {
-    const hz = keySnap(drumBaseHz('kick', k.tune, mc), d.key, opts.key);
-    const [depth, tp, dec, snapA, tri] = { Modern: [1.5 + k.punch * 9, .012 + (1 - k.punch) * .05, .12 + Math.pow(k.decay, 1.6) * (fl.hold ? 2.4 : 1.4), 25, 0],
-      Boom: [1.1 + k.punch * 1.4, .006 + (1 - k.punch) * .014, .25 + Math.pow(k.decay, 1.4) * 2.2, 6, 0], Punch: [2.5 + k.punch * 6, .01 + (1 - k.punch) * .03, .14 + Math.pow(k.decay, 1.5) * .9, 18, .45],
-      Mini: [1.4 + k.punch * 2.6, .008 + (1 - k.punch) * .012, .05 + Math.pow(k.decay, 1.3) * .35, 14, .3], Digital: [2.2 + k.punch * 5, .012 + (1 - k.punch) * .025, .16 + Math.pow(k.decay, 1.5) * .6, 18, .45] }[mc];
-    make(dec * 1.25 + .06); let ph = 0; const ck = hp1(hpA(2500, sr)), soft = fl.soft ? lp1(lpA(900, sr)) : null, glide = fl.glide ? 1 : 0, mk = mc !== 'Modern' ? lp1(lpA(mc === 'Boom' ? 3000 : 7000, sr)) : null;
-    for (let i = 0; i < len; i++) { const t = i / sr, f = hz * (1 - glide * .11 * Math.min(1, t / dec)) + (hz * depth - hz) * Math.exp(-t / tp) + hz * snapA * k.snap * Math.exp(-t / .0022);
-      ph += f / sr; let a = fl.hold ? 1 / (1 + Math.pow(t / (dec * .55), 3)) : Math.exp(-3.2 * t / dec); a *= Math.min(1, t / .0006);
-      let s0 = Math.sin(2 * Math.PI * ph); if (tri) s0 = s0 * (1 - tri) + tri * (2 / Math.PI) * Math.asin(s0);
-      let y = mk ? s0 * a + mk(noise()) * k.click * (mc === 'Boom' ? .3 : .9) * Math.exp(-t / .003) + (t < .0008 ? k.click * .5 : 0)   // the machines: a filtered noise tick and the trigger pulse
-        : s0 * a + ck(noise()) * k.click * .8 * Math.exp(-t / .0016) + Math.sin(2 * Math.PI * 2800 * t) * k.click * .25 * Math.exp(-t / .002);
-      if (soft) y = soft(y); y = sat(y, k.drive); if (fl.grit) y = Math.round(y * 64 * (2 - fl.grit)) / (64 * (2 - fl.grit)); L[i] = R[i] = y; } }
-  else if (d.mod === 'snare') {
-    const f = drumBaseHz('snare', k.tune, mc) * (fl.rim ? 2.4 : 1), hard = mc === 'Punch' || mc === 'Digital', r2 = hard ? 1.6 : 1.87, bodyL = (.4 + k.body * .7) * (mc === 'Mini' ? .5 : 1);
-    const bodyD = mc === 'Boom' ? .03 + k.body * .12 : mc === 'Mini' ? .02 + k.body * .05 : (fl.ring ? .18 : .04) + k.body * (fl.ring ? .35 : .18), nzD = mc === 'Mini' ? .04 + Math.pow(k.decay, 1.3) * .25 : .06 + Math.pow(k.decay, 1.5) * .45;
-    const [hc, lc] = { Modern: [700 + k.tone * 3500, 4500 + k.tone * 11000], Boom: [1200 + k.tone * 1800, 5000 + k.tone * 6000], Mini: [2500 + k.tone * 3000, 8000 + k.tone * 8000] }[mc] || [500 + k.tone * 2500, 7000 + k.tone * 11000];
-    const [bA, bT] = mc === 'Boom' ? [.04, .01] : hard ? [.5, .01] : mc === 'Mini' ? [.15, .008] : [.25, .012], nzA = hard ? .45 + k.snap * 1.1 : .35 + k.snap * .9;
-    make(Math.max(bodyD, nzD) * 4 + .04); let p1 = 0, p2 = 0; const hpF = hp1(hpA(hc, sr)), lpF = lp1(lpA(lc, sr)), ring = fl.ring ? dBp(f * 2.7, 12, sr) : null;
-    for (let i = 0; i < len; i++) { const t = i / sr, bend = 1 + bA * Math.exp(-t / bT); p1 += f * bend / sr; p2 += f * r2 * bend / sr;
-      let body = (Math.sin(2 * Math.PI * p1) + .55 * Math.sin(2 * Math.PI * p2)) * bodyL * Math.exp(-t / bodyD);
-      let n = lpF(hpF(noise())) * nzA * Math.exp(-t / nzD) + noise() * k.snap * .7 * Math.exp(-t / .004);
-      if (ring) body += ring(n) * 2.2 * Math.exp(-t / (bodyD * 1.4));
-      let y = (body + n) * Math.min(1, t / .0004); if (fl.rim) y += Math.sin(2 * Math.PI * 1700 * t) * .5 * Math.exp(-t / .006);
-      y = sat(y, k.drive); if (fl.grit) { y = Math.round(y * 40) / 40; if (i % 3) y = L[i - (i % 3)]; } L[i] = R[i] = y; } }
-  else if (d.mod === 'clap') {
-    const layers = mc === 'Mini' ? 3 : fl.layers || 4, gap = .004 + k.spread * .012, tail = mc === 'Mini' ? .04 + Math.pow(k.decay, 1.4) * .2 : .06 + Math.pow(k.decay, 1.4) * .45;
-    const fc = { Modern: 900 + k.tone * 2400, Boom: 800 + k.tone * 1200, Mini: 1300 + k.tone * 2000 }[mc] || 1100 + k.tone * 2600;
-    make(gap * layers + tail * 4 + .05); const bL = dBp(fc, 1.6, sr), bR = dBp(fc * 1.04, 1.6, sr), sharp = .0015 + (1 - k.snap) * .004;
-    for (let i = 0; i < len; i++) { const t = i / sr; let e = 0; for (let b = 0; b < layers; b++) { const tb = t - b * gap * (1 + (b % 2) * .15); if (tb >= 0) e += Math.exp(-tb / sharp) * (b === layers - 1 ? 0 : 1); }
-      const tt = t - (layers - 1) * gap; if (tt >= 0) e += Math.exp(-tt / tail); const nl = noise(), nr = fl.snap ? nl : noise();
-      L[i] = sat(bL(nl) * e * 2.2, k.drive); R[i] = sat(bR(nr * .7 + nl * .3) * e * 2.2, k.drive); } }
-  else if (d.mod === 'hats') {
-    const kind = fl.len, D = ({ closed: .02 + k.decay * .13, open: .15 + k.decay * .75, ride: .7 + k.decay * 2, crash: 1.1 + k.decay * 2.4, shaker: .05 + k.decay * .22 }[kind] || .1) * (mc === 'Mini' ? .7 : 1);
-    const qz = mc === 'Punch' ? 24 : mc === 'Digital' ? 96 : 0;   // the sampled cymbals of the era: 6-bit, or 8-bit
-    make(D * (kind === 'closed' ? 5 : 3.2) + .03); const fr = [205.3, 304.4, 369.6, 522.7, 540, 800].map(f => f * Math.pow(2, (k.pitch - .5) * 1.6) * (kind === 'ride' ? 1.35 : 1) * (mc === 'Mini' ? 1.3 : 1)), ph = fr.map(() => rnd()), phR = fr.map(() => rnd());
-    const hpc = mc === 'Mini' ? 7000 + k.bright * 5000 : mc === 'Boom' ? 5500 + k.bright * 4000 : 3500 + k.bright * 7500, hL = hp1(hpA(hpc, sr)), hR = hp1(hpA(hpc, sr)), b1 = dBp(7500 + k.bright * 3000, .9, sr), b2 = dBp(7700 + k.bright * 3000, .9, sr), sh = fl.shaker ? dBp(6500, 1.2, sr) : null, w = k.width;
-    for (let i = 0; i < len; i++) { const t = i / sr; let mL = 0, mR = 0; for (let j = 0; j < 6; j++) { ph[j] += fr[j] / sr; phR[j] += fr[j] * (1 + w * .004) / sr; mL += (ph[j] % 1) < .5 ? 1 : -1; mR += (phR[j] % 1) < .5 ? 1 : -1; }
-      const nl = noise(), nr = nl * (1 - w) + noise() * w, m = fl.shaker ? 0 : mc === 'Boom' ? .85 + .15 * k.metal : mc === 'Mini' ? .8 + .2 * k.metal : qz ? .4 + .3 * k.metal : k.metal;
-      let env = kind === 'shaker' ? Math.min(1, t / .012) * Math.exp(-t / D) : Math.exp(-t / D) * Math.min(1, t / .0003); if (kind === 'crash') env *= .6 + .4 * Math.exp(-t / .05);
-      let yl = (mL / 6 * m + nl * (1 - m)), yr = (mR / 6 * m + nr * (1 - m));
-      if (sh) { yl = sh(yl) * 2.5; yr = sh(yr) * 2.5; } else { yl = hL(b1(yl) * .6 + yl * .5); yr = hR(b2(yr) * .6 + yr * .5); }
-      if (qz) { yl = Math.round(yl * qz) / qz; yr = Math.round(yr * qz) / qz; }
-      if (fl.bell) { const bell = Math.sin(2 * Math.PI * 3150 * Math.pow(2, (k.pitch - .5)) * t) * .25 * Math.exp(-t / (D * .5)); yl += bell; yr += bell; }
-      L[i] = sat(yl * env, k.drive); R[i] = sat(yr * env, k.drive); } }
-  else {   // perc & toms
-    const kind = fl.kind || 'tom', base = { tom: 70, conga: 170, bongo: 300, rim: 480, cowbell: 540, clave: 2200, wood: 750, zap: 120 }[kind], span = kind === 'tom' ? 2 : 1;
-    let hz = base * Math.pow(2, (k.tune - (kind === 'tom' ? 0 : .5)) * span) * (mc === 'Mini' ? 1.25 : 1); if (kind === 'tom' || kind === 'conga' || kind === 'bongo') hz = keySnap(hz, d.key, opts.key);
-    const dec = (mc === 'Mini' ? .7 : 1) * { tom: .15 + k.decay * .9, conga: .1 + k.decay * .45, bongo: .07 + k.decay * .3, rim: .012 + k.decay * .06, cowbell: .06 + k.decay * .45, clave: .02 + k.decay * .1, wood: .02 + k.decay * .09, zap: .05 + k.decay * .4 }[kind];
-    make(dec * 4.5 + .03); let p = 0, p2 = 0; const skin = mc === 'Punch' && (kind === 'tom' || kind === 'conga') ? lp1(lpA(2500, sr)) : null, bendM = mc === 'Boom' ? .4 : mc === 'Punch' ? 1.5 : 1; const tn = dBp(hz * 3.2, 3, sr), cb = kind === 'cowbell' ? dBp(2600 + k.tone * 1200, 2.5, sr) : null, ck = hp1(hpA(3000, sr));
-    for (let i = 0; i < len; i++) { const t = i / sr; let f = hz;
-      if (kind === 'zap') f = hz + hz * 30 * Math.exp(-t / (dec * (.15 + k.bend * .5)));
-      else f = hz * (1 + k.bend * bendM * (kind === 'tom' ? .6 : .25) * Math.exp(-t / .03));
-      p += f / sr; p2 += f * (kind === 'cowbell' ? 1.48 : 1.5) / sr; let y;
-      if (kind === 'cowbell') y = cb(((p % 1) < .5 ? 1 : -1) + ((p2 % 1) < .5 ? 1 : -1)) * 1.6;
-      else if (kind === 'rim') y = (Math.sin(2 * Math.PI * p) + tn(noise()) * (.5 + k.tone)) * .8;
-      else { y = Math.sin(2 * Math.PI * p) + k.tone * (mc === 'Boom' ? .1 : .35) * Math.sin(2 * Math.PI * p2); if (kind === 'wood') y += tn(noise()) * k.tone; if (skin) y += skin(noise()) * .3 * k.tone; }
-      y *= Math.exp(-t / dec) * Math.min(1, t / .0004); y += ck(noise()) * k.snap * .45 * Math.exp(-t / .0018);
-      L[i] = R[i] = sat(y, k.drive); } }
-  if (mc === 'Digital') digitize(L, R);
-  if (room > .01) roomize(L, R, room, rnd);
-  // trim the silent tail and normalize to about -1 dBFS so every drum lands at the same level
-  let pk = 1e-9; for (let i = 0; i < len; i++) pk = Math.max(pk, Math.abs(L[i]), Math.abs(R[i]));
-  let end = len; const th = pk * 3e-4; while (end > 64 && Math.abs(L[end - 1]) < th && Math.abs(R[end - 1]) < th) end--;
-  const g = .89 / pk, fade = Math.min(256, end); for (let i = 0; i < end; i++) { const f = i > end - fade ? (end - i) / fade : 1; L[i] *= g * f; R[i] *= g * f; }
-  return { L: L.subarray(0, end), R: R.subarray(0, end), sr };
+/* ---------- the knobs, as moves of the fitted voice (u = -1..1 around the type) ---------- */
+const sc = (v, keys, f) => { for (const k of keys) if (v[k] != null) v[k] *= f; };
+const lvl = (v, keys, u, oct, add = .3) => { for (const k of keys) { const x = v[k] || 0; v[k] = Math.min(2, x > 1e-4 ? x * Math.pow(2, u * oct) : Math.max(0, u) * add); } };
+const DECAYS = ['tD', 'tH', 'd2', 'd3', 'd4', 'nD', 'nH', 'nTD', 'mD'];
+function drumVoice(d, opts = {}) {
+  const T = DRUM_MODS[d.mod].types[d.type] || DRUM_MODS[d.mod].types[Object.keys(DRUM_MODS[d.mod].types)[0]], v = DVD().dvFull(T.v), k = drumEffective(d, opts.kit), u = id => ((k[id] ?? .5) - .5) * 2;
+  // "More like this": a seeded wobble of the voice itself (lengths, levels, colours), not just the knobs
+  if (d.vj > 0) { const r = drumRng(d.seed * 31 + 7), j = (a) => Math.pow(2, (r() - .5) * 2 * a * d.vj);
+    for (const n of DECAYS) v[n] *= j(.5); for (const n of ['a2', 'a3', 'a4', 'nL', 'mL', 'cL', 'nT']) v[n] *= j(.6); for (const n of ['nHp', 'nLp', 'nBp', 'mBp', 'mHp', 'cF']) v[n] *= j(.35); v.sw *= j(.4); v.drv = dClamp(v.drv + (r() - .5) * .2 * d.vj); }
+  const drive = () => { v.drv = dClamp(v.drv + u('drive') * .55); };
+  switch (d.mod) {
+    case 'kick': v.f0 *= Math.pow(2, u('tune') * 12 / 12); v.sw *= Math.pow(2, u('punch')); v.swT *= Math.pow(2, -u('punch') * .5);
+      lvl(v, ['cL'], u('click'), 2, .6); lvl(v, ['nL'], u('click'), 1.5, .2); sc(v, ['tD', 'tH', 'd2', 'nD'], Math.pow(2, u('decay') * 1.6));
+      v.td = dClamp(v.td + u('tone') * .45); v.shape = Math.max(0, Math.min(2, v.shape + Math.max(0, u('tone')) * .5)); drive(); break;
+    case 'snare': v.f0 *= Math.pow(2, u('tune') * 7 / 12); lvl(v, ['tL'], u('body'), 1.5); lvl(v, ['nL', 'nT'], u('wires'), 1.5);
+      sc(v, ['nLp', 'nBp', 'nHp', 'cF'], Math.pow(2, u('tone'))); sc(v, DECAYS, Math.pow(2, u('decay') * 1.5)); drive(); break;
+    case 'clap': sc(v, ['nBp', 'nLp', 'nHp'], Math.pow(2, u('tone') * .8)); v.nBg *= Math.pow(2, u('spread')); sc(v, ['nD', 'nTD', 'nH'], Math.pow(2, u('decay') * 1.5));
+      v.nBd *= Math.pow(2, -u('snap') * .8); v.nA *= Math.pow(2, -u('snap')); lvl(v, ['cL'], u('snap'), 1.5, .3); drive(); break;
+    case 'hats': sc(v, ['mF', 'mBp', 'nBp', 'f0'], Math.pow(2, u('pitch') * .6)); lvl(v, ['mL'], u('metal'), 2, .5); lvl(v, ['nL'], -u('metal'), 2, .5);
+      sc(v, ['mD', 'nD', 'nTD', 'nH', 'tD', 'd2', 'd3'], Math.pow(2, u('decay') * 1.6)); sc(v, ['mBp', 'mHp', 'nHp', 'nLp', 'nBp'], Math.pow(2, u('tone') * .8)); drive(); break;
+    default: v.f0 *= Math.pow(2, u('tune')); v.mF *= Math.pow(2, u('tune') * .5); sc(v, DECAYS, Math.pow(2, u('decay') * 1.6));
+      v.shape = Math.max(0, Math.min(2, v.shape + u('tone') * .7)); sc(v, ['nLp', 'nHp', 'mBp'], Math.pow(2, u('tone') * .7)); lvl(v, ['cL'], u('snap'), 2, .5);
+      v.sw = Math.max(0, v.sw + u('bend') * 12); drive(); }
+  if (DRUM_MODS[d.mod].tuned && d.key !== 'Free' && opts.key && v.tL > 0) v.f0 = keySnap(v.f0, d.key, opts.key);
+  return v;
 }
-// the early sampled machines: 8-bit companded samples played back at about 25 kHz
-function digitize(L, R) {
-  const n = L.length, step = DRUM_SR / 25000, mu = 255, lm = Math.log1p(mu); let pk = 1e-9; for (let i = 0; i < n; i++) pk = Math.max(pk, Math.abs(L[i]), Math.abs(R[i]));
-  const q = x => { const s = x < 0 ? -1 : 1, m = Math.round(Math.log1p(mu * Math.min(1, Math.abs(x) / pk)) / lm * 127) / 127; return s * Math.expm1(m * lm) / mu * pk; };
-  const fL = lp1(lpA(10000, DRUM_SR)), fR = lp1(lpA(10000, DRUM_SR)); let next = 0, hl = 0, hr = 0;
-  for (let i = 0; i < n; i++) { if (i >= next) { hl = q(L[i]); hr = q(R[i]); next += step; } L[i] = fL(hl); R[i] = fR(hr); }
+// the main pitch a drum sounds at, for the Tune readout (tone layer; metal for hats)
+function drumHz(d, opts = {}) { const v = drumVoice(d, opts); return v.tL > 0 ? v.f0 : v.mL > 0 ? v.mF : 0; }
+function drumRender(d, opts = {}) {
+  const v = drumVoice(d, opts), k = drumEffective(d, opts.kit), w = d.mod === 'hats' ? (k.width ?? .35) : d.mod === 'clap' ? .25 : 0, rnd = drumRng(d.seed || 1);
+  const out = DVD().dvRender(v, { sr: DRUM_SR, seed: d.seed || 1, width: w }); let L, R; if (out.L) { L = out.L; R = out.R; } else { L = out; R = Float32Array.from(out); }
+  const room = opts.kit && d.kit ? opts.kit.room : (d.mod === 'clap' ? k.room : 0);
+  if (room > .01) { const pad = Math.round(DRUM_SR * (.15 + room * .6)), L2 = new Float32Array(L.length + pad), R2 = new Float32Array(R.length + pad); L2.set(L); R2.set(R); L = L2; R = R2; roomize(L, R, room, rnd); }
+  // trim the silent tail and normalise to about -1 dBFS so every drum lands at the same level
+  let pk = 1e-9; for (let i = 0; i < L.length; i++) pk = Math.max(pk, Math.abs(L[i]), Math.abs(R[i]));
+  let end = L.length; const th = pk * 3e-4; while (end > 64 && Math.abs(L[end - 1]) < th && Math.abs(R[end - 1]) < th) end--;
+  const g = .89 / pk, fade = Math.min(256, end); for (let i = 0; i < end; i++) { const f = i > end - fade ? (end - i) / fade : 1; L[i] *= g * f; R[i] *= g * f; }
+  return { L: L.subarray(0, end), R: R.subarray(0, end), sr: DRUM_SR };
 }
 // a small stereo room: early reflections plus a short diffuse tail
 function roomize(L, R, amt, rnd) {
@@ -158,43 +116,48 @@ function roomize(L, R, amt, rnd) {
     combs.forEach((c, j) => { const y = c.b[c.i]; c.b[c.i] = x + y * fb; c.i = (c.i + 1) % c.b.length; if (j & 1) yr += y; else yl += y; });
     L[i] += yl * wet * .25; R[i] += yr * wet * .25; }
 }
-// "More like this": unlocked knobs move a little, the noise gets a new seed
+// "More like this": unlocked knobs move a little, and the voice underneath gets a new seeded variation
 function drumVariation(d, seed) {
-  const r = drumRng(seed), o = JSON.parse(JSON.stringify(d)); o.seed = (seed % 100000) + 2;
-  for (const [id] of DRUM_MODS[d.mod].knobs) if (!d.locks.includes(id)) o.k[id] = dClamp(d.k[id] + (r() - .5) * .3);
+  const r = drumRng(seed), o = JSON.parse(JSON.stringify(d)); o.seed = (seed % 100000) + 2; o.vj = .55;
+  for (const [id] of DRUM_MODS[d.mod].knobs) if (!d.locks.includes(id) && id !== 'room') o.k[id] = dClamp(d.k[id] + (r() - .5) * .22);
   return o;
 }
 
 /* ---------- kits: a vibe fills a bank with matched drums ---------- */
-// [name, group, kick, snare, clap, perc 1, perc 2, kit knobs: tune, length, brightness, drive, room]
+// [name, group, machine, kick, snare, clap, closed hat, open hat, ride, perc 1, perc 2, tom, kit knobs: tune, length, brightness, drive, room]
+// types are looked up by name within the module; a missing one falls back to the machine's first
 const DRUM_VIBES = [
-  ['Liquid', 'Drum & bass', 'DnB Punch', 'DnB Crack', 'Tight', 'Rim', 'Wood', .5, .45, .62, .3, .25], ['Jungle', 'Drum & bass', 'Jungle', 'Jungle Ring', 'Tight', 'Bongo', 'Rim', .45, .5, .5, .55, .3],
-  ['Neuro', 'Drum & bass', 'Distorted', 'DnB Crack', 'Snap', 'Zap', 'Rim', .45, .35, .7, .75, .15], ['Rollers', 'Drum & bass', 'DnB Punch', 'Fat', 'Tight', 'Wood', 'Conga', .45, .4, .5, .4, .2],
-  ['Jump Up', 'Drum & bass', 'Distorted', 'DnB Crack', 'Snap', 'Zap', 'Cowbell', .5, .35, .65, .65, .1],
-  ['Breakbeat', 'Breaks and live', 'Jungle', 'Fat', 'Classic 808', 'Conga', 'Bongo', .5, .5, .5, .45, .35], ['Funk Kit', 'Breaks and live', 'Soft', 'Jungle Ring', 'Tight', 'Conga', 'Cowbell', .55, .5, .55, .25, .35],
-  ['Boom Bap', 'Breaks and live', 'Jungle', 'Fat', 'Big Room', 'Rim', 'Wood', .45, .55, .4, .5, .3], ['Lo-fi', 'Breaks and live', 'Soft', 'Lo-fi', 'Classic 808', 'Rim', 'Wood', .45, .45, .3, .45, .25],
-  ['House', 'House and techno', 'House', 'Rimshot', 'Classic 808', 'Rim', 'Clave', .5, .45, .55, .3, .2], ['Deep House', 'House and techno', 'Soft', 'Rimshot', 'Tight', 'Conga', 'Wood', .45, .5, .4, .2, .3],
-  ['Techno', 'House and techno', 'Techno', 'Rimshot', 'Big Room', 'Rim', 'Cowbell', .45, .5, .5, .6, .35], ['Minimal', 'House and techno', 'House', 'Rimshot', 'Snap', 'Clave', 'Wood', .55, .3, .55, .2, .15],
-  ['UK Garage', 'House and techno', 'House', 'DnB Crack', 'Tight', 'Rim', 'Bongo', .55, .4, .6, .3, .2],
-  ['Synthwave', 'Retro', 'Techno', 'Fat', 'Big Room', 'Tom', 'Zap', .5, .55, .5, .3, .6], ['80s Pop', 'Retro', 'House', 'Fat', 'Big Room', 'Tom', 'Cowbell', .55, .6, .55, .25, .7],
-  ['Electro', 'Retro', 'Deep 808', 'Rimshot', 'Classic 808', 'Cowbell', 'Zap', .5, .45, .55, .35, .15], ['909 Classic', 'Retro', 'Techno', 'DnB Crack', 'Classic 808', 'Rim', 'Tom', .5, .45, .55, .45, .2],
-  ['Trap', 'Modern', 'Trap 808', 'Trap', 'Snap', 'Rim', 'Zap', .45, .6, .6, .3, .15], ['Drill', 'Modern', 'Trap 808', 'Trap', 'Snap', 'Rim', 'Wood', .4, .65, .55, .35, .1],
-  ['Dubstep', 'Modern', 'Distorted', 'Fat', 'Big Room', 'Zap', 'Rim', .45, .5, .55, .6, .3], ['Future Bass', 'Modern', 'Soft', 'Trap', 'Big Room', 'Clave', 'Wood', .55, .55, .65, .2, .4],
-  ['Hyperpop', 'Modern', 'Distorted', 'Lo-fi', 'Snap', 'Zap', 'Cowbell', .6, .35, .8, .8, .1],
-  ['Analog Boom', 'Classic machines', 'Deep 808', 'Fat', 'Classic 808', 'Conga', 'Cowbell', .5, .55, .45, .15, .1, 'Boom'],
-  ['Analog Punch', 'Classic machines', 'Techno', 'DnB Crack', 'Big Room', 'Rim', 'Clave', .5, .45, .55, .35, .15, 'Punch'],
-  ['Analog Mini', 'Classic machines', 'House', 'Trap', 'Tight', 'Rim', 'Cowbell', .55, .4, .6, .15, .05, 'Mini'],
-  ['Digital 80s', 'Classic machines', 'House', 'Fat', 'Big Room', 'Cowbell', 'Clave', .5, .5, .55, .2, .25, 'Digital'],
-  ['Dub', 'Other', 'Deep 808', 'Jungle Ring', 'Classic 808', 'Rim', 'Wood', .4, .7, .35, .3, .65], ['Ambient', 'Other', 'Soft', 'Rimshot', 'Big Room', 'Clave', 'Wood', .5, .7, .45, .1, .8]];
-const KIT_ROLES = [['Kick', 'kick'], ['Snare', 'snare'], ['Clap', 'clap'], ['Closed hat', 'hats', 'Closed'], ['Open hat', 'hats', 'Open'], ['Ride', 'hats', 'Ride'], ['Perc 1', 'perc'], ['Perc 2', 'perc'], ['Tom', 'perc', 'Tom']];
+  ['Liquid', 'Drum & bass', 'Modern', 'Liquid', 'Liquid', 'Liquid Clap', 'Liquid Hat', 'Open Hat', 'DnB Ride', 'Rim', 'Wood', 'Tom', .5, .45, .55, .25, .25],
+  ['Rollers', 'Drum & bass', 'Modern', 'DnB Rolling', 'DnB Snare', 'DnB Clap', 'DnB Hat', 'Open Hat', 'DnB Ride', 'Rim', 'Conga', 'Tom', .5, .45, .5, .35, .2],
+  ['Dancefloor', 'Drum & bass', 'Modern', 'DnB Punch', 'Dancefloor', 'DnB Clap', 'DnB Hat', 'Open Hat', 'DnB Ride', 'Rim', 'Perc Hit', 'Tight Tom', .5, .4, .55, .4, .15],
+  ['Jump Up', 'Drum & bass', 'Modern', 'Jump Up', 'Jump Up', 'Jump Up Clap', 'Jump Up Hat', 'Open Hat', 'Jump Up Ride', 'Perc Hit', 'Zap', 'Tight Tom', .5, .4, .6, .5, .1],
+  ['Neuro', 'Drum & bass', 'Modern', 'DnB Tight', 'DnB Crack', 'Hard Snap', 'DnB Hat', 'Open Hat', 'DnB Ride', 'Zap', 'Rim', 'Tight Tom', .45, .35, .65, .6, .1],
+  ['Jungle', 'Drum & bass', 'Modern', 'DnB Rolling', 'Minimal', 'Snap', 'Liquid Hat', 'Vinyl Open', 'Ride', 'Bongo', 'Rim', 'Tom', .45, .5, .5, .45, .3],
+  ['House', 'House and garage', 'Modern', 'House', 'House', 'House Clap', 'Garage Hat', 'Vinyl Open', 'Ride', 'Rim', 'Clave', 'Tom', .5, .5, .5, .3, .2],
+  ['UK Garage', 'House and garage', 'Modern', 'Garage', 'Garage', 'Garage Clap', 'Garage Hat', 'Open Hat', 'Ride', 'Rim', 'Bongo', 'Tom', .5, .45, .55, .3, .2],
+  ['Speed Garage', 'House and garage', 'Modern', 'Garage Long', 'Garage Short', 'Garage Clap 2', 'Garage Hat 2', 'Long Open', 'Bright Ride', 'Rim', 'Wood', 'Tom', .5, .5, .55, .35, .2],
+  ['Techno', 'House and garage', 'Punch', 'Punch Kick', 'Punch Tight', 'Punch Clap', 'Punch Closed Hat', 'Punch Open Hat', 'Punch Ride', 'Punch Rim', 'Boom Cowbell', 'Punch Low Tom', .45, .5, .5, .5, .3],
+  ['Dubstep', 'Bass music', 'Modern', 'Dubstep', 'Dubstep', 'Dubstep Clap', 'DnB Hat', 'Open Hat', 'Bright Ride', 'Zap', 'Rim', 'Deep Tom', .45, .5, .55, .45, .25],
+  ['Trap', 'Bass music', 'Modern', 'Trap Tight', 'Trap', 'Trap Clap', 'Garage Hat 3', 'Open Hat', 'Dark Ride', 'Rim', 'Zap', 'Tight Tom', .5, .55, .6, .3, .15],
+  ['Trap 808', 'Bass music', 'Boom', 'Boom Long', 'Trap', 'Trap Clap', 'Garage Hat 3', 'Open Hat', 'Dark Ride', 'Rim', 'Zap', 'Boom Low Tom', .45, .6, .55, .3, .1],
+  ['Heavy', 'Bass music', 'Modern', 'Heavy', 'Heavy', 'Big Clap', 'DnB Hat', 'Long Open', 'Dark Ride', 'Zap', 'Perc Hit', 'Deep Tom', .45, .5, .55, .6, .2],
+  ['Analog Boom', 'Classic machines', 'Boom', 'Boom Long', 'Boom Snappy', 'Boom Clap', 'Boom Closed Hat', 'Boom Open Hat', 'Boom Cymbal', 'Boom Cowbell', 'Boom Conga', 'Boom Low Tom', .5, .5, .5, .1, .1],
+  ['Analog Punch', 'Classic machines', 'Punch', 'Punch Kick', 'Punch Snare', 'Punch Clap', 'Punch Closed Hat', 'Punch Open Hat', 'Punch Ride', 'Punch Rim', 'Boom Cowbell', 'Punch Mid Tom', .5, .5, .5, .25, .1],
+  ['Digital 80s', 'Classic machines', 'Digital', 'Digital Kick', 'Digital Snare', 'Digital Clap', 'Digital Closed Hat', 'Digital Open Hat', 'Digital Crash', 'Digital Cowbell', 'Rim', 'Digital Tom', .5, .5, .5, .2, .2],
+  ['Analog Mini', 'Classic machines', 'Mini', 'Mini Kick', 'Mini Snare', 'Snap', 'Mini Closed Hat', 'Mini Open Hat', 'Mini Cymbal', 'Rim', 'Clave', 'Mini Tom', .5, .4, .55, .15, .05],
+  ['Electro', 'Classic machines', 'Boom', 'Boom Medium', 'Boom Body', 'Boom Clap', 'Boom Closed Hat', 'Boom Open Hat', 'Boom Short Cymbal', 'Boom Cowbell', 'Zap', 'Boom High Tom', .5, .45, .55, .3, .15],
+  ['Cinematic', 'Other', 'Modern', 'Heavy', 'Heavy', 'Big Clap', 'Liquid Hat', 'Long Open', 'Huge Crash', 'Zap', 'Wood', 'Deep Tom', .45, .7, .45, .3, .6]];
+const KIT_ROLES = [['Kick', 'kick'], ['Snare', 'snare'], ['Clap', 'clap'], ['Closed hat', 'hats'], ['Open hat', 'hats'], ['Ride', 'hats'], ['Perc 1', 'perc'], ['Perc 2', 'perc'], ['Tom', 'perc']];
 function drumKitPiece(vibe, role, seed) {
-  const V = DRUM_VIBES.find(v => v[0] === vibe) || DRUM_VIBES[0], R = KIT_ROLES[role], r = drumRng(seed + role * 101);
-  const type = R[2] || (R[1] === 'kick' ? V[2] : R[1] === 'snare' ? V[3] : R[1] === 'clap' ? V[4] : role === 6 ? V[5] : V[6]);
-  const d = drumDefault(R[1], type, seed + role * 7); d.kit = true; d.mach = V[12] || 'Modern'; if (R[1] === 'kick' || type === 'Tom') d.key = 'Root';
-  for (const id in d.k) if (id !== 'tune' && id !== 'pitch') d.k[id] = dClamp(d.k[id] + (r() - .5) * .16);   // a touch of variety, tuning left to the kit
+  const V = DRUM_VIBES.find(v => v[0] === vibe) || DRUM_VIBES[0], R = KIT_ROLES[role], r = drumRng(seed + role * 101), mc = V[2], want = V[3 + role];
+  const ok = t => DRUM_MODS[R[1]].types[t], type = ok(want) ? want : (drumTypesFor(R[1], mc)[0] || Object.keys(DRUM_MODS[R[1]].types)[0]);
+  const d = drumDefault(R[1], type, seed + role * 7); d.kit = true; if (R[1] === 'kick' || role === 8) d.key = 'Root';
+  for (const id in d.k) if (id !== 'tune' && id !== 'pitch' && id !== 'room') d.k[id] = dClamp(d.k[id] + (r() - .5) * .12);   // a touch of variety, tuning left to the kit
   return d;
 }
 function drumKit(vibe, seed = 1) { const V = DRUM_VIBES.find(v => v[0] === vibe) || DRUM_VIBES[0];
-  return { kit: { vibe: V[0], tune: V[7], len: V[8], bright: V[9], drive: V[10], room: V[11], seed }, pieces: KIT_ROLES.map((R, i) => ({ role: R[0], d: drumKitPiece(V[0], i, seed) })) }; }
-function drumKey(d, kit, key) { const k = drumEffective(d, kit), tuned = DRUM_MODS[d.mod].tuned && d.key !== 'Free'; return 'd:' + d.mod + ':' + d.type + (machOf(d) !== 'Modern' ? '@' + machOf(d) : '') + ':' + d.seed + ':' + Object.values(k).map(v => Math.round(v * 1000)).join(',') + (tuned && key ? ':' + key.root + d.key : '') + (kit && d.kit ? ':r' + Math.round(kit.room * 100) : ''); }
-if (typeof module !== 'undefined') module.exports = { DRUM_SR, DRUM_MODS, DRUM_KEYLOCK, DRUM_MACHINES, DRUM_MACH_N, drumBaseHz, drumSetMachine, DRUM_VIBES, KIT_ROLES, drumDefault, drumNormalize, drumRender, drumVariation, drumKit, drumKitPiece, drumKey, drumEffective, keySnap };
+  return { kit: { vibe: V[0], tune: V[12], len: V[13], bright: V[14], drive: V[15], room: V[16], seed }, pieces: KIT_ROLES.map((R, i) => ({ role: R[0], d: drumKitPiece(V[0], i, seed) })) }; }
+function drumKey(d, kit, key) { const k = drumEffective(d, kit), tuned = DRUM_MODS[d.mod].tuned && d.key !== 'Free';
+  return 'd:' + d.mod + ':' + d.type + ':' + d.seed + (d.vj ? 'v' + Math.round(d.vj * 100) : '') + ':' + Object.values(k).map(v => Math.round(v * 1000)).join(',') + (tuned && key ? ':' + key.root + d.key : '') + (kit && d.kit ? ':r' + Math.round(kit.room * 100) : ''); }
+if (typeof module !== 'undefined') module.exports = { DRUM_SR, DRUM_MODS, DRUM_KEYLOCK, DRUM_MACHINES, DRUM_MACH_N, DRUM_MACH_SUB, drumTypesFor, drumMachinesFor, drumTypeName, drumHz, drumVoice, drumSetMachine, DRUM_VIBES, KIT_ROLES,
+  drumDefault, drumNormalize, drumRender, drumVariation, drumKit, drumKitPiece, drumKey, drumEffective, keySnap, machOf, knobDef };
