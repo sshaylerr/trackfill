@@ -27,6 +27,18 @@ const fmtHz = f => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 0 : 1) + 'k' : Ma
 const lin = linmap, ex = expmap, dsc = (v, n) => Math.max(0, Math.min(n - 1, Math.round(v * (n - 1))));
 const fsatJ = x => x > 3 ? 1 : x < -3 ? -1 : x * (27 + x * x) / (27 + 9 * x * x);
 
+// the ducker's live view, scrolling right to left like a waveform meter: the track (after the duck) filled, the key (the trigger pads,
+// or the source channel) outlined in its pad's colour, and the duck gain as a thin line. Overlap where they meet is "bowtieing".
+const DUCK_COLS = 440;   // columns shown (128 samples each): about 1.2 s
+function duckWaves(g, f, x0, x1, top, h, K, Y) {
+  const w = SCOPE.wv, pw = Math.max(1, Math.round(x1 - x0)), yc = top + h / 2, A = h / 2 - 2, tr = new Float32Array(pw), ky = new Float32Array(pw), gn = new Float32Array(pw).fill(1);
+  for (let i = 0; i < pw; i++) { const j0 = Math.floor(i * DUCK_COLS / pw), j1 = Math.max(j0 + 1, Math.floor((i + 1) * DUCK_COLS / pw));
+    for (let j = j0; j < j1; j++) { const k = w.n - DUCK_COLS + j; if (k < 0) continue; const o = (k % 1024) * 3; tr[i] = Math.max(tr[i], w.buf[o]); ky[i] = Math.max(ky[i], w.buf[o + 1]); gn[i] = Math.min(gn[i], Math.pow(10, w.buf[o + 2] / 20)); } }
+  const shape = a => { g.beginPath(); g.moveTo(x0, yc); for (let i = 0; i < pw; i++) g.lineTo(x0 + i, yc - Math.min(1, a[i]) * A); for (let i = pw - 1; i >= 0; i--) g.lineTo(x0 + i, yc + Math.min(1, a[i]) * A); g.closePath(); };
+  const audio = Math.round(f.p[0]) === 1, kc = audio ? f.key : (f.trig || [])[0], kcol = kc != null && kc >= 0 && kc < NPADS && P.pads[kc] ? PAD_COLORS[P.pads[kc].color] : K.ink;
+  g.save(); shape(tr); g.globalAlpha = .3; g.fillStyle = K.alt; g.fill(); shape(ky); g.globalAlpha = .22; g.fillStyle = kcol; g.fill(); g.globalAlpha = .75; g.strokeStyle = kcol; g.lineWidth = 1; g.stroke();
+  g.globalAlpha = .55; g.beginPath(); for (let i = 0; i < pw; i++) { const y = Y(gn[i]); i ? g.lineTo(x0 + i, y) : g.moveTo(x0, y); } g.strokeStyle = K.ink; g.lineWidth = 1; g.stroke(); g.restore();
+}
 function drawFxVis(cv, c, s) {
   if (!cv || !cv.isConnected) return; const f = P.chans[c].fx[s]; if (!f) return;
   const { g, W, H } = prepCanvas(cv), p = f.p, T = FX_TYPES, m = f.mode | 0, top = 6, h = H - 12, lk = cv._lk || {};
@@ -109,6 +121,7 @@ function drawFxVis(cv, c, s) {
       T2(ratio.toFixed(1) + ':1', 16, top + 10, K.ink, 'left', 11, 600); grBar(gr, 24); break; }
     case T.DUCK: { const depth = lin(p[1], 0, 60), floor = Math.pow(10, -depth / 20), atk = lin(p[2], 0, 50), hold = lin(p[3], 0, 500), rel = ex(p[4], 10, 1000), cur = lin(p[5], -1, 1) * .97;
       const span = Math.max(250, atk + hold + rel) * 1.1, X = t => 10 + (W - 40) * t / span, Y = gl => top + 24 + (h - 30) * (1 - gl);
+      if (live && SCOPE.wv.n) duckWaves(g, f, 10, W - 30, top, h, K, Y);   // behind the drawn envelope: the last second or so of the track, its key and the live gain
       g.fillStyle = K.line; g.fillRect(10, Math.round(Y(1)), W - 40, 1); g.fillRect(10, Math.round(Y(floor)), W - 40, 1);
       g.beginPath(); g.moveTo(X(0), Y(1)); g.lineTo(X(atk), Y(floor)); g.lineTo(X(atk + hold), Y(floor));
       for (let k = 1; k <= 40; k++) { const u = k / 40, e = 1 - tfCurve(u, cur); g.lineTo(X(atk + hold + rel * u), Y(1 - (1 - floor) * e)); } g.lineTo(X(span), Y(1));

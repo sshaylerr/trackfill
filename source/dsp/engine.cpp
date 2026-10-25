@@ -701,6 +701,9 @@ static void resetChan(i32 c) {
 }
 EX void tf_reset_all() { for (i32 c = 0; c < NCH; c++) { resetChan(c); chs[c].quiet = 0; chs[c].oq = 0; } for (i32 v = 0; v < NVOICE; v++) vc[v].on = 0; synReset(); runaway = 0; }
 
+// a ducker with a trigger waiting or its envelope still moving keeps its channel awake: a note-triggered duck must start on time
+// (lookahead included) even when the channel was silent just before the note
+static i32 duckBusy(Chan* C) { for (i32 s = 0; s < NSLOT; s++) { Fx* f = &C->fx[s]; if (f->type == FX_DUCK && f->on && f->st) { DuckSt* d = (DuckSt*)f->st; if (d->npend || d->stage) return 1; } } return 0; }
 static void processChan(i32 c, i32 n) {
   Chan* C = &chs[c]; float *L = inL[c], *R = inR[c]; const i32 hasPst = c < NPAD && dPst[c];
   float mx = 0; if (dIn[c]) for (i32 i = 0; i < n; i++) { float a = fabsf_(L[i]) + fabsf_(R[i]); if (a > mx) mx = a; }
@@ -708,7 +711,7 @@ static void processChan(i32 c, i32 n) {
   if (mx < 1e-7f) { if (C->quiet < 0xf0000000u) C->quiet += n; } else C->quiet = 0;
   // asleep: nothing in and nothing to hear: either the longest tail has passed, or the effects have gone silent (below -120 dB) for
   // longer than any of them can hold sound back. Long reverbs stop costing anything once they've faded, not a minute later.
-  if (C->quiet > C->tail || (C->quiet > 0 && C->oq > C->gap)) {
+  if ((C->quiet > C->tail || (C->quiet > 0 && C->oq > C->gap)) && !duckBusy(C)) {
     if (!keyZ[c]) { zero(keyL[c], MAXN * 4); zero(keyR[c], MAXN * 4); keyZ[c] = 1; for (i32 s = 0; s < NSLOT; s++) C->fx[s].vis[0] = C->fx[s].vis[1] = C->fx[s].vis[2] = C->fx[s].vis[3] = 0.f; }
     C->cv = C->vol; C->cp = C->pan; C->ca = C->sa; C->cb = C->sb; C->cm = C->mute; awakeBits[c >> 5] &= ~(1u << (c & 31)); return;
   }

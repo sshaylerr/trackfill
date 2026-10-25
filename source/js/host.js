@@ -412,8 +412,22 @@ class TFHost {
     for (let i = 0; i < m; i++) { const l = L[i], r = R[i]; buf[w] = (l + r) * .5; w = (w + 1) & 2047; const al = l < 0 ? -l : l, ar = r < 0 ? -r : r; if (al > pl) pl = al; if (ar > pr) pr = ar; sl += l * l; sr += r * r; }
     s.w = w; s.pkL = pl; s.pkR = pr; s.ssL += sl; s.ssR += sr; s.n += m;
   }
+  /* the ducker's scrolling waveforms: per block, the peak of its channel (after the duck), the peak of its key (the trigger pads,
+     or the source channel in Audio mode) and the duck gain. About 375 columns a second, sent with each report. */
+  waveFeed(m) {
+    const v = this.visFx, C = v && this.P && this.P.chans[v[0]], f = C && C.fx[v[1]]; if (!f || f.type !== 6) { this.wv = null; return; }
+    const ex = this.ex, mem = ex.memory.buffer; let w = this.wv;
+    if (!w || w.c !== v[0] || w.s !== v[1] || w.mem !== mem) w = this.wv = { c: v[0], s: v[1], mem, ch: new Map(), cols: [], n: 0, a: 0, b: 0, g: 0 };
+    const pk = c => { let a = w.ch.get(c); if (!a) { a = [new Float32Array(mem, ex.tf_key_l(c), 128), new Float32Array(mem, ex.tf_key_r(c), 128)]; w.ch.set(c, a); }
+      const [L, R] = a; let p = 0; for (let i = 0; i < m; i++) { const l = L[i] < 0 ? -L[i] : L[i], r = R[i] < 0 ? -R[i] : R[i]; if (l > p) p = l; if (r > p) p = r; } return p; };
+    const keys = Math.round(f.p[0]) === 1 ? (f.key != null && f.key >= 0 ? [f.key] : []) : (f.trig || []);
+    let k = 0; for (const c of keys) if (c >= 0 && c < TF.NCH) k = Math.max(k, pk(c));
+    w.a = Math.max(w.a, pk(w.c)); w.b = Math.max(w.b, k); w.g = Math.min(w.g, ex.tf_fx_vis(w.c, w.s, 0)); w.n += m;
+    if (w.n >= 128) { if (w.cols.length < 3 * 1024) w.cols.push(w.a, w.b, w.g); w.n = 0; w.a = w.b = w.g = 0; }
+  }
   scopeReport() {
     const s = this.scope, v = this.visFx, r = { ch: s ? s.ch : -1, vis: v ? this.ex.tf_fx_vis(v[0], v[1], 0) : 0, vis3: v ? [0, 1, 2].map(i => this.ex.tf_fx_vis(v[0], v[1], i)) : null };
+    const w = this.wv; if (w && v && w.c === v[0] && w.s === v[1]) { if (w.cols.length) { r.wv = w.cols; for (let i = 2; i < w.cols.length; i += 3) r.vis = Math.min(r.vis, w.cols[i]); } w.cols = []; }   // the meter shows the deepest dip, however short
     if (s) { const loud = s.pkL > 1e-5 || s.pkR > 1e-5, n = Math.max(1, s.n);
       r.b = loud ? Array.from(this.spec.run(s.buf, s.w)) : null; r.pk = [s.pkL, s.pkR]; r.rms = [Math.sqrt(s.ssL / n), Math.sqrt(s.ssR / n)];
       s.pkL = s.pkR = s.ssL = s.ssR = 0; s.n = 0; }
@@ -553,7 +567,7 @@ class TFHost {
       if (this.playing) this.automate(end);
       if (ex.tf_set_pos) { const pos = this.playing && this.P ? this.tickAt(this.now) : null; this.freeBeat = (this.freeBeat || 0) + m / this.sr * (this.P ? this.P.bpm : 120) / 60;   // the song position for synced effects (free-running when stopped)
         ex.tf_set_pos(pos ? pos.tick / TF.PPQ : this.freeBeat, pos ? 1 : 0); }
-      ex.tf_render(m); this.views(); if (this.scope) this.scopeFeed(m);
+      ex.tf_render(m); this.views(); if (this.scope) this.scopeFeed(m); if (this.visFx) this.waveFeed(m);
       const vL = this.vL, vR = this.vR;
       for (let i = 0; i < m; i++) { L[off + i] = vL[i]; R[off + i] = vR[i]; }
       this.now = end; off += m;

@@ -35,6 +35,12 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(before < .9, `gain already reduced 3 ms before the kick (×${before.toFixed(2)})`);
     ok(after < .1, `deeply ducked just after the kick (×${after.toFixed(3)})`);
   }
+  { // a ducker on a bus that was silent just before the kick (a gap in the bassline): the sleeping bus must still duck on time
+    const Q = M.demoProject(), BUS = M.B0 + 1; Q.chans.forEach((c, i) => { if (i !== 8 && i < 64) c.mute = true; c.fx = c.fx.filter(f => f.type !== M.FX_TYPES.DUCK); }); Q.chans[8].out = BUS;
+    const run = fx => { const R = JSON.parse(JSON.stringify(Q)); R.chans[BUS].fx = fx; return H.tfRenderOffline(wasm, R, kit, { order: [{ scene: 1, reps: 1 }] }); };
+    const a = await run([Object.assign(M.newFx(M.FX_TYPES.DUCK, { 1: 1, 2: .134, 3: .032, 4: .04, 5: .25, 6: .5 }), { trig: [0] })]), b = await run([]);
+    const sr = a.sr, k = Math.round(240 / (Q.bpm * 96 / (60 * sr))), c = k + Math.round(.002 * sr), g = stats(a.L, a.R, c, c + 96).rms / Math.max(1e-9, stats(b.L, b.R, c, c + 96).rms);
+    ok(g < .01, `a ducker on a bus that was silent before the kick still ducks on time (×${g.toFixed(4)} 2 ms in)`); }
   console.log('safety');
   { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null); const Q = M.demoProject(); host.msg({ t: 'project', P: Q });
     for (const [key, s] of kit) host.msg({ t: 'sample', key, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr });

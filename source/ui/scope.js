@@ -4,7 +4,8 @@
    here they get meter ballistics and are drawn only while visible and moving. */
 const SCOPE = { ch: -1, fc: -1, fs: -1, sheet: -1, key: '', at: 0, last: 0,
   tgt: new Float32Array(64).fill(-120), disp: new Float32Array(64).fill(-120),
-  pk: [-120, -120], rms: [-120, -120], hold: [-120, -120], holdAt: [0, 0], vis: 0, visD: 0, vis3: null, hist: [], views: [] };
+  pk: [-120, -120], rms: [-120, -120], hold: [-120, -120], holdAt: [0, 0], vis: 0, visD: 0, vis3: null, hist: [], views: [],
+  wv: { buf: new Float32Array(3 * 1024), n: 0 } };   // wv: the ducker's waveform columns (track peak, key peak, gain dB), a ring of 1024
 const lin2dbJS = v => v > 1e-6 ? 20 * Math.log10(v) : -120;
 // which channel the screen wants analyzed; the engine is told only when that changes
 function scopeWant() {
@@ -13,13 +14,14 @@ function scopeWant() {
   else if (UI.view === 'sound' && UI.snd === PG.MIX) ch = UI.pad;
   else if (UI.view === 'fx' && P.chans[UI.fxCh].fx[UI.fxSlot]) { fc = UI.fxCh; fs = UI.fxSlot; const t = P.chans[fc].fx[fs].type; if (t === FX_TYPES.EQ || t === FX_TYPES.FILTER) ch = fc; }
   const key = ch + ':' + fc + ':' + fs; if (key === SCOPE.key) return; SCOPE.key = key;
-  SCOPE.hist = [];   // a different effect: start its limiter history fresh
+  SCOPE.hist = []; SCOPE.wv.n = 0;   // a different effect: start its histories fresh
   if (ch !== SCOPE.ch) { SCOPE.tgt.fill(-120); SCOPE.disp.fill(-120); SCOPE.pk = [-120, -120]; SCOPE.rms = [-120, -120]; SCOPE.hold = [-120, -120]; SCOPE.vis = SCOPE.visD = 0; }
   SCOPE.ch = ch; SCOPE.fc = fc; SCOPE.fs = fs; send({ t: 'scope', ch, fc, fs });
 }
 function onScope(sc) {
   if (sc.ch !== SCOPE.ch) return; const now = performance.now(); SCOPE.at = now; SCOPE.vis = sc.vis || 0; SCOPE.vis3 = sc.vis3 || null; wake();
   SCOPE.hist.push(SCOPE.vis); if (SCOPE.hist.length > 90) SCOPE.hist.shift();   // limiter history
+  if (sc.wv) { const w = SCOPE.wv; for (let i = 0; i + 2 < sc.wv.length; i += 3) { const j = (w.n % 1024) * 3; w.buf[j] = sc.wv[i]; w.buf[j + 1] = sc.wv[i + 1]; w.buf[j + 2] = sc.wv[i + 2]; w.n++; } }
   if (!sc.pk) return;
   if (sc.b) SCOPE.tgt.set(sc.b); else SCOPE.tgt.fill(-120);
   for (let i = 0; i < 2; i++) { const p = lin2dbJS(sc.pk[i]), r = lin2dbJS(sc.rms[i]);
