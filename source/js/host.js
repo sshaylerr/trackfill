@@ -232,7 +232,7 @@ class TFHost {
       this.buf = b; this.vTap = this.tap;
       this.vL = new Float32Array(b, this.tap >= 0 ? ex.tf_key_l(this.tap) : ex.tf_out_l(), 128);
       this.vR = new Float32Array(b, this.tap >= 0 ? ex.tf_key_r(this.tap) : ex.tf_out_r(), 128);
-      this.vPk = new Float32Array(b, ex.tf_ch_peaks(), TF.NCH);
+      this.vPk = new Float32Array(b, ex.tf_ch_peaks(), TF.NCH * 2);   // left, right per channel
     }
   }
   msg(m) {

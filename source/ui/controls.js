@@ -10,11 +10,11 @@ function makeCtl(o, kind) {
     upd = () => { const v = o.get(), f = clamp((v - mn) / (mx - mn), 0, 1), a = o.bipolar ? 75 * Math.min(f, .5) : 0, len = o.bipolar ? 75 * Math.abs(f - .5) : 75 * f;
       kv.style.strokeDasharray = `${Math.max(.01, len)} 100`; kv.style.strokeDashoffset = String(-a); ki.setAttribute('transform', `rotate(${-135 + 270 * f} 24 24)`); val.textContent = o.fmt(v); };
   } else if (kind === 'fader') {
-    el = h('div', 'fader'); el.innerHTML = '<div class="fval"></div><div class="ftrack"><div class="fmeter"><i></i></div><div class="fslot"></div><div class="funity"></div><div class="fcap"></div></div>';
+    el = h('div', 'fader'); el.innerHTML = '<div class="fval"></div><div class="ftrack"><div class="fmeter"><i></i></div><div class="fmeter"><i></i></div><div class="funity"></div><div class="fcap"></div></div>';
     track = el.querySelector('.ftrack'); const cap = el.querySelector('.fcap'), val = el.querySelector('.fval'), un = el.querySelector('.funity');
     upd = () => { const v = o.get(), f = clamp((v - mn) / (mx - mn), 0, 1), H = track.clientHeight || 100; cap.style.top = ((1 - f) * (H - 16)) + 'px'; val.textContent = o.fmt(v);
       un.style.top = ((1 - (o.unity ?? .85)) * (H - 16) + 8) + 'px'; };
-    el._meter = el.querySelector('.fmeter i');
+    el._meter = [...el.querySelectorAll('.fmeter i')];   // left and right
   } else {
     el = h('div', 'param' + (o.cls ? ' ' + o.cls : ''));
     el.innerHTML = '<div class="prow"><span class="plab"></span><span class="pval lcd"></span></div><div class="ptrack"><div class="pfill"></div></div>';

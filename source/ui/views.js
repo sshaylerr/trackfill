@@ -218,7 +218,7 @@ function stripEl(c) {
   const nm = h('button', 'sname'); nm.innerHTML = `<em>${chanLabel(c)}</em><b>${esc(isPad ? (P.pads[c].name || (P.pads[c].sample ? 'Sound' : '—')) : chanName(c))}</b><i style="background:${isPad ? PAD_COLORS[P.pads[c].color] : 'var(--dim)'}"></i>`;
   nm.onclick = () => { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); };
   const fd = keyParam(c + '.-1.0', { kind: 'fader', label: chanLabel(c) + ' volume', fmt: shortDb, unity: .85, onSwipe: mixSwipe, onTap: () => { if (UI.mixSel !== c) { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); } } });
-  STRIP_METERS.push({ c, el: fd._meter, v: 0 });
+  STRIP_METERS.push({ c, el: fd._meter, v: [0, 0] });
   const pan = keyParam(c + '.-1.1', { cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe });
   const ms = h('div', 'ms2');
   if (c !== MASTER) { const mb = btn('M', () => { pushUndo('chan:' + c); C.mute = !C.mute; mb.classList.toggle('on', C.mute); syncChan(c); markDirty(); }, 'm' + (C.mute ? ' on' : ''));

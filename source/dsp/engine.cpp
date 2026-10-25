@@ -248,7 +248,7 @@ static float oL[MAXN], oR[MAXN];
 static float pkL = 0, pkR = 0;
 static float chBend[NPAD], chBendS[NPAD], chBendN[NPAD];   // pitch bend per pad: target and smoothed semitones, and -1..1 for the synth's Bend source
 EX void tf_ch_bend(i32 c, float semis, float norm) { if (c >= 0 && c < NPAD) { chBend[c] = sane(semis, -48.f, 48.f, 0.f); chBendN[c] = sane(norm, -1.f, 1.f, 0.f); } }
-static float chPk[NCH];
+static float chPk[NCH * 2];   // post-fader peak per channel, left and right
 static u32 awakeBits[3];   // diagnostics: bit c%32 of word c/32 = channel c was processed in the last block (asleep channels cost nothing)   // post-fader peak per channel since the host last read it (mixer meters)
 static i32 tripCh = -1, tripWhy = 0;
 static u32 runaway = 0;
@@ -744,7 +744,7 @@ static void processChan(i32 c, i32 n) {
     float g = C->cv * C->cm, gl = g * pl, gr = g * pr;
     float l = L[i] * gl, r = R[i] * gr;
     dL[i] += l; dR[i] += r;
-    float m = fabsf_(l) > fabsf_(r) ? fabsf_(l) : fabsf_(r); if (m > chPk[c]) chPk[c] = m;
+    const float al = fabsf_(l), ar = fabsf_(r); if (al > chPk[c * 2]) chPk[c * 2] = al; if (ar > chPk[c * 2 + 1]) chPk[c * 2 + 1] = ar;
     if (sends && (C->sa > 0.f || C->ca > 1e-7f || C->sb > 0.f || C->cb > 1e-7f)) { dIn[R0] = dIn[R0 + 1] = 1; C->ca += (C->sa - C->ca) * a; C->cb += (C->sb - C->cb) * a; inL[R0][i] += l * C->ca; inR[R0][i] += r * C->ca; inL[R0 + 1][i] += l * C->cb; inR[R0 + 1][i] += r * C->cb; }
   }
 }

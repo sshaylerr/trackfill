@@ -195,9 +195,8 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .fader{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-height:0;width:100%;touch-action:none;border-radius:4px;padding:4px 3px 3px}
 .fader .fval{font:400 9.5px var(--font-lcd);color:var(--ink);height:11px;line-height:11px;white-space:nowrap}
 .fader .ftrack{flex:1;min-height:24px;width:100%;position:relative;display:flex;justify-content:center;gap:3px}
-.fader .fmeter{width:5px;height:100%;border-radius:2px;background:#000;position:relative;overflow:hidden}
+.fader .fmeter{width:4px;height:100%;border-radius:2px;background:#000;position:relative;overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,.05)}
 .fader .fmeter i{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(0deg,var(--play) 0%,var(--play) 70%,var(--accent) 88%,var(--rec) 100%);background-size:100% var(--mh,100px);background-position:bottom}
-.fader .fslot{width:4px;height:100%;border-radius:2px;background:#000;box-shadow:0 1px 0 rgba(255,255,255,.05)}
 .fader .funity{position:absolute;left:8%;right:8%;height:1px;background:var(--dim)}
 .fader .fcap{position:absolute;left:50%;width:30px;height:16px;margin-left:-11px;border-radius:2px;background:linear-gradient(180deg,#55555c,#33333a 45%,#2a2a2f);border:1px solid #050506;box-shadow:0 2px 3px rgba(0,0,0,.6)}
 .fader .fcap::after{content:"";position:absolute;left:3px;right:3px;top:7px;height:1px;background:var(--ink)}
@@ -1822,11 +1821,11 @@ function frame(ts) {
   if (ts - lastFrame < 14) { requestAnimationFrame(frame); return; } lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
   METER.l *= .97; METER.r *= .97; drawMeter();
   const scoping = scopeMoving(); if (scoping) scopeFrame(Math.min(.1, (ts - (frame.prev || ts)) / 1000)); frame.prev = ts;
-  const busy = scoping || T.playing || METER.l > 1e-4 || METER.r > 1e-4 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v > 1e-4));
+  const busy = scoping || T.playing || METER.l > 1e-4 || METER.r > 1e-4 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 1e-4 || m.v[1] > 1e-4));
   if (busy) requestAnimationFrame(frame); else { frameOn = false; return; }   // nothing moving: stop drawing until woken
   if (!ctx) return;
-  if (UI.view === 'mix') for (const m of STRIP_METERS) { const pk = REP.cm[m.c] || 0; m.v = Math.max(pk, m.v * .9); const db = m.v > 1e-5 ? 20 * Math.log10(m.v) : -99, f = tfFaderPos(m.v);   // on the fader's own scale: 0 dBFS sits on the unity mark
-    m.el.style.height = (f * 100).toFixed(1) + '%'; m.el.style.background = db > 0 ? COL.rec : db > -6 ? COL.accent : COL.play; }
+  if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) { const pk = REP.cm[m.c * 2 + k] || 0; m.v[k] = Math.max(pk, m.v[k] * .9); const db = m.v[k] > 1e-5 ? 20 * Math.log10(m.v[k]) : -99, f = tfFaderPos(m.v[k]);   // stereo, on the fader's own scale: 0 dBFS sits on the unity mark
+    const el = m.el[k]; el.style.height = (f * 100).toFixed(1) + '%'; el.style.background = db > 0 ? COL.rec : db > -6 ? COL.accent : COL.play; }
   const pos = heardPos();
   if (pos) {
     if (pos.scene !== lastHeard) { lastHeard = pos.scene; if (pos.scene !== UI.scene && !TL.drag) { UI.scene = pos.scene; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.sx = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else if (UI.view === 'seq') renderView(); } }
