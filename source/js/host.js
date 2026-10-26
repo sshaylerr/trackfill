@@ -406,7 +406,7 @@ class TFHost {
   /* ---------- analyzer: one channel at a time (the one on screen), after its effects and before its fader ---------- */
   // ch: the channel to analyze (or -1: no analyzer at all). fc/fs: an effect whose live gain change the screen shows (one number, no analysis).
   setScope(m) {
-    this.visFx = m.fc != null && m.fc >= 0 ? [m.fc, m.fs] : null;
+    this.visFx = m.fc != null && m.fc >= 0 ? [m.fc, m.fs] : null; if (this.ex.tf_fxio_ch) this.ex.tf_fxio_ch(this.visFx ? m.fc : -1);
     if (m.ch == null || m.ch < 0 || m.ch >= TF.NCH) { this.scope = null; return; }
     let s = this.scope; if (!s) { s = this.scope = { buf: new Float32Array(2048), w: 0, pkL: 0, pkR: 0, ssL: 0, ssR: 0, n: 0, mem: null }; if (!this.spec) this.spec = new TFSpectrum(this.sr); }
     if (s.ch !== m.ch) { s.ch = m.ch; s.mem = null; s.buf.fill(0); s.pkL = s.pkR = s.ssL = s.ssR = 0; s.n = 0; }   // never carry the last channel's levels over
@@ -433,6 +433,7 @@ class TFHost {
   }
   scopeReport() {
     const s = this.scope, v = this.visFx, r = { ch: s ? s.ch : -1, vis: v ? this.ex.tf_fx_vis(v[0], v[1], 0) : 0, vis3: v ? [0, 1, 2].map(i => this.ex.tf_fx_vis(v[0], v[1], i)) : null };
+    if (v && this.ex.tf_fxio) { const a = new Float32Array(this.ex.memory.buffer, this.ex.tf_fxio(), 32), o = v[1] * 4; r.io = [a[o], a[o + 1], a[o + 2], a[o + 3]]; a.fill(0); }   // the device's in/out peaks since the last report
     const w = this.wv; if (w && v && w.c === v[0] && w.s === v[1]) { if (w.cols.length) { r.wv = w.cols; for (let i = 2; i < w.cols.length; i += 3) r.vis = Math.min(r.vis, w.cols[i]); } w.cols = []; }   // the meter shows the deepest dip, however short
     if (s) { const loud = s.pkL > 1e-5 || s.pkR > 1e-5, n = Math.max(1, s.n);
       r.b = loud ? Array.from(this.spec.run(s.buf, s.w)) : null; r.pk = [s.pkL, s.pkR]; r.rms = [Math.sqrt(s.ssL / n), Math.sqrt(s.ssR / n)];

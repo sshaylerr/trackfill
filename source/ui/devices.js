@@ -85,8 +85,17 @@ function deviceEl(c, s, f, redrawRef) {
   if (f.type === FX_TYPES.LFOT) { vcv.classList.add('navc'); vcv.setAttribute('aria-label', 'LFO Tool shape'); vcv._ctl = lfoCtl; vcv._draw = redraw;
     bindLfo(vcv, { pts: () => P.chans[c].fx[s].lfo, changed: () => { syncChan(c); markDirty(); redraw(); }, draw: redraw, undo: () => pushUndo('chan:' + c), snap: x => Math.round(x * 32) / 32 }); }
   if (f.type === FX_TYPES.STEP) { vcv.classList.add('navc'); vcv.setAttribute('aria-label', 'Step pattern'); vcv._ctl = stepCtl(c, s, redraw); vcv._draw = redraw; bindSteps(vcv, c, s, redraw); }
-  dev.append(head); if (md.blurb) dev.append(h('div', 'blurb', esc(md.blurb))); dev.append(vis); return dev;
+  const row = h('div', 'fxvrow'), mi = ioMeter('In'), mo = ioMeter('Out'); row.append(mi, vis, mo);
+  scopeView(mi, () => { mi._upd(SCOPE.io.pk[0], SCOPE.io.pk[1], SCOPE.io.hold[0], SCOPE.io.hold[1]); mo._upd(SCOPE.io.pk[2], SCOPE.io.pk[3], SCOPE.io.hold[2], SCOPE.io.hold[3]); });
+  dev.append(head); if (md.blurb) dev.append(h('div', 'blurb', esc(md.blurb))); dev.append(row); return dev;
 }
+// a device's in or out meter: left and right, -60 to +6 dB with 0 dB marked, a falling peak and a held peak; red above 0 dB
+const IO_LO = -60, IO_HI = 6, ioPos = db => Math.max(0, Math.min(1, (db - IO_LO) / (IO_HI - IO_LO)));
+function ioMeter(label) { const m = h('div', 'fxm'); m.setAttribute('aria-label', label); m.title = label; m.innerHTML = '<i><u></u><s></s></i><i><u></u><s></s></i>';
+  const bars = [...m.querySelectorAll('u')], holds = [...m.querySelectorAll('s')], last = [-1, -1, -1, -1];
+  m._upd = (a, b, ha, hb) => { [a, b].forEach((db, k) => { const p = Math.round(ioPos(db) * 200) / 200; if (p !== last[k]) { last[k] = p; bars[k].style.height = (p * 100) + '%'; bars[k].style.background = db > 0 ? COL.rec : db > -6 ? COL.accent : COL.play; } });
+    [ha, hb].forEach((db, k) => { const p = Math.round(ioPos(db) * 200) / 200; if (p !== last[k + 2]) { last[k + 2] = p; holds[k].style.bottom = (p * 100) + '%'; holds[k].style.display = db > IO_LO ? 'block' : 'none'; holds[k].style.background = db > 0 ? COL.rec : COL.ink; } }); };
+  return m; }
 // mode picker: every mode with its blurb and a swatch of its faceplate
 function openModePicker(c, s) {
   const f = P.chans[c].fx[s], d = FX_DEFS[f.type];

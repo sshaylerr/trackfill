@@ -5,7 +5,7 @@
 const SCOPE = { ch: -1, fc: -1, fs: -1, sheet: -1, key: '', at: 0, last: 0,
   tgt: new Float32Array(64).fill(-120), disp: new Float32Array(64).fill(-120),
   pk: [-120, -120], rms: [-120, -120], hold: [-120, -120], holdAt: [0, 0], vis: 0, visD: 0, vis3: null, hist: [], views: [],
-  wv: { buf: new Float32Array(3 * 1024), n: 0 } };   // wv: the ducker's waveform columns (track peak, key peak, gain dB), a ring of 1024
+  wv: { buf: new Float32Array(3 * 1024), n: 0 }, io: { pk: [-120, -120, -120, -120], hold: [-120, -120, -120, -120], at: [0, 0, 0, 0] } };   // io: the device on screen, in L/R and out L/R (dB)   // wv: the ducker's waveform columns (track peak, key peak, gain dB), a ring of 1024
 const lin2dbJS = v => v > 1e-6 ? 20 * Math.log10(v) : -120;
 // which channel the screen wants analyzed; the engine is told only when that changes
 function scopeWant() {
@@ -14,13 +14,14 @@ function scopeWant() {
   else if (UI.view === 'sound' && UI.snd === PG.MIX) ch = UI.pad;
   else if (UI.view === 'fx' && P.chans[UI.fxCh].fx[UI.fxSlot]) { fc = UI.fxCh; fs = UI.fxSlot; const t = P.chans[fc].fx[fs].type; if (t === FX_TYPES.EQ || t === FX_TYPES.FILTER) ch = fc; }
   const key = ch + ':' + fc + ':' + fs; if (key === SCOPE.key) return; SCOPE.key = key;
-  SCOPE.hist = []; SCOPE.wv.n = 0;   // a different effect: start its histories fresh
+  SCOPE.hist = []; SCOPE.wv.n = 0; SCOPE.io.pk.fill(-120); SCOPE.io.hold.fill(-120);   // a different effect: start its histories fresh
   if (ch !== SCOPE.ch) { SCOPE.tgt.fill(-120); SCOPE.disp.fill(-120); SCOPE.pk = [-120, -120]; SCOPE.rms = [-120, -120]; SCOPE.hold = [-120, -120]; SCOPE.vis = SCOPE.visD = 0; }
   SCOPE.ch = ch; SCOPE.fc = fc; SCOPE.fs = fs; send({ t: 'scope', ch, fc, fs });
 }
 function onScope(sc) {
   if (sc.ch !== SCOPE.ch) return; const now = performance.now(); SCOPE.at = now; SCOPE.vis = sc.vis || 0; SCOPE.vis3 = sc.vis3 || null; wake();
   SCOPE.hist.push(SCOPE.vis); if (SCOPE.hist.length > 90) SCOPE.hist.shift();   // limiter history
+  if (sc.io) { const io = SCOPE.io; for (let i = 0; i < 4; i++) { const p = lin2dbJS(sc.io[i]); io.pk[i] = Math.max(p, io.pk[i]); if (p >= io.hold[i] || now - io.at[i] > 1500) { io.hold[i] = p; io.at[i] = now; } } }
   if (sc.wv) { const w = SCOPE.wv; for (let i = 0; i + 2 < sc.wv.length; i += 3) { const j = (w.n % 1024) * 3; w.buf[j] = sc.wv[i]; w.buf[j + 1] = sc.wv[i + 1]; w.buf[j + 2] = sc.wv[i + 2]; w.n++; } }
   if (!sc.pk) return;
   if (sc.b) SCOPE.tgt.set(sc.b); else SCOPE.tgt.fill(-120);
@@ -34,9 +35,10 @@ function scopeStep(dt) {
   for (let b = 0; b < 64; b++) { const t = SCOPE.tgt[b], d = SCOPE.disp[b]; SCOPE.disp[b] = t > d ? t : Math.max(t, d - 40 * dt); }
   for (let i = 0; i < 2; i++) { SCOPE.pk[i] = Math.max(-120, SCOPE.pk[i] - 24 * dt); SCOPE.rms[i] = Math.max(-120, SCOPE.rms[i] - 24 * dt);
     if (performance.now() - SCOPE.holdAt[i] > 1500) SCOPE.hold[i] = Math.max(SCOPE.pk[i], SCOPE.hold[i] - 30 * dt); }
+  { const io = SCOPE.io, t = performance.now(); for (let i = 0; i < 4; i++) { io.pk[i] = Math.max(-120, io.pk[i] - 24 * dt); if (t - io.at[i] > 1500) io.hold[i] = Math.max(io.pk[i], io.hold[i] - 30 * dt); } }
   const v = quiet ? 0 : SCOPE.vis; SCOPE.visD = Math.abs(v) > Math.abs(SCOPE.visD) ? v : SCOPE.visD + (v - SCOPE.visD) * Math.min(1, dt * 8);
 }
-const scopeMoving = () => (SCOPE.ch >= 0 || SCOPE.fc >= 0) && SCOPE.views.length && (performance.now() - SCOPE.at < 200 || SCOPE.pk[0] > -100 || SCOPE.pk[1] > -100 || SCOPE.disp.some(v => v > -100) || Math.abs(SCOPE.visD) > .05);
+const scopeMoving = () => (SCOPE.ch >= 0 || SCOPE.fc >= 0) && SCOPE.views.length && (performance.now() - SCOPE.at < 200 || SCOPE.pk[0] > -100 || SCOPE.pk[1] > -100 || SCOPE.io.hold.some(v => v > -100) || SCOPE.disp.some(v => v > -100) || Math.abs(SCOPE.visD) > .05);
 function scopeFrame(dt) { scopeStep(dt); for (const v of SCOPE.views) if (v.cv.isConnected) v.draw(); }
 function scopeView(cv, draw) { SCOPE.views.push({ cv, draw }); }
 

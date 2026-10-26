@@ -704,6 +704,11 @@ EX void tf_reset_all() { for (i32 c = 0; c < NCH; c++) { resetChan(c); chs[c].qu
 // a ducker with a trigger waiting or its envelope still moving keeps its channel awake: a note-triggered duck must start on time
 // (lookahead included) even when the channel was silent just before the note
 static i32 duckBusy(Chan* C) { for (i32 s = 0; s < NSLOT; s++) { Fx* f = &C->fx[s]; if (f->type == FX_DUCK && f->on && f->st) { DuckSt* d = (DuckSt*)f->st; if (d->npend || d->stage) return 1; } } return 0; }
+// device meters: for the one channel on screen, each insert's peak going in and coming out (left, right), held until the host reads them
+static i32 ioCh = -1; static float fxio[NSLOT][4];
+EX void tf_fxio_ch(i32 c) { ioCh = c >= 0 && c < NCH ? c : -1; zero(fxio, sizeof(fxio)); }
+EX float* tf_fxio() { return &fxio[0][0]; }
+static inline void ioPeak(float* o, const float* L, const float* R, i32 n) { for (i32 i = 0; i < n; i++) { const float a = fabsf_(L[i]), b = fabsf_(R[i]); if (a > o[0]) o[0] = a; if (b > o[1]) o[1] = b; } }
 static void processChan(i32 c, i32 n) {
   Chan* C = &chs[c]; float *L = inL[c], *R = inR[c]; const i32 hasPst = c < NPAD && dPst[c];
   float mx = 0; if (dIn[c]) for (i32 i = 0; i < n; i++) { float a = fabsf_(L[i]) + fabsf_(R[i]); if (a > mx) mx = a; }
@@ -725,7 +730,10 @@ static void processChan(i32 c, i32 n) {
       C->fz1[0] = f.ic1[0]; C->fz1[1] = f.ic1[1]; C->fz2[0] = f.ic2[0]; C->fz2[1] = f.ic2[1];
     }
   }
-  for (i32 s = 0; s < NSLOT; s++) { Fx* f = &C->fx[s]; if (f->type >= 0 && f->on) fx_run(c, f, L, R, n); else if (f->type == FX_DUCK && f->st) ((DuckSt*)f->st)->npend = 0; }
+  const i32 io = c == ioCh;
+  for (i32 s = 0; s < NSLOT; s++) { Fx* f = &C->fx[s]; if (io && f->type >= 0) ioPeak(fxio[s], L, R, n);
+    if (f->type >= 0 && f->on) fx_run(c, f, L, R, n); else if (f->type == FX_DUCK && f->st) ((DuckSt*)f->st)->npend = 0;
+    if (io && f->type >= 0) ioPeak(fxio[s] + 2, L, R, n); }
   if (hasPst) for (i32 i = 0; i < n; i++) { L[i] += pstL[c][i]; R[i] += pstR[c][i]; }
   // isolate broken channels: invalid numbers or absurd levels never leave the channel
   float sum = 0, om = 0; for (i32 i = 0; i < n; i++) { const float s1 = fabsf_(L[i]) + fabsf_(R[i]); sum += s1; if (s1 > om) om = s1; }
