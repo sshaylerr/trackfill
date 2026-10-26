@@ -757,6 +757,48 @@ static void processChan(i32 c, i32 n) {
   }
 }
 
+/* ---------- monitoring: only what this device plays (exports, bounces and freezes run their own engine, which never has it on) ----------
+   Crossfeed: Bauer stereo-to-binaural (each ear hears the other side low-passed at 700 Hz, 4.5 dB down), the bs2b design.
+   Speakers: a pair at ±30° heard through a spherical head (Brown & Duda): the far ear gets the sound later and shadowed, the near ear slightly
+   brighter, plus a few early reflections from a small treated room. Correction: up to 8 biquads (a headphone's measured EQ) with headroom taken first.
+   Everything here is skipped when off. */
+enum { MDL = 1024 };
+static i32 monMode = 0, monNB = 0; static float monBq[8][5], monZ[8][2][2], monPre = 1.f;
+static float xfLo[2], xfHi[2], xfIn[2];
+static float spD[2][MDL]; static i32 spW = 0; static float spSh[2][2][2], spRl[2];   // per speaker: a delay line; head-shadow filter state [speaker][ear]; reflection tone per ear
+EX void tf_mon(i32 mode) { monMode = mode < 0 || mode > 2 ? 0 : mode; zero(xfLo, 8); zero(xfHi, 8); zero(xfIn, 8); zero(spD, sizeof(spD)); zero(spSh, sizeof(spSh)); zero(spRl, 8); spW = 0; }
+EX void tf_mon_band(i32 k, float b0, float b1, float b2, float a1, float a2) { if (k < 0 || k >= 8) return; monBq[k][0] = b0; monBq[k][1] = b1; monBq[k][2] = b2; monBq[k][3] = a1; monBq[k][4] = a2; }
+EX void tf_mon_eq(i32 nb, float pre) { monNB = nb < 0 ? 0 : nb > 8 ? 8 : nb; monPre = sane(pre, 0.f, 2.f, 1.f); zero(monZ, sizeof(monZ)); }
+static inline float spRead(i32 s, float d) { float r = (float)spW - d; while (r < 0) r += MDL; const i32 i0 = (i32)r; const float f = r - i0; const float a = spD[s][i0 & (MDL - 1)], b = spD[s][(i0 + 1) & (MDL - 1)]; return a + (b - a) * f; }
+static void monitor(i32 n) {
+  if (monMode == 1) {   // crossfeed
+    const float lv = 4.5f, gbLo = lv * -5.f / 6.f - 3.f, gbHi = lv / 6.f - 3.f, gLo = db2lin(gbLo), gHi = 1.f - db2lin(gbHi), fLo = 700.f, fHi = fLo * fexp((gbLo - lin2db(gHi)) / 12.f * 0.693147181f);
+    const float xl = fexp(-6.28318531f * fLo / SR), a0l = gLo * (1.f - xl), xh = fexp(-6.28318531f * fHi / SR), a0h = 1.f - gHi * (1.f - xh), a1h = -xh, g = 1.f / (1.f - gHi + gLo);
+    for (i32 i = 0; i < n; i++) { const float in[2] = { oL[i], oR[i] };
+      for (i32 c = 0; c < 2; c++) { xfLo[c] = a0l * in[c] + xl * xfLo[c]; xfHi[c] = a0h * in[c] + a1h * xfIn[c] + xh * xfHi[c]; xfIn[c] = in[c]; }
+      oL[i] = (xfHi[0] + xfLo[1]) * g; oR[i] = (xfHi[1] + xfLo[0]) * g; } }
+  else if (monMode == 2) {   // speakers
+    const float a = 0.0875f, cs = 343.f, w0 = cs / a, T = 1.f / (2.f * w0), K = 2.f * SR, th = 30.f * 0.0174532925f;
+    const float itd = a / cs * (th + fsin(th)) * SR;   // the far ear hears each speaker this many samples later (Woodworth)
+    auto alpha = [](float deg) { const float am = 0.1f, tm = 150.f; return (1.f + am * 0.5f) + (1.f - am * 0.5f) * fcos(deg / tm * 3.14159265f); };
+    float sh[2][3]; const float ang[2] = { 60.f, 120.f };   // near ear, far ear: angle from the ear's axis
+    for (i32 e = 0; e < 2; e++) { const float al = alpha(ang[e]), b0 = 1.f + al * T * K, b1 = 1.f - al * T * K, a0 = 1.f + T * K, a1 = 1.f - T * K; sh[e][0] = b0 / a0; sh[e][1] = b1 / a0; sh[e][2] = a1 / a0; }
+    // early reflections (ms, gain): same-side and opposite-side paths, mirrored for the other ear
+    static const float RS[3][2] = { { 2.1f, 0.17f }, { 4.4f, 0.12f }, { 6.9f, 0.08f } }, RO[3][2] = { { 2.9f, 0.15f }, { 5.3f, 0.11f }, { 7.8f, 0.07f } };
+    const float sumR = 0.17f + 0.12f + 0.08f + 0.15f + 0.11f + 0.07f, g = 1.41f / (2.f + sumR), rlp = onepole(5000.f), ms = 0.001f * SR;
+    for (i32 i = 0; i < n; i++) { spD[0][spW] = oL[i]; spD[1][spW] = oR[i]; float ear[2];
+      for (i32 e = 0; e < 2; e++) {   // ear e: its own speaker (near) and the other one (far, later)
+        const i32 sn = e, sf = 1 - e; float y = 0.f;
+        { float* z = spSh[sn][e]; const float x = spD[sn][spW], o = sh[0][0] * x + sh[0][1] * z[0] - sh[0][2] * z[1]; z[0] = x; z[1] = o; y += o; }
+        { float* z = spSh[sf][e]; const float x = spRead(sf, itd), o = sh[1][0] * x + sh[1][1] * z[0] - sh[1][2] * z[1]; z[0] = x; z[1] = o; y += o; }
+        float r = 0.f; for (i32 k = 0; k < 3; k++) r += spRead(sn, RS[k][0] * ms) * RS[k][1] + spRead(sf, RO[k][0] * ms + itd) * RO[k][1];
+        spRl[e] += (r - spRl[e]) * rlp; ear[e] = (y + spRl[e]) * g; }
+      oL[i] = ear[0]; oR[i] = ear[1]; spW = (spW + 1) & (MDL - 1); } }
+  if (monNB) for (i32 i = 0; i < n; i++) { float x[2] = { oL[i] * monPre, oR[i] * monPre };   // headphone correction (direct form II transposed)
+    for (i32 k = 0; k < monNB; k++) { const float* b = monBq[k]; for (i32 c = 0; c < 2; c++) { float* z = monZ[k][c]; const float y = b[0] * x[c] + z[0]; z[0] = b[1] * x[c] - b[3] * y + z[1]; z[1] = b[2] * x[c] - b[4] * y; x[c] = y; } }
+    oL[i] = x[0]; oR[i] = x[1]; }
+  for (i32 i = 0; i < n; i++) { if (!(oL[i] == oL[i]) || !(oR[i] == oR[i])) { zero(oL, n * 4); zero(oR, n * 4); tf_mon(monMode); zero(monZ, sizeof(monZ)); return; } oL[i] = clampf(oL[i], -1.f, 1.f); oR[i] = clampf(oR[i], -1.f, 1.f); }
+}
 EX void tf_render(i32 n) {
   if (n <= 0) return; if (n > MAXN) n = MAXN;
   const u32 zb = (u32)prevN * 4u; prevN = n;   // only what the last block wrote
@@ -780,6 +822,7 @@ EX void tf_render(i32 n) {
     if (al > pkL) pkL = al; if (ar > pkR) pkR = ar;
     oL[i] = clampf(l, -1.f, 1.f); oR[i] = clampf(r, -1.f, 1.f);
   }
+  if (monMode || monNB) monitor(n);   // after the meters: they read the mix itself
 }
 EX float* tf_out_l() { return oL; }
 EX float* tf_ch_peaks() { return chPk; }

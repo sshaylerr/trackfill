@@ -35,6 +35,14 @@ const TF_ENGS = { analog: 'Analog', fm: 'FM', wt: 'Wavetable', gr: 'Granular', s
 const TF_WARPS = ['Off', 'Sync', 'Bend', 'PWM', 'Mirror', 'Quantize', 'FM', 'AM', 'Ring'];   // FM, AM and Ring take the other oscillator
 const TF_OPMODES = ['FM', 'Ring', 'Filter', 'Filter FM', 'Fold'];
 const TF_FMWAVES = ['Sine', 'Digital', 'Triangle', 'Saw', 'Square', 'Sine 1+2', 'Sine 1+3', 'Saw 3', 'Square 3', 'Noise'];
+// headphone corrections for monitoring: the average of the published measurements (AutoEq, MIT licence), smoothed and refitted (tools/monitor)
+const TF_PHONES = { 'Apple EarPods': { pre: -6.4, bands: [['LSC', 122, 6.4, .63], ['PK', 5915, -4.8, 1.09], ['PK', 2086, -3, 1.09], ['PK', 4057, 2.9, 1.46], ['PK', 3048, -1.8, 1.61], ['PK', 572, 1.9, .59], ['PK', 4178, 1, 1.95]] } };
+function tfBiquad(t, f, g, q, sr) { const A = Math.pow(10, g / 40), w = 2 * Math.PI * f / sr, c = Math.cos(w), s = Math.sin(w), al = s / (2 * q); let b0, b1, b2, a0, a1, a2;
+  if (t === 'PK') { b0 = 1 + al * A; b1 = -2 * c; b2 = 1 - al * A; a0 = 1 + al / A; a1 = -2 * c; a2 = 1 - al / A; }
+  else { const sq = 2 * Math.sqrt(A) * al;
+    if (t === 'LSC') { b0 = A * ((A + 1) - (A - 1) * c + sq); b1 = 2 * A * ((A - 1) - (A + 1) * c); b2 = A * ((A + 1) - (A - 1) * c - sq); a0 = (A + 1) + (A - 1) * c + sq; a1 = -2 * ((A - 1) + (A + 1) * c); a2 = (A + 1) + (A - 1) * c - sq; }
+    else { b0 = A * ((A + 1) + (A - 1) * c + sq); b1 = -2 * A * ((A - 1) + (A + 1) * c); b2 = A * ((A + 1) + (A - 1) * c - sq); a0 = (A + 1) - (A - 1) * c + sq; a1 = 2 * ((A - 1) - (A + 1) * c); a2 = (A + 1) - (A - 1) * c - sq; } }
+  return [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0]; }
 const TFSYN = (() => {
   const L = [], osc = (n, def) => { const o = 'o' + n;
     L.push([o + 'w', 'Wave', 'opt', TF_WAVES, 0, def.w, o], [o + 'o', 'Octave', 'int', -2, 2, def.o || 0, o], [o + 's', 'Semi', 'lin', -12, 12, def.s || 0, o], [o + 'f', 'Fine', 'lin', -100, 100, def.f || 0, o],
@@ -269,6 +277,8 @@ class TFHost {
       case 'preview': this.preview(m.key); break;
       case 'panic': this.panic(); break;
       case 'scope': this.setScope(m); break;
+      case 'monitor': { if (!this.ex.tf_mon) break; this.ex.tf_mon(m.mode | 0); const ph = TF_PHONES[m.phones];   // live output only: exports never get this message
+        if (ph) { ph.bands.forEach((b, k) => this.ex.tf_mon_band(k, ...tfBiquad(b[0], b[1], b[2], b[3], this.sr))); this.ex.tf_mon_eq(ph.bands.length, Math.pow(10, ph.pre / 20)); } else this.ex.tf_mon_eq(0, 1); break; }
     }
   }
   /* ---------- parameters & routing ---------- */
@@ -622,4 +632,4 @@ async function tfRenderOffline(module, P, samples, opts) {
   }
   return { L, R, sr };
 }
-if (typeof module !== 'undefined') module.exports = { tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

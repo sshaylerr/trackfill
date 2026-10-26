@@ -201,6 +201,8 @@ function destName(c) { const d = tfDest(P, c); return d < 0 ? '—' : d === MAST
 function mixChans(p) { return p < 8 ? [...Array(8)].map((_, i) => p * 8 + i) : p === 8 ? [...Array(8)].map((_, i) => G0 + i) : p === 9 ? [...Array(8)].map((_, i) => B0 + i) : [R0, R0 + 1, MASTER]; }
 const shortDb = v => { const g = tfFaderGain(v); if (g <= .0001) return '-∞'; const d = 20 * Math.log10(g); return (d > .05 ? '+' : '') + d.toFixed(1); };
 function renderMix(V) {
+  // the mixer opens on the pad you're working on (whenever that pad changed since the mixer last showed it); otherwise it stays where you left it
+  if (UI.mixFollow !== UI.pad) { UI.mixFollow = UI.pad; UI.mixPage = Math.floor(UI.pad / 8); UI.mixSel = UI.pad; }
   const w = h('div', 'mixView'), pages = h('div', 'pages'), chs = mixChans(UI.mixPage);
   MIX_PAGES.forEach((l, i) => pages.append(btn(l, () => { UI.mixPage = i; UI.mixSel = mixChans(i)[0]; renderView(); }, 'key' + (UI.mixPage === i ? ' on' : ''))));
   if (!chs.includes(UI.mixSel)) UI.mixSel = chs.includes(UI.pad) ? UI.pad : chs[0];

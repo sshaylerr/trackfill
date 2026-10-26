@@ -32,6 +32,14 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       for (let i = 0, n = Math.ceil(300 * per / 128) + 40; i < n; i++) host.render(128, L, R);
       hits.forEach((h, k) => { worst = Math.max(worst, Math.abs(h - (hits[0] + k * per))); }); }
     ok(worst < 1.5, `the song keeps true tempo: after 300 loops every loop still starts within ${worst.toFixed(2)} samples of where it should`); }
+  console.log('monitoring');
+  { const go = (msg) => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); host.msg({ t: 'project', P: Q });
+      for (const [key, sm] of kit) host.msg({ t: 'sample', key, data: sm.data, frames: sm.frames, ch: sm.ch, sr: sm.sr }); if (msg) host.msg(msg); host.msg({ t: 'play', scene: 1, loop: 'scene' });
+      const L = new Float32Array(128), R = new Float32Array(128), o = { L: [], pk: 0, bad: 0, ms: 0 }; const t0 = Date.now();
+      for (let i = 0; i < 750; i++) { host.render(128, L, R); for (let j = 0; j < 128; j++) { if (!(L[j] === L[j])) o.bad++; o.pk = Math.max(o.pk, Math.abs(L[j]), Math.abs(R[j])); if (i % 50 === 0) o.L.push(L[j]); } } o.ms = Date.now() - t0; return o; };
+    const base = go(null), off = go({ t: 'monitor', mode: 0, phones: '' }), modes = [1, 2].map(mode => go({ t: 'monitor', mode, phones: 'Apple EarPods' }));
+    ok(off.L.every((x, i) => x === base.L[i]), 'monitoring off is bit-identical to no monitoring at all (nothing runs)');
+    ok(modes.every(r => !r.bad && r.pk <= 1 && r.pk > .05), `crossfeed and speakers with headphone correction stay finite and within 0 dBFS (peaks ${modes.map(r => r.pk.toFixed(2)).join(', ')})`); }
   console.log('ducker');
   { // sub alone, ducked by kick notes with 5 ms lookahead: gain must already be falling before each kick
     const Q = M.demoProject(); Q.chans.forEach((c, i) => { if (i !== 8 && i < 64) c.mute = true; });

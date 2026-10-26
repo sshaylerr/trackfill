@@ -127,7 +127,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 #bTempo small{font-size:9px;color:var(--print)}
 #bPanel.on{color:var(--accent)}
 .spacer{flex:1}
-#meter{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 60px 32px;gap:6px;align-items:center;height:12px;cursor:pointer}
+#meter{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 60px 30px 32px;gap:6px;align-items:center;height:12px;cursor:pointer}
 #meter .bars{display:flex;flex-direction:column;gap:2px}
 #meter .bar{height:3px;border-radius:2px;background:#0b0b0c;overflow:hidden}
 #meter .bar i{display:block;height:100%;width:100%;transform:scaleX(0);background:var(--play);transform-origin:left}
@@ -136,6 +136,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 #meter .cpu.hot{color:var(--accent)} #meter .cpu.busy::after{content:' ·';color:var(--accent)}
 #meter .clip{height:12px;border-radius:3px;background:#0b0b0c;border:1px solid #000;font:700 7px var(--font-lcd);color:var(--dim);display:flex;align-items:center;justify-content:center}
 #meter .clip.on{background:var(--rec);color:#2b0707}
+#meter .mon{height:12px;border-radius:3px;background:#0b0b0c;border:1px solid #000;font:700 7px var(--font-lcd);color:var(--dim);display:flex;align-items:center;justify-content:center} #meter .mon.on{background:var(--accent);color:#1a1205}
 
 /* ---------- scene keys ---------- */
 #scenes{display:flex;gap:6px;overflow-x:auto;flex:none;height:50px;scrollbar-width:none;padding-bottom:2px}
@@ -473,7 +474,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
     <button class="tb ic" id="bPanel" aria-label="Precision controls"><svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" opacity=".95"/></svg></button>
     <button class="tb ic" id="bMenu" aria-label="Project menu"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="2.2" rx="1.1"/><rect x="4" y="11" width="16" height="2.2" rx="1.1"/><rect x="4" y="16" width="16" height="2.2" rx="1.1"/></svg></button>
   </header>
-  <div id="meter" title="Output level. Tap to reset the clip light."><div class="bars"><div class="bar"><i></i></div><div class="bar"><i></i></div></div><span class="cpu lcd">CPU —</span><span class="clip">CLIP</span></div>
+  <div id="meter" title="Output level. Tap to reset the clip light."><div class="bars"><div class="bar"><i></i></div><div class="bar"><i></i></div></div><span class="cpu lcd">CPU —</span><span class="mon" id="bMon" title="Monitoring: speakers or crossfeed on headphones">MON</span><span class="clip">CLIP</span></div>
   <nav id="scenes" aria-label="Scenes"></nav>
   <main id="view"></main>
   <section id="panel" hidden aria-label="Precision controls">
@@ -577,7 +578,7 @@ const duckerCount = () => P.chans.reduce((n, c) => n + c.fx.filter(f => f.type =
 
 /* ================= state ================= */
 let P = null;
-const UI = { theme: 'amber', padStyle: 'dark', view: 'pads', bank: 0, pad: 0, scene: 0, keys: false, oct: 0, keyCell: 0, panel: false, shift: false, fine: 0, mirror: false, sheet: false,
+const UI = { mon: { mode: 0, phones: '' }, theme: 'amber', padStyle: 'dark', view: 'pads', bank: 0, pad: 0, scene: 0, keys: false, oct: 0, keyCell: 0, panel: false, shift: false, fine: 0, mirror: false, sheet: false,
   tl: { mode: 'bank', lane: 'notes', target: null, zoom: null, sx: 0, sy: null, by: 0, rv: 16, kh: 24, snap: 24, sel: null, ms: null, selMode: false, box: null, selPt: -1, draw: false, cursor: { t: 0, row: 0, v: .5 } },
   snd: 0, slice: 0, click: 'rec', countIn: 1, clickVol: .5, mixPage: 0, mixSel: 0, fxCh: 0, fxSlot: 0, fxBack: 'mix', regs: [], autoRec: null, haptics: true };
 const T = { playing: false, rec: false, loop: 'scene' };
@@ -655,7 +656,7 @@ const DB = { db: null, ok: false,
 let saveTimer = 0;
 function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
 function saveNow() { clearTimeout(saveTimer); if (P) DB.put('kv', 'project', P); }
-function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol }); }
+function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -768,7 +769,7 @@ function onEngine(m) {
     if (m.arp) arpPlayed(m.arp);
     if (m.sc) onScope(m.sc);
     if (T.playing && T.rec) recTrack();
-  } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); }
+  } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); sendMonitor(); }
   else if (m.t === 'trip') {
     const n = Date.now(), who = m.ch === MASTER ? 'the master output' : chanName(m.ch);
     if (m.ch === MASTER) { T.playing = false; updateTransport(); }
@@ -1447,9 +1448,21 @@ function openTempo() {
     const cv = paramEl({ label: 'Click volume', min: 0, max: 1, step: .05, coarse: .1, get: () => UI.clickVol, set: v => { UI.clickVol = v; sendClick(); savePrefs(); }, def: .5, fmt: v => Math.round(v * 100) + '%', noFocus: true }); cv.style.marginTop = '14px';
     card.append(cv, h('p', 'note', 'Not included in exports.')); });
 }
+/* ---------- monitoring: speakers or crossfeed for headphones, and headphone correction. This device's output only: never exports ---------- */
+const MON_MODES = ['Off', 'Crossfeed', 'Speakers'];
+function sendMonitor() { if (!UI.mon) UI.mon = { mode: 0, phones: '' }; send({ t: 'monitor', mode: UI.mon.mode, phones: UI.mon.phones }); const b = $('#bMon'); if (b) b.classList.toggle('on', !!(UI.mon.mode || UI.mon.phones)); }
+function openMonitor() {
+  openSheet('Monitoring', card => { const st = h('div', 'stack'); card.append(st); const set = (k, v) => { UI.mon[k] = v; sendMonitor(); savePrefs(); closeSheet(); openMonitor(); };
+    st.append(h('div', 'sec', 'Listen as'));
+    const g = h('div', 'g3'); MON_MODES.forEach((n, i) => g.append(btn(n, () => set('mode', i), 'btn' + (UI.mon.mode === i ? ' on' : '')))); st.append(g);
+    st.append(h('div', 'sec', 'Headphones'));
+    const g2 = h('div', 'g2'); g2.append(btn('No correction', () => set('phones', ''), 'btn' + (!UI.mon.phones ? ' on' : ''))); for (const n of Object.keys(TF_PHONES)) g2.append(btn(n, () => set('phones', n), 'btn' + (UI.mon.phones === n ? ' on' : ''))); st.append(g2);
+    st.append(h('p', 'note', 'What you hear only. Exports, bounces and freezes are never affected.')); });
+}
 function openMenu() {
   openSheet(P.name || 'Project', card => { const st = h('div', 'stack');
     const pg = h('div', 'g2'); pg.append(btn('Panic: stop all sound', () => { closeSheet(); panic(); }, 'btn warn'), btn('Engine check', () => { closeSheet(); openDiag(); })); st.append(pg);
+    st.append(btn('Monitoring: ' + (UI.mon && (UI.mon.mode || UI.mon.phones) ? [UI.mon.mode ? MON_MODES[UI.mon.mode] : '', UI.mon.phones].filter(Boolean).join(' · ') : 'Off'), () => { closeSheet(); openMonitor(); }, 'btn' + (UI.mon && (UI.mon.mode || UI.mon.phones) ? ' on' : '')));
     const inp = h('input', 'textin'); inp.value = P.name; inp.maxLength = 30; inp.setAttribute('aria-label', 'Project name'); inp.onfocus = () => pushUndo('song'); inp.oninput = () => { P.name = inp.value; markDirty(); }; st.append(inp);
     st.append(h('div', 'sec', 'Export')); let g = h('div', 'g2'); g.append(btn('Export song', () => exportAudio('song')), btn('Export scene ' + (UI.scene + 1), () => exportAudio('scene'))); st.append(g);
     st.append('');
@@ -1804,6 +1817,7 @@ function drawMeter() { [METER.l, METER.r].forEach((v, i) => { const db = v > 1e-
     meterEls[i].style.transform = `scaleX(${f})`; meterEls[i].classList.toggle('hot', db > -3); }); clipEl.classList.toggle('on', METER.clip);
   const n = performance.now(); if (n - lastCpuDraw > 400) { lastCpuDraw = n; const c = ENG.ready ? Math.round(REP.cpu * 100) : null; cpuEl.textContent = c == null ? 'CPU —' : `CPU ${c}%`; cpuEl.classList.toggle('hot', c != null && c > 60); } }
 $('#meter').addEventListener('click', () => { METER.clip = false; drawMeter(); });
+$('#bMon').addEventListener('click', e => { e.stopPropagation(); openMonitor(); });
 $('#bPlay').onclick = play;
 $('#bRec').onclick = () => { T.rec = !T.rec; sendClick(); REC.saved = -1; REC.last = null; updateTransport(); if (T.rec && !T.playing) toast('Record armed. Press play, then play pads or move controls.'); };
 $('#bLoop').onclick = () => { T.loop = T.loop === 'scene' ? 'song' : 'scene'; send({ t: 'loop', v: T.loop }); updateTransport(); savePrefs(); toast(T.loop === 'song' ? 'Song mode: scenes play in order with repeats' : 'Scene mode: the selected scene loops'); };
@@ -1849,7 +1863,7 @@ async function boot() {
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (pr.snap != null) UI.tl.snap = pr.snap;
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
-    UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); }
+    UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
