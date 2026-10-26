@@ -285,7 +285,8 @@ static void renderSynth(i32 n) {
   for (i32 pi = 0; pi < NPAD; pi++) { Patch* P = pat[pi]; if (P && P->xr) { zero(P->xr->sL, n * 4); zero(P->xr->sR, n * 4); } }
   for (i32 pi = 0; pi < NPAD; pi++) { Patch* P = pat[pi]; if (!P || !P->on) continue;   // free-running LFOs advance once per pad
     for (i32 k = 0; k < 4; k++) { const float* p = P->p; i32 b = SP_L1Y + k * 6; float hz = disc(p[b], 2) ? 1.f / (lfoDivBeats[disc(p[b + 2], NLFODIV)] * beat) : spPhys(b + 1, p[b + 1]);
-      P->gph[k] += hz * dt; P->gph[k] -= floorf_(P->gph[k]); } }
+      if (disc(p[b], 2) && gPlay) { const double q = gBeat / lfoDivBeats[disc(p[b + 2], NLFODIV)]; P->gph[k] = (float)(q - (double)(long long)q); }   // synced and playing: locked to the song position, so it never drifts off the bars
+      else { P->gph[k] += hz * dt; P->gph[k] -= floorf_(P->gph[k]); } } }
   for (i32 vi = 0; vi < NSV; vi++) {
     SVoice* v = &sv[vi]; if (!v->on) continue; Patch* P = pat[v->pad]; if (!P || !P->on) { v->on = 0; continue; }
     float* m = v->m; float* L = inL[v->pad], *R = inR[v->pad]; dIn[v->pad] = 1;
@@ -294,7 +295,7 @@ static void renderSynth(i32 n) {
     // LFOs (rates from last block's modulated values: sources can modulate sources)
     float o3 = 0.f;
     for (i32 k = 0; k < 4; k++) { if (!(P->srcUsed & (8u << k))) continue; i32 b = SP_L1Y + k * 6, mode = disc(m[b + 3], 3); float hz = disc(m[b], 2) ? 1.f / (lfoDivBeats[disc(m[b + 2], NLFODIV)] * beat) : spPhys(b + 1, m[b + 1]);
-      float ph; if (mode == 1) ph = P->gph[k] + m[b + 5]; else { if (!v->ldone[k]) { v->lph[k] += hz * dt; if (mode == 2 && v->lph[k] >= 1.f + m[b + 5]) { v->ldone[k] = 1; v->lph[k] = 0.9999f + m[b + 5]; } } ph = v->lph[k]; }
+      float ph; if (mode == 1) ph = P->gph[k] + m[b + 5]; else { if (!v->ldone[k]) { v->lph[k] += hz * dt; if (mode == 0) v->lph[k] -= floorf_(v->lph[k]); if (mode == 2 && v->lph[k] >= 1.f + m[b + 5]) { v->ldone[k] = 1; v->lph[k] = 0.9999f + m[b + 5]; } } ph = v->lph[k]; }
       ph -= floorf_(ph); float fi = ph * LFOT; i32 i0 = (i32)fi; float fr = fi - i0; const float* T = P->lfo[k]; float x = T[i0 & (LFOT - 1)] + (T[(i0 + 1) & (LFOT - 1)] - T[i0 & (LFOT - 1)]) * fr;
       v->lv[k] = x; float sm = m[b + 4]; v->ls[k] = sm > 0.001f ? v->ls[k] + (x - v->ls[k]) * (1.f - fexp(-dt / (0.0005f + sm * sm * 0.5f))) : x; }
     if (disc(m[SP_O3X], 2)) { v->ph[2][0] += spPhys(SP_O3R, m[SP_O3R]) * dt; v->ph[2][0] -= floorf_(v->ph[2][0]); o3 = oscWave(disc(m[SP_O3W], 5), v->ph[2][0], 0.001f, m[SP_O3P] * .9f + .05f); }
@@ -401,11 +402,12 @@ static void renderSynth(i32 n) {
       if (v->xpend && v->xend) { v->xpend = 0; svRelease(v); }
       v->xt += dt;
       // motion: synced, and it can speed up (or slow down) along the sweep
-      xMo = disc(m[SP_XMO], 5); const float amt = m[SP_XMA];
+      xMo = disc(m[SP_XMO], 6); const float amt = m[SP_XMA];
       const float hz = 1.f / (lfoDivBeats[disc(m[SP_XMR], NLFODIV)] * beat) * fexp(linmap(m[SP_XRU], -1.f, 1.f) * 3.f * sw * 0.693147181f);
       if (xMo) { v->xwp += hz * dt; v->xwp -= floorf_(v->xwp); } const float ph = v->xwp;
       float pOff = 0.f, gate = 1.f;
       if (xMo == 1) { pOff = amt * 36.f * fexp(-ph * 7.f); gate = maxf(0.05f, 1.f - amt * (1.f - fexp(-ph * 4.f))); }   // laser: a zap each cycle
+      else if (xMo == 5) { const float q = 1.f - ph; pOff = amt * 36.f * fexp(-q * 7.f); gate = maxf(0.05f, 1.f - amt * (1.f - fexp(-q * 4.f))); }   // woop: a laser played backwards, rising into the beat
       else if (xMo == 3) pOff = amt * 12.f * fsin(6.28318531f * ph);                                                        // siren
       else if (xMo == 4) gate = ph < 0.5f ? 1.f : 1.f - amt;                                                                 // stutter
       else if (xMo == 2) xWg = ftan(3.14159265f * clampf(18000.f * fexp(-amt * 8.f * (0.5f - 0.5f * fcos(6.28318531f * ph)) * 0.693147181f), 40.f, 0.42f * SR) / SR);   // wobble: a low-pass

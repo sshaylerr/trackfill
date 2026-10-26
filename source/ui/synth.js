@@ -421,8 +421,8 @@ function drawXDisp(g, W, H, v, txt, col, grid, tab) {
     timeGrid(); const pf = v('xpf'), pt = v('xpt'), mo = v('xmo'), amt = v('xma'), div = (TF_LFO_DIVS.find(d => d[0] === v('xmr')) || [0, .5])[1], ru = v('xru'), on = v('xol') > .0005;
     const pts = []; let ph = 0, mn = Math.min(pf, pt), mx = Math.max(pf, pt); const T = secs || 2;
     for (let i = 0; i <= N; i++) { const x = i / N, k = sw(x), rate = 1 / (div * beat) * Math.pow(2, ru * 3 * k); if (i) ph = (ph + rate * T / N) % 1;
-      const off = mo === 'Laser' ? amt * 36 * Math.exp(-ph * 7) : mo === 'Siren' ? amt * 12 * Math.sin(2 * Math.PI * ph) : 0, st = pf + (pt - pf) * k + off;
-      const a = mo === 'Stutter' ? (ph < .5 ? 1 : 1 - amt) : mo === 'Laser' ? Math.max(.05, 1 - amt * (1 - Math.exp(-ph * 4))) : mo === 'Wobble' ? 1 - amt * .8 * (.5 - .5 * Math.cos(2 * Math.PI * ph)) : 1;
+      const off = mo === 'Laser' ? amt * 36 * Math.exp(-ph * 7) : mo === 'Woop' ? amt * 36 * Math.exp(-(1 - ph) * 7) : mo === 'Siren' ? amt * 12 * Math.sin(2 * Math.PI * ph) : 0, st = pf + (pt - pf) * k + off;
+      const a = mo === 'Stutter' ? (ph < .5 ? 1 : 1 - amt) : mo === 'Laser' ? Math.max(.05, 1 - amt * (1 - Math.exp(-ph * 4))) : mo === 'Woop' ? Math.max(.05, 1 - amt * (1 - Math.exp(-(1 - ph) * 4))) : mo === 'Wobble' ? 1 - amt * .8 * (.5 - .5 * Math.cos(2 * Math.PI * ph)) : 1;
       pts.push([x, st, a * lvl(x)]); mn = Math.min(mn, st); mx = Math.max(mx, st); }
     mn -= 2; mx += 2; const Y = st => bot - (st - mn) / Math.max(1, mx - mn) * (bot - top);
     g.fillStyle = COL.line; g.fillRect(X0, Math.round(Y(0)), X1 - X0, 1);

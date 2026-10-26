@@ -23,6 +23,15 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
   console.log(`    rendered ${secs.toFixed(1)} s in ${ms} ms → ${(ms / (secs * 1000) * 100).toFixed(1)}% of real time on this machine`);
   const b = await H.tfRenderOffline(wasm, P, kit, { order: order(P), tail: 2 });
   ok(hash(a.L) === hash(b.L) && hash(a.R) === hash(b.R), 'renders are deterministic');
+  console.log('clock');
+  { // 300 loops at awkward tempos and both common rates: loop starts stay within a sample of true tempo (loops never round up)
+    let worst = 0; for (const [bpm, sr, bars] of [[174, 44100, 1], [140, 48000, 2], [123.4, 44100, 1]]) {
+      const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, sr, null), Q = M.newProject(true); Q.bpm = bpm; Q.scenes[0].bars = bars; Q.pads[0].sample = 'b:kick'; Q.scenes[0].notes = { 0: [{ t: 0, len: 24, p: 0, v: .9 }] };
+      host.msg({ t: 'project', P: Q }); const hits = [], d0 = host.dispatch.bind(host); host.dispatch = (e, off) => { if (e.k === 0) hits.push(host.now + off); return d0(e, off); };
+      host.msg({ t: 'play', scene: 0, loop: 'scene' }); const L = new Float32Array(128), R = new Float32Array(128), per = bars * 4 * 60 / bpm * sr;
+      for (let i = 0, n = Math.ceil(300 * per / 128) + 40; i < n; i++) host.render(128, L, R);
+      hits.forEach((h, k) => { worst = Math.max(worst, Math.abs(h - (hits[0] + k * per))); }); }
+    ok(worst < 1.5, `the song keeps true tempo: after 300 loops every loop still starts within ${worst.toFixed(2)} samples of where it should`); }
   console.log('ducker');
   { // sub alone, ducked by kick notes with 5 ms lookahead: gain must already be falling before each kick
     const Q = M.demoProject(); Q.chans.forEach((c, i) => { if (i !== 8 && i < 64) c.mute = true; });

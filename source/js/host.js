@@ -88,7 +88,7 @@ const TFSYN = (() => {
     ['xnl', 'Level', 'lin', 0, 1, .8, 'xn'], ['xnf', 'Filter', 'opt', ['Band', 'Low', 'High'], 0, 'Band', 'xn'], ['xbf', 'From', 'exp', 30, 18000, 250, 'xn'], ['xbt', 'To', 'exp', 30, 18000, 8000, 'xn'],
     ['xbq', 'Width', 'lin', 0, 1, .5, 'xn'], ['xnc', 'Colour', 'bip', -1, 1, 0, 'xn'],
     ['xol', 'Level', 'lin', 0, 1, 0, 'xo'], ['xwv', 'Wave', 'opt', TF_WAVES, 0, 'Saw', 'xo'], ['xpf', 'From', 'lin', -48, 48, 0, 'xo'], ['xpt', 'To', 'lin', -48, 48, 24, 'xo'],
-    ['xmo', 'Motion', 'opt', ['Sustain', 'Laser', 'Wobble', 'Siren', 'Stutter'], 0, 'Sustain', 'xo'], ['xmr', 'Rate', 'opt', TF_LFO_DIVS.map(d => d[0]), 0, '1/8', 'xo'], ['xma', 'Amount', 'lin', 0, 1, .5, 'xo'],
+    ['xmo', 'Motion', 'opt', ['Sustain', 'Laser', 'Wobble', 'Siren', 'Stutter', 'Woop'], 0, 'Sustain', 'xo'], ['xmr', 'Rate', 'opt', TF_LFO_DIVS.map(d => d[0]), 0, '1/8', 'xo'], ['xma', 'Amount', 'lin', 0, 1, .5, 'xo'],
     ['xru', 'Speed up', 'bip', -1, 1, 0, 'xo'],
     ['xhl', 'Level', 'lin', 0, 1, 0, 'xh'], ['xht', 'Type', 'opt', ['Boom', 'Crack', 'Splash'], 0, 'Boom', 'xh'], ['xhn', 'Tone', 'lin', 0, 1, .5, 'xh'], ['xhd', 'Decay', 'exp', .03, 6, .8, 'xh'],
     ['xhw', 'When', 'opt', ['Start', 'End'], 0, 'Start', 'xh'],
@@ -500,22 +500,24 @@ class TFHost {
     const P = this.P, a = this.ah; let t = a.t, remain = n, guard = 0;
     while (remain > 0 && guard++ < 64) {
       const sc = P.scenes[a.scene], len = sc.bars * TF.BAR, tps = P.bpm * TF.PPQ / (60 * this.sr);
-      if (!a.started) { a.started = true; this.sceneStart(a.scene, t); }
-      let span = Math.max(1, Math.ceil((len - a.tick) / tps - 1e-9)), sw = false;
+      if (!a.started) { a.started = true; this.sceneStart(a.scene, t - a.tick / tps); }
+      let span = Math.max(1, Math.ceil((len - a.tick) / tps - 1e-9)), sw = false, nb = len;
       if (this.pending != null) {
         if (this.pending === a.scene) this.pending = null;
-        else { const nb = (Math.floor(a.tick / TF.BAR + 1e-9) + 1) * TF.BAR, sb = Math.max(1, Math.ceil((nb - a.tick) / tps - 1e-9));
-          if (sb <= span && sb <= remain) { span = sb; sw = true; } }
+        else { const b = (Math.floor(a.tick / TF.BAR + 1e-9) + 1) * TF.BAR, sb = Math.max(1, Math.ceil((b - a.tick) / tps - 1e-9));
+          if (sb <= span && sb <= remain) { span = sb; sw = true; nb = b; } }
       }
       span = Math.min(span, remain);
-      const t0 = a.tick, t1 = Math.min(len, a.tick + span * tps);
+      // blocks are whole samples but a loop rarely is: the part of a sample that runs past the loop's end is carried into the next one
+      // (its first notes still play in this block), so loops never round up and the song stays on true tempo however long it plays
+      const t0 = a.tick, tEnd = a.tick + span * tps, t1 = Math.min(len, nb, tEnd), lo = a.fresh ? 0 : t0; a.fresh = false;
       this.marks.push({ time: t, scene: a.scene, tick: t0, tps });
-      this.emit(a.scene, sc, t0, t1, t, tps, len); if (this.click.on) this.clicks(t, t0, t1, tps);
+      const tl = t + (lo - t0) / tps; this.emit(a.scene, sc, lo, t1, tl, tps, len); if (this.click.on) this.clicks(tl, lo, t1, tps);
       a.tick = t1; t += span; remain -= span;
-      if (sw) { this.cutClips(t); a.scene = this.pending; this.pending = null; a.rep = 0; a.tick = 0; a.started = false; }
+      if (sw) { this.cutClips(t); a.scene = this.pending; this.pending = null; a.rep = 0; a.tick = Math.max(0, tEnd - nb); a.fresh = true; a.started = false; }
       else if (a.tick >= len - 1e-6) {
         if (this.loop === 'song') { a.rep++; if (a.rep >= sc.repeat) { a.rep = 0; a.scene = this.nextSong(a.scene); } } else a.rep = 0;
-        a.tick = 0; a.started = false;
+        const nl = P.scenes[a.scene].bars * TF.BAR; a.tick = Math.min(Math.max(0, tEnd - len), nl); a.fresh = true; a.started = false;
       }
     }
     a.t = t;
@@ -568,7 +570,8 @@ class TFHost {
       const m = Math.min(TF.SUB, n - off), end = this.now + m;
       if (this.playing) this.advance(m);
       if (this.arps.size) this.runArps(end);
-      while (this.heap.size && this.heap.peek().time < end) { const e = this.heap.pop(); this.dispatch(e, Math.max(0, Math.min(m - 1, Math.floor(e.time - this.now)))); }
+      // an event plays on the first sample at or after its exact time (never early), so a loop's next note can't creep into the one before
+      while (this.heap.size && Math.ceil(this.heap.peek().time - 1e-6) < end) { const e = this.heap.pop(); this.dispatch(e, Math.max(0, Math.min(m - 1, Math.ceil(e.time - this.now - 1e-6)))); }
       this.flushFollow();
       if (this.playing) this.automate(end);
       if (ex.tf_set_pos) { const pos = this.playing && this.P ? this.tickAt(this.now) : null; this.freeBeat = (this.freeBeat || 0) + m / this.sr * (this.P ? this.P.bpm : 120) / 60;   // the song position for synced effects (free-running when stopped)
