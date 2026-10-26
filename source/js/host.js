@@ -80,13 +80,19 @@ const TFSYN = (() => {
   // Instrument engine: multisampled instruments (the zones come with the instrument, not the patch)
   L.push(['ioc', 'Octave', 'int', -3, 3, 0, 'in'], ['ise', 'Semi', 'lin', -12, 12, 0, 'in'], ['ifi', 'Fine', 'lin', -100, 100, 0, 'in'], ['ist', 'Start', 'lin', 0, 1, 0, 'in'],
     ['ivt', 'Vel → tone', 'lin', 0, 1, .4, 'in'], ['ilo', 'Loop', 'opt', ['On', 'Off'], 0, 'On', 'in'], ['iwd', 'Width', 'lin', 0, 1, 0, 'in']);
-  // FX engine: a tone and noise source, a sweep over time (pitch, filter, level: risers, drops, lasers) and a wobble (sirens)
-  L.push(['xwv', 'Wave', 'opt', TF_WAVES, 0, 'Saw', 'x1'], ['xtl', 'Tone', 'lin', 0, 1, .8, 'x1'], ['xnl', 'Noise', 'lin', 0, 1, 0, 'x1'], ['xnc', 'Color', 'bip', -1, 1, 0, 'x1'],
-    ['xoc', 'Octave', 'int', -3, 3, 0, 'x1'], ['xdt', 'Detune', 'lin', 0, 1, 0, 'x1'], ['xgr', 'Grit', 'lin', 0, 1, 0, 'x1'], ['xwd', 'Width', 'lin', 0, 1, 0, 'x1'],
-    ['xsa', 'Sweep', 'lin', -48, 48, 0, 'x2'], ['xst', 'Time', 'exp', .01, 30, 1, 'x2'], ['xss', 'Sync', 'opt', ['Free', '1 beat', '1 bar', '2 bars', '4 bars', '8 bars', '16 bars'], 0, 'Free', 'x2'], ['xsc', 'Curve', 'bip', -1, 1, 0, 'x2'],
-    ['xsf', 'Filter sweep', 'bip', -1, 1, 0, 'x2'], ['xsv', 'Level sweep', 'bip', -1, 1, 0, 'x2'], ['xsl', 'Loop', 'opt', ['Once', 'Repeat', 'Back and forth'], 0, 'Once', 'x2'],
-    ['xwr', 'Rate', 'exp', .05, 40, 2, 'x3'], ['xwy', 'Sync', 'opt', ['Free', 'Sync'], 0, 'Free', 'x3'], ['xwi', 'Rate', 'opt', TF_LFO_DIVS.map(d => d[0]), 0, '1/8', 'x3'], ['xwa', 'Depth', 'lin', 0, 24, 0, 'x3'],
-    ['xwh', 'Shape', 'opt', ['Sine', 'Triangle', 'Square', 'Saw up', 'Saw down', 'Random'], 0, 'Sine', 'x3'], ['xwu', 'Rate rise', 'bip', -1, 1, 0, 'x3'], ['xwf', 'To filter', 'bip', -1, 1, 0, 'x3'], ['xwl', 'To level', 'lin', 0, 1, 0, 'x3']);
+  // FX engine: one sweep (bars, free time or by hand) that everything follows: a noise band, a tone with its motion (laser, wobble, siren, stutter),
+  // a hit (boom, crack, splash) at the start or the end, and Size (thin and close ↔ wide, stacked, with a sub and a space around it)
+  L.push(['xsm', 'Mode', 'opt', ['Bars', 'Free', 'Manual'], 0, 'Bars', 'xs'], ['xbl', 'Length', 'opt', ['1 beat', '2 beats', '1 bar', '2 bars', '4 bars', '8 bars', '16 bars'], 0, '4 bars', 'xs'],
+    ['xst', 'Time', 'exp', .02, 30, 2, 'xs'], ['xpo', 'Position', 'lin', 0, 1, 0, 'xs'], ['xdi', 'Path', 'opt', ['One way', 'Return'], 0, 'One way', 'xs'], ['xsc', 'Curve', 'bip', -1, 1, 0, 'xs'],
+    ['xlv', 'Fade', 'bip', -1, 1, 0, 'xs'], ['xpl', 'Play', 'opt', ['Held', 'One-shot'], 0, 'Held', 'xs'], ['xtt', 'Tail', 'exp', .005, 15, .3, 'xs'],
+    ['xnl', 'Level', 'lin', 0, 1, .8, 'xn'], ['xnf', 'Filter', 'opt', ['Band', 'Low', 'High'], 0, 'Band', 'xn'], ['xbf', 'From', 'exp', 30, 18000, 250, 'xn'], ['xbt', 'To', 'exp', 30, 18000, 8000, 'xn'],
+    ['xbq', 'Width', 'lin', 0, 1, .5, 'xn'], ['xnc', 'Colour', 'bip', -1, 1, 0, 'xn'],
+    ['xol', 'Level', 'lin', 0, 1, 0, 'xo'], ['xwv', 'Wave', 'opt', TF_WAVES, 0, 'Saw', 'xo'], ['xpf', 'From', 'lin', -48, 48, 0, 'xo'], ['xpt', 'To', 'lin', -48, 48, 24, 'xo'],
+    ['xmo', 'Motion', 'opt', ['Sustain', 'Laser', 'Wobble', 'Siren', 'Stutter'], 0, 'Sustain', 'xo'], ['xmr', 'Rate', 'opt', TF_LFO_DIVS.map(d => d[0]), 0, '1/8', 'xo'], ['xma', 'Amount', 'lin', 0, 1, .5, 'xo'],
+    ['xru', 'Speed up', 'bip', -1, 1, 0, 'xo'],
+    ['xhl', 'Level', 'lin', 0, 1, 0, 'xh'], ['xht', 'Type', 'opt', ['Boom', 'Crack', 'Splash'], 0, 'Boom', 'xh'], ['xhn', 'Tone', 'lin', 0, 1, .5, 'xh'], ['xhd', 'Decay', 'exp', .03, 6, .8, 'xh'],
+    ['xhw', 'When', 'opt', ['Start', 'End'], 0, 'Start', 'xh'],
+    ['xsz', 'Size', 'lin', 0, 1, .5, 'xz'], ['xsp', 'Space', 'lin', 0, 1, 0, 'xz'], ['xdr', 'Drive', 'lin', 0, 1, 0, 'xz'], ['xgr', 'Grit', 'lin', 0, 1, 0, 'xz']);
   // start phase: where each oscillator begins on a new note (degrees), and how far each note scatters from it (0 = always the same, 100% = anywhere)
   L.push(['o1h', 'Osc 1 phase', 'lin', 0, 360, 0, 'ph'], ['o2h', 'Osc 2 phase', 'lin', 0, 360, 0, 'ph'], ['o3h', 'Osc 3 phase', 'lin', 0, 360, 0, 'ph'], ['rph', 'Random', 'lin', 0, 1, 0, 'ph'],
     ['wa9', 'Osc A phase', 'lin', 0, 360, 0, 'ph'], ['wb9', 'Osc B phase', 'lin', 0, 360, 0, 'ph'], ['f1h', 'Op 1 phase', 'lin', 0, 360, 0, 'ph'], ['f2h', 'Op 2 phase', 'lin', 0, 360, 0, 'ph'],

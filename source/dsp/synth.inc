@@ -14,13 +14,16 @@ struct Grain { double pos; float inc, t, len, gl, gr; i32 on; };
 enum { NGRAIN = 24, GRAIN_CAP = 128 };
 struct Zone { float root, lo, hi, vlo, vhi, g; u32 st, en, ls, le; };
 enum { NZONE = 48 };
+// FX engine's Space: a small four-line feedback delay network per pad, shared by its voices (made only when a pad first uses it)
+enum { XRV_N = 4, XRV_MAX = 4096, XAPL = 1024 };
+struct XVerb { float d[XRV_N][XRV_MAX]; float ap[2][XAPL]; float lp[XRV_N], sL[MAXN], sR[MAXN]; i32 w, aw[2], quiet, live; };
 struct Patch {
   i32 isid, inz; Zone iz[NZONE];   // instrument: one sample, its zones
   i32 gsrc;    // granular source (an engine sample id; 0: none)
   i32 wt[2];   // wavetable ids for oscillators A and B (0: none)
   float p[NSP]; float lfo[4][LFOT]; Route r[NROUTE]; i32 nr, on, mode, poly; float glide;
   float gph[4], gval[4];            // free-running LFOs: one shared phase per pad
-  i32 alt; u32 rng; i32 used[NSP]; u32 srcUsed;   // srcUsed: bit per source that any route reads (unused LFOs and envelopes are skipped)  // used: which parameters have a modulation route
+  i32 alt; u32 rng; i32 used[NSP]; u32 srcUsed; XVerb* xr;   // srcUsed: bit per source that any route reads (unused LFOs and envelopes are skipped)  // used: which parameters have a modulation route
 };
 struct SVoice {
   i32 on, pad, tag, held, mono; u32 age; double relIn;      // relIn: samples until the gate closes (< 0: held until released)
@@ -41,7 +44,8 @@ struct SVoice {
   // Sub engine: time since the note began (pitch drop), phase, crossover low-pass (clean sub, mono) and high-pass + tone (per channel), click
   float sut, suph, slo[4], shi[2][4], sto[2][2], ckz; i32 ckn;
   i32 izn, idone; double ipos[2]; float ilp[2];
-  float xt, xwp, xwv, xwr, xp[2], xn[2], xh[2], xq[2], xg, xfm; i32 xhc;   // FX engine: sweep time, wobble phase/value, oscillator phases, noise tone, grit hold, level, filter multiplier   // Instrument: zone, read positions (second one for Width), velocity tone filter
+  // FX engine: sweep clock and raw progress, motion phase, level, tone phases (unison) and sub, noise colour and band filters, wobble filter, grit hold, the hit
+  float xt, xx, xwp, xg, xop[4], xsub, xnl[2], xnh[2], xbz[2][2], xwz[2][2], xq[2], xht, xhp, xhz[2][2]; i32 xhc, xpend, xend, xhit;   // Instrument: zone, read positions (second one for Width), velocity tone filter
   float cmb[2][CMB]; i32 cw;
 };
 static Patch* pat[NPAD];
@@ -77,6 +81,12 @@ EX float tf_syn_map(i32 i, float n) { return i >= 0 && i < NSP ? spPhys(i, n) : 
 
 /* ---------- voices ---------- */
 static void svRelease(SVoice* v) { if (!v->on || !v->held) return; v->held = 0; for (i32 e = 0; e < 3; e++) { v->st[e] = 3; v->et[e] = 0; v->ef[e] = v->ev[e]; } for (i32 k = 0; k < 4; k++) { v->ost[k] = 3; v->oet[k] = 0; v->oef[k] = v->oev[k]; } }
+static inline i32 isFxEng(const Patch* P) { return disc(P->p[SP_ENG], NENG) == 6; }
+// the FX engine runs its own amp envelope: a 3 ms fade in, full while it plays, then Tail to fade out
+static void xEnv(float* m) { m[SP_AA] = 0.181f; m[SP_AD] = 0.5f; m[SP_AS] = 1.f; m[SP_AR] = m[SP_XTT]; m[SP_AC] = 0.5f; m[SP_AK] = 0.25f; }
+// a note let go: a one-shot sweep plays to its end first (then lets go itself)
+static void svGate(SVoice* v) { const Patch* P = v->on ? pat[v->pad] : 0;
+  if (P && v->held && isFxEng(P) && disc(P->p[SP_XPL], 2) && disc(P->p[SP_XSM], 3) != 2 && !v->xend) { v->xpend = 1; return; } svRelease(v); }
 static void svKill(SVoice* v) { if (!v->on) return; svRelease(v); v->ef[0] = v->ev[0]; v->st[0] = 4; v->et[0] = 0; }   // stage 4: quick 3 ms fade (stolen or replaced)
 EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 tag, i32 chordN) {
   Patch* P = patch(pad); if (!P || !P->on) return -1;
@@ -100,6 +110,7 @@ EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 ta
   v->semiT = semi; v->semi = (mode >= 1 && hadPrev && P->glide > 0.f) ? from : semi; v->vel = sane(vel, 0.f, 1.f, .8f);
   v->rnd = frnd(&P->rng); P->alt = !P->alt; v->alt = P->alt ? 1.f : -1.f;
   for (i32 i = 0; i < NSP; i++) v->m[i] = P->p[i];
+  if (isFxEng(P)) xEnv(v->m);
   // start phases: each oscillator's own setting, scattered per note (and per unison voice) by Random
   const float rph = P->p[SP_RPH]; auto st = [&](float base) { float x = base + (rph > 0.f ? rph * (frnd(&svRng) + 1.f) * 0.5f : 0.f); return x - floorf_(x); };
   const i32 PHO[3] = { SP_O1H, SP_O2H, SP_O3H }, PHW[2] = { SP_WA9, SP_WB9 }, PHF[4] = { SP_F1H, SP_F2H, SP_F3H, SP_F4H };
@@ -118,7 +129,7 @@ EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 ta
   v->ampPrev = 0.f;   // sequencer offsets within a 16-sample block start at the block (under 0.4 ms)
   return slot;
 }
-static void synTagRelease(i32 tag) { for (i32 i = 0; i < NSV; i++) if (sv[i].on && sv[i].tag == tag) svRelease(&sv[i]); }
+static void synTagRelease(i32 tag) { for (i32 i = 0; i < NSV; i++) if (sv[i].on && sv[i].tag == tag) svGate(&sv[i]); }
 static void synReset() { for (i32 i = 0; i < NSV; i++) sv[i].on = 0; }
 static void synChRelease(i32 pad) { for (i32 i = 0; i < NSV; i++) if (sv[i].on && sv[i].pad == pad) svRelease(&sv[i]); }
 static void synReleaseAll() { for (i32 i = 0; i < NSV; i++) svRelease(&sv[i]); }
@@ -268,8 +279,10 @@ static float srcVal(const SVoice* v, const Patch* P, i32 s, float o3) {
     case 7: return v->vel; case 8: return clampf(v->semi / 48.f, -1.f, 1.f); case 9: return v->rnd; case 10: return v->alt; case 11: return o3; case 16: return chBendN[v->pad];
     default: return P->p[SP_M1 + (s - 12)]; }
 }
+static void xVerbRun(i32 pi, Patch* P, i32 n);
 static void renderSynth(i32 n) {
   const float dt = n / SR, beat = 60.f / BPM;
+  for (i32 pi = 0; pi < NPAD; pi++) { Patch* P = pat[pi]; if (P && P->xr) { zero(P->xr->sL, n * 4); zero(P->xr->sR, n * 4); } }
   for (i32 pi = 0; pi < NPAD; pi++) { Patch* P = pat[pi]; if (!P || !P->on) continue;   // free-running LFOs advance once per pad
     for (i32 k = 0; k < 4; k++) { const float* p = P->p; i32 b = SP_L1Y + k * 6; float hz = disc(p[b], 2) ? 1.f / (lfoDivBeats[disc(p[b + 2], NLFODIV)] * beat) : spPhys(b + 1, p[b + 1]);
       P->gph[k] += hz * dt; P->gph[k] -= floorf_(P->gph[k]); } }
@@ -277,7 +290,7 @@ static void renderSynth(i32 n) {
     SVoice* v = &sv[vi]; if (!v->on) continue; Patch* P = pat[v->pad]; if (!P || !P->on) { v->on = 0; continue; }
     float* m = v->m; float* L = inL[v->pad], *R = inR[v->pad]; dIn[v->pad] = 1;
     // gate
-    if (v->held && v->relIn >= 0.0) { v->relIn -= n; if (v->relIn <= 0.0) svRelease(v); }
+    if (v->held && v->relIn >= 0.0) { v->relIn -= n; if (v->relIn <= 0.0) { v->relIn = -1.0; svGate(v); } }
     // LFOs (rates from last block's modulated values: sources can modulate sources)
     float o3 = 0.f;
     for (i32 k = 0; k < 4; k++) { if (!(P->srcUsed & (8u << k))) continue; i32 b = SP_L1Y + k * 6, mode = disc(m[b + 3], 3); float hz = disc(m[b], 2) ? 1.f / (lfoDivBeats[disc(m[b + 2], NLFODIV)] * beat) : spPhys(b + 1, m[b + 1]);
@@ -287,7 +300,7 @@ static void renderSynth(i32 n) {
     if (disc(m[SP_O3X], 2)) { v->ph[2][0] += spPhys(SP_O3R, m[SP_O3R]) * dt; v->ph[2][0] -= floorf_(v->ph[2][0]); o3 = oscWave(disc(m[SP_O3W], 5), v->ph[2][0], 0.001f, m[SP_O3P] * .9f + .05f); }
     // envelopes
     envStep(v, 0, m, dt, SP_AA); if ((P->srcUsed & 2u) || fabsf_(m[SP_FEN] - 0.5f) > 0.001f) envStep(v, 1, m, dt, SP_2A); if (P->srcUsed & 4u) envStep(v, 2, m, dt, SP_3A);
-    if (v->st[0] == 5 && v->ev[0] <= 0.f) { v->on = 0; continue; }
+    if (v->st[0] == 5 && v->ev[0] <= 0.f && !v->xhit) { v->on = 0; continue; }   // (a ringing hit keeps an FX voice alive)
     // modulation: base parameters plus every route (curve, via), clamped to range
     if (P->nr) for (i32 i = 0; i < NSP; i++) m[i] = P->p[i]; else __builtin_memcpy(m, P->p, sizeof(float) * NSP);
     for (i32 r = 0; r < P->nr; r++) { const Route* q = &P->r[r]; float x = srcVal(v, P, q->src, o3);
@@ -371,47 +384,76 @@ static void renderSynth(i32 n) {
         iInc = fexp(semis * 0.0577622650f) * IS->sr / SR; iW = m[SP_IWD] > 0.001f; iInc2 = iInc * fexp(m[SP_IWD] * 0.12f * 0.0577622650f); iInc *= fexp(-m[SP_IWD] * 0.12f * 0.0577622650f);
         iLoop = !disc(m[SP_ILO], 2) && IZ->le > IZ->ls + 8; iG = IZ->g;
         iLp = onepole(minf(0.45f * SR, 20000.f * fexp(-m[SP_IVT] * (1.f - v->vel) * 4.f * 0.693147181f))); } }
-    // FX engine: sweep progress (once, repeating or back and forth; free time or bars), wobble, the level and filter they set
-    const i32 isX = disc(m[SP_ENG], NENG) == 6; float xInc = 0, xInc2 = 0, xTone = 0, xNz = 0, xNlp = 0, xNhp = 0, xG0 = 0, xG1 = 0, xWd = 0; i32 xW = 0, xHold = 1; float xQ = 0;
-    if (isX) { nOn = 0;
-      static const float SB[7] = { 0, 1, 4, 8, 16, 32, 64 }; const i32 ss = disc(m[SP_XSS], 7); const float T = ss ? SB[ss] * 60.f / BPM : spPhys(SP_XST, m[SP_XST]), u = v->xt / maxf(T, .001f);
-      const i32 lp = disc(m[SP_XSL], 3); float x = lp == 0 ? minf(1.f, u) : lp == 1 ? u - floorf_(u) : (u - floorf_(u * 0.5f) * 2.f > 1.f ? 2.f - (u - floorf_(u * 0.5f) * 2.f) : u - floorf_(u * 0.5f) * 2.f);
-      const float cv = curve_frac(x, linmap(m[SP_XSC], -0.85f, 0.85f)); v->xt += dt;
-      // wobble: free or synced, its rate can rise (or fall) along the sweep
-      const float rise = linmap(m[SP_XWU], -1.f, 1.f); float hz = disc(m[SP_XWY], 2) ? 1.f / (lfoDivBeats[disc(m[SP_XWI], NLFODIV)] * beat) : spPhys(SP_XWR, m[SP_XWR]); hz *= fexp(rise * 4.f * cv * 0.693147181f);
-      v->xwp += hz * dt; if (v->xwp >= 1.f) { v->xwp -= floorf_(v->xwp); v->xwr = frnd(&svRng); }
-      const float ph = v->xwp; const i32 sh = disc(m[SP_XWH], 6);
-      const float w = sh == 0 ? fsin(6.28318531f * ph) : sh == 1 ? (ph < .5f ? 4.f * ph - 1.f : 3.f - 4.f * ph) : sh == 2 ? (ph < .5f ? 1.f : -1.f) : sh == 3 ? 2.f * ph - 1.f : sh == 4 ? 1.f - 2.f * ph : v->xwr;
-      v->xwv += (w - v->xwv) * (sh == 2 || sh == 5 ? 0.6f : 1.f);   // square and random: rounded a touch so they don't click
-      const float semis = v->semi + chBendS[v->pad] + spPhys(SP_XOC, m[SP_XOC]) * 12.f + spPhys(SP_XSA, m[SP_XSA]) * cv + spPhys(SP_XWA, m[SP_XWA]) * v->xwv;
-      const float f0x = 130.8128f * fexp(semis * 0.0577622650f); xInc = clampf(f0x / SR, 0.f, 0.45f); xInc2 = clampf(xInc * fexp(m[SP_XDT] * 0.35f * 0.0577622650f), 0.f, 0.45f);
-      xW = disc(m[SP_XWV], 5); xTone = m[SP_XTL]; xNz = m[SP_XNL]; const float col = linmap(m[SP_XNC], -1.f, 1.f);
-      xNlp = onepole(col < 0 ? expmap(1.f + col, 300.f, 20000.f) : 20000.f); xNhp = onepole(col > 0 ? expmap(col, 20.f, 6000.f) : 20.f);
-      xHold = 1 + (i32)(m[SP_XGR] * m[SP_XGR] * 24.f); xQ = m[SP_XGR] > 0.01f ? fexp((16.f - m[SP_XGR] * 12.f) * 0.693147181f) : 0.f; xWd = m[SP_XWD];
-      const float vs = linmap(m[SP_XSV], -1.f, 1.f); float g = vs >= 0 ? 1.f - vs * (1.f - cv) : 1.f + vs * cv; g *= 1.f - m[SP_XWL] * (0.5f - 0.5f * v->xwv);
-      xG0 = v->xg; xG1 = g; v->xg = g; v->xfm = fexp((linmap(m[SP_XSF], -1.f, 1.f) * 8.f * cv + linmap(m[SP_XWF], -1.f, 1.f) * 3.f * v->xwv) * 0.693147181f); }
+    // FX engine: the sweep (bars, free time or by hand) sets everything once per block: tone pitch, noise band, level; the motion rides on it
+    const i32 isX = disc(m[SP_ENG], NENG) == 6; XVerb* xRv = 0;
+    float xInc = 0, xTL = 0, xSub = 0, xNL = 0, xNlp = 0, xNhp = 0, xG0 = 0, xG1 = 0, xNw = 0, xNc = 1, xBg = 0, xBk = 1, xWg = 0, xDg = 1, xDn = 1, xQ = 0, xdm[4], xpl[4], xpr[4];
+    i32 xW = 0, xU = 1, xHold = 1, xNf = 0, xMo = 0, xHt = 0; float xHf = 0, xHtau = 1, xHc = 0, xHl = 0;
+    if (isX) { nOn = 0; xEnv(m);
+      static const float XB[7] = { 1, 2, 4, 8, 16, 32, 64 };
+      const i32 mode = disc(m[SP_XSM], 3); const float T = mode == 0 ? XB[disc(m[SP_XBL], 7)] * beat : spPhys(SP_XST, m[SP_XST]);
+      const float raw = mode == 2 ? m[SP_XPO] : v->xt / maxf(T, .001f), was = v->xx; v->xx = raw;
+      float x = clampf(raw, 0.f, 1.f); if (disc(m[SP_XDI], 2)) x = x < .5f ? x * 2.f : 2.f - x * 2.f;
+      const float sw = curve_frac(x, linmap(m[SP_XSC], -0.85f, 0.85f));
+      // the hit: at the very start, or the moment the sweep reaches its end
+      const i32 hitAt = disc(m[SP_XHW], 2); xHl = m[SP_XHL];
+      if (xHl > 0.0005f && ((hitAt == 0 && v->xt == 0.f) || (hitAt == 1 && raw >= 0.999f && (was < 0.999f || (v->xt == 0.f && mode == 2))))) { v->xhit = 1; v->xht = 0.f; v->xhp = 0.f; }
+      if (mode != 2 && raw >= 1.f && !v->xend) { v->xend = 1; if (v->held && disc(m[SP_XPL], 2)) svRelease(v); }   // a one-shot lets go at the end (held or not)
+      if (v->xpend && v->xend) { v->xpend = 0; svRelease(v); }
+      v->xt += dt;
+      // motion: synced, and it can speed up (or slow down) along the sweep
+      xMo = disc(m[SP_XMO], 5); const float amt = m[SP_XMA];
+      const float hz = 1.f / (lfoDivBeats[disc(m[SP_XMR], NLFODIV)] * beat) * fexp(linmap(m[SP_XRU], -1.f, 1.f) * 3.f * sw * 0.693147181f);
+      if (xMo) { v->xwp += hz * dt; v->xwp -= floorf_(v->xwp); } const float ph = v->xwp;
+      float pOff = 0.f, gate = 1.f;
+      if (xMo == 1) { pOff = amt * 36.f * fexp(-ph * 7.f); gate = maxf(0.05f, 1.f - amt * (1.f - fexp(-ph * 4.f))); }   // laser: a zap each cycle
+      else if (xMo == 3) pOff = amt * 12.f * fsin(6.28318531f * ph);                                                        // siren
+      else if (xMo == 4) gate = ph < 0.5f ? 1.f : 1.f - amt;                                                                 // stutter
+      else if (xMo == 2) xWg = ftan(3.14159265f * clampf(18000.f * fexp(-amt * 8.f * (0.5f - 0.5f * fcos(6.28318531f * ph)) * 0.693147181f), 40.f, 0.42f * SR) / SR);   // wobble: a low-pass
+      // size: one thin voice up to four wide detuned ones with a sub an octave under; the noise opens out to full stereo
+      const float size = m[SP_XSZ];
+      xTL = m[SP_XOL]; xW = disc(m[SP_XWV], 5); xU = 1 + (i32)(size * 3.f + 0.5f); if (xU > 4) xU = 4;
+      const float semis = v->semi + chBendS[v->pad] + linmap(m[SP_XPF], -48.f, 48.f) + (linmap(m[SP_XPT], -48.f, 48.f) - linmap(m[SP_XPF], -48.f, 48.f)) * sw + pOff;
+      xInc = clampf(130.8128f * fexp(semis * 0.0577622650f) / SR, 0.f, 0.45f);
+      for (i32 u = 0; u < xU; u++) { const float q = xU > 1 ? 2.f * u / (xU - 1) - 1.f : 0.f; xdm[u] = fexp(q * size * 0.3f * 0.0577622650f); const float pn = q * size;
+        xpl[u] = sqrtf_(0.5f * (1.f - pn)) * 1.41421356f / sqrtf_((float)xU) * xTL; xpr[u] = sqrtf_(0.5f * (1.f + pn)) * 1.41421356f / sqrtf_((float)xU) * xTL; }
+      xSub = size > 0.45f ? xTL * (size - 0.45f) / 0.55f * 0.6f : 0.f;
+      // noise: coloured, then a band (or low-pass / high-pass) that travels from From to To
+      xNL = m[SP_XNL]; xNw = size; xNc = 1.f / sqrtf_((1.f - size) * (1.f - size) + size * size); xNf = disc(m[SP_XNF], 3);
+      const float col = linmap(m[SP_XNC], -1.f, 1.f); xNlp = onepole(col < 0 ? expmap(1.f + col, 300.f, 20000.f) : 20000.f); xNhp = onepole(col > 0 ? expmap(col, 20.f, 6000.f) : 20.f);
+      const float f0n = spPhys(SP_XBF, m[SP_XBF]), f1n = spPhys(SP_XBT, m[SP_XBT]), fcn = clampf(f0n * fexp(flog(f1n / f0n) * sw), 20.f, 0.42f * SR), wd = m[SP_XBQ];
+      xBg = ftan(3.14159265f * fcn / SR);
+      if (xNf == 0) { const float Q = expmap(1.f - wd, 0.6f, 14.f); xBk = 1.f / Q; xNL *= sqrtf_(Q) * 0.9f * fexp(flog(1000.f / fcn) * 0.25f); } else xBk = expmap(wd, 0.12f, 1.41421356f);   // a band's power grows with its frequency: half of that is taken back
+      if (P->p[SP_XSP] > 0.001f) { if (!P->xr) { P->xr = (XVerb*)tf_malloc(sizeof(XVerb)); if (P->xr) zero(P->xr, sizeof(XVerb)); } xRv = P->xr; if (xRv) { xRv->live = 1; xRv->quiet = 0; } }
+      // level: Fade follows the sweep (+ fades in, − fades out), the motion's gate on top; ramped across the block
+      const float fd = linmap(m[SP_XLV], -1.f, 1.f); float g = fd >= 0 ? 1.f - fd + fd * sw : 1.f + fd * sw;
+      g *= gate; xG0 = v->xg; xG1 = g; v->xg = g;
+      xDg = 1.f + m[SP_XDR] * m[SP_XDR] * 12.f; xDn = 1.f / fsat(xDg * 0.5f) * 0.5f;
+      xHold = 1 + (i32)(m[SP_XGR] * m[SP_XGR] * 24.f); xQ = m[SP_XGR] > 0.01f ? fexp((16.f - m[SP_XGR] * 12.f) * 0.693147181f) : 0.f;
+      // the hit's sound: a boom (a sine falling onto its note), a crack (a bright burst) or a splash (a long airy wash)
+      if (v->xhit) { xHt = disc(m[SP_XHT], 3); const float tn = m[SP_XHN], dec = spPhys(SP_XHD, m[SP_XHD]); xHtau = dec / 6.9f;
+        xHf = xHt == 0 ? expmap(tn, 28.f, 110.f) : 0.f; xHc = xHt == 1 ? ftan(3.14159265f * expmap(tn, 400.f, 5000.f) / SR) : xHt == 2 ? ftan(3.14159265f * expmap(tn, 1500.f, 9000.f) / SR) : 0.f;
+        if (v->xht > dec * 1.2f + 0.01f) v->xhit = 0; } }
     const i32 sync = disc(m[SP_O2Y], 2); const float fm = m[SP_O2M];
     const i32 U = (i32)spPhys(SP_UNI, m[SP_UNI]); const float det = m[SP_DET], spr = U > 1 ? m[SP_SPR] : 0.f, ug = 1.f / sqrtf_((float)U);
     float dm[MAXUNI], panL[MAXUNI], panR[MAXUNI];
     for (i32 u = 0; u < U; u++) { float x = U > 1 ? (2.f * u / (U - 1) - 1.f) : 0.f; dm[u] = fexp(x * det * det * 0.6f * 0.0577622650f * (1.f + 0.4f * fabsf_(x)));   // JP-style: outer voices spread further
       float pn = x * spr; panL[u] = sqrtf_(0.5f * (1.f - pn)) * 1.41421356f * ug; panR[u] = sqrtf_(0.5f * (1.f + pn)) * 1.41421356f * ug; }
-    const i32 stereo = (spr > 0.001f && !isSU && !isIN && !isX) || isGR || (isSU && suW) || (isIN && iW) || (isX && xWd > 0.001f);
+    const i32 stereo = (spr > 0.001f && !isSU && !isIN && !isX) || isGR || (isSU && suW) || (isIN && iW) || isX;
     // filter
-    const i32 ftype = disc(m[SP_FLT], 7);
+    const i32 ftype = isX ? 0 : disc(m[SP_FLT], 7);   // the FX engine has its own filters
     float fc = spPhys(SP_CUT, m[SP_CUT]) * fexp((m[SP_KEY] * v->semi / 12.f + linmap(m[SP_FEN], -1, 1) * 5.f * v->ev[1]) * 0.693147181f);
-    if (isX) fc *= v->xfm;
-    fc = clampf(fc, 20.f, 0.42f * SR); const float fg = ftan(3.14159265f * fc / SR), res = m[SP_RES], shp = m[SP_SHP], fdg = 1.f + m[SP_DRV] * m[SP_DRV] * 15.f, fmk = 1.f / (1.f + m[SP_DRV] * 1.5f);
+    fc = clampf(fc, 20.f, 0.42f * SR); const float fg = ftan(3.14159265f * fc / SR), res = m[SP_RES], shp = m[SP_SHP], fdg = isX ? 1.f : 1.f + m[SP_DRV] * m[SP_DRV] * 15.f, fmk = 1.f / (1.f + m[SP_DRV] * 1.5f);
     if (ftype == 6 && v->cw < 0) v->cw = 0;
-    const float fbk = m[SP_FBK] * 0.9f;
+    const float fbk = isX ? 0.f : m[SP_FBK] * 0.9f;
     // sub split (key-tracked LR4 high-pass on the engine) and the sub's matching all-pass
-    const float spl = m[SP_SPL]; const i32 splitOn = spl > 0.001f && (spPhys(SP_SPN, m[SP_SPN]) >= 96.f || 48.f + v->semi < spPhys(SP_SPN, m[SP_SPN]));
+    const float spl = m[SP_SPL]; const i32 splitOn = !isX && spl > 0.001f && (spPhys(SP_SPN, m[SP_SPN]) >= 96.f || 48.f + v->semi < spPhys(SP_SPN, m[SP_SPN]));
     float hb[5] = { 0, 0, 0, 0, 0 }, apc = 0;
     if (splitOn) { float sfc = clampf(f0 * (0.6f + spl * 2.4f), 30.f, 300.f), w = ftan(3.14159265f * sfc / SR), w2 = w * w, k = 1.41421356f, a0 = 1.f / (1.f + k * w + w2);
       hb[0] = a0; hb[1] = -2.f * a0; hb[2] = a0; hb[3] = 2.f * (w2 - 1.f) * a0; hb[4] = (1.f - k * w + w2) * a0; apc = (w - 1.f) / (w + 1.f); }
     // sub oscillator
-    const float subL = m[SP_SBL]; const i32 subW = disc(m[SP_SBW], 3); const float subInc = f0 * (disc(m[SP_SBO], 2) ? 0.25f : 0.5f) / SR;
+    const float subL = isX ? 0.f : m[SP_SBL]; const i32 subW = disc(m[SP_SBW], 3); const float subInc = f0 * (disc(m[SP_SBO], 2) ? 0.25f : 0.5f) / SR;
     // noise crunch
-    const float nzL = m[SP_NZL]; float nzA = 0, nzB = 0, nzDrive = 0, nzMk = 0, nzTone = 0, nzhg = 0, bodyInc = 0;
+    const float nzL = isX ? 0.f : m[SP_NZL]; float nzA = 0, nzB = 0, nzDrive = 0, nzMk = 0, nzTone = 0, nzhg = 0, bodyInc = 0;
     if (nzL > 0.0005f) { nzA = m[SP_NZN]; nzB = m[SP_NZB]; nzDrive = 1.f + m[SP_NZD] * m[SP_NZD] * 24.f; nzMk = 1.f / (0.35f + 0.65f * fsat(nzDrive * 0.3f)); nzTone = onepole(expmap(m[SP_NZT], 400.f, 18000.f));
       float hpf = spPhys(SP_NZH, m[SP_NZH]); if (disc(m[SP_NZK], 2)) hpf *= f0 / 261.63f; nzhg = ftan(3.14159265f * clampf(hpf, 20.f, 0.42f * SR) / SR);
       bodyInc = f0 * (disc(m[SP_NZO], 3) == 0 ? 1.f : disc(m[SP_NZO], 3) == 1 ? 0.5f : 0.25f) / SR; }
@@ -447,13 +489,21 @@ static void renderSynth(i32 n) {
           G->pos += G->inc; if (G->pos >= fr) G->pos -= fr; else if (G->pos < 0.0) G->pos += fr; G->t += 1.f; if (G->t >= G->len) G->on = 0; }
       }
       else if (isSU) {}
-      else if (isX) {   // tone (two oscillators when detuned or wide) and coloured noise, then grit (held samples, fewer bits), level ramped across the block
+      else if (isX) {   // tone (unison, sub), noise through its travelling band, the wobble filter, level, drive and grit
         const float g = xG0 + (xG1 - xG0) * (i + 1) / n; float a = 0, b = 0;
-        if (xTone > 0.0005f) { a = oscWave(xW, v->xp[0], xInc, 0.3f); v->xp[0] += xInc; v->xp[0] -= floorf_(v->xp[0]);
-          if (m[SP_XDT] > 0.001f || xWd > 0.001f) { b = oscWave(xW, v->xp[1], xInc2, 0.3f); v->xp[1] += xInc2; v->xp[1] -= floorf_(v->xp[1]); } else b = a; a *= xTone; b *= xTone; }
-        if (xNz > 0.0005f) for (i32 c = 0; c < 2; c++) { const float w = frnd(&svRng); v->xn[c] += (w - v->xn[c]) * xNlp; float* hp = &v->xh[c]; *hp += (v->xn[c] - *hp) * xNhp; const float y = (v->xn[c] - *hp) * xNz * 0.8f; if (c) b += y; else a += y; }
+        if (xTL > 0.0005f) { for (i32 u = 0; u < xU; u++) { const float inc = xInc * xdm[u], o = oscWave(xW, v->xop[u], inc, 0.3f); v->xop[u] += inc; v->xop[u] -= floorf_(v->xop[u]); a += o * xpl[u]; b += o * xpr[u]; }
+          if (xSub > 0.f) { const float sb = fsin(6.28318531f * v->xsub) * xSub; v->xsub += xInc * 0.5f; v->xsub -= floorf_(v->xsub); a += sb; b += sb; } }
+        if (xNL > 0.0005f) { const float w0 = frnd(&svRng), w1 = frnd(&svRng);
+          for (i32 c = 0; c < 2; c++) { float x = c ? (w0 * (1.f - xNw) + w1 * xNw) * xNc : w0;
+            v->xnl[c] += (x - v->xnl[c]) * xNlp; v->xnh[c] += (v->xnl[c] - v->xnh[c]) * xNhp; x = v->xnl[c] - v->xnh[c];
+            float* z = v->xbz[c]; const float a1 = 1.f / (1.f + xBg * (xBg + xBk)), a2 = xBg * a1, a3 = xBg * a2, v3 = x - z[1], v1 = a1 * z[0] + a2 * v3, v2 = z[1] + a2 * z[0] + a3 * v3;
+            z[0] = 2.f * v1 - z[0]; z[1] = 2.f * v2 - z[1]; const float y = (xNf == 0 ? v1 * xBk : xNf == 1 ? v2 : x - xBk * v1 - v2) * xNL * 3.6f; if (c) b += y; else a += y; } }
+        if (xMo == 2) for (i32 c = 0; c < 2; c++) { float* z = v->xwz[c]; const float x = c ? b : a, kq = 1.2f, a1 = 1.f / (1.f + xWg * (xWg + kq)), a2 = xWg * a1, a3 = xWg * a2, v3 = x - z[1], v1 = a1 * z[0] + a2 * v3, v2 = z[1] + a2 * z[0] + a3 * v3;
+          z[0] = 2.f * v1 - z[0]; z[1] = 2.f * v2 - z[1]; if (c) b = v2; else a = v2; }
+        a *= g; b *= g;
+        if (xDg > 1.01f) { a = fsat(a * xDg * 0.5f) * xDn * 2.f; b = fsat(b * xDg * 0.5f) * xDn * 2.f; }
         if (xHold > 1 || xQ > 0.f) { if (v->xhc++ % xHold == 0) { v->xq[0] = xQ > 0 ? floorf_(a * xQ + .5f) / xQ : a; v->xq[1] = xQ > 0 ? floorf_(b * xQ + .5f) / xQ : b; } a = v->xq[0]; b = v->xq[1]; }
-        const float wd = xWd; sL = (a * (1.f - wd * .5f) + b * wd * .5f) * g * 0.6f; sR = (b * (1.f - wd * .5f) + a * wd * .5f) * g * 0.6f; }
+        sL = a * 0.6f; sR = b * 0.6f; }
       else if (IS) {   // instrument: linear reads (the instruments are stored at a low rate, like the old ROM players)
         const i16* d = IS->d; const i32 ch = IS->ch; float y[2] = { 0, 0 };
         for (i32 r = 0; r < (iW ? 2 : 1); r++) { double& p = v->ipos[r]; if (!iLoop && p >= IZ->en - 1) { v->idone = 1; continue; }   // looped zones end where their loop ends: they wrap, never finish
@@ -533,7 +583,40 @@ static void renderSynth(i32 n) {
         float k = 1.41421356f, a1n = 1.f / (1.f + nzhg * (nzhg + k)), a2n = nzhg * a1n, a3n = nzhg * a2n, v3 = y - v->nzhp[1], v1 = a1n * v->nzhp[0] + a2n * v3, v2 = v->nzhp[1] + a2n * v->nzhp[0] + a3n * v3;
         v->nzhp[0] = 2.f * v1 - v->nzhp[0]; v->nzhp[1] = 2.f * v2 - v->nzhp[1]; extra += (y - k * v1 - v2) * nzL; }
       L[i] += (io[0] + extra) * amp; R[i] += (io[1] + extra) * amp;
+      if (isX) { float h0 = 0.f, h1 = 0.f;
+        if (v->xhit) { const float t = v->xht, e = fexp(-t / xHtau) * minf(1.f, t * (xHt == 2 ? 300.f : 3000.f));
+          if (xHt == 0) { const float f = xHf * (1.f + 3.f * fexp(-t * 33.f)); v->xhp += f / SR; v->xhp -= floorf_(v->xhp);   // boom: falls onto its note, a soft thump on top
+            float* th = &v->xhz[0][0]; *th += (frnd(&svRng) - *th) * 0.03f; h0 = h1 = fsat(fsin(6.28318531f * v->xhp) * e * 1.4f) * 0.75f + *th * fexp(-t * 70.f) * 1.5f; }
+          else { const float n0 = frnd(&svRng), n1 = frnd(&svRng), wdh = xHt == 2 ? 0.9f : 0.4f, kq = xHt == 1 ? 1.1f : 0.8f;   // crack and splash: noise high-passed by Tone
+            for (i32 c = 0; c < 2; c++) { float* z = v->xhz[c]; const float x = c ? n0 * (1.f - wdh) + n1 * wdh : n0, a1 = 1.f / (1.f + xHc * (xHc + kq)), a2 = xHc * a1, a3 = xHc * a2, v3 = x - z[1], v1 = a1 * z[0] + a2 * v3, v2 = z[1] + a2 * z[0] + a3 * v3;
+              z[0] = 2.f * v1 - z[0]; z[1] = 2.f * v2 - z[1]; float y = (x - kq * v1 - v2) * e * (xHt == 2 ? 0.55f : 0.8f); if (xHt == 1 && t < 0.0004f) y += 0.35f;   // the crack starts with a click
+              if (c) h1 = y; else h0 = y; } }
+          v->xht += 1.f / SR; }
+        const float hk = (v->st[0] == 4 ? v->ev[0] : 1.f) * gain * xHl; h0 *= hk; h1 *= hk; L[i] += h0; R[i] += h1;
+        if (xRv) { xRv->sL[i] += (io[0] + extra) * amp + h0; xRv->sR[i] += (io[1] + extra) * amp + h1; } }
     }
-    if (!(v->fb[0] == v->fb[0]) || !(v->ampPrev == v->ampPrev)) v->on = 0;   // never let a broken voice keep running
+    if (!(v->fb[0] == v->fb[0]) || !(v->ampPrev == v->ampPrev) || !(v->xg == v->xg)) v->on = 0;   // never let a broken voice keep running
   }
+  for (i32 pi = 0; pi < NPAD; pi++) { Patch* P = pat[pi]; if (P && P->on && P->xr && P->xr->live) xVerbRun(pi, P, n); }
+}
+// Space: diffused by two all-passes, then four delay lines mixed by a Householder matrix, damped and decayed to the RT60 Space asks for.
+// Size scales the room; the tail keeps running after the voices end and stops itself once silent.
+static void xVerbRun(i32 pi, Patch* P, i32 n) {
+  XVerb* X = P->xr; const float sp = P->p[SP_XSP], sc = 0.6f + P->p[SP_XSZ] * 0.9f, rt = 0.4f + 7.f * sp * sp, wet = sp * 0.8f, dmp = onepole(6500.f), sr = SR / 48000.f;
+  static const float BL[XRV_N] = { 1123, 1559, 1907, 2381 }, AL[2] = { 142, 379 };
+  i32 len[XRV_N], al[2]; float gk[XRV_N];
+  for (i32 k = 0; k < XRV_N; k++) { len[k] = (i32)(BL[k] * sc * sr); if (len[k] > XRV_MAX - 1) len[k] = XRV_MAX - 1; gk[k] = fexp(-6.9077553f * len[k] / (rt * SR)); }
+  for (i32 a = 0; a < 2; a++) { al[a] = (i32)(AL[a] * sc * sr); if (al[a] > XAPL - 1) al[a] = XAPL - 1; }
+  float* L = inL[pi], *R = inR[pi]; float pk = 0.f, in = 0.f;
+  for (i32 i = 0; i < n; i++) {
+    float x = (X->sL[i] + X->sR[i]) * 0.5f; in = maxf(in, fabsf_(x));
+    for (i32 a = 0; a < 2; a++) { float* b = X->ap[a]; const float d = b[(X->aw[a] - al[a]) & (XAPL - 1)], y = -0.6f * x + d; b[X->aw[a]] = x + 0.6f * y; X->aw[a] = (X->aw[a] + 1) & (XAPL - 1); x = y; }
+    float y[XRV_N], sum = 0.f;
+    for (i32 k = 0; k < XRV_N; k++) { const float o = X->d[k][(X->w - len[k]) & (XRV_MAX - 1)]; X->lp[k] += (o - X->lp[k]) * dmp; y[k] = X->lp[k]; sum += y[k]; }
+    sum *= 0.5f; for (i32 k = 0; k < XRV_N; k++) X->d[k][X->w] = x * 0.5f + (y[k] - sum) * gk[k];
+    X->w = (X->w + 1) & (XRV_MAX - 1);
+    const float oL = (y[0] + y[2]) * wet, oR = (y[1] + y[3]) * wet; L[i] += oL; R[i] += oR; pk = maxf(pk, fabsf_(oL) + fabsf_(oR)); }
+  dIn[pi] = 1;
+  if (pk < 1e-6f && in < 1e-7f) { X->quiet += n; if (X->quiet > (i32)(SR * 0.25f)) X->live = 0; } else X->quiet = 0;
+  if (!(X->lp[0] == X->lp[0])) { zero(X, sizeof(XVerb)); }   // never let a broken tail keep running
 }

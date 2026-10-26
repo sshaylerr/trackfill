@@ -10,10 +10,12 @@ const SYN_PAGES = [
   { n: 'Mix', tabs: [['mx', 'Channel']] }];
 // FM swaps the Osc page for its own: the algorithm overview, one tab per operator (tone or envelope view), and Voice
 const SYN_OSC_PAGE = SYN_PAGES[0], SYN_FM_PAGE = { n: 'FM', tabs: [['fa', 'Algo'], ['f1', 'Op 1'], ['f2', 'Op 2'], ['f3', 'Op 3'], ['f4', 'Op 4'], ['fp', 'Phase'], ['vo', 'Voice']] };
-const SYN_X_PAGE = { n: 'FX', tabs: [['x1', 'Source'], ['x2', 'Sweep'], ['x3', 'Wobble'], ['sv', 'Voice']] }, SYN_IN_PAGE = { n: 'Instrument', tabs: [['in', 'Instrument'], ['sv', 'Voice']] }, SYN_SU_PAGE = { n: 'Sub', tabs: [['su', 'Sub'], ['sh', 'Harmonics'], ['s8', '808'], ['sv', 'Voice']] }, SYN_WT_PAGE = { n: 'Osc', tabs: [['wa', 'Osc A'], ['wb', 'Osc B'], ['wp', 'Phase'], ['vo', 'Voice']] }, SYN_GR_PAGE = { n: 'Grains', tabs: [['gr', 'Grains'], ['g2', 'More'], ['vo', 'Voice']] };
+const SYN_X_PAGE = { n: 'Sweep', tabs: [['xs', 'Sweep'], ['xn', 'Noise'], ['xo', 'Tone'], ['xh', 'Hit'], ['xz', 'Size']] }, SYN_IN_PAGE = { n: 'Instrument', tabs: [['in', 'Instrument'], ['sv', 'Voice']] }, SYN_SU_PAGE = { n: 'Sub', tabs: [['su', 'Sub'], ['sh', 'Harmonics'], ['s8', '808'], ['sv', 'Voice']] }, SYN_WT_PAGE = { n: 'Osc', tabs: [['wa', 'Osc A'], ['wb', 'Osc B'], ['wp', 'Phase'], ['vo', 'Voice']] }, SYN_GR_PAGE = { n: 'Grains', tabs: [['gr', 'Grains'], ['g2', 'More'], ['vo', 'Voice']] };
 const engOf = pi => { const S = P.pads[pi] && P.pads[pi].syn; return S ? S.eng || 'analog' : 'analog'; };
 const isFmPad = pi => engOf(pi) === 'fm', isWtPad = pi => engOf(pi) === 'wt', isGrPad = pi => engOf(pi) === 'gr', isSuPad = pi => engOf(pi) === 'sub', isInPad = pi => engOf(pi) === 'ins', isXPad = pi => engOf(pi) === 'sfx';
-function synEngPages(pi) { SYN_PAGES[0] = isXPad(pi) ? SYN_X_PAGE : isInPad(pi) ? SYN_IN_PAGE : isSuPad(pi) ? SYN_SU_PAGE : isFmPad(pi) ? SYN_FM_PAGE : isWtPad(pi) ? SYN_WT_PAGE : isGrPad(pi) ? SYN_GR_PAGE : SYN_OSC_PAGE; }
+const SYN_ALL_PAGES = SYN_PAGES.slice();
+function synEngPages(pi) { const want = isXPad(pi) ? [SYN_ALL_PAGES[0], SYN_ALL_PAGES[4], SYN_ALL_PAGES[5]] : SYN_ALL_PAGES; if (SYN_PAGES.length !== want.length || SYN_PAGES.slice(1).some((x, i) => x !== want[i + 1])) { SYN_PAGES.splice(0, SYN_PAGES.length, ...want); SYN_ST.pg = Math.min(SYN_ST.pg, SYN_PAGES.length - 1); SYN_ST.tab = {}; }
+  SYN_PAGES[0] = isXPad(pi) ? SYN_X_PAGE : isInPad(pi) ? SYN_IN_PAGE : isSuPad(pi) ? SYN_SU_PAGE : isFmPad(pi) ? SYN_FM_PAGE : isWtPad(pi) ? SYN_WT_PAGE : isGrPad(pi) ? SYN_GR_PAGE : SYN_OSC_PAGE; }
 const OPMODE_COL = { FM: '#4fd1c5', Ring: '#f2b544', Filter: '#7aa8ff', 'Filter FM': '#c58bff', Fold: '#ff7a7a' };
 function synCells(tab) {
   if (/^f\d$/.test(tab)) { const f = tab; return SYN_ST.opv ? [f + 'a', f + 'd', f + 's', f + 'r', f + 'x', f + 'z', f + 'l', '#opv'] : [f + 'm', f + 'w', f + 'c', f + 'f', f + 'l', f + 't', f + 'q', '#opv']; }
@@ -23,7 +25,7 @@ const SYN_CELLS = {
   vo: ['uni', 'det', 'spr', 'pit', '#bendr', 'gan', '#glide', '#poly'], sb: ['sbl', 'sbo', 'sbw', 'spl', 'spn'], nz: ['nzn', 'nzt', 'nzb', 'nzd', 'nzh', 'nzl', 'nzo', 'nzk'],
   fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp', 'fbk'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'vel', '#voice'], e2: ['2a', '2d', '2s', '2r', '2c', '2k'], e3: ['3a', '3d', '3s', '3r', '3c', '3k'],
   mc: ['m1', 'm2', 'm3', 'm4'],
-  x1: ['xwv', 'xtl', 'xnl', 'xnc', 'xoc', 'xdt', 'xgr', 'xwd'], x2: ['xsa', 'xst', 'xss', 'xsc', 'xsf', 'xsv', 'xsl'], x3: ['xwy', 'xw@', 'xwa', 'xwh', 'xwu', 'xwf', 'xwl'],
+  xs: ['xsm', 'xs@', 'xdi', 'xsc', 'xlv', 'xpl', 'xtt'], xn: ['xnl', 'xnf', 'xbf', 'xbt', 'xbq', 'xnc'], xo: ['xol', 'xwv', 'xpf', 'xpt', 'xmo', 'xmr', 'xma', 'xru'], xh: ['xhl', 'xht', 'xhn', 'xhd', 'xhw'], xz: ['xsz', 'xsp', 'xdr', 'xgr', 'pit', 'gan', 'vel', '#poly'],
   in: ['#ins', 'ioc', 'ise', 'ifi', 'ist', 'ivt', 'ilo', 'iwd'], su: ['sul', 'suo', 'sus', 'sup', 'sxo', 'sdm', 'sdr', 'sto'], sh: ['sh2', 'sh3', 'sh4', 'sh5', 'shm', 'sho', 'sht', 'shw'],
   s8: ['spa', 'spt', 'spc', '#glide', 'ckl', 'ckt', '#bendr'], sv: ['pit', 'gan', 'vel', '#poly', '#voice', '#follow'], gr: ['#grsrc', 'gpo', 'gsc', 'gsz', 'gde', 'gsp', 'gps', 'gst'], g2: ['gmo', 'gsh', 'grv', 'gtl', 'gkt'], wa: ['#tableA', 'wap', 'wal', 'wao', 'was', 'waf', 'waw', 'wax'], wb: ['#tableB', 'wbp', 'wbl', 'wbo', 'wbs', 'wbf', 'wbw', 'wbx'], fa: ['alg', 'fmd', 'ffb', 'f1l', 'f2l', 'f3l', 'f4l'] };
 for (let k = 1; k <= 4; k++) SYN_CELLS['l' + k] = ['l' + k + 'y', 'l' + k + '@', 'l' + k + 'm', 'l' + k + 'o', 'l' + k + 'p', '#shape', '#snap'];
@@ -31,7 +33,7 @@ for (let k = 1; k <= 4; k++) SYN_CELLS['l' + k] = ['l' + k + 'y', 'l' + k + '@',
 const SRC_COL = i => i <= 2 ? '#7fd49a' : i <= 6 ? '#ff7ac8' : i <= 11 || i === 16 ? '#e6c162' : 'var(--accent)';
 const SYN_ST = { pg: 0, tab: {}, snap: 0, opv: 0 };
 // pages whose controls don't fill two rows of four are laid out by hand
-const SYN_ROWS = { x2: [['xsa', 'xst', 'xss', 'xsc'], ['xsf', 'xsv', 'xsl']], x3: [['xwy', 'xw@', 'xwa', 'xwh'], ['xwu', 'xwf', 'xwl']], s8: [['spa', 'spt', 'spc', '#glide'], ['ckl', 'ckt', '#bendr']], sv: [['pit', 'gan', 'vel', '#poly'], ['#voice', '#follow']], sb: [['sbl', 'sbo', 'sbw'], ['spl', 'spn']], g2: [['gmo', 'gsh', 'grv'], ['gtl', 'gkt']] };
+const SYN_ROWS = { xs: [['xsm', 'xs@', 'xdi', 'xsc'], ['xlv', 'xpl', 'xtt']], xn: [['xnl', 'xnf', 'xbf', 'xbt'], ['xbq', 'xnc']], xh: [['xhl', 'xht', 'xhn', 'xhd'], ['xhw']], s8: [['spa', 'spt', 'spc', '#glide'], ['ckl', 'ckt', '#bendr']], sv: [['pit', 'gan', 'vel', '#poly'], ['#voice', '#follow']], sb: [['sbl', 'sbo', 'sbw'], ['spl', 'spn']], g2: [['gmo', 'gsh', 'grv'], ['gtl', 'gkt']] };
 function synRows(tab) { if (SYN_ROWS[tab]) return SYN_ROWS[tab]; const l = /^l(\d)$/.exec(tab); if (l) { const k = 'l' + l[1]; return [[k + 'y', k + '@', k + 'm', k + 'p'], [k + 'o', '#shape', '#snap']]; }
   const c = synCells(tab), pad4 = r => r.concat(['', '', '', '']).slice(0, 4); return [pad4(c.slice(0, 4)), pad4(c.slice(4, 8))]; }
 // synth controls offered as automation lanes (the timeline): macros first, then the ones most often moved in a track
@@ -41,7 +43,7 @@ const SYN_AUTO_WT = ['m1', 'm2', 'm3', 'm4', 'wap', 'wbp', 'wax', 'wbx', 'wal', 
 const SYN_AUTO_GR = ['m1', 'm2', 'm3', 'm4', 'gpo', 'gsc', 'gsz', 'gde', 'gsp', 'gps', 'gst', 'cut', 'res', 'pit', 'gan'];
 const SYN_AUTO_SU = ['m1', 'm2', 'm3', 'm4', 'sul', 'sdr', 'sto', 'shm', 'sh2', 'sh3', 'sus', 'spa', 'cut', 'pit', 'gan'];
 const SYN_AUTO_IN = ['m1', 'm2', 'm3', 'm4', 'cut', 'res', 'ivt', 'iwd', 'ist', 'pit', 'gan'];
-const SYN_AUTO_X = ['m1', 'm2', 'm3', 'm4', 'xsa', 'xsf', 'xsv', 'xwr', 'xwa', 'xtl', 'xnl', 'xgr', 'cut', 'res', 'pit', 'gan'];
+const SYN_AUTO_X = ['m1', 'm2', 'm3', 'm4', 'xpo', 'xnl', 'xbf', 'xbt', 'xbq', 'xol', 'xma', 'xsz', 'xsp', 'xdr', 'pit', 'gan'];
 const synAutoIds = pi => isXPad(pi) ? SYN_AUTO_X : isInPad(pi) ? SYN_AUTO_IN : isSuPad(pi) ? SYN_AUTO_SU : isFmPad(pi) ? SYN_AUTO_FM : isWtPad(pi) ? SYN_AUTO_WT : isGrPad(pi) ? SYN_AUTO_GR : SYN_AUTO;
 const BEND_RANGES = [1, 2, 3, 5, 7, 12, 24];
 function bendRangeSel(pi) { const pad = P.pads[pi]; return selEl('Bend range', BEND_RANGES.map(r => '±' + r + ' st'), () => Math.max(0, BEND_RANGES.indexOf(pad.bendR || 2)), i => { pushUndo('pad:' + pi); pad.bendR = BEND_RANGES[i]; syncPad(pi); markDirty(); }); }
@@ -70,10 +72,16 @@ function synFmt(p, v) {
   if (id === 'gps') return v < .05 ? 'Off' : '±' + v.toFixed(1) + ' st';
   if (/^w[ab]o$/.test(id) || id === 'suo' || id === 'ioc') return sg(v) + ' oct';
   if (id === 'ise') return sg(Math.round(v)) + ' st';
-  if (id === 'xsa' || id === 'xwa') return Math.abs(v) < .05 ? 'Off' : sg(+v.toFixed(1)) + ' st';
-  if (id === 'xst') return secStr(v);
-  if (id === 'xwr') return hzStr(v);
-  if (id === 'xoc') return sg(v) + ' oct';
+  if (id === 'xst' || id === 'xtt' || id === 'xhd') return secStr(v);
+  if (id === 'xbf' || id === 'xbt') return hzStr(v);
+  if (id === 'xpf' || id === 'xpt') return sg(Math.round(v)) + ' st';
+  if (id === 'xsc') return Math.abs(v) < .02 ? 'Straight' : (v > 0 ? 'Late ' : 'Early ') + Math.round(Math.abs(v) * 100) + '%';
+  if (id === 'xlv') return Math.abs(v) < .02 ? 'Steady' : (v > 0 ? 'In ' : 'Out ') + Math.round(Math.abs(v) * 100) + '%';
+  if (id === 'xru') return Math.abs(v) < .02 ? 'Steady' : (v > 0 ? 'Up ×' : 'Down ÷') + +Math.pow(2, Math.abs(v) * 3).toFixed(1);
+  if (id === 'xnc') return Math.abs(v) < .02 ? 'White' : (v > 0 ? 'Bright ' : 'Dark ') + Math.round(Math.abs(v) * 100) + '%';
+  if (id === 'xbq') return v < .02 ? 'Narrow' : v > .98 ? 'Wide' : pct(v);
+  if (id === 'xsz') return v < .02 ? 'Small' : v > .98 ? 'Big' : pct(v);
+  if (id === 'xol' || id === 'xnl' || id === 'xhl') return v < .0005 ? 'Off' : pct(v);
   if (id === 'ifi') return sg(Math.round(v)) + ' ct';
   if (id === 'sxo' || id === 'sto' || id === 'ckt') return hzStr(v);
   if (id === 'spa') return v < .05 ? 'Off' : '+' + v.toFixed(1) + ' st';
@@ -100,7 +108,7 @@ function synSet(pi, id, v) { const S = synOf(pi); touchPad(pi); S.p[id] = v; sen
 function synCtl(pi, id) {
   const S = synOf(pi);
   if (id.startsWith('#')) return synSpecial(pi, id.slice(1));
-  if (id === 'xw@') return synCtl(pi, (S.p.xwy ?? 'Free') === 'Sync' ? 'xwi' : 'xwr');
+  if (id === 'xs@') { const md = S.p.xsm ?? 'Bars'; return synCtl(pi, md === 'Free' ? 'xst' : md === 'Manual' ? 'xpo' : 'xbl'); }
   if (/^l\d@$/.test(id)) { const k = id[1], sync = (S.p['l' + k + 'y'] ?? 'Sync') === 'Sync'; return synCtl(pi, 'l' + k + (sync ? 'd' : 'r')); }
   const p0 = TFSYN_ID[id]; let el, p = p0;
   if (/^f\d[tq]$/.test(id)) { const md = S.p[id[0] + id[1] + 'm'] ?? 'FM', lab = id[2] === 't' ? ({ FM: 'Amount', Ring: 'Ring', Filter: 'Type', 'Filter FM': 'Depth', Fold: 'Fold' })[md] : 'Resonance';
@@ -108,7 +116,7 @@ function synCtl(pi, id) {
   if (/^f\dl$/.test(id) && synTab() === 'fa') p = Object.assign({}, p0, { l: 'Op ' + id[1] });
   const cur = () => S.p[id] ?? p.d;
   if (p.k === 'opt') {
-    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || id === 'xwy' || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); });
+    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || id === 'xsm' || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); });
   } else {
     const intish = p.k === 'int' || /^o\ds$/.test(id) || /^w[ab]s$/.test(id), step = intish ? 1 / (p.b - p.a) : .001;
     el = makeCtl({ label: p.l, min: 0, max: 1, step, coarse: intish ? step : .02, big: intish ? step * 4 : .1, def: tfSynNorm(p, p.d), bipolar: p.k === 'bip' || id === 'gsc' || /^o\d[sf]$/.test(id) || /^w[ab][sf]$/.test(id) || id === 'pit' || id === 'gan',
@@ -143,7 +151,7 @@ const SYN_ENGINES = [{ id: 'analog', n: 'Analog', blurb: 'Three oscillators into
   { id: 'gr', n: 'Granular', blurb: 'Clouds of grains from any sound: textures, stretches, glitches', look: { face: '#141917', face2: '#0c100e', cap: '#28302c', ind: '#e6f2ec', ring: '#5fd3a0', track: '#050706', ink: '#e3ece7', ink2: '#86978e', scr: '#060908', sw: '#19201c', swInk: '#5fd3a0', tex: 'none' } },
   { id: 'sub', n: 'Sub', blurb: 'Clean sub with harmonics above it: subs and 808s', look: { face: '#1b1517', face2: '#120d0f', cap: '#33272b', ind: '#f6e7ea', ring: '#ff6b81', track: '#070405', ink: '#f0e4e7', ink2: '#a3878e', scr: '#0a0607', sw: '#21181b', swInk: '#ff6b81', tex: 'none' } },
   { id: 'ins', n: 'Instrument', blurb: 'Pianos, orchestral hits, strings, choirs, keys and basses', look: { face: '#1a1814', face2: '#110f0c', cap: '#2e2a22', ind: '#f3ead7', ring: '#e8c37a', track: '#060504', ink: '#efe6d4', ink2: '#a3977e', scr: '#0a0907', sw: '#1f1c16', swInk: '#e8c37a', tex: 'none' } },
-  { id: 'sfx', n: 'FX', blurb: 'Risers, impacts, lasers, sirens and noise', look: { face: '#14181d', face2: '#0d1014', cap: '#252b33', ind: '#e6f0ff', ring: '#5aa9ff', track: '#05070a', ink: '#e3eaf3', ink2: '#8494a8', scr: '#06080b', sw: '#191e25', swInk: '#5aa9ff', tex: 'none' } }];
+  { id: 'sfx', n: 'FX', blurb: 'One sweep: risers, drops, impacts, washouts, lasers, sirens', look: { face: '#14181d', face2: '#0d1014', cap: '#252b33', ind: '#e6f0ff', ring: '#5aa9ff', track: '#05070a', ink: '#e3eaf3', ink2: '#8494a8', scr: '#06080b', sw: '#191e25', swInk: '#5aa9ff', tex: 'none' } }];
 function openEnginePicker(pi) {
   openSheet('Synth engine', card => { const st = h('div', 'stack');
     for (const e of SYN_ENGINES) { const b = btn(`<b>${e.n}</b><i>${esc(e.blurb)}</i>`, () => { closeSheet(); setEngine(pi, e.id); }, 'btn prow' + (e.id === (synOf(pi).eng || 'analog') ? ' on' : '')); st.append(b); }
@@ -268,7 +276,7 @@ function drawSynDisp() {
     return; }
   if (isFmPad(pi) && (tab === 'fa' || /^f\d$/.test(tab) || tab === 'vo')) { drawFmDisp(g, W, H, v, tab, txt, grid, col); return; }
   if (isWtPad(pi) && (tab === 'wa' || tab === 'wb' || tab === 'vo')) { drawWtDisp(g, W, H, v, tab, txt, grid, col, S); return; }
-  if (isXPad(pi) && /^(x\d|sv)$/.test(tab)) { drawXDisp(g, W, H, v, txt, col, grid); return; }
+  if (isXPad(pi) && /^x[snohz]$/.test(tab)) { drawXDisp(g, W, H, v, txt, col, grid, tab); return; }
   if (isInPad(pi) && (tab === 'in' || tab === 'sv')) { drawInDisp(g, W, H, v, txt, col, synOf(pi)); return; }
   if (isSuPad(pi) && /^s[uh8v]$/.test(tab)) { drawSuDisp(g, W, H, v, tab, txt, grid, col); return; }
   if (isGrPad(pi) && (tab === 'gr' || tab === 'g2' || tab === 'vo')) { drawGrDisp(g, W, H, v, tab, txt, grid, col, S, cv); return; }
@@ -379,16 +387,69 @@ function drawFmDisp(g, W, H, v, tab, txt, grid, col) {
 const tableName = key => !key ? 'None' : key.startsWith('w:') ? key.slice(2) : (SAMPLES.get(key) || {}).name || 'Missing';
 // Sub: the waveform (clean fundamental faint behind it), the harmonics as bars with the crossover marked; 808: the pitch drop and the tail
 // Instrument: its key map (zones as blocks along the keyboard, velocity layers stacked) and the zone a middle C plays, as a waveform
-// FX: the sweep over its time (pitch in the colour, level faint behind it), with the wobble riding on it
-function drawXDisp(g, W, H, v, txt, col, grid) {
-  grid(); const sync = v('xss'), T = sync === 'Free' ? v('xst') : null, cv = (x, c) => c === 0 ? x : (Math.exp(c * .85 * 4 * x) - 1) / (Math.exp(c * .85 * 4) - 1), c = v('xsc'), lp = v('xsl');
-  const sw = v('xsa'), wa = v('xwa'), sh = v('xwh'), cyc = v('xwy') === 'Sync' ? 8 : Math.max(1, Math.min(40, v('xwr') * (T || 2))), rise = v('xwu'), vs = v('xsv');
-  const prog = x => { const u = x * (lp === 'Once' ? 1 : 2); return lp === 'Once' ? u : lp === 'Repeat' ? u % 1 : (u % 2 > 1 ? 2 - u % 2 : u % 2); };
-  const wob = x => { const k = cv(prog(x), c), ph = (x * cyc * Math.pow(2, rise * 4 * k * .5)) % 1; return sh === 'Sine' ? Math.sin(2 * Math.PI * ph) : sh === 'Triangle' ? (ph < .5 ? 4 * ph - 1 : 3 - 4 * ph) : sh === 'Square' ? (ph < .5 ? 1 : -1) : sh === 'Saw up' ? 2 * ph - 1 : sh === 'Saw down' ? 1 - 2 * ph : Math.sin(ph * 40) * .8; };
-  const span = Math.max(12, Math.abs(sw) + wa + 4), Y = st => H / 2 - st / span * (H / 2 - 16);
-  g.beginPath(); for (let x = 0; x <= W; x += 2) { const k = cv(prog(x / W), c), lv = vs >= 0 ? 1 - vs * (1 - k) : 1 + vs * k, y = H - 6 - lv * (H - 26); x ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = COL.mute; g.globalAlpha = .5; g.lineWidth = 1.2; g.stroke(); g.globalAlpha = 1;
-  g.beginPath(); for (let x = 0; x <= W; x += 1) { const k = cv(prog(x / W), c), y = Y(sw * k + wa * wob(x / W)); x ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = col; g.lineWidth = 2; g.stroke();
-  txt(Math.abs(sw) < .05 ? (wa > .05 ? `Wobble ±${wa.toFixed(1)} st` : 'Steady') : `Sweep ${sw > 0 ? '+' : ''}${sw.toFixed(0)} st`, 8, 12); txt((T == null ? sync : T < 1 ? Math.round(T * 1000) + ' ms' : T.toFixed(1) + ' s') + (lp === 'Once' ? '' : ' · ' + lp.toLowerCase()), W - 8, 12, COL.mute, 'right');
+// FX: one view per tab, all over the sweep's own time (bars marked): the sweep and its fade; the noise band travelling (log frequency);
+// the tone's pitch with its motion; the hit; Size as a stereo picture (voices, noise width, sub, space)
+const X_BEATS = { '1 beat': 1, '2 beats': 2, '1 bar': 4, '2 bars': 8, '4 bars': 16, '8 bars': 32, '16 bars': 64 };
+function drawXDisp(g, W, H, v, txt, col, grid, tab) {
+  const md = v('xsm'), bl = v('xbl'), beats = md === 'Bars' ? X_BEATS[bl] : md === 'Manual' ? 8 : null, beat = 60 / P.bpm, secs = beats ? beats * beat : v('xst');
+  const back = v('xdi') === 'Return', cc = v('xsc') * .85, sw = x => tfCurve(back ? (x < .5 ? x * 2 : 2 - x * 2) : x, cc);
+  const fd = v('xlv'), lvl = x => { const k = sw(x); return fd >= 0 ? 1 - fd + fd * k : 1 + fd * k; };
+  const X0 = 8, X1 = W - 8, top = 22, bot = H - 6, Xp = x => X0 + (X1 - X0) * x, N = Math.max(120, Math.round(X1 - X0));
+  const one = v('xpl') === 'One-shot' && md !== 'Manual', lenTxt = md === 'Manual' ? 'By hand' : (md === 'Bars' ? bl : secStr(secs)) + (one ? ' · one-shot' : ' · held');
+  const timeGrid = () => { if (md === 'Manual') return; if (beats) { for (let b = 0; b <= beats; b++) { const bar = b % 4 === 0; if (beats > 16 && !bar) continue; g.fillStyle = COL.line; g.globalAlpha = bar ? 1 : .45; g.fillRect(Math.round(Xp(b / beats)), top, 1, bot - top); } g.globalAlpha = 1; }
+    else { g.fillStyle = COL.line; g.fillRect(Math.round(X0), top, 1, bot - top); g.fillRect(Math.round(X1), top, 1, bot - top); } };
+  const line = (fn, c, lw, a = 1) => { g.beginPath(); for (let i = 0; i <= N; i++) { const x = i / N, y = fn(x); i ? g.lineTo(Xp(x), y) : g.moveTo(Xp(x), y); } g.globalAlpha = a; g.strokeStyle = c; g.lineWidth = lw; g.lineJoin = 'round'; g.stroke(); g.globalAlpha = 1; };
+  const posDot = y => { if (md !== 'Manual') return; const x = v('xpo'); g.fillStyle = col; g.beginPath(); g.arc(Xp(x), y(x), 4, 0, 7); g.fill(); };
+  const hitMark = () => { if (v('xhl') < .0005) return; const x = v('xhw') === 'End' ? (back ? .5 : 1) : 0, xx = Xp(x); g.fillStyle = COL.accent; g.beginPath(); g.moveTo(xx - 5, top); g.lineTo(xx + 5, top); g.lineTo(xx, top + 7); g.fill(); };
+  txt(lenTxt, W - 8, 11, COL.mute, 'right');
+  if (tab === 'xs') {   // the sweep (colour) and its level (faint), hit marked where it lands
+    timeGrid(); const Y = k => bot - k * (bot - top - 4);
+    line(x => Y(lvl(x)), COL.mute, 1.2, .55); line(x => Y(sw(x)), col, 2.2); posDot(x => Y(sw(x))); hitMark();
+    txt(md === 'Manual' ? 'Position ' + Math.round(v('xpo') * 100) + '% · move it by hand or automate it' : (back ? 'Return' : 'One way') + (Math.abs(fd) > .02 ? ' · fades ' + (fd > 0 ? 'in' : 'out') : ''), 8, 11);
+    return; }
+  if (tab === 'xn') {   // log frequency up the side; the band (or the low/high-pass edge) travelling from From to To
+    timeGrid(); const lo = Math.log(30), hi = Math.log(18000), Y = f => bot - (Math.log(Math.max(30, Math.min(18000, f))) - lo) / (hi - lo) * (bot - top);
+    g.fillStyle = COL.line; for (const f of [100, 1000, 10000]) { g.fillRect(X0, Math.round(Y(f)), X1 - X0, 1); txt(f >= 1000 ? f / 1000 + 'k' : String(f), X0 + 2, Y(f) - 6, COL.dim); }
+    const f0 = v('xbf'), f1 = v('xbt'), fl = v('xnf'), Q = .6 * Math.pow(14 / .6, 1 - v('xbq')), oct = Math.min(4, 1.44 / Q), fc = x => f0 * Math.pow(f1 / f0, sw(x)), on = v('xnl') > .0005;
+    g.beginPath(); for (let i = 0; i <= N; i++) { const x = i / N, f = fl === 'Band' ? fc(x) * Math.pow(2, oct / 2) : fl === 'Low' ? fc(x) : 18000; i ? g.lineTo(Xp(x), Y(f)) : g.moveTo(Xp(x), Y(f)); }
+    for (let i = N; i >= 0; i--) { const x = i / N, f = fl === 'Band' ? fc(x) / Math.pow(2, oct / 2) : fl === 'Low' ? 30 : fc(x); g.lineTo(Xp(x), Y(f)); }
+    g.closePath(); g.fillStyle = on ? col : COL.dim; g.globalAlpha = .22; g.fill(); g.globalAlpha = 1;
+    line(x => Y(fc(x)), on ? col : COL.dim, 2); posDot(x => Y(fc(x)));
+    txt(on ? `${fl === 'Band' ? 'Band' : fl === 'Low' ? 'Low-pass' : 'High-pass'} · ${hzStr(f0)} → ${hzStr(f1)}` : 'Noise is off: raise its Level', 8, 11, on ? COL.ink : COL.dim);
+    return; }
+  if (tab === 'xo') {   // the tone's pitch along the sweep with its motion on it (lasers zap, sirens rock, stutter breaks the line, wobble thins it)
+    timeGrid(); const pf = v('xpf'), pt = v('xpt'), mo = v('xmo'), amt = v('xma'), div = (TF_LFO_DIVS.find(d => d[0] === v('xmr')) || [0, .5])[1], ru = v('xru'), on = v('xol') > .0005;
+    const pts = []; let ph = 0, mn = Math.min(pf, pt), mx = Math.max(pf, pt); const T = secs || 2;
+    for (let i = 0; i <= N; i++) { const x = i / N, k = sw(x), rate = 1 / (div * beat) * Math.pow(2, ru * 3 * k); if (i) ph = (ph + rate * T / N) % 1;
+      const off = mo === 'Laser' ? amt * 36 * Math.exp(-ph * 7) : mo === 'Siren' ? amt * 12 * Math.sin(2 * Math.PI * ph) : 0, st = pf + (pt - pf) * k + off;
+      const a = mo === 'Stutter' ? (ph < .5 ? 1 : 1 - amt) : mo === 'Laser' ? Math.max(.05, 1 - amt * (1 - Math.exp(-ph * 4))) : mo === 'Wobble' ? 1 - amt * .8 * (.5 - .5 * Math.cos(2 * Math.PI * ph)) : 1;
+      pts.push([x, st, a * lvl(x)]); mn = Math.min(mn, st); mx = Math.max(mx, st); }
+    mn -= 2; mx += 2; const Y = st => bot - (st - mn) / Math.max(1, mx - mn) * (bot - top);
+    g.fillStyle = COL.line; g.fillRect(X0, Math.round(Y(0)), X1 - X0, 1);
+    g.lineWidth = 2; g.strokeStyle = on ? col : COL.dim; g.lineCap = 'round';
+    for (let i = 1; i < pts.length; i++) { const [xa, sa, aa] = pts[i - 1], [xb, sb] = pts[i]; if (Math.abs(sb - sa) > 6) continue; g.globalAlpha = Math.max(.08, aa); g.beginPath(); g.moveTo(Xp(xa), Y(sa)); g.lineTo(Xp(xb), Y(sb)); g.stroke(); }
+    g.globalAlpha = 1; posDot(x => Y(pf + (pt - pf) * sw(x)));
+    txt(on ? `${v('xwv')} · ${pf > 0 ? '+' : ''}${Math.round(pf)} → ${pt > 0 ? '+' : ''}${Math.round(pt)} st${mo !== 'Sustain' ? ' · ' + mo.toLowerCase() + ' ' + v('xmr') : ''}` : 'Tone is off: raise its Level', 8, 11, on ? COL.ink : COL.dim);
+    return; }
+  if (tab === 'xh') {   // the hit over its own decay: a boom's falling sine, or the burst's envelope
+    const ty = v('xht'), dec = v('xhd'), on = v('xhl') > .0005, tn = v('xhn'), span = dec * 1.1, Xt = t => X0 + (X1 - X0) * t / span, mid = (top + bot) / 2, A = (bot - top) / 2 - 2, tau = dec / 6.9;
+    g.fillStyle = COL.line; g.fillRect(X0, Math.round(mid), X1 - X0, 1);
+    const env = t => Math.exp(-t / tau) * Math.min(1, t * (ty === 'Splash' ? 300 : 3000));
+    g.beginPath(); for (let i = 0; i <= N; i++) { const t = span * i / N, y = mid - env(t) * A; i ? g.lineTo(Xt(t), y) : g.moveTo(Xt(t), y); } for (let i = N; i >= 0; i--) { const t = span * i / N; g.lineTo(Xt(t), mid + env(t) * A); }
+    g.closePath(); g.fillStyle = on ? col : COL.dim; g.globalAlpha = .2; g.fill(); g.globalAlpha = 1;
+    if (ty === 'Boom') { const f = 28 * Math.pow(110 / 28, tn), vis = 18 / f; let ph = 0; line(x => { const t = span * x; ph += f * (1 + 3 * Math.exp(-t * 33)) * vis * span / N; return mid - Math.sin(2 * Math.PI * ph) * env(t) * A; }, on ? col : COL.dim, 1.6); }
+    else line(x => mid - env(span * x) * A, on ? col : COL.dim, 1.6);
+    const f = ty === 'Boom' ? Math.round(28 * Math.pow(110 / 28, tn)) + ' Hz' : ty === 'Crack' ? 'from ' + hzStr(400 * Math.pow(5000 / 400, tn)) : 'from ' + hzStr(1500 * Math.pow(9000 / 1500, tn));
+    txt(on ? `${ty} · ${f} · ${secStr(dec)} · at the ${v('xhw').toLowerCase()}` : 'Hit is off: raise its Level', 8, 11, on ? COL.ink : COL.dim);
+    return; }
+  // Size: left to right is the stereo field. Tone voices as dots, the noise's width as a bar, the sub under the middle, the space as a halo
+  const sz = v('xsz'), sp = v('xsp'), U = Math.min(4, 1 + Math.round(sz * 3)), mid = W / 2, half = (X1 - X0) / 2 - 6, yT = top + (bot - top) * .3, yN = top + (bot - top) * .58, yS = top + (bot - top) * .85;
+  g.fillStyle = COL.line; g.fillRect(Math.round(mid), top, 1, bot - top); txt('L', X0, top + 2, COL.dim); txt('R', X1, top + 2, COL.dim, 'right');
+  if (sp > .005) { g.fillStyle = col; for (let k = 1; k <= 4; k++) { g.globalAlpha = sp * .07; const w = half * (.35 + .65 * sp) * k / 4, hh = (bot - top - 10) * (.3 + .7 * sp) * k / 4; g.fillRect(mid - w, (top + bot) / 2 - hh / 2, w * 2, hh); } g.globalAlpha = 1; }   // the space: nested, fainter outward
+  if (v('xol') > .0005) { for (let u = 0; u < U; u++) { const q = U > 1 ? 2 * u / (U - 1) - 1 : 0; g.fillStyle = col; g.beginPath(); g.arc(mid + q * sz * half, yT, 4, 0, 7); g.fill(); }
+    if (sz > .45) { g.fillStyle = col; g.globalAlpha = .4 + (sz - .45); g.beginPath(); g.arc(mid, yS, 6, 0, 7); g.fill(); g.globalAlpha = 1; } }
+  if (v('xnl') > .0005) { const w = Math.max(3, sz * half); g.fillStyle = col; g.globalAlpha = .6; g.fillRect(mid - w, yN - 3, w * 2, 6); g.globalAlpha = 1; }
+  txt(`${sz < .02 ? 'Small' : sz > .98 ? 'Big' : 'Size ' + Math.round(sz * 100) + '%'}${v('xol') > .0005 ? ` · ${U} voice${U > 1 ? 's' : ''}${sz > .45 ? ' + sub' : ''}` : ''}${sp > .005 ? ' · space ' + Math.round(sp * 100) + '%' : ''}`, 8, 11);
 }
 function drawInDisp(g, W, H, v, txt, col, S) {
   const key = S.ins, d = insInfo(key); if (!d) { txt('Pick an instrument', W / 2, H / 2, COL.dim, 'center'); return; }

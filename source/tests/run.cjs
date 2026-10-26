@@ -331,9 +331,17 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     { let bad = 0, silent = [], stuck = []; for (const pr of [SP.SYN_FX_INIT, ...SP.SFX_PRESETS]) { const s = mk(pr); s.host.msg({ t: 'hit', pad: 20, semi: 0, vel: .9, tag: 3 }); const a = s.run(375 * 2); s.host.msg({ t: 'rel', tag: 3, rel: .1 }); s.run(375 * 8);
         bad += a.bad; if (a.e < 1e-6) silent.push(pr.n); if (s.ex.tf_voices()) stuck.push(pr.n); }
       ok(!bad && !silent.length && !stuck.length, `all ${SP.SFX_PRESETS.length} FX presets play, stay finite and let go (${silent.length ? 'silent: ' + silent.join(', ') : ''}${stuck.length ? ' stuck: ' + stuck.join(', ') : ''})`); }
-    { const LB = require('../tools/instruments/lib.cjs'), s = mk({ n: 't', eng: 'sfx', p: { flt: 'Off', xwv: 'Sine', xsa: 24, xst: 1 } }); s.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 });
+    { const LB = require('../tools/instruments/lib.cjs'), s = mk({ n: 't', eng: 'sfx', p: { xnl: 0, xol: 1, xwv: 'Sine', xsz: 0, xsm: 'Free', xst: 1, xpf: 0, xpt: 24 } }); s.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 });
       const zc = x => { let z = 0; for (let i = 1; i < x.length; i++) if ((x[i] > 0) !== (x[i - 1] > 0)) z++; return z / 2 / (x.length / 48000); }, a = s.run(375 * 2).x, mid = s.run(375).x, f0 = 130.81, f1 = zc(mid);
       ok(Math.abs(12 * Math.log2(f1 / f0) - 24) < .7, `a sweep rises by its amount and holds (${(12 * Math.log2(f1 / f0)).toFixed(1)} st after 1 s)`); }
+    { // one-shot: a short tap still plays the whole sweep; held: letting go ends it
+      const rms = x => Math.sqrt(x.reduce((q, y) => q + y * y, 0) / x.length), tap = pl => { const s = mk({ n: 't', eng: 'sfx', p: { xnl: .8, xsm: 'Free', xst: 1.5, xpl: pl, xtt: .05 } });
+        s.host.msg({ t: 'hit', pad: 20, semi: 0, vel: .9, tag: 1 }); s.run(19); s.host.msg({ t: 'rel', tag: 1, rel: .05 }); s.run(375); return rms(s.run(19).x); };
+      const one = tap('One-shot'), held = tap('Held'); ok(one > 1e-3 && held < 1e-5, `one-shot plays its whole sweep on a tap; held stops when let go (${one.toExponential(1)} vs ${held.toExponential(1)} at 1 s)`); }
+    { // a hit at the end lands when the sweep finishes; the space rings on after the voice and then stops
+      const s = mk({ n: 't', eng: 'sfx', p: { xnl: 0, xhl: 1, xht: 'Crack', xhd: .2, xhw: 'End', xsm: 'Free', xst: 1, xpl: 'One-shot', xsp: .6 } }); s.host.msg({ t: 'hit', pad: 20, semi: 0, vel: .9, tag: 1 });
+      const pre = s.run(360).x, at = s.run(30).x, ring = s.run(375).x, pk = x => x.reduce((q, y) => Math.max(q, Math.abs(y)), 0); s.run(375 * 12); const end = s.run(40).x;
+      ok(pk(pre) < 1e-4 && pk(at) > .05 && pk(ring) > 1e-3 && pk(end) < 1e-6, `a hit at the end lands on time; its space rings, then stops (${pk(pre).toExponential(0)} / ${pk(at).toFixed(2)} / ${pk(ring).toExponential(0)} / ${pk(end).toExponential(0)})`); }
   }
   console.log('instruments');
   { const IN = require('../js/instruments.js');
