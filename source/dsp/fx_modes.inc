@@ -303,6 +303,11 @@ static void fx_fdn(Fx* f, float* L, float* R, i32 n) {
   u32 pd = (u32)clampf(pre * 0.001f * SR, 0.f, (float)(PLEN - 2)), dl[4]; for (i32 k = 0; k < 4; k++) dl[k] = (u32)clampf(DIF_MS[k] * 0.001f * SR * (m == 4 ? 2.f : 1.f), 8.f, (float)(DFL - 2));
   float eg = m == 1 ? (1.f - depth) * 1.3f : 0.f, lg = m == 1 ? 0.25f + 0.75f * depth : 1.f, inG = freeze ? 0.f : 1.f;
   const float modInc = 0.1f * modR / SR, q = color == 0 ? 2048.f : 0.f;
+  // per block, not per sample: the early-reflection taps, and each line's slow modulation (its value at both ends of the block, then a straight line between)
+  u32 eo[2][8]; if (m == 1) for (i32 c = 0; c < 2; c++) for (i32 k = 0; k < 8; k++) eo[c][k] = (u32)(ERT[c][k] * 0.001f * SR * esize);
+  float md0[16], mdd[16];
+  for (i32 k = 0; k < 16; k++) { const float inc = modInc * (0.6f + 0.09f * k), a = modD * (0.5f + 0.5f * fsin(6.28318531f * r->ph[k] + k)); r->ph[k] += inc * n; r->ph[k] -= floorf_(r->ph[k]);
+    const float b = modD * (0.5f + 0.5f * fsin(6.28318531f * r->ph[k] + k)); md0[k] = a; mdd[k] = (b - a) / n; }
   for (i32 i = 0; i < n; i++) {
     float xl = L[i], xr = R[i], x = (xl + xr) * 0.5f * inG;
     r->hp += (x - r->hp) * whA; x -= r->hp;
@@ -310,14 +315,14 @@ static void fx_fdn(Fx* f, float* L, float* R, i32 n) {
     // early reflections (Room only): two tapped lines from the predelayed input
     float el = 0, er = 0;
     if (m == 1) { r->er[r->ew] = xi; for (i32 k = 0; k < 8; k++) { float sg = (k & 1) ? -1.f : 1.f, a = (0.9f - 0.07f * k) * sg;
-        el += a * r->er[(r->ew - (u32)(ERT[0][k] * 0.001f * SR * esize)) & (ERL - 1)]; er += a * r->er[(r->ew - (u32)(ERT[1][k] * 0.001f * SR * esize)) & (ERL - 1)]; }
+        el += a * r->er[(r->ew - eo[0][k]) & (ERL - 1)]; er += a * r->er[(r->ew - eo[1][k]) & (ERL - 1)]; }
       r->ew = (r->ew + 1) & (ERL - 1); el *= 0.35f; er *= 0.35f; }
     // input diffusion: four series allpasses smear the attack into a dense wash
     float v = xi; for (i32 k = 0; k < 4; k++) { float* b = r->dif[k]; float dv = b[(r->dw[k] - dl[k]) & (DFL - 1)], w = v + diff * dv; b[r->dw[k]] = w; v = dv - diff * w; r->dw[k] = (r->dw[k] + 1) & (DFL - 1); }
     // read the 16 lines (each slowly modulated), split into three bands with their own decay
     float o[16];
-    for (i32 k = 0; k < 16; k++) { float* b = line + k * RL; r->ph[k] += modInc * (0.6f + 0.09f * k); if (r->ph[k] >= 1.f) r->ph[k] -= 1.f;
-      float rp = (float)r->w - len[k] - modD * (0.5f + 0.5f * fsin(6.28318531f * r->ph[k] + k)); while (rp < 0) rp += RL;
+    for (i32 k = 0; k < 16; k++) { float* b = line + k * RL;
+      float rp = (float)r->w - len[k] - (md0[k] + mdd[k] * i); while (rp < 0) rp += RL;
       u32 i0 = (u32)rp; float fr = rp - i0, a = b[i0 & (RL - 1)], c2 = b[(i0 + 1) & (RL - 1)], y = a + (c2 - a) * fr;
       float lo = op1(&r->lpz[k], y, lA), hi = y - op1(&r->hpz[k], y, hA), mid = y - lo - hi; o[k] = gl[k] * lo + gm[k] * mid + gh[k] * hi; }
     // mix with a 16-point Hadamard (every line feeds every other: dense, colourless)

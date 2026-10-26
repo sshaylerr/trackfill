@@ -350,7 +350,7 @@ const FX_MODES = {
     ['Lo-fi', 'Crunchy, squashed, a little noisy', [P_('Amount', .4, fPct), P_('Tone', .6, v => fHz(expmap(v, 800, 16000))), P_('Noise', .2, fPct), P_('Compress', .4, fPct), P_('Mix', 1, fPct)]]] },
   12: { mode0: ['Classic', 'Six stages, adjustable'], more: [['Vintage', 'Four-stage pedal swirl, one knob', [P_('Speed', .4, v => expmap(v, .1, 10).toFixed(2) + ' Hz'), P_('Mix', 1, fPct), P_('Voice', 0, null, ['Feedback', 'Clean'])]]] },
   13: { mode0: ['Transparent', 'Clean loudness'], more: [['Punchy', 'Keeps the hit of drums', LIM_P], ['Aggressive', 'Loud and forward, with a little clip', LIM_P], ['Safe', 'Slow and careful; never crosses the ceiling', LIM_P]] },
-  14: { mode0: ['Classic', 'Three bands, compress above and lift below'], more: [['Squash', 'Over-the-top upward and downward compression', [...XO.map((p, i) => P_(p.n, i ? .398 : .166, p.f)), P_('Depth', 1, fPct), P_('Time', .5, v => expmap(v, .1, 10).toFixed(2) + '×'), P_('Upward', 1, fPct), P_('Downward', 1, fPct), P_('In gain', .5, v => fSign(v, -24, 24)), ...BANDG, P_('Out gain', .5, v => fSign(v, -24, 24))]]] },
+  14: { mode0: ['Classic', 'Three bands, compress above and lift below'], more: [['Squash', 'Over-the-top upward and downward compression', [...XO.map((p, i) => P_(p.n, i ? .398 : .166, p.f)), P_('Depth', 1, fPct), P_('Time', .5, v => expmap(v, .1, 10).toFixed(2) + '×'), P_('Upward', 1, fPct), P_('Downward', 1, fPct), P_('In gain', .5, v => fSign(v, -24, 24)), ...BANDG, P_('Out gain', .594, v => fSign(v, -24, 24))]]] },   // +4.5 dB: at full depth it sits near unity on a mix
   22: { mode0: ['Classic', 'Filter up, echo, reverb and a little dirt'], more: [['Wash', 'A wall of reverb that swallows the mix', GRIN_P], ['Dub', 'Echoes that run away into a narrow band', GRIN_P],
     ['Grit', 'Drive and crush, thinning out as it climbs', GRIN_P], ['Space', 'Swirling phaser, wide and washed', GRIN_P], ['Pump', 'A quarter-note pump that digs in harder', GRIN_P]] },
   15: { mode0: ['Studio', 'Pro reel-to-reel: warm and steady'], more: [['Cassette', 'Darker, wobblier, hissier', TAPE_P], ['Worn', 'Old tape: dull, wobbly, the odd dropout', TAPE_P]] },
@@ -609,5 +609,61 @@ function stressV2() {
   for (const s of [0, 1]) for (const c of [16, 17, 28, 29, 30, 31, 32, 33]) { S[s].auto[c + '.-2.0'] = lane([[0, .3], [2 * BAR, 1], [4 * BAR - 24, .4]]); S[s].auto[c + '.-1.2'] = lane([[0, 0], [4 * BAR - 24, .5]]); }
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
+/* ---------- Stress test 2: a dense finished DnB track that uses every engine and feature, for optimisation ----------
+   Scene 1 "Full mix": a heavy but realistic arrangement (the one to tune for). Scene 2 "Worst case": the same with big chords and every voice busy.
+   Bank A: the jungle kit (chopped, tempo-stretched break). Bank B: keys pads plus one of each synth engine. Bank C: FX sweeps, pads, lead. Bank D: a drum-synth kit. */
+const SPA = () => typeof SFX_PRESETS !== 'undefined' ? { SYN_PRESETS, FM_PRESETS, WT_PRESETS, GR_PRESETS, SU_PRESETS, IN_PRESETS, SFX_PRESETS, synPatch } : require('./synthpresets.js');
+const DRK = () => typeof drumKit === 'function' ? { drumKit, drumTypeName } : require('./drums.js');
+function stress2Project() { return asV2(stress2V2()); }
+function stress2V2() {
+  const p = jungleV2(), SP = SPA(), DR = DRK(), S = p.scenes, F = FX_TYPES, q = 24; p.name = 'Stress test 2';
+  for (let i = 0; i < NSCENES; i++) S[i] = emptyScene(); S[0].name = 'Full mix'; S[1].name = 'Worst case'; for (const sc of [0, 1]) Object.assign(S[sc], { bars: 8, repeat: 1 });
+  const add = (s, pi, t, len, pp = 0, v = .85) => { (S[s].notes[pi] = S[s].notes[pi] || []).push({ t, len, p: pp, v }); };
+  const syn = (pi, list, n, x) => { const pr = list.find(z => z.n === n) || list[0]; Object.assign(p.pads[pi], { name: n.slice(0, 12), src: 'synth', sample: null, syn: SP.synPatch(pr), mode: 'gate', voice: pr.voice || 'poly', glide: pr.glide || 0, poly: 8, color: pi % 8, kx: undefined }, x || {}); };
+  syn(24, SP.SYN_PRESETS, 'Reese', { voice: 'mono' }); syn(25, SP.FM_PRESETS, 'E. Piano'); syn(26, SP.WT_PRESETS, 'Neuro Growl', { voice: 'mono' }); syn(27, SP.GR_PRESETS, SP.GR_PRESETS[0].n);
+  syn(28, SP.SU_PRESETS, SP.SU_PRESETS[0].n, { voice: 'mono' }); syn(29, SP.IN_PRESETS, 'Strings'); syn(30, SP.IN_PRESETS, 'House Piano'); syn(31, SP.SYN_PRESETS, 'Supersaw');
+  ['White Riser', 'Downlifter', 'Impact', 'Laser Riser', 'Washout', 'Woop'].forEach((n, k) => syn(32 + k, SP.SFX_PRESETS, n));
+  syn(38, SP.SYN_PRESETS, 'Warm Pad'); syn(39, SP.FM_PRESETS, 'Bells'); syn(40, SP.WT_PRESETS, SP.WT_PRESETS[3] ? SP.WT_PRESETS[3].n : SP.WT_PRESETS[0].n); syn(41, SP.SYN_PRESETS, 'Acid Line', { voice: 'mono' });
+  const K = DR.drumKit('Dancefloor', 7); p.drumKits = { 3: K.kit };
+  K.pieces.slice(0, 9).forEach((pc, i) => Object.assign(p.pads[48 + i], { src: 'drum', drum: pc.d, sample: null, name: DR.drumTypeName(pc.d.mod, pc.d.type).slice(0, 12), mode: 'one', color: i % 8 }));
+  // the arrangement: two-step drums (drum synth + break slices), bass and sub, chords, a lead in the second half, sweeps into and out of the drop
+  const roots = [0, -4, 3, -2, 0, -4, 3, 5], chord = r => [r, r + 3, r + 7, r + 10];
+  for (const s of [0, 1]) for (let b = 0; b < 8; b++) { const o = b * BAR, r = roots[b];
+    add(s, 48, o, 24); add(s, 48, o + 240, 24); add(s, 49, o + 96, 24); add(s, 49, o + 288, 24); if (b % 2) add(s, 50, o + 288, 24, 0, .7);
+    for (let i = 0; i < 8; i++) add(s, 51, o + i * 48, 12, 0, i % 2 ? .55 : .8); for (let i = 0; i < 4; i++) add(s, 53, o + i * 96, 24, 0, .5); add(s, 54, o + 168, 12, 0, .6); add(s, 56, o + 336, 24, 0, .6);
+    for (let i = 0; i < 16; i++) add(s, 8, o + i * q, q, (i * 5 + b) % 16, .7); for (let i = 0; i < 16; i++) add(s, 6, o + i * q, 12, 0, i % 2 ? .35 : .5);
+    add(s, 2, o + 168, 12, 0, .4); add(s, 2, o + 360, 12, 0, .35);
+    add(s, 24, o, BAR / 2 - 12, r - 12, .8); add(s, 24, o + BAR / 2, BAR / 2 - 24, r - 12 + (b % 2 ? 7 : 0), .8); add(s, 28, o, BAR - 24, r - 12, .9);
+    for (const n of chord(r)) { add(s, 25, o, BAR - 12, n, .6); add(s, 29, o, BAR, n, .5); }
+    add(s, 27, o, BAR, r, .5); if (b % 2 === 0) for (const n of chord(r)) add(s, 30, o + 192, 96, n + 12, .55);
+    if (b >= 4) { for (let i = 0; i < 8; i++) add(s, 31, o + i * 48, 36, r + 12 + [0, 3, 7, 10, 12, 10, 7, 3][i], .7); for (let i = 0; i < 8; i++) if (i % 3 !== 2) add(s, 26, o + i * 48, 40, r - 12, .8); }
+    if (s === 1) { for (const pi of [38, 39, 40]) for (const n of [...chord(r), r + 14, r + 17]) add(s, pi, o, BAR - 12, n, .55); for (let i = 0; i < 16; i++) add(s, 41, o + i * q, 18, r + (i % 3) * 12 - 12, .75); } }
+  for (const s of [0, 1]) { add(s, 33, 0, BAR * 2); add(s, 34, 0, 96); add(s, 36, 4 * BAR, BAR * 4); add(s, 32, 4 * BAR, BAR * 4); add(s, 35, 6 * BAR, BAR * 2); add(s, 37, 3 * BAR + 288, 96); }
+  // routing: drums, bass and music groups; an FX bus; sends to the delay and reverb returns
+  const C = p.chans, G = { drums: G0, bass: G0 + 1, music: G0 + 2, fx: G0 + 3 };
+  for (const c of [0, 1, 2, 3, 4, 5, 6, 7, 8, 48, 49, 50, 51, 52, 53, 54, 55, 56]) C[c].out = G.drums;
+  for (const c of [9, 10, 11, 24, 26, 28, 41]) C[c].out = G.bass;
+  for (const c of [16, 17, 18, 19, 20, 21, 22, 25, 27, 29, 30, 31, 38, 39, 40]) { C[c].out = G.music; C[c].sa = .12; C[c].sb = .22; }
+  for (const c of [12, 13, 14, 15, 32, 33, 34, 35, 36, 37]) { C[c].out = G.fx; C[c].sb = .15; }
+  Object.assign(C[G.drums], { name: 'Drums' }); Object.assign(C[G.bass], { name: 'Bass' }); Object.assign(C[G.music], { name: 'Music' }); Object.assign(C[G.fx], { name: 'FX' });
+  // effects: what a finished track carries, on every kind of channel
+  const duck = trig => Object.assign(newFx(F.DUCK, { 1: .5, 3: .05, 4: .5, 6: .25 }), { trig });
+  C[48].fx = [newFx(F.TRANS, null), newFx(F.EQ, { 0: .3 }), newFx(F.SAT, { 1: .3 }, 1)]; C[49].fx = [newFx(F.EQ, null, 1), newFx(F.COMP, null, 2), newFx(F.REVERB, { 0: .2 }, 1)];
+  C[8].fx = [newFx(F.FILTER, null, 1), newFx(F.SAT, { 1: .25 }, 2), newFx(F.STEP, null)]; C[51].fx = [newFx(F.APAN, null), newFx(F.EQ, null)];
+  C[G.drums].fx = [newFx(F.EQ, null, 3), newFx(F.COMP, null, 3), newFx(F.TAPE, null, 0), newFx(F.CLIP, null)];
+  C[24].fx = [newFx(F.SAT, { 1: .3 }, 4), newFx(F.CHORUS, null, 1), newFx(F.EQ, null, 2)]; C[26].fx = [newFx(F.DISP, null), newFx(F.MBAND, null, 1), newFx(F.FILTER, null, 2)];
+  C[G.bass].fx = [duck([0, 48]), newFx(F.EQ, null, 0), newFx(F.MBAND, null, 0), newFx(F.LIMIT, null, 3)];
+  C[25].fx = [newFx(F.PHASER, null, 1), newFx(F.TAPE, null, 1)]; C[29].fx = [newFx(F.LFOT, null), newFx(F.EQ, null)]; C[30].fx = [newFx(F.VINYL, null), newFx(F.COMP, null, 1)];
+  C[31].fx = [newFx(F.DELAY, null, 1), newFx(F.CHORUS, null, 3), newFx(F.REVERB, { 0: .25 }, 2)]; C[27].fx = [newFx(F.GATE, null), newFx(F.FILTER, null, 4)];
+  C[G.music].fx = [duck([48]), newFx(F.EQ, null, 1), newFx(F.COMP, null, 0), newFx(F.SAT, { 1: .15 }, 3)];
+  C[G.fx].fx = [newFx(F.GRIN, null, 1), newFx(F.EQ, null), newFx(F.LIMIT, null, 0)];
+  C[R0].fx = [newFx(F.DELAY, null, 2), newFx(F.EQ, null)]; C[R0 + 1].fx = [newFx(F.REVERB, { 0: 1 }, 2), newFx(F.EQ, null)];
+  C[MASTER].fx = [newFx(F.EQ, null, 3), newFx(F.MBAND, null, 1), newFx(F.TAPE, null, 0), newFx(F.LIMIT, null, 1)];
+  for (let c = 0; c < NPADS; c++) if (p.pads[c].sample || p.pads[c].src === 'synth' || p.pads[c].src === 'drum') C[c].vol = Math.min(C[c].vol || .5, .5);
+  // automation: a filter sweep on the break, the reese's macro, the lead's reverb send, the bass group's level
+  const lane = pts => pts.map(([t, v]) => ({ t, v, c: 0 }));
+  for (const s of [0, 1]) { S[s].auto['8.-2.0'] = lane([[0, .35], [4 * BAR, 1], [8 * BAR - 24, .5]]);     S[s].auto['31.-1.3'] = lane([[4 * BAR, 0], [8 * BAR - 24, .45]]); S[s].auto[G.bass + '.-1.0'] = lane([[0, .3], [BAR, .45], [8 * BAR - 24, .45]]); }
+  return p;
+}
+if (typeof module !== 'undefined') module.exports = { FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
   buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };

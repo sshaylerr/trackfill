@@ -7,7 +7,7 @@
    Timing: a lookahead cursor runs 20 ms ahead of the audio and pushes timestamped events into a heap.
    That lets note-triggered duckers start before the note itself (true lookahead, no added latency). */
 
-const TF = { PPQ: 96, BAR: 384, NCH: 83, NPAD: 64, G0: 64, B0: 72, R0: 80, MASTER: 82, NSLOT: 8, SUB: 16,
+const TF = { PPQ: 96, BAR: 384, NCH: 83, NPAD: 64, G0: 64, B0: 72, R0: 80, MASTER: 82, NSLOT: 8, SUB: 64,
   ARP_TAG: 1 << 24, FRZ_TAG: 1 << 20, PREVIEW_TAG: (1 << 20) - 1, CLICK_TAG: (1 << 20) - 2 };
 
 /* ---------- mixer tapers, matched to Live's mixer ----------

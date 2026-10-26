@@ -630,8 +630,8 @@ async function warmBuiltins(proj) {
 }
 function newJungle() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the Liquid jungle kit…');
   setTimeout(async () => { const np = jungleProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Liquid jungle · F minor · 174 BPM'); }, 60); }
-function newStress() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the stress test…');
-  setTimeout(async () => { const np = stressProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Stress test loaded'); }, 60); }
+function newStress(two) { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the stress test…');
+  setTimeout(async () => { const np = two ? stress2Project() : stressProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast(two ? 'Stress test 2 loaded: scene 1 is a full mix, scene 2 the worst case' : 'Stress test loaded'); }, 60); }
 const grSrc = p => p && p.src === 'synth' && p.syn && p.syn.eng === 'gr' && p.syn.gr && p.syn.gr.src || null;   // a granular pad's source sound
 function ensureBuiltinsFor(proj) { if (proj === P) P.pads.forEach((p, i) => { if (p.drum && (p.src === 'drum' || (p.sample && p.sample.startsWith('d:')))) { p.sample = null; p.sample = drumSampleId(i); } });   // drums are rendered again from their settings
   for (const p of proj.pads) { if (p.sample && p.sample.startsWith('b:')) buildBuiltin(p.sample.slice(2)); const g = grSrc(p); if (g && g.startsWith('b:')) buildBuiltin(g.slice(2)); } }
@@ -1480,7 +1480,8 @@ function openMenu() {
     g = h('div', 'g2'); g.append(btn('Haptics: ' + (UI.haptics ? 'On' : 'Off'), () => { UI.haptics = !UI.haptics; savePrefs(); haptic(); closeSheet(); toast(UI.haptics ? 'Haptics on (iPhone needs iOS 18)' : 'Haptics off'); }, 'btn' + (UI.haptics ? ' on' : ''))); st.append(g);
     g = h('div', 'g2'); g.append(confirmBtn('New project', 'Tap again: start fresh', () => { pushUndo('all'); if (T.playing) stop(); P = newProject(); afterLoad(); closeSheet(); toast('New project. Bank A has the built-in kit.'); }),
       confirmBtn('Load demo song', 'Tap again to load demo', () => { pushUndo('all'); if (T.playing) stop(); P = demoProject(); afterLoad(); closeSheet(); }, 'btn')); st.append(g);
-    g = h('div', 'g2'); g.append(confirmBtn('New: Liquid jungle kit', 'Tap again: start it', newJungle, 'btn'), confirmBtn('Stress test project', 'Tap again: load it', newStress, 'btn')); st.append(g);
+    g = h('div', 'g2'); g.append(confirmBtn('New: Liquid jungle kit', 'Tap again: start it', newJungle, 'btn'), confirmBtn('Stress test 2 (song)', 'Tap again: load it', () => newStress(true), 'btn')); st.append(g);
+    g = h('div', 'g2'); g.append(confirmBtn('Stress test (maximum)', 'Tap again: load it', () => newStress(false), 'btn'), h('div')); st.append(g);
     card.append(st); });
 }
 function afterLoad() { setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }

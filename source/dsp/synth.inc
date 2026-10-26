@@ -26,7 +26,7 @@ struct Patch {
   i32 alt; u32 rng; i32 used[NSP]; u32 srcUsed; XVerb* xr;   // srcUsed: bit per source that any route reads (unused LFOs and envelopes are skipped)  // used: which parameters have a modulation route
 };
 struct SVoice {
-  i32 on, pad, tag, held, mono; u32 age; double relIn;      // relIn: samples until the gate closes (< 0: held until released)
+  i32 on, pad, tag, held, mono, dly; u32 age; double relIn;   // dly: samples into its first block before the voice starts (sample-accurate starts)      // relIn: samples until the gate closes (< 0: held until released)
   float semi, semiT, vel, rnd, alt;                         // semi: current pitch (glides toward semiT)
   float ph[3][MAXUNI], sph, bph, dr[3], drT[3];
   i32 st[3]; float ev[3], et[3], ef[3], ampPrev;            // envelopes: stage, value, time in stage, value when the stage began
@@ -110,7 +110,7 @@ EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 ta
   v->semiT = semi; v->semi = (mode >= 1 && hadPrev && P->glide > 0.f) ? from : semi; v->vel = sane(vel, 0.f, 1.f, .8f);
   v->rnd = frnd(&P->rng); P->alt = !P->alt; v->alt = P->alt ? 1.f : -1.f;
   for (i32 i = 0; i < NSP; i++) v->m[i] = P->p[i];
-  if (isFxEng(P)) xEnv(v->m);
+  if (isFxEng(P)) { xEnv(v->m); for (i32 u = 0; u < 4; u++) v->xop[u] = (frnd(&svRng) + 1.f) * 0.5f; v->xsub = (frnd(&svRng) + 1.f) * 0.5f; }   // stacked voices start scattered, so they never add up in phase
   // start phases: each oscillator's own setting, scattered per note (and per unison voice) by Random
   const float rph = P->p[SP_RPH]; auto st = [&](float base) { float x = base + (rph > 0.f ? rph * (frnd(&svRng) + 1.f) * 0.5f : 0.f); return x - floorf_(x); };
   const i32 PHO[3] = { SP_O1H, SP_O2H, SP_O3H }, PHW[2] = { SP_WA9, SP_WB9 }, PHF[4] = { SP_F1H, SP_F2H, SP_F3H, SP_F4H };
@@ -126,7 +126,7 @@ EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 ta
       const float d = (semi >= z->lo && semi <= z->hi) ? -1.f : fabsf_(semi - z->root); if (d < best) { best = d; v->izn = k; } }
     if (v->izn >= 0 && S->d) { const Zone* z = &P->iz[v->izn]; const float off = P->p[SP_IST] * minf(0.5f * S->sr, (float)(z->en - z->st) * 0.5f); v->ipos[0] = v->ipos[1] = z->st + off; } }
   v->gtm = 0.f; v->grng = 0x9e3779b9u ^ (svAge * 2654435761u); v->gph = -1.0;
-  v->ampPrev = 0.f;   // sequencer offsets within a 16-sample block start at the block (under 0.4 ms)
+  v->ampPrev = 0.f; v->dly = delay > 0 ? (delay < MAXN ? delay : MAXN - 1) : 0;   // it starts exactly where the sequencer put it within the block
   return slot;
 }
 static void synTagRelease(i32 tag) { for (i32 i = 0; i < NSV; i++) if (sv[i].on && sv[i].tag == tag) svGate(&sv[i]); }
@@ -424,7 +424,7 @@ static void renderSynth(i32 n) {
       const float col = linmap(m[SP_XNC], -1.f, 1.f); xNlp = onepole(col < 0 ? expmap(1.f + col, 300.f, 20000.f) : 20000.f); xNhp = onepole(col > 0 ? expmap(col, 20.f, 6000.f) : 20.f);
       const float f0n = spPhys(SP_XBF, m[SP_XBF]), f1n = spPhys(SP_XBT, m[SP_XBT]), fcn = clampf(f0n * fexp(flog(f1n / f0n) * sw), 20.f, 0.42f * SR), wd = m[SP_XBQ];
       xBg = ftan(3.14159265f * fcn / SR);
-      if (xNf == 0) { const float Q = expmap(1.f - wd, 0.6f, 14.f); xBk = 1.f / Q; xNL *= sqrtf_(Q) * 0.9f * fexp(flog(1000.f / fcn) * 0.25f); } else xBk = expmap(wd, 0.12f, 1.41421356f);   // a band's power grows with its frequency: half of that is taken back
+      if (xNf == 0) { const float Q = expmap(1.f - wd, 0.6f, 14.f); xBk = 1.f / Q; xNL *= sqrtf_(Q) * 0.9f * fexp(flog(1000.f / fcn) * 0.25f); } else { xBk = expmap(wd, 0.12f, 1.41421356f); xNL *= sqrtf_(xBk / 1.41421356f); }   // a resonant low/high-pass rings louder the narrower it gets: taken back   // a band's power grows with its frequency: half of that is taken back
       if (P->p[SP_XSP] > 0.001f) { if (!P->xr) { P->xr = (XVerb*)tf_malloc(sizeof(XVerb)); if (P->xr) zero(P->xr, sizeof(XVerb)); } xRv = P->xr; if (xRv) { xRv->live = 1; xRv->quiet = 0; } }
       // level: Fade follows the sweep (+ fades in, − fades out), the motion's gate on top; ramped across the block
       const float fd = linmap(m[SP_XLV], -1.f, 1.f); float g = fd >= 0 ? 1.f - fd + fd * sw : 1.f + fd * sw;
@@ -444,7 +444,9 @@ static void renderSynth(i32 n) {
     // filter
     const i32 ftype = isX ? 0 : disc(m[SP_FLT], 7);   // the FX engine has its own filters
     float fc = spPhys(SP_CUT, m[SP_CUT]) * fexp((m[SP_KEY] * v->semi / 12.f + linmap(m[SP_FEN], -1, 1) * 5.f * v->ev[1]) * 0.693147181f);
-    fc = clampf(fc, 20.f, 0.42f * SR); const float fg = ftan(3.14159265f * fc / SR), res = m[SP_RES], shp = m[SP_SHP], fdg = isX ? 1.f : 1.f + m[SP_DRV] * m[SP_DRV] * 15.f, fmk = 1.f / (1.f + m[SP_DRV] * 1.5f);
+    fc = clampf(fc, 20.f, 0.42f * SR);
+    const i32 fOpen = ftype == 1 && fc >= 18000.f && m[SP_RES] < 0.05f && m[SP_DRV] < 0.001f;   // a clean filter wide open does nothing you can hear: skipped
+    if (fOpen && v->fz[0][0] != 0.f) zero(v->fz, sizeof(v->fz)); const float fg = ftan(3.14159265f * fc / SR), res = m[SP_RES], shp = m[SP_SHP], fdg = isX ? 1.f : 1.f + m[SP_DRV] * m[SP_DRV] * 15.f, fmk = 1.f / (1.f + m[SP_DRV] * 1.5f);
     if (ftype == 6 && v->cw < 0) v->cw = 0;
     const float fbk = isX ? 0.f : m[SP_FBK] * 0.9f;
     // sub split (key-tracked LR4 high-pass on the engine) and the sub's matching all-pass
@@ -463,7 +465,8 @@ static void renderSynth(i32 n) {
     const float velA = 1.f - m[SP_VEL] + m[SP_VEL] * v->vel, gain = spPhys(SP_GAN, m[SP_GAN]) * velA * 0.5f;
     const float a0 = v->ampPrev, a1 = v->ev[0] * v->ev[0] * gain; v->ampPrev = a1; const float da = (a1 - a0) / n;
     const i32 chans = stereo ? 2 : 1;
-    for (i32 i = 0; i < n; i++) {
+    const i32 i0 = v->dly; v->dly = 0;
+    for (i32 i = i0; i < n; i++) {
       float amp = a0 + da * (i + 1), sL = 0, sR = 0, suLow = 0;
       if (isSU) {   // the fundamental (pure, mono, exactly its level); harmonics and shape added exactly; drive adds only what it creates, high-passed at the crossover
         const float* sn = fmTab[0][0], ph = v->suph, s1 = fmLook(sn, ph); float hx[2] = { 0, 0 };
@@ -571,7 +574,7 @@ static void renderSynth(i32 n) {
       for (i32 c = 0; c < chans; c++) { float x = io[c] + fbk * fsat(v->fb[c] * 1.5f);
         if (splitOn) { float* h1 = v->hp1[c]; float y = hb[0] * x + h1[0]; h1[0] = hb[1] * x - hb[3] * y + h1[1]; h1[1] = hb[2] * x - hb[4] * y;
           float* h2 = v->hp2[c]; float y2 = hb[0] * y + h2[0]; h2[0] = hb[1] * y - hb[3] * y2 + h2[1]; h2[1] = hb[2] * y - hb[4] * y2; x = y2; }
-        if (ftype > 0) x = flt1(v, c, ftype, x, fg, res, shp, fdg, fc) * fmk; else if (fdg > 1.01f) x = fsat(x * fdg) * fmk;
+        if (ftype > 0 && !fOpen) x = flt1(v, c, ftype, x, fg, res, shp, fdg, fc) * fmk; else if (fdg > 1.01f) x = fsat(x * fdg) * fmk;
         v->fb[c] = x; io[c] = x; }
       if (ftype == 6) v->cw = (v->cw + 1) & (CMB - 1);
       if (!stereo) io[1] = io[0];
@@ -604,7 +607,7 @@ static void renderSynth(i32 n) {
 // Space: diffused by two all-passes, then four delay lines mixed by a Householder matrix, damped and decayed to the RT60 Space asks for.
 // Size scales the room; the tail keeps running after the voices end and stops itself once silent.
 static void xVerbRun(i32 pi, Patch* P, i32 n) {
-  XVerb* X = P->xr; const float sp = P->p[SP_XSP], sc = 0.6f + P->p[SP_XSZ] * 0.9f, rt = 0.4f + 7.f * sp * sp, wet = sp * 0.8f, dmp = onepole(6500.f), sr = SR / 48000.f;
+  XVerb* X = P->xr; const float sp = P->p[SP_XSP], sc = 0.6f + P->p[SP_XSZ] * 0.9f, rt = 0.4f + 7.f * sp * sp, wet = sp * 0.8f / sqrtf_(0.6f + 0.4f * rt), dmp = onepole(6500.f), sr = SR / 48000.f;
   static const float BL[XRV_N] = { 1123, 1559, 1907, 2381 }, AL[2] = { 142, 379 };
   i32 len[XRV_N], al[2]; float gk[XRV_N];
   for (i32 k = 0; k < XRV_N; k++) { len[k] = (i32)(BL[k] * sc * sr); if (len[k] > XRV_MAX - 1) len[k] = XRV_MAX - 1; gk[k] = fexp(-6.9077553f * len[k] / (rt * SR)); }
