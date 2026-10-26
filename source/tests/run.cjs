@@ -32,6 +32,22 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       for (let i = 0, n = Math.ceil(300 * per / 128) + 40; i < n; i++) host.render(128, L, R);
       hits.forEach((h, k) => { worst = Math.max(worst, Math.abs(h - (hits[0] + k * per))); }); }
     ok(worst < 1.5, `the song keeps true tempo: after 300 loops every loop still starts within ${worst.toFixed(2)} samples of where it should`); }
+  console.log('tempo lane');
+  { const Q = M.newProject(true); Q.bpm = 120; Q.pads[0].sample = 'b:kick'; Q.scenes[0].bars = 2; Q.scenes[0].notes = { 0: Array.from({ length: 8 }, (_, k) => ({ t: k * 96, len: 24, p: 0, v: .9 })) };
+    Q.scenes[0].auto[H.TF_TEMPO_KEY] = [{ t: 0, v: 60 / 140, c: 0 }, { t: 768, v: 120 / 140, c: 0 }];
+    const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null); host.msg({ t: 'project', P: Q }); const hits = [], d0 = host.dispatch.bind(host); host.dispatch = (e, off) => { if (e.k === 0) hits.push(host.now + off); return d0(e, off); };
+    host.msg({ t: 'play', scene: 0, loop: 'scene' }); const L = new Float32Array(128), R = new Float32Array(128); for (let i = 0; i < 375 * 4; i++) host.render(128, L, R);
+    const first = 60 * 48000 / (hits[1] - hits[0]), last = 60 * 48000 / (hits[8] - hits[7]), span = hits[8] - hits[0], calc = H.tfSceneSamples(Q, 0, 48000);
+    ok(first > 120 && first < 130 && last > 170 && last < 180 && Math.abs(span - calc) < 64, `a tempo lane ramps the song (${first.toFixed(0)} → ${last.toFixed(0)} BPM) and exports know its length (${calc} vs ${span} samples)`); }
+  console.log('sample edits');
+  { const sr = 48000, n = sr, d = new Int16Array(n); for (let i = 0; i < n; i++) d[i] = Math.round(Math.sin(i * .05) * 8192);   // a 1 s tone at -12 dBFS
+    const play = pad => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, sr, null), Q = M.newProject(true); Q.chans.forEach(c => { c.fx = []; c.vol = H.tfFaderPos(1); });
+      Object.assign(Q.pads[0], { sample: 'tone', mode: 'one', atk: 0, rel: .001, start: 0, end: 1 }, pad); host.msg({ t: 'project', P: Q }); host.msg({ t: 'sample', key: 'tone', data: d, frames: n, ch: 1, sr });
+      host.msg({ t: 'hit', pad: 0, semi: 0, vel: 1, tag: 1 }); const L = new Float32Array(128), R = new Float32Array(128), o = []; for (let i = 0; i < 375 * 1.1; i++) { host.render(128, L, R); o.push(...L); } return o; };
+    const pk = (x, a, b) => { let m = 0; for (let i = Math.round(a * sr); i < Math.round(b * sr); i++) m = Math.max(m, Math.abs(x[i] || 0)); return m; };
+    const base = play({}), gain = play({ gain: 6 }), fades = play({ fin: .2, fout: .2 }), sil = play({ silA: .4, silB: .6 }), norm = play({ norm: true, ng: .891 / .25 });
+    const r6 = 20 * Math.log10(pk(gain, .3, .7) / pk(base, .3, .7)), fi = pk(fades, .02, .05) / pk(base, .3, .7), mid = pk(fades, .4, .6) / pk(base, .4, .6), s0 = pk(sil, .45, .55), s1 = pk(sil, .2, .3), nm = 20 * Math.log10(pk(norm, .3, .7) / pk(base, .3, .7));
+    ok(Math.abs(r6 - 6) < .1 && fi < .3 && Math.abs(mid - 1) < .01 && s0 < 1e-6 && s1 > .1 && Math.abs(nm - 11) < .3, `edits work at playback: gain +${r6.toFixed(1)} dB, fade-in ${fi.toFixed(2)}× near the start and 1× after, silence ${s0.toExponential(0)} inside, normalise +${nm.toFixed(1)} dB`); }
   console.log('analyzer');
   { const run = (gen, sec, sr = 48000) => { const a = new H.TFAnalyzer(sr), L = new Float32Array(128), R = new Float32Array(128); let n = 0;
       for (let b = 0; b < Math.round(sec * sr / 128); b++) { for (let i = 0; i < 128; i++, n++) { const v = gen(n / sr); L[i] = R[i] = v; } a.feed(L, R, 128, 1); } return a.report(1).loud; };
@@ -402,7 +418,7 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const P = require('../js/drumpresets.js').DRUM_PRESETS, ds = P.map(p => p[4]), worst = P.reduce((a, p) => p[4] > a[4] ? p : a, P[0]);
     ok(P.length >= 100 && Math.max(...ds) <= 10, `${P.length} drum types fitted to measured hits (median distance ${ds.slice().sort((a, b) => a - b)[ds.length >> 1].toFixed(1)}, worst ${worst[4]} for ${worst[2]} ${worst[1]})`); }
   { // machines: each classic box has its own kick and snare; machine kits use that box
-    const missing = DR.DRUM_MACHINES.filter(mc => !DR.drumTypesFor('kick', mc).length || !DR.drumTypesFor('snare', mc).length), K = DR.drumKit('Analog Punch', 5);
+    const missing = DR.DRUM_MACHINES.filter(mc => mc !== 'Yours').filter(mc => !DR.drumTypesFor('kick', mc).length || !DR.drumTypesFor('snare', mc).length), K = DR.drumKit('Analog Punch', 5);
     ok(!missing.length && K.pieces[0].d.mach === 'Punch' && K.pieces[1].d.mach === 'Punch', `every machine has kicks and snares (${DR.DRUM_MACHINES.map(mc => DR.DRUM_MACH_N[mc] + ' ' + Object.keys(DR.DRUM_MODS).reduce((a, m) => a + DR.drumTypesFor(m, mc).length, 0)).join(', ')}) and machine kits use their box`); }
   { // knobs: every knob at both ends renders cleanly and changes the sound
     let bad = 0, same = []; for (const mod in DR.DRUM_MODS) { const type = Object.keys(DR.DRUM_MODS[mod].types)[0], c = DR.drumRender(DR.drumDefault(mod, type, 3), {});
@@ -428,6 +444,15 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const L = new Float32Array(128), R = new Float32Array(128); host.msg({ t: 'hit', pad: 30, semi: 0, vel: .9, tag: 1 }); for (let i = 0; i < 40; i++) host.render(128, L, R); const v1 = ex.tf_voices();
     host.msg({ t: 'hit', pad: 31, semi: 0, vel: .9, tag: 2 }); for (let i = 0; i < 8; i++) host.render(128, L, R); const v2 = ex.tf_voices();
     ok(v1 === 1 && v2 === 1, `choke groups: the closed hat cuts the ringing open hat (voices ${v1} → ${v2})`); }
+  console.log('make a drum from a sample');
+  { const DF = require('../js/drumfit.js'), src = DR.drumDefault('kick', 'House', 1); Object.assign(src.k, { tune: .7, decay: .3, drive: .8 }); const x = DR.drumRender(src).L;
+    const cands = Object.entries(DR.DRUM_MODS.kick.types).filter(([, t]) => t.kind === 'kick').map(([id, t]) => ({ id, v: t.v })), t0 = Date.now(); let near = null, steps = 0, done = null;
+    for (const m of DF.dfSteps({ x, kind: 'kick', cands, iters: 6 })) { if (m.t === 'near') near = m; if (m.t === 'step') steps++; if (m.t === 'done') done = m; }
+    ok(near && done && done.d < near.d && steps > 0, `a kick is fitted: nearest type ${near && DR.drumTypeName('kick', near.id)} (distance ${near && near.d}) → ${done && done.d} after ${steps} improvements (${Date.now() - t0} ms)`);
+    const id = DR.drumAddUser('kick', 'Mine', done.p, 'kick'), d = DR.drumDefault('kick', id, 1), r1 = DR.drumRender(d), saved = JSON.parse(JSON.stringify(d));
+    DR.drumRemoveUser('kick', id); const back = DR.drumNormalize(saved), r2 = back && DR.drumRender(back);
+    ok(d.mach === 'Yours' && d.uv && back && back.type === id && r2.L.length === r1.L.length && r2.L.every((v, i) => v === r1.L[i]) && DR.drumMachinesFor('kick').includes('Yours'),
+      `a drum of yours carries its voice: it opens (and sounds the same) where the type isn't in the library`); }
   console.log('time stretch');
   { const k = M.ALL_BUILTINS.find(x => x[0] === 'jbreak'), s = M.buildKitSample(k[0], k[1]), pad = { tempo: 170, wp: ST.stretchDefaults() }, dur = s.frames / s.sr, ratio = 170 / 140;
     const env = (r, n) => { const st = Math.floor(r.L.length / n), o = []; for (let i = 0; i < n; i++) { let m = 0; for (let j = 0; j < st; j++) m = Math.max(m, Math.abs(r.L[i * st + j])); o.push(m); } return o; };

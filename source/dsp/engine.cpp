@@ -135,6 +135,7 @@ struct Voice {
   float vel, relFrom;
   double t, atkN, relStart, relEnd, delay;
   double lpS, lpE, xfN;                    // loop (frames from 'first'): lpE <= 0 means no loop; xfN: crossfade length
+  i32 shp; double fiN, foN, sA, sB;        // edits (sample frames): fade in from the region's start, fade out to its end, a silenced stretch [sA, sB]
   u32 age;
 };
 static Voice vc[NVOICE];
@@ -186,12 +187,18 @@ EX i32 tf_voice_start(i32 ch, i32 sid, i32 delay, float rate, float start, float
     Voice* v = &vc[i];
     v->on = 1; v->s = sid; v->ch = ch; v->post = post; v->tag = tag; v->rev = rev;
     v->pos = 0; v->inc = inc; v->incT = inc; v->gl = 0.f; v->first = first; v->last = last;
-    v->vel = sane(vel, 0.f, 2.f, 0.8f); v->t = 0; v->atkN = atkN; v->relStart = relStart; v->relEnd = relEnd;
-    v->relFrom = envAt(v, relStart); v->delay = delay < 0 ? 0 : delay; v->age = vage++; v->lpS = v->lpE = v->xfN = 0;
+    v->vel = sane(vel, 0.f, 16.f, 0.8f); v->t = 0; v->atkN = atkN; v->relStart = relStart; v->relEnd = relEnd;   // vel above 1: a pad's gain or normalising lifting a quiet sound
+    v->relFrom = envAt(v, relStart); v->delay = delay < 0 ? 0 : delay; v->age = vage++; v->lpS = v->lpE = v->xfN = 0; v->shp = 0;
     return i;
   }
   return -1;
 }
+// a pad's non-destructive edits on a voice just started: fades by position within its region (so each chop slice gets them too)
+// and a silenced stretch (fractions of the whole sample), each edge ramped over 2 ms so nothing clicks
+EX void tf_voice_shape(i32 i, float fin, float fout, float sa, float sb) {
+  if (i < 0 || i >= NVOICE || !vc[i].on) return; Voice* v = &vc[i]; const double sr = samp[v->s].sr, fr = samp[v->s].frames;
+  v->fiN = sane(fin, 0.f, 30.f, 0.f) * sr; v->foN = sane(fout, 0.f, 30.f, 0.f) * sr; v->sA = sb > sa ? sane(sa, 0.f, 1.f, 0.f) * fr : -1.0; v->sB = sb > sa ? sane(sb, 0.f, 1.f, 0.f) * fr : -1.0;
+  v->shp = v->fiN > 0.5 || v->foN > 0.5 || v->sA >= 0.0; }
 // loop a voice just started (index from tf_voice_start): from ls (fraction of the whole sample) to the end of its region, crossfading
 // xf seconds of the material before ls into the loop end so the seam is smooth. A looped voice is held until its gate or a release.
 EX void tf_voice_loop(i32 i, float ls, float xf, float gate, float rel) {
@@ -688,6 +695,9 @@ static void renderVoices(i32 n) {
       if (v->lpE > 0 && v->xfN > 0 && v->pos > v->lpE - v->xfN) {   // loop seam: blend in the same spot one loop earlier (equal power)
         float w = (float)((v->pos - (v->lpE - v->xfN)) / v->xfN), al, ar; readAt(d, st, f - (v->lpE - v->lpS), lo, hi, al, ar);
         const float ga = sqrtf_(1.f - w), gb = sqrtf_(w); yl = yl * ga + al * gb; yr = yr * ga + ar * gb; }
+      if (v->shp) { float g = 1.f; if (v->fiN > 0.5) g *= (float)mind(1.0, (f - first) / v->fiN); if (v->foN > 0.5) g *= (float)mind(1.0, (v->last - f) / v->foN);
+        if (v->sA >= 0.0) { const double rN = 0.002 * samp[v->s].sr, d = f < v->sA ? v->sA - f : f > v->sB ? f - v->sB : 0.0; g *= (float)mind(1.0, d / rN); }
+        e *= g < 0.f ? 0.f : g; }
       L[i] += yl * e; R[i] += yr * e;
       v->pos += v->inc * bm; v->t += 1.0; if (v->lpE > 0 && v->pos >= v->lpE) v->pos -= v->lpE - v->lpS;
       if (v->gl > 0.f) { v->inc += (v->incT - v->inc) * v->gl;
@@ -709,6 +719,8 @@ static i32 ioCh = -1; static float fxio[NSLOT][4];
 EX void tf_fxio_ch(i32 c) { ioCh = c >= 0 && c < NCH ? c : -1; zero(fxio, sizeof(fxio)); }
 EX float* tf_fxio() { return &fxio[0][0]; }
 static inline void ioPeak(float* o, const float* L, const float* R, i32 n) { for (i32 i = 0; i < n; i++) { const float a = fabsf_(L[i]), b = fabsf_(R[i]); if (a > o[0]) o[0] = a; if (b > o[1]) o[1] = b; } }
+static i32 stemSrc = -1;
+EX void tf_stem(i32 c) { stemSrc = c >= 0 && c < NCH ? c : -1; }
 static void processChan(i32 c, i32 n) {
   Chan* C = &chs[c]; float *L = inL[c], *R = inR[c]; const i32 hasPst = c < NPAD && dPst[c];
   float mx = 0; if (dIn[c]) for (i32 i = 0; i < n; i++) { float a = fabsf_(L[i]) + fabsf_(R[i]); if (a > mx) mx = a; }
@@ -742,6 +754,7 @@ static void processChan(i32 c, i32 n) {
   for (i32 i = 0; i < n; i++) { keyL[c][i] = L[i]; keyR[c][i] = R[i]; }
   const float a = onepole(160.f);   // ~1 ms smoothing on fader, pan, sends, mute
   float *dL, *dR; if (c == MASTER) { dL = oL; dR = oR; } else { dL = inL[C->out]; dR = inR[C->out]; dIn[C->out] = 1; }
+  const i32 stemOff = stemSrc >= 0 && C->out == MASTER && c != MASTER && c != stemSrc;   // stem export: only one source reaches the master (everything else still runs: sends, groups, returns)
   const i32 sends = c < R0;
   // pan: constant power on sine/cosine curves, 0 dB at the centre, +3 dB on the near side when hard over (as Live's mixer)
   i32 still = fabsf_(C->pan - C->cp) < 1e-6f; if (still) C->cp = C->pan;
@@ -751,7 +764,7 @@ static void processChan(i32 c, i32 n) {
     if (!still) { C->cp += (C->pan - C->cp) * a; const float th = (C->cp + 1.f) * 0.785398163f; pl = 1.41421356f * fcos(th); pr = 1.41421356f * fsin(th); }
     float g = C->cv * C->cm, gl = g * pl, gr = g * pr;
     float l = L[i] * gl, r = R[i] * gr;
-    dL[i] += l; dR[i] += r;
+    if (!stemOff) { dL[i] += l; dR[i] += r; }
     const float al = fabsf_(l), ar = fabsf_(r); if (al > chPk[c * 2]) chPk[c * 2] = al; if (ar > chPk[c * 2 + 1]) chPk[c * 2 + 1] = ar;
     if (sends && (C->sa > 0.f || C->ca > 1e-7f || C->sb > 0.f || C->cb > 1e-7f)) { dIn[R0] = dIn[R0 + 1] = 1; C->ca += (C->sa - C->ca) * a; C->cb += (C->sb - C->cb) * a; inL[R0][i] += l * C->ca; inR[R0][i] += r * C->ca; inL[R0 + 1][i] += l * C->cb; inR[R0 + 1][i] += r * C->cb; }
   }

@@ -353,6 +353,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .scopebox span,.scopebox i{position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .scopebox i{flex:none;display:flex;color:var(--mute)} .scopebox i svg{width:14px;height:14px;fill:currentColor}
 .anbox{height:min(240px,34vh)} .anbox canvas,.fxvis canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.projli{display:flex;align-items:center;gap:10px} .projli .lt{flex:1;min-width:0} .pdots{display:flex;gap:3px;flex:none} .pdots i{width:7px;height:7px;border-radius:2px;display:block}
 .anstack{display:flex;flex-direction:column;gap:6px} .anp{display:flex;flex-direction:column;gap:4px} .anh{display:flex;align-items:center;gap:6px;height:30px}
 .anTitle{flex:1;height:30px;display:flex;align-items:center;gap:6px;background:none;border:0;color:var(--ink);font:700 12px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;padding:0 2px;text-align:left}
 .anTitle .car{color:var(--mute);width:12px} .anp:not(.open) .anTitle{color:var(--mute)} .anh .key.sm{height:26px;min-width:52px}
@@ -427,6 +428,9 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .shTitle{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 -10px 6px;padding:0 6px 0 12px;height:38px;background:var(--panel);border-bottom:1px solid var(--line)}
 .shTitle span{font:600 12px var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .shTitle .btn{height:28px;font-size:12px}
+.fitlcd{background:var(--body2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.fittxt{font:500 12px var(--font-lcd);color:var(--ink);height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fitbar{height:4px;border-radius:2px;background:var(--line);overflow:hidden}.fitbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
 /* inside a menu, choices are one per line, like a hardware screen list (grids marked .hrow stay side by side) */
 #sheet .card .g2:not(.hrow),#sheet .card .g3:not(.hrow),#sheet .card .g4:not(.hrow){display:flex;flex-direction:column;gap:0;border-top:1px solid var(--line)}
 #sheet .card .stack{gap:4px} #sheet .card .sec{margin:12px 2px 4px;color:var(--dim);font-size:10.5px}
@@ -629,9 +633,9 @@ async function warmBuiltins(proj) {
     await new Promise(r => setTimeout(r, 0)); }   // let the screen breathe between sounds
 }
 function newJungle() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the Liquid jungle kit…');
-  setTimeout(async () => { const np = jungleProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast('Liquid jungle · F minor · 174 BPM'); }, 60); }
+  setTimeout(async () => { const np = jungleProject(); await warmBuiltins(np); await projNew(np); renderAll(); toast('Liquid jungle · F minor · 174 BPM'); }, 60); }
 function newStress(two) { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the stress test…');
-  setTimeout(async () => { const np = two ? stress2Project() : stressProject(); await warmBuiltins(np); P = np; afterLoad(); UI.bank = 0; renderAll(); toast(two ? 'Stress test 2 loaded: scene 1 is a full mix, scene 2 the worst case' : 'Stress test loaded'); }, 60); }
+  setTimeout(async () => { const np = two ? stress2Project() : stressProject(); await warmBuiltins(np); await projNew(np); renderAll(); toast(two ? 'Stress test 2 loaded: scene 1 is a full mix, scene 2 the worst case' : 'Stress test loaded'); }, 60); }
 const grSrc = p => p && p.src === 'synth' && p.syn && p.syn.eng === 'gr' && p.syn.gr && p.syn.gr.src || null;   // a granular pad's source sound
 function ensureBuiltinsFor(proj) { if (proj === P) P.pads.forEach((p, i) => { if (p.drum && (p.src === 'drum' || (p.sample && p.sample.startsWith('d:')))) { p.sample = null; p.sample = drumSampleId(i); } });   // drums are rendered again from their settings
   for (const p of proj.pads) { if (p.sample && p.sample.startsWith('b:')) buildBuiltin(p.sample.slice(2)); const g = grSrc(p); if (g && g.startsWith('b:')) buildBuiltin(g.slice(2)); } }
@@ -651,16 +655,89 @@ const usedSampleIds = () => { const u = new Set(); for (const p of P.pads) { if 
 
 /* ================= storage ================= */
 const DB = { db: null, ok: false,
-  async open() { try { this.db = await new Promise((res, rej) => { const r = indexedDB.open('trackfill', 1); r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('kv'); d.createObjectStore('samples'); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); this.ok = true; } catch (e) { this.db = null; this.ok = false; } },
+  async open() { try { this.db = await new Promise((res, rej) => { const r = indexedDB.open('trackfill', 2); r.onupgradeneeded = () => { const d = r.result; for (const n of ['kv', 'samples', 'projects', 'pmeta']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); }; r.onsuccess = () => { const d = r.result; d.onversionchange = () => d.close(); res(d); }; r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error('blocked')); }); this.ok = true; } catch (e) { this.db = null; this.ok = false; } },
   req(store, mode, fn) { return new Promise(res => { if (!this.db) return res(undefined); try { const tx = this.db.transaction(store, mode), q = fn(tx.objectStore(store)); tx.oncomplete = () => res(q && q.result); tx.onerror = () => res(undefined); } catch (e) { res(undefined); } }); },
   get(store, key) { return this.req(store, 'readonly', s => s.get(key)); },
   put(store, key, val) { return this.req(store, 'readwrite', s => s.put(val, key)); },
   del(store, key) { return this.req(store, 'readwrite', s => s.delete(key)); },
   all(store) { return this.req(store, 'readonly', s => s.getAll()).then(r => r || []); } };
+/* ================= projects: autosaved songs, snapshots, templates =================
+   'projects' holds each song (id → its data) and its snapshots ('snap:' + id → the last 5 versions, taken when it is opened);
+   'pmeta' holds what the list shows (name, tempo, key, dates) so the list never has to load whole songs. Templates are songs marked as such. */
+const PROJ = { id: null, created: 0 };
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const projScenes = p => p.scenes.map((s, i) => Object.values(s.notes || {}).some(a => a && a.length) ? i : -1).filter(i => i >= 0);
+function projMeta(p, kind = 'project', extra = {}) { return Object.assign({ name: p.name || 'Untitled', kind, bpm: p.bpm, key: p.key, scenes: projScenes(p).length, cols: projScenes(p).slice(0, 8).map(i => (p.scenes[i].color ?? i) % 8) }, extra); }
+async function projSave() { if (!P || !PROJ.id || !DB.ok) return; const now = Date.now(); await DB.put('projects', PROJ.id, { id: PROJ.id, data: P });
+  await DB.put('pmeta', PROJ.id, Object.assign(projMeta(P), { id: PROJ.id, created: PROJ.created || now, modified: now })); }
+async function projList(kind = 'project') { return (await DB.all('pmeta')).filter(m => m && m.kind === kind).sort((a, b) => (b.modified || 0) - (a.modified || 0)); }
+// a new record from a song: returns its id (the song is stored as it is now)
+async function projCreate(p, kind = 'project') { const id = newId(), now = Date.now(); await DB.put('projects', id, { id, data: JSON.parse(JSON.stringify(p)) });
+  await DB.put('pmeta', id, Object.assign(projMeta(p, kind), { id, created: now, modified: now })); return id; }
+// open one: the current one is saved first; the version being opened joins its snapshots (the last 5 are kept)
+async function projOpen(id, quiet) { const rec = await DB.get('projects', id), meta = await DB.get('pmeta', id); if (!rec || !rec.data) { toast('That project could not be read'); return false; }
+  if (T.playing) stop(); if (PROJ.id && PROJ.id !== id) await projSave();
+  const sk = 'snap:' + id, sn = (await DB.get('projects', sk)) || { id: sk, list: [] };
+  if (!sn.list.length || sn.list[sn.list.length - 1].at !== (meta && meta.modified)) { sn.list.push({ at: meta ? meta.modified : Date.now(), data: rec.data }); while (sn.list.length > 5) sn.list.shift(); await DB.put('projects', sk, sn); }
+  PROJ.id = id; PROJ.created = meta ? meta.created : Date.now(); await DB.put('kv', 'current', id);
+  UNDO.length = 0; REDO.length = 0; P = migrate(rec.data); await warmBuiltins(P); afterLoad(); if (!quiet) toast('Opened ' + (P.name || 'project')); return true; }
+// start a new song from a project object (a template, the demo, a kit): it becomes a new project and opens
+async function projNew(p, name) { if (name) p.name = name; const id = await projCreate(p); await projOpen(id, true); toast((p.name || 'New project') + ' · new project'); }
+async function projBoot() {
+  let cur = await DB.get('kv', 'current'), rec = cur && await DB.get('projects', cur);
+  if (!rec) { const old = await DB.get('kv', 'project');   // the single project from before projects existed becomes the first one
+    const p = old ? migrate(old) : demoProject(); cur = await projCreate(p); await DB.put('kv', 'current', cur); if (old) DB.del('kv', 'project'); rec = await DB.get('projects', cur); }
+  const meta = await DB.get('pmeta', cur); PROJ.id = cur; PROJ.created = meta ? meta.created : Date.now();
+  return migrate(rec.data); }
+// samples no project, snapshot or template uses any more are removed (built-in sounds are never stored)
+async function projCleanSamples() { const used = new Set(), add = p => { if (!p) return; for (const pd of p.pads || []) { if (pd.sample) used.add(pd.sample); if (pd.frz) for (const k in pd.frz) used.add(pd.frz[k]); if (pd.syn) { if (pd.syn.gr && pd.syn.gr.src) used.add(pd.syn.gr.src); if (pd.syn.wt) { used.add(pd.syn.wt.a); used.add(pd.syn.wt.b); } } if (pd.stx) used.add(pd.stx); } };
+  for (const m of await DB.all('pmeta')) { const r = await DB.get('projects', m.id); add(r && r.data); const sn = await DB.get('projects', 'snap:' + m.id); if (sn) sn.list.forEach(x => add(x.data)); }
+  add(P); for (const id of usedSampleIds()) used.add(id); let n = 0;
+  for (const [id, sm] of SAMPLES) if (!sm.builtin && !sm.ins && !id.startsWith('b:') && !id.startsWith('d:') && !id.startsWith('w:') && !id.startsWith('i:') && !used.has(id) && !sm.drum) { SAMPLES.delete(id); DB.del('samples', id); n++; } return n; }
+const ago = t => { const s = (Date.now() - t) / 1000; return s < 60 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago' : s < 86400 ? Math.round(s / 3600) + ' h ago' : s < 604800 ? Math.round(s / 86400) + ' d ago' : new Date(t).toLocaleDateString(); };
+const projSub = m => [m.bpm ? Math.round(m.bpm) + ' BPM' : '', m.key && typeof keyName === 'function' ? keyName(m.key) : '', m.scenes ? m.scenes + (m.scenes === 1 ? ' scene' : ' scenes') : 'empty', ago(m.modified)].filter(Boolean).join(' · ');
+function projRow(m, onTap, cur) { const li = h('div', 'li projli' + (cur ? ' on' : '')); const dots = (m.cols || []).map(c => `<i style="background:${PAD_COLORS[c] || '#888'}"></i>`).join('');
+  li.innerHTML = `<div class="lt"><b>${esc(m.name)}</b><span>${esc(projSub(m))}</span></div><div class="pdots">${dots}</div>`; li.onclick = onTap; return li; }
+function textSheet(title, value, onOk, okLabel = 'Save') { openSheet(title, card => { const inp = h('input', 'textin'); inp.value = value || ''; inp.maxLength = 30; const row = h('div', 'saveRow');
+  const go = () => { const v = inp.value.trim(); if (!v) return; closeSheet(); onOk(v); }; inp.onkeydown = e => { if (e.key === 'Enter') go(); }; row.append(inp, btn(okLabel, go, 'btn on')); card.append(row); setTimeout(() => inp.focus(), 50); }); }
+async function openProjects() {
+  await projSave(); const list = await projList(), tpl = await projList('template'); let est = null; try { est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null; } catch (e) {}
+  openSheet('Projects', card => { const st = h('div', 'stack'); card.append(st);
+    const g = h('div', 'g2'); g.append(btn('New project', () => { closeSheet(); openNewFrom(tpl); }, 'btn hot'), btn('Save as template', () => textSheet('Template name', P.name, async n => { await projCreate(Object.assign(JSON.parse(JSON.stringify(P)), { name: n }), 'template'); toast('Template saved: ' + n); }))); st.append(g);
+    st.append(h('div', 'sec', 'Your projects')); const l = h('div', 'list');
+    for (const m of list) l.append(projRow(m, () => m.id === PROJ.id ? (closeSheet(), projActions(m)) : (closeSheet(), projOpen(m.id)), m.id === PROJ.id)); st.append(l);
+    st.append(h('p', 'note', 'Tap a project to open it; tap the open one for rename, copy, snapshots and more. Everything saves as you work.'));
+    st.append(h('div', 'sec', 'Backup')); const b = h('div', 'g2'); b.append(btn('Back up everything', backupAll), btn('Restore a backup', () => $('#fileProj').click())); st.append(b);
+    if (est && est.usage != null) st.append(h('p', 'note', `Using ${(est.usage / 1048576).toFixed(est.usage > 1e8 ? 0 : 1)} MB of storage on this device.`)); }); }
+function openNewFrom(tpl) { openSheet('New project', card => { const st = h('div', 'stack'); card.append(st); const l = h('div', 'list');
+    const add = (n, sub, f) => { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(n)}</b><span>${esc(sub)}</span></div>`; li.onclick = () => { closeSheet(); f(); }; l.append(li); };
+    add('Empty', 'Built-in kit on bank A, nothing else', () => projNew(newProject(), 'New project')); add('Liquid jungle kit', 'Chopped break, keys and the jungle kit', () => { const p = jungleProject(); projNew(p, 'Jungle ' + new Date().toLocaleDateString()); });
+    add('Demo song', 'A finished example to pull apart', () => projNew(demoProject()));
+    st.append(h('div', 'sec', 'Start from')); st.append(l);
+    if (tpl.length) { st.append(h('div', 'sec', 'Your templates')); const t = h('div', 'list');
+      for (const m of tpl) { const li = projRow(m, async () => { closeSheet(); const r = await DB.get('projects', m.id); if (r) projNew(migrate(r.data), m.name + ' ' + new Date().toLocaleDateString()); }); t.append(li); } st.append(t);
+      const d = h('div', 'g2'); d.append(btn('Delete a template…', () => { closeSheet(); openTplDelete(tpl); })); st.append(d); } }); }
+function openTplDelete(tpl) { openSheet('Delete a template', card => { const l = h('div', 'list'); for (const m of tpl) { const li = projRow(m, () => {}); const x = confirmBtn('Delete', 'Tap again', async () => { await DB.del('projects', m.id); await DB.del('pmeta', m.id); await projCleanSamples(); closeSheet(); toast('Template deleted'); }); x.classList.add('sm'); li.append(x); l.append(li); } card.append(l); }); }
+function projActions(m) { openSheet(m.name, card => { const st = h('div', 'stack'); card.append(st);
+  const g = h('div', 'g2'); g.append(btn('Rename', () => textSheet('Rename project', P.name, n => { pushUndo('song'); P.name = n; markDirty(); renderAll(); })), btn('Duplicate', async () => { closeSheet(); await projSave(); await projNew(JSON.parse(JSON.stringify(P)), (P.name || 'Project') + ' copy'); }),
+    btn('Snapshots', () => openSnapshots(m.id)), btn('Share project file', () => { closeSheet(); saveBackup(); }), btn('Save as template', () => textSheet('Template name', P.name, async n => { await projCreate(Object.assign(JSON.parse(JSON.stringify(P)), { name: n }), 'template'); toast('Template saved: ' + n); })));
+  st.append(g); const del = confirmBtn('Delete this project', 'Tap again: delete it for good', async () => { closeSheet(); const others = (await projList()).filter(x => x.id !== m.id);
+      await DB.del('projects', m.id); await DB.del('projects', 'snap:' + m.id); await DB.del('pmeta', m.id); PROJ.id = null;
+      if (others.length) await projOpen(others[0].id, true); else await projNew(newProject(), 'New project'); await projCleanSamples(); toast('Deleted ' + m.name); });
+  st.append(del); }); }
+async function openSnapshots(id) { const sn = await DB.get('projects', 'snap:' + id); const list = sn ? sn.list.slice().reverse() : [];
+  openSheet('Snapshots', card => { const st = h('div', 'stack'); card.append(st); if (!list.length) { st.append(h('p', 'note', 'No snapshots yet: one is kept each time you open this project.')); return; }
+    st.append(h('p', 'note', 'The version you opened, each of the last 5 times. Opening one makes it a new project, so nothing is lost.')); const l = h('div', 'list');
+    list.forEach(x => { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${new Date(x.at).toLocaleString()}</b><span>${esc(projSub(Object.assign(projMeta(x.data), { modified: x.at })))}</span></div>`;
+      li.onclick = () => { closeSheet(); projNew(migrate(JSON.parse(JSON.stringify(x.data))), (x.data.name || 'Project') + ' (snapshot)'); }; l.append(li); }); st.append(l); }); }
+async function backupAll() { await projSave(); const projects = [], samples = {};
+  for (const m of await DB.all('pmeta')) { const r = await DB.get('projects', m.id); if (r) projects.push({ meta: m, data: r.data }); }
+  for (const [id, s] of SAMPLES) if (!s.builtin && !s.drum && !id.startsWith('b:') && !id.startsWith('d:') && !id.startsWith('i:') && !id.startsWith('w:')) samples[id] = { name: s.name, sr: s.sr, ch: s.ch, frz: !!s.frz, data: i16ToB64(s.data) };
+  await saveFile('trackfill-backup-' + new Date().toISOString().slice(0, 10) + '.trackfill.json', JSON.stringify({ format: 'trackfill-all', version: PROJECT_VERSION, saved: new Date().toISOString(), projects, samples })); }
 let saveTimer = 0;
 function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
-function saveNow() { clearTimeout(saveTimer); if (P) DB.put('kv', 'project', P); }
-function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP }); }
+function saveNow() { clearTimeout(saveTimer); if (P) projSave(); }
+function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -702,7 +779,10 @@ function syncScene(i) { const sc = P.scenes[i]; send({ t: 'scene', i, v: sc }); 
 function ensureIns(key) { if (!key || !key.startsWith('i:')) return; if (!SAMPLES.has(key)) { const s = insSample(key); if (!s) return; SAMPLES.set(key, s); }
   if (ENG.node && !ENG.sent.has('Z' + key)) { send({ t: 'ins', key, zones: insZones(key) }); ENG.sent.add('Z' + key); } ensureSample(key); }
 const insOf = p => p && p.src === 'synth' && p.syn && p.syn.eng === 'ins' && p.syn.ins || null;
-function syncPad(i) { const p = P.pads[i]; ensureIns(insOf(p)); ensureSample(p.sample); if (p.stx) ensureSample(p.stx); if (typeof stretchCheck === 'function') stretchCheck(i); const gs = grSrc(p); if (gs) { if (gs.startsWith('b:')) buildBuiltin(gs.slice(2)); ensureSample(gs); } for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
+// Normalise (an edit, never applied to the file): the peak of the pad's region, from a per-sample map of block peaks made once
+function samplePeakMap(s) { if (s._pk) return s._pk; const B = 1024, ch = s.ch, n = Math.ceil(s.frames / B), pk = new Float32Array(n); for (let b = 0; b < n; b++) { let m = 0; const e = Math.min(s.frames, (b + 1) * B) * ch; for (let i = b * B * ch; i < e; i++) { const v = s.data[i] < 0 ? -s.data[i] : s.data[i]; if (v > m) m = v; } pk[b] = m / 32768; } s._pk = pk; return pk; }
+function normGain(p) { const s = SAMPLES.get(p.sample); if (!s || !s.data) return 1; const pk = samplePeakMap(s), a = Math.floor(p.start * s.frames / 1024), b = Math.min(pk.length - 1, Math.ceil(p.end * s.frames / 1024)); let m = 0; for (let k = a; k <= b; k++) if (pk[k] > m) m = pk[k]; return m > 1e-4 ? Math.min(16, 0.891 / m) : 1; }
+function syncPad(i) { const p = P.pads[i]; if (p.norm) p.ng = normGain(p); ensureIns(insOf(p)); ensureSample(p.sample); if (p.stx) ensureSample(p.stx); if (typeof stretchCheck === 'function') stretchCheck(i); const gs = grSrc(p); if (gs) { if (gs.startsWith('b:')) buildBuiltin(gs.slice(2)); ensureSample(gs); } for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
 function syncChan(c) { send({ t: 'chan', i: c, v: P.chans[c] }); }
 function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing } }); updateTransport(); if (typeof stretchAllSoon === 'function') stretchAllSoon(); }   // stretched pads follow the tempo
 function syncProject() { if (!ENG.node) return; for (const p of P.pads) ensureIns(insOf(p)); for (const id of usedSampleIds()) ensureSample(id); for (const k of tableKeys()) ensureTable(k); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
@@ -783,11 +863,11 @@ function onEngine(m) {
   else if (m.t === 'oom') toast('Out of memory: remove unused sounds or effects, or freeze pads');
 }
 async function getModule() { if (!wasmModule) wasmModule = await WebAssembly.compile(WASM_BYTES); return wasmModule; }
-async function renderOffline(order, tail, tap, onProgress) {
+async function renderOffline(order, tail, tap, onProgress, opts = {}) {
   const mod = await getModule(), samples = new Map();
   for (const id of usedSampleIds()) { const s = SAMPLES.get(id); if (s) samples.set(id, s); }
   const tables = new Map(); for (const k of tableKeys()) { const t = tableFor(k); if (t) tables.set(k, t); }
-  return tfRenderOffline(mod, P, samples, { sr: 48000, order, tail, tap, onProgress, tables });
+  return tfRenderOffline(mod, opts.P || P, samples, { sr: opts.sr || 48000, order, tail, tap, onProgress, tables, stem: opts.stem });
 }
 function audition(pi, semi = 0) { if (!ENG.node) return; const pad = P.pads[pi]; if (hasSound(pad)) { if (pad.sample) ensureSample(pad.sample); send({ t: 'hit', pad: pi, semi, vel: .8, gate: .25, tag: 0 }); } }
 function previewSample(id) { ensureAudio(); ensureSample(id); send({ t: 'preview', key: id }); }
@@ -892,6 +972,7 @@ const SOUNDP = [{ label: 'Cutoff', short: 'Cutoff', def: 1, fmt: v => { const f 
   { label: 'Resonance', short: 'Reso', def: .08, fmt: v => (.7 + v * v * 18).toFixed(1), step: .005, coarse: .03 }];
 function keyMeta(key) {
   const { c, s, i } = tfParseKey(key);
+  if (s === -4) return { label: 'Tempo', short: 'Tempo', def: tfTempoV(P.bpm), step: 1 / 1400, coarse: 1 / 140, fmt: v => tfTempoBpm(v).toFixed(1) + ' BPM' };
   if (s === -1) return STRIP[i];
   if (s === -2 && i === 2) { const r = (P.pads[c] && P.pads[c].bendR) || 2; return { label: 'Pitch bend', short: 'Bend', def: .5, bipolar: true, step: .002, coarse: .02, fmt: v => { const st = (v * 2 - 1) * r; return (st > 0 ? '+' : '') + st.toFixed(Math.abs(st) < 10 ? 2 : 1) + ' st'; } }; }
   if (s === -2) return SOUNDP[i];
@@ -1049,6 +1130,22 @@ function padPress(e, down, up) { e.preventDefault(); const old = PADPTR.get(e.po
 function padRelease(e) { const f = PADPTR.get(e.pointerId); if (f) { PADPTR.delete(e.pointerId); f(); }
   const el = e.target; try { if (el && el.hasPointerCapture && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId); } catch (_) {} }   // and never leave any capture behind
 addEventListener('pointerup', padRelease, true); addEventListener('pointercancel', padRelease, true);
+/* The pad grid listens to touches itself, not each pad: every finger is tracked by its own touch id from the moment it lands,
+   and a touch in a gap or just past an edge goes to the nearest pad (gaps were about a tenth of the grid: fast hits there played
+   nothing). Raw touch events are also the most direct path WebKit has; the mouse still works through pointer events. */
+function bindPadGrid(grid, sel = '.pad', down = c => padDown(c), up = c => padUp(c), slop = 24) {
+  let rects = null; const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { rects = null; }) : null; if (ro) ro.observe(grid);
+  const cellAt = (x, y) => { if (!rects) rects = [...grid.querySelectorAll(sel)].map(p => [+p.dataset.cell, p.getBoundingClientRect()]); let best = -1, bd = 1e9;
+    for (const [c, r] of rects) { const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0, dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = c; } }
+    return bd <= slop * slop ? best : -1; };
+  grid.addEventListener('touchstart', e => { e.preventDefault(); ensureAudio();
+    for (const t of e.changedTouches) { const c = cellAt(t.clientX, t.clientY); if (c < 0) continue; padPressId('t' + t.identifier, () => down(c), () => up(c)); } }, { passive: false });
+  const end = e => { e.preventDefault(); for (const t of e.changedTouches) padReleaseId('t' + t.identifier); };
+  grid.addEventListener('touchend', end, { passive: false }); grid.addEventListener('touchcancel', end, { passive: false });
+  grid.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') return; const c = cellAt(e.clientX, e.clientY); if (c < 0) return; padPress(e, () => down(c), () => up(c)); });
+}
+function padPressId(id, down, up) { const old = PADPTR.get(id); if (old) { PADPTR.delete(id); old(); } PADPTR.set(id, up); down(); }
+function padReleaseId(id) { const f = PADPTR.get(id); if (f) { PADPTR.delete(id); f(); } }
 const releaseAllPads = () => { for (const f of PADPTR.values()) f(); PADPTR.clear(); };
 addEventListener('blur', releaseAllPads); document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAllPads(); });
 // pads under a finger (or a key) stay pressed down until let go; playback only flashes them
@@ -1465,23 +1562,21 @@ function openMonitor() {
 }
 function openMenu() {
   openSheet(P.name || 'Project', card => { const st = h('div', 'stack');
+    st.append(btn('Projects · ' + esc(P.name || 'Untitled'), () => { closeSheet(); openProjects(); }, 'btn hot'));
     const pg = h('div', 'g2'); pg.append(btn('Panic: stop all sound', () => { closeSheet(); panic(); }, 'btn warn'), btn('Engine check', () => { closeSheet(); openDiag(); })); st.append(pg);
     st.append(btn('Monitoring: ' + (UI.mon && (UI.mon.mode || UI.mon.phones) ? [UI.mon.mode ? MON_MODES[UI.mon.mode] : '', UI.mon.phones].filter(Boolean).join(' · ') : 'Off'), () => { closeSheet(); openMonitor(); }, 'btn' + (UI.mon && (UI.mon.mode || UI.mon.phones) ? ' on' : '')));
     const inp = h('input', 'textin'); inp.value = P.name; inp.maxLength = 30; inp.setAttribute('aria-label', 'Project name'); inp.onfocus = () => pushUndo('song'); inp.oninput = () => { P.name = inp.value; markDirty(); }; st.append(inp);
-    st.append(h('div', 'sec', 'Export')); let g = h('div', 'g2'); g.append(btn('Export song', () => exportAudio('song')), btn('Export scene ' + (UI.scene + 1), () => exportAudio('scene'))); st.append(g);
+    st.append(h('div', 'sec', 'Export')); let g = h('div', 'g2'); g.append(btn('Export…', () => { closeSheet(); openExport(); }), btn('Projects…', () => { closeSheet(); openProjects(); })); st.append(g);
     st.append('');
-    st.append(h('div', 'sec', 'Backup')); g = h('div', 'g2'); g.append(btn('Save backup file', saveBackup), btn('Open backup file', () => $('#fileProj').click())); st.append(g);
-    st.append((DB.ok ? '' : h('p', 'note', 'This browser isn\'t keeping your work: save a backup.')));
+    st.append((DB.ok ? '' : h('p', 'note', 'This browser isn\'t keeping your work: save a backup from Projects.')));
     st.append(h('div', 'sec', 'Look')); const tg = h('div', 'g4');
     for (const th of THEMES) { const b = btn(`<i class="swd" style="--sa:${th.accent};--sb:${th.body ? th.body[2] : '#3b3b41'}"></i>${th.name}`, () => { UI.theme = th.id; applyTheme(); savePrefs(); closeSheet(); openMenu(); }, 'btn theme' + (UI.theme === th.id ? ' on' : '')); tg.append(b); }
     st.append(tg); g = h('div', 'g3'); for (const [v, l] of [['dark', 'Pads: dark'], ['tint', 'Pads: tinted'], ['bright', 'Pads: colour']]) g.append(btn(l, () => { UI.padStyle = v; applyTheme(); savePrefs(); closeSheet(); openMenu(); }, 'btn' + ((UI.padStyle || 'dark') === v ? ' on' : '')));
     st.append(g);
     st.append(h('div', 'sec', 'Edit')); g = h('div', 'g2'); g.append(btn('Redo', redo), btn(UI.mirror ? 'Move d-pad left' : 'Move d-pad right', () => { UI.mirror = !UI.mirror; $('#panel').classList.toggle('mirror', UI.mirror); savePrefs(); closeSheet(); })); st.append(g);
     g = h('div', 'g2'); g.append(btn('Haptics: ' + (UI.haptics ? 'On' : 'Off'), () => { UI.haptics = !UI.haptics; savePrefs(); haptic(); closeSheet(); toast(UI.haptics ? 'Haptics on (iPhone needs iOS 18)' : 'Haptics off'); }, 'btn' + (UI.haptics ? ' on' : ''))); st.append(g);
-    g = h('div', 'g2'); g.append(confirmBtn('New project', 'Tap again: start fresh', () => { pushUndo('all'); if (T.playing) stop(); P = newProject(); afterLoad(); closeSheet(); toast('New project. Bank A has the built-in kit.'); }),
-      confirmBtn('Load demo song', 'Tap again to load demo', () => { pushUndo('all'); if (T.playing) stop(); P = demoProject(); afterLoad(); closeSheet(); }, 'btn')); st.append(g);
-    g = h('div', 'g2'); g.append(confirmBtn('New: Liquid jungle kit', 'Tap again: start it', newJungle, 'btn'), confirmBtn('Stress test 2 (song)', 'Tap again: load it', () => newStress(true), 'btn')); st.append(g);
-    g = h('div', 'g2'); g.append(confirmBtn('Stress test (maximum)', 'Tap again: load it', () => newStress(false), 'btn'), h('div')); st.append(g);
+    st.append(h('div', 'sec', 'Testing')); g = h('div', 'g2'); g.append(btn('Stress test 2 (song)', () => newStress(true)), btn('Stress test (maximum)', () => newStress(false))); st.append(g);
+    st.append(h('p', 'note', 'Each opens as a new project; your work stays in Projects.'));
     card.append(st); });
 }
 function afterLoad() { setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
@@ -1534,7 +1629,7 @@ let dlP = null; function capDownloads() { if (!dlP) dlP = (window.claude && wind
 // On its own website (the home-screen app) there is no Claude save service: the file goes to the share sheet (Save to Files, AirDrop…),
 // which iPhone only opens from a tap, so a long export first shows a "ready" sheet with the button to tap.
 function shareFile(filename, data) {
-  const type = /\.wav$/.test(filename) ? 'audio/wav' : /\.zip$/.test(filename) ? 'application/zip' : 'application/json', blob = data instanceof Blob ? data : new Blob([data], { type });
+  const type = /\.wav$/.test(filename) ? 'audio/wav' : /\.mp3$/.test(filename) ? 'audio/mpeg' : /\.zip$/.test(filename) ? 'application/zip' : 'application/json', blob = data instanceof Blob ? data : new Blob([data], { type });
   const file = new File([blob], filename, { type }), go = async () => {
     try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); closeSheet(); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
     const a = document.createElement('a'), u = URL.createObjectURL(blob); a.href = u; a.download = filename; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); closeSheet(); };
@@ -1546,10 +1641,43 @@ async function saveFile(filename, data) { const dl = await capDownloads(); if (!
   try { const r = await dl.save({ filename, data }); if (r && r.status === 'saved') toast('Saved ' + filename); return true; }
   catch (e) { const c = e && e.code; toast(c === 'declined' ? 'Save cancelled' : c === 'rate_limited' ? 'A save is already waiting for you' : 'Couldn’t save: ' + ((e && e.message) || 'unknown error')); return false; } }
 const slug = s => (s || 'trackfill').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'trackfill';
-async function exportAudio(which) { if (busy) return; busy = true; closeSheet(); toast('Rendering…');
-  try { const order = which === 'song' ? songOrder() : [{ scene: UI.scene, reps: 1 }], r = await renderOffline(order, 2, -1, p => toast(`Rendering… ${Math.round(p * 100)}%`));
-    const base = slug(P.name) + (which === 'song' ? '' : '-scene-' + (UI.scene + 1)), wav = encodeWav(r.L, r.R, r.sr);
-    if (await capDownloads()) await saveFile(base + '.zip', makeZip([{ name: base + '.wav', data: wav }])); else shareFile(base + '.wav', new Blob([wav], { type: 'audio/wav' })); }
+/* ---------- export: the mix or its stems, as WAV (24-bit, or 16-bit with TPDF dither) or MP3 320, at 48 or 44.1 kHz ----------
+   Stems are every source that feeds the master (each group, each channel not in a group, each return), rendered with the master's
+   fader but without its effects, so together they add up to the mix before the master chain. */
+const EXF = { wav24: ['WAV 24-bit', '.wav'], wav16: ['WAV 16-bit', '.wav'], mp3: ['MP3 320', '.mp3'] };
+const exPrefs = () => UI.ex || (UI.ex = { fmt: 'wav24', sr: 48000, stems: false });
+function wavFile(L, R, sr, bits) { const n = L.length, by = bits / 8, buf = new ArrayBuffer(44 + n * 2 * by), v = new DataView(buf), u = new Uint8Array(buf), ws = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  ws(0, 'RIFF'); v.setUint32(4, 36 + n * 2 * by, true); ws(8, 'WAVE'); ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2 * by, true); v.setUint16(32, 2 * by, true); v.setUint16(34, bits, true); ws(36, 'data'); v.setUint32(40, n * 2 * by, true);
+  let o = 44; const q = bits === 24 ? 8388607 : 32767;
+  for (let i = 0; i < n; i++) for (const s0 of [L[i], R[i]]) { let x = s0 === s0 ? s0 : 0; if (bits === 16) x += (Math.random() - Math.random()) / 32768;   // TPDF dither: one LSB, triangular, only where the bits are cut
+    let k = Math.round(Math.max(-1, Math.min(1, x)) * q); if (bits === 24) { if (k < 0) k += 16777216; u[o] = k & 255; u[o + 1] = (k >> 8) & 255; u[o + 2] = (k >> 16) & 255; o += 3; } else { v.setInt16(o, k, true); o += 2; } }
+  return u; }
+async function mp3File(L, R, sr, onP) { const n = L.length, e = new lamejs.Mp3Encoder(2, sr, 320), parts = [], bl = new Int16Array(1152), br = new Int16Array(1152), d = () => (Math.random() - Math.random()) / 32768;
+  for (let i = 0; i < n; i += 1152) { const m = Math.min(1152, n - i); for (let k = 0; k < m; k++) { bl[k] = Math.round(Math.max(-1, Math.min(1, L[i + k] + d())) * 32767); br[k] = Math.round(Math.max(-1, Math.min(1, R[i + k] + d())) * 32767); }
+    const out = e.encodeBuffer(bl.subarray(0, m), br.subarray(0, m)); if (out.length) parts.push(new Uint8Array(out.buffer, out.byteOffset, out.length).slice());
+    if ((i / 1152) % 200 === 0) { if (onP) onP(i / n); await new Promise(r => setTimeout(r, 0)); } }
+  const f = e.flush(); if (f.length) parts.push(new Uint8Array(f.buffer, f.byteOffset, f.length).slice()); const all = new Uint8Array(parts.reduce((a, b) => a + b.length, 0)); let o = 0; for (const p of parts) { all.set(p, o); o += p.length; } return all; }
+async function encodeAudio(r, fmt, onP) { return fmt === 'mp3' ? mp3File(r.L, r.R, r.sr, onP) : wavFile(r.L, r.R, r.sr, fmt === 'wav16' ? 16 : 24); }
+// the sources that will actually sound in these scenes, among those feeding the master
+function stemSources(order) { const scenes = new Set(order.map(o => o.scene)), live = new Set(), mark = c => { while (c >= 0 && c !== MASTER && !live.has(c)) { live.add(c); c = tfDest(P, c); } };
+  P.pads.forEach((pad, pi) => { if (hasSound(pad) && [...scenes].some(si => (P.scenes[si].notes[pi] || []).length)) mark(pi); });
+  for (const c of [...live]) for (const [k, r] of [['sa', R0], ['sb', R0 + 1]]) if (P.chans[c][k] > 0.001) mark(r);
+  return [...live].filter(c => tfDest(P, c) === MASTER).sort((a, b) => a - b); }
+function openExport() { const ex = exPrefs();
+  openSheet('Export', card => { const st = h('div', 'stack'); card.append(st); const set = (k, v) => { ex[k] = v; savePrefs(); closeSheet(); openExport(); };
+    const row = (title, opts, cur, k) => { st.append(h('div', 'sec', title)); const g = h('div', 'g' + opts.length); for (const [v, l] of opts) g.append(btn(l, () => set(k, v), 'btn' + (cur === v ? ' on' : ''))); st.append(g); };
+    row('What', [[false, 'Mix'], [true, 'Stems']], ex.stems, 'stems'); row('Format', Object.entries(EXF).map(([k, v]) => [k, v[0]]), ex.fmt, 'fmt'); row('Sample rate', [[48000, '48 kHz'], [44100, '44.1 kHz']], ex.sr, 'sr');
+    st.append(h('div', 'sec', 'Render')); const g = h('div', 'g2'); g.append(btn('Song', () => exportAudio('song'), 'btn hot'), btn('Scene ' + (UI.scene + 1), () => exportAudio('scene'), 'btn hot')); st.append(g);
+    st.append(h('p', 'note', ex.stems ? 'One file per group, channel and return feeding the master, without the master\'s effects: together they add up to the mix.' : ex.fmt === 'wav24' ? '24-bit WAV: the best copy to send on or master.' : ex.fmt === 'wav16' ? '16-bit WAV with dither, for CD-style copies.' : 'MP3 at 320 kbps with dither: small, for sharing.')); }); }
+async function exportAudio(which) { if (busy) return; busy = true; closeSheet(); const ex = exPrefs(), [, ext] = EXF[ex.fmt]; toast('Rendering…');
+  try { const order = which === 'song' ? songOrder() : [{ scene: UI.scene, reps: 1 }], base = slug(P.name) + (which === 'song' ? '' : '-scene-' + (UI.scene + 1)), files = [];
+    if (!ex.stems) { const r = await renderOffline(order, 2, -1, p => toast(`Rendering… ${Math.round(p * 100)}%`), { sr: ex.sr }); files.push({ name: base + ext, data: await encodeAudio(r, ex.fmt, p => toast(`Encoding… ${Math.round(p * 100)}%`)) }); }
+    else { const src = stemSources(order), Q = JSON.parse(JSON.stringify(P)); Q.chans[MASTER].fx = []; if (!src.length) throw new Error('nothing plays in ' + (which === 'song' ? 'the song' : 'this scene'));
+      for (let k = 0; k < src.length; k++) { const c = src[k], nm = `${String(k + 1).padStart(2, '0')} ${chanName(c)}`.replace(/[\\/:*?"<>|]/g, '-');
+        const r = await renderOffline(order, 2, -1, p => toast(`Stem ${k + 1}/${src.length} · ${chanName(c)} · ${Math.round(p * 100)}%`), { sr: ex.sr, stem: c, P: Q });
+        files.push({ name: `${base} - ${nm}${ext}`, data: await encodeAudio(r, ex.fmt) }); } }
+    if (files.length === 1 && !(await capDownloads())) shareFile(files[0].name, new Blob([files[0].data], { type: ext === '.mp3' ? 'audio/mpeg' : 'audio/wav' }));
+    else await saveFile(base + (ex.stems ? '-stems' : '') + '.zip', makeZip(files)); }
   catch (e) { console.error(e); toast('Export failed: ' + e.message); } busy = false; }
 async function bounceScene() { if (busy) return; busy = true; toast('Bouncing scene ' + (UI.scene + 1) + '…');
   try { const r = await renderOffline([{ scene: UI.scene, reps: 1 }], 1.5, -1), name = 'Bounce ' + (UI.scene + 1), id = addUserSample(name, r.sr, 2, interleave([r.L, r.R], r.L.length));
@@ -1560,12 +1688,17 @@ function b64ToI16(b) { const s = atob(b), u = new Uint8Array(s.length); for (let
 async function saveBackup() { const samples = {}; for (const id of usedSampleIds()) { const s = SAMPLES.get(id); if (s && !s.builtin) samples[id] = { name: s.name, sr: s.sr, ch: s.ch, frz: !!s.frz, data: i16ToB64(s.data) }; }
   await saveFile(slug(P.name) + '.trackfill.json', JSON.stringify({ format: 'trackfill', version: PROJECT_VERSION, saved: new Date().toISOString(), project: P, samples })); }
 $('#fileProj').addEventListener('change', async e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
-  try { const d = JSON.parse(await f.text()); if (d.format !== 'trackfill' || !d.project) throw new Error('not a Trackfill backup');
+  try { const d = JSON.parse(await f.text());
+    if (d.format === 'trackfill-all' && Array.isArray(d.projects)) {   // a full backup: every song and template comes back as its own entry; nothing here is replaced
+      for (const [id, sm] of Object.entries(d.samples || {})) { if (SAMPLES.has(id) || !sm.data) continue; const data = b64ToI16(sm.data), rec = { id, name: sm.name, sr: sm.sr, ch: sm.ch, frames: data.length / sm.ch, data, frz: sm.frz, added: Date.now() }; SAMPLES.set(id, rec); DB.put('samples', id, rec); }
+      let n = 0; for (const x of d.projects) { if (!x || !x.data) continue; await projCreate(migrate(x.data), x.meta && x.meta.kind === 'template' ? 'template' : 'project'); n++; }
+      closeSheet(); toast(`Restored ${n} project${n === 1 ? '' : 's'} and templates`); return; }
+    if (d.format !== 'trackfill' || !d.project) throw new Error('not a Trackfill backup');
     for (const [id, s] of Object.entries(d.samples || {})) { let rec;
       if (s.data) { const data = b64ToI16(s.data); rec = { id, name: s.name, sr: s.sr, ch: s.ch, frames: data.length / s.ch, data, frz: s.frz, added: Date.now() }; }
       else if (s.chans) { const chans = s.chans.map(b => { const i16 = b64ToI16(b), f32 = new Float32Array(i16.length); for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768; return f32; }); rec = { id, name: s.name, sr: s.sr, ch: chans.length, frames: chans[0].length, data: interleave(chans, chans[0].length), added: Date.now() }; }
       if (rec) { SAMPLES.set(id, rec); DB.put('samples', id, rec); ENG.sent.delete(id); } }
-    pushUndo('all'); if (T.playing) stop(); P = migrate(d.project); afterLoad(); closeSheet(); toast('Opened ' + (P.name || 'backup')); }
+    closeSheet(); await projNew(migrate(d.project)); }
   catch (err) { toast('Couldn’t open that file: ' + err.message); } });
 
 /* ================= precision panel: select → OK → adjust → OK (keep) or BACK (cancel) =================
@@ -1681,7 +1814,9 @@ function buildStrip() {
   const s = $('#pstrip'); s.innerHTML = ''; const oct = h('div', 'soct');
   oct.append(btn('▲', () => { keysOct(1); refreshStrip(); }, 'pk'), btn('▼', () => { keysOct(-1); refreshStrip(); }, 'pk')); s.append(oct);
   const g = h('div', 'sgrid'); for (let r = 1; r >= 0; r--) for (let c = 0; c < 8; c++) { const cell = r * 8 + c, d = h('div', 'spk'); d.dataset.cell = cell;
-    d.addEventListener('pointerdown', e => padPress(e, () => { stripDown(cell); d.classList.add('hit'); }, () => { padUp('s' + cell); d.classList.remove('hit'); })); g.append(d); }
+    g.append(d); }
+  const spk = c => g.querySelector(`.spk[data-cell="${c}"]`);
+  bindPadGrid(g, '.spk', c => { stripDown(c); const d = spk(c); if (d) d.classList.add('hit'); }, c => { padUp('s' + c); const d = spk(c); if (d) d.classList.remove('hit'); }, 10);   // same touch handling as the big pads
   s.append(g);
   // pitch bend wheel: drag up or down, springs back to the middle when you let go (recorded as automation while recording)
   const bw = h('div', 'sbend'), knob = h('i'); bw.append(knob); let bd = null;
@@ -1860,15 +1995,14 @@ function frame(ts) {
 
 /* ================= boot ================= */
 async function boot() {
-  readColors(); buildBuiltins(); await DB.open(); await loadUserPresets();
+  readColors(); buildBuiltins(); await DB.open(); await loadUserPresets(); await userDrumsLoad();
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {}
-  const saved = await DB.get('kv', 'project');
   for (const s of await DB.all('samples')) { const r = upgradeSampleRecord(s); if (r) { SAMPLES.set(r.id, r); if (r !== s) DB.put('samples', r.id, r); } }
-  P = saved ? migrate(saved) : demoProject(); await warmBuiltins(P); ensureBuiltinsFor(P);
+  P = await projBoot(); await warmBuiltins(P); ensureBuiltinsFor(P);
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (pr.snap != null) UI.tl.snap = pr.snap;
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
-    UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
+    UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);

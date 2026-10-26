@@ -7,10 +7,10 @@ const DRUM_SR = 48000;
 const DVD = () => typeof dvRender === 'function' ? { dvRender, dvFull } : require('./drumvoice.js');
 const DRP = () => typeof DRUM_PRESETS !== 'undefined' ? DRUM_PRESETS : require('./drumpresets.js').DRUM_PRESETS;
 // machines: Modern (today's packs) and four classic boxes, by sound rather than by name
-const DRUM_MACHINES = ['Modern', 'Boom', 'Punch', 'Digital', 'Mini'];
-const DRUM_MACH_N = { Modern: 'Modern', Boom: 'Analog Boom', Punch: 'Analog Punch', Digital: 'Digital 80s', Mini: 'Analog Mini' };
+const DRUM_MACHINES = ['Modern', 'Boom', 'Punch', 'Digital', 'Mini', 'Yours'];
+const DRUM_MACH_N = { Modern: 'Modern', Boom: 'Analog Boom', Punch: 'Analog Punch', Digital: 'Digital 80s', Mini: 'Analog Mini', Yours: 'Yours' };
 const DRUM_MACH_SUB = { Modern: 'Today\'s drums: DnB, house, garage, dubstep, trap', Boom: 'The deep analogue box: long booms, tuned snares, pure metal cymbals', Punch: 'The punchy analogue box: driven kicks, noisy snares, sampled cymbals',
-  Digital: 'The early sampled box: 8-bit grit, short and bright', Mini: 'The small analogue box: tight, bright, simple' };
+  Digital: 'The early sampled box: 8-bit grit, short and bright', Mini: 'The small analogue box: tight, bright, simple', Yours: 'Drums you made from your own samples' };
 const DRUM_KNOBS = {
   kick: [['tune', 'Tune'], ['punch', 'Punch'], ['click', 'Click'], ['decay', 'Decay'], ['tone', 'Tone'], ['drive', 'Drive']],
   snare: [['tune', 'Tune'], ['body', 'Body'], ['wires', 'Wires'], ['tone', 'Tone'], ['decay', 'Decay'], ['drive', 'Drive']],
@@ -32,6 +32,16 @@ const DRUM_PEAK = { kick: -1, snare: -3, clap: -4, snap: -6, tom: -4, perc: -7, 
 const DRUM_MODS = (() => { const M = {}; for (const mod of Object.keys(DRUM_KNOBS)) M[mod] = { n: DRUM_MOD_N[mod], knobs: DRUM_KNOBS[mod], tuned: mod === 'kick' || mod === 'perc', types: {} };
   const all = [...DRP(), ...DRUM_HAND]; for (const mc of DRUM_MACHINES) for (const [mod, name, m, v, , kind] of all) if (m === mc && M[mod]) M[mod].types[mc === 'Modern' ? name : mc + ' ' + name] = { m, n: name, v, kind: DRUM_PEAK[kind] ? kind : 'perc' };   // ids stay unique across machines
   return M; })();
+/* ---------- your types: drums fitted to your own samples (Make from a sample), kept in your library and inside every drum that uses them ---------- */
+const DRUM_KIND_MOD = { kick: 'kick', '808': 'kick', snare: 'snare', clap: 'clap', snap: 'clap', 'closed hat': 'hats', 'open hat': 'hats', ride: 'hats', crash: 'hats', shaker: 'hats', tom: 'perc', perc: 'perc' };
+const dvHash = v => { let h = 2166136261; const s = JSON.stringify(Object.keys(v).sort().map(k => [k, v[k]])); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+const dvClean = v => { if (!v || typeof v !== 'object') return null; const o = {}; for (const k in v) if (typeof v[k] === 'number' && isFinite(v[k])) o[k] = v[k]; return Object.keys(o).length ? o : null; };
+// register a type of yours; returns its id ('Yours <hash>', the same id wherever the same voice turns up)
+function drumAddUser(mod, name, v, kind) { v = dvClean(v); if (!v || !DRUM_MODS[mod]) return null; kind = DRUM_PEAK[kind] ? kind : 'perc';
+  const id = 'Yours ' + dvHash(v), T = DRUM_MODS[mod].types; if (!T[id]) T[id] = { m: 'Yours', n: String(name || 'Mine').slice(0, 24), v, kind }; return id; }
+function drumRemoveUser(mod, id) { const T = DRUM_MODS[mod] && DRUM_MODS[mod].types[id]; if (T && T.m === 'Yours') delete DRUM_MODS[mod].types[id]; }
+// a drum on a type of yours carries the voice itself, so the project opens anywhere
+function drumTag(d) { const T = DRUM_MODS[d.mod] && DRUM_MODS[d.mod].types[d.type]; if (T && T.m === 'Yours') d.uv = { n: T.n, v: T.v, kind: T.kind }; else delete d.uv; return d; }
 const drumKind = d => { const t = DRUM_MODS[d.mod] && DRUM_MODS[d.mod].types[d.type]; return t ? t.kind : 'perc'; };
 const DRUM_KEYLOCK = ['Free', 'Root', 'Fifth'];
 const drumTypeName = (mod, type) => { const t = DRUM_MODS[mod] && DRUM_MODS[mod].types[type]; return t ? t.n : type; };
@@ -42,13 +52,14 @@ const knobDef = (mod, id) => id === 'room' ? 0 : id === 'width' ? .35 : .5;
 function drumDefault(mod, type, seed) {
   const M = DRUM_MODS[mod] || DRUM_MODS.kick; mod = DRUM_MODS[mod] ? mod : 'kick'; type = M.types[type] ? type : Object.keys(M.types)[0]; const k = {};
   M.knobs.forEach(([id]) => { k[id] = knobDef(mod, id); });
-  return { mod, type, mach: M.types[type].m, k, key: 'Free', seed: seed == null ? 1 : seed | 0, vj: 0, locks: [], slots: [], kit: false };
+  return drumTag({ mod, type, mach: M.types[type].m, k, key: 'Free', seed: seed == null ? 1 : seed | 0, vj: 0, locks: [], slots: [], kit: false });
 }
 // a machine: its first type for this module (knobs back to centre, locked ones kept)
 function drumSetMachine(d, mc) { const ts = drumTypesFor(d.mod, mc); if (!ts.length) return d; d.mach = mc; d.type = ts[0]; d.vj = 0;
-  DRUM_MODS[d.mod].knobs.forEach(([id]) => { if (!d.locks.includes(id)) d.k[id] = knobDef(d.mod, id); }); return d; }
+  DRUM_MODS[d.mod].knobs.forEach(([id]) => { if (!d.locks.includes(id)) d.k[id] = knobDef(d.mod, id); }); return drumTag(d); }
 function drumNormalize(d) {
-  if (!d || typeof d !== 'object' || !DRUM_MODS[d.mod]) return null; const M = DRUM_MODS[d.mod], o = drumDefault(d.mod, M.types[d.type] ? d.type : null, d.seed);
+  if (!d || typeof d !== 'object' || !DRUM_MODS[d.mod]) return null; if (d.uv && typeof d.uv === 'object') { const id = drumAddUser(d.mod, d.uv.n, d.uv.v, d.uv.kind); if (id) d = Object.assign({}, d, { type: id }); }
+  const M = DRUM_MODS[d.mod], o = drumDefault(d.mod, M.types[d.type] ? d.type : null, d.seed);
   for (const [id] of M.knobs) if (typeof (d.k && d.k[id]) === 'number' && M.types[d.type]) o.k[id] = Math.max(0, Math.min(1, d.k[id]));   // knobs only carry over within a known type
   o.key = DRUM_KEYLOCK.includes(d.key) ? d.key : 'Free'; o.vj = Math.max(0, Math.min(1, +d.vj || 0)); o.locks = Array.isArray(d.locks) ? d.locks.filter(x => M.knobs.some(k => k[0] === x)) : []; o.kit = !!d.kit;
   o.slots = Array.isArray(d.slots) ? d.slots.slice(0, 4).map(s => s && drumNormalize(Object.assign({}, s, { slots: [] }))).filter(Boolean) : []; return o;
@@ -163,4 +174,4 @@ function drumKit(vibe, seed = 1) { const V = DRUM_VIBES.find(v => v[0] === vibe)
 function drumKey(d, kit, key) { const k = drumEffective(d, kit), tuned = DRUM_MODS[d.mod].tuned && d.key !== 'Free';
   return 'd:' + d.mod + ':' + d.type + ':' + d.seed + (d.vj ? 'v' + Math.round(d.vj * 100) : '') + ':' + Object.values(k).map(v => Math.round(v * 1000)).join(',') + (tuned && key ? ':' + key.root + d.key : '') + (kit && d.kit ? ':r' + Math.round(kit.room * 100) : ''); }
 if (typeof module !== 'undefined') module.exports = { DRUM_SR, DRUM_PEAK, drumKind, DRUM_MODS, DRUM_KEYLOCK, DRUM_MACHINES, DRUM_MACH_N, DRUM_MACH_SUB, drumTypesFor, drumMachinesFor, drumTypeName, drumHz, drumVoice, drumSetMachine, DRUM_VIBES, KIT_ROLES,
-  drumDefault, drumNormalize, drumRender, drumVariation, drumKit, drumKitPiece, drumKey, drumEffective, keySnap, machOf, knobDef };
+  drumDefault, drumNormalize, drumRender, drumVariation, drumKit, drumKitPiece, drumKey, drumEffective, keySnap, machOf, knobDef, DRUM_KIND_MOD, drumAddUser, drumRemoveUser, drumTag, dvHash };

@@ -170,8 +170,15 @@ function tfDest(P, c) {
 // Automation / parameter keys: "channel.slot.index". slot -1 = channel strip (vol, pan, send A, send B),
 // slot -2 = pad sound (cutoff, resonance), slot 0..7 = insert effect parameter.
 function tfParseKey(k) { const a = k.split('.'); return { c: +a[0], s: +a[1], i: +a[2] }; }
+// song tempo as an automation lane on the master ('82.-4.0'): 0..1 covers 60–200 BPM
+const TF_TEMPO_KEY = TF.MASTER + '.-4.0', tfTempoV = bpm => Math.max(0, Math.min(1, (bpm - 60) / 140)), tfTempoBpm = v => 60 + v * 140;
+function tfBpmAt(P, si, tick) { const sc = P.scenes[si], pts = sc && sc.auto && sc.auto[TF_TEMPO_KEY]; return pts && pts.length ? tfTempoBpm(tfValueAt(pts, tick)) : P.bpm; }
+// a scene's length in samples, following its tempo lane (exports and bounces use it)
+function tfSceneSamples(P, si, sr) { const sc = P.scenes[si], len = sc.bars * TF.BAR, pts = sc.auto && sc.auto[TF_TEMPO_KEY]; if (!pts || !pts.length) return Math.ceil(len / (P.bpm * TF.PPQ / (60 * sr)));
+  let n = 0; for (let t = 0; t < len; t++) n += 60 * sr / (tfBpmAt(P, si, t + .5) * TF.PPQ); return Math.ceil(n); }
 function tfBase(P, k) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return null;
+  if (s === -4) return tfTempoV(P.bpm);
   if (s === -1) return [C.vol, C.pan, C.sa, C.sb][i];
   if (s === -2) { const p = P.pads[c]; return p ? [p.cut, p.res, p.bend == null ? .5 : p.bend][i] : null; }
   if (s === -3) { const p = P.pads[c], d = TFSYN[i]; return p && p.syn && d ? tfSynNorm(d, p.syn.p[d.id]) : null; }   // synth parameter i
@@ -179,6 +186,7 @@ function tfBase(P, k) {
 }
 function tfSetBase(P, k, v) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return;
+  if (s === -4) { P.bpm = Math.round(tfTempoBpm(v) * 10) / 10; return; }
   if (s === -1) C[['vol', 'pan', 'sa', 'sb'][i]] = v;
   else if (s === -2) { const p = P.pads[c]; if (p) p[['cut', 'res', 'bend'][i]] = v; }
   else if (s === -3) { const p = P.pads[c], d = TFSYN[i]; if (p && p.syn && d) p.syn.p[d.id] = tfSynPhys(d, v); }
@@ -368,7 +376,7 @@ class TFHost {
   /* ---------- parameters & routing ---------- */
   applyKey(k, v) {
     const { c, s, i } = tfParseKey(k), ex = this.ex;
-    if (v == null || !(v === v)) return;
+    if (v == null || !(v === v) || s === -4) return;   // tempo is followed by the scheduler, not set here
     if (s === -1) { if (i === 0) ex.tf_ch_set(c, 0, tfFaderGain(v)); else if (i === 1) ex.tf_ch_set(c, 1, v * 2 - 1); else ex.tf_ch_set(c, i, tfSendGain(v)); }
     else if (s === -2 && i === 2) { const p = this.P.pads[c]; ex.tf_ch_bend(c, (v * 2 - 1) * ((p && p.bendR) || 2), v * 2 - 1); }   // pitch bend: ± the pad's bend range
     else if (s === -3) { if (ex.tf_syn_param) ex.tf_syn_param(c, i, v); }
@@ -482,7 +490,9 @@ class TFHost {
     if (chordN) vm = 'poly';   // a chord played live always sounds whole, whatever the pad's voicing
     if (vm === 'legato' && ex.tf_voice_legato(pi, rate, pad.glide || 0, gate, pad.rel, tag)) return;
     if (vm !== 'poly') ex.tf_ch_release(pi, 0.004); else ex.tf_ch_limit(pi, Math.max(0, Math.max(pad.poly || 8, chordN) - 1), 0.004);
-    const vi = ex.tf_voice_start(pi, e.id, off, rate, start, end, loop || !pad.reverse ? 0 : 1, vel, Math.max(0.0005, pad.atk), pad.rel, gate, tag, 0);
+    const eg = (pad.gain ? Math.pow(10, pad.gain / 20) : 1) * (pad.norm && pad.ng > 0 ? pad.ng : 1);   // edits: gain and normalising (worked out on the page from the region's peak)
+    const vi = ex.tf_voice_start(pi, e.id, off, rate, start, end, loop || !pad.reverse ? 0 : 1, vel * eg, Math.max(0.0005, pad.atk), pad.rel, gate, tag, 0);
+    if (vi >= 0 && (pad.fin > 0 || pad.fout > 0 || pad.silB > pad.silA) && ex.tf_voice_shape) ex.tf_voice_shape(vi, pad.fin || 0, pad.fout || 0, pad.silA || 0, pad.silB || 0);
     if (loop && vi >= 0) ex.tf_voice_loop(vi, Math.max(start, Math.min(end, pad.loopS == null ? start : pad.loopS)), pad.xf == null ? 0.08 : pad.xf, gate, pad.rel);
   }
   hit(m) {
@@ -560,6 +570,7 @@ class TFHost {
     this.ah = { scene, rep: 0, tick: 0, t: t + Math.round(bars * TF.BAR / tps), started: false };
   }
   stop(soft) {
+    this.bpmNow = null; this.ex.tf_set_bpm(this.P.bpm);   // a tempo lane lets go when the transport stops
     this.playing = false; this.heap.clear(); this.marks.length = 0; this.pos = null;
     if (!soft) this.ex.tf_release_all(0.005);
     this.restoreAuto();
@@ -600,7 +611,7 @@ class TFHost {
   advance(n) {
     const P = this.P, a = this.ah; let t = a.t, remain = n, guard = 0;
     while (remain > 0 && guard++ < 64) {
-      const sc = P.scenes[a.scene], len = sc.bars * TF.BAR, tps = P.bpm * TF.PPQ / (60 * this.sr);
+      const sc = P.scenes[a.scene], len = sc.bars * TF.BAR, tps = tfBpmAt(P, a.scene, a.tick) * TF.PPQ / (60 * this.sr);   // a tempo lane is read where the scheduler is
       if (!a.started) { a.started = true; this.sceneStart(a.scene, t - a.tick / tps); }
       let span = Math.max(1, Math.ceil((len - a.tick) / tps - 1e-9)), sw = false, nb = len;
       if (this.pending != null) {
@@ -662,6 +673,7 @@ class TFHost {
     if (!M.length || M[0].time > t) return;
     const m = M[0], tick = m.tick + (t - m.time) * m.tps, A = this.P.scenes[m.scene].auto || {};
     this.pos = { scene: m.scene, tick, tps: m.tps };
+    const bpm = tfBpmAt(this.P, m.scene, tick); if (bpm !== this.bpmNow) { this.bpmNow = bpm; this.ex.tf_set_bpm(bpm); }   // synced effects and LFOs follow a tempo lane
     for (const k of this.autoOn) if (!A[k] || !A[k].length || this.live.has(k)) { const b = tfBase(this.P, k); if (b != null) this.applyKey(k, b); this.autoOn.delete(k); }
     for (const k in A) { const pts = A[k]; if (!pts || !pts.length || this.live.has(k)) continue; this.applyKey(k, tfValueAt(pts, tick)); this.autoOn.add(k); }
   }
@@ -706,8 +718,9 @@ async function tfRenderOffline(module, P, samples, opts) {
   for (const [key, s] of samples) host.msg({ t: 'sample', key, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr });
   if (opts.tables) for (const [key, t] of opts.tables) host.msg({ t: 'wtable', key, F: t.F, lv: t.lv, fund: t.fund });
   host.tap = opts.tap == null ? -1 : opts.tap;
+  if (opts.stem != null && inst.exports.tf_stem) inst.exports.tf_stem(opts.stem);   // one stem: only this source feeds the master
   const tps = P.bpm * TF.PPQ / (60 * sr), order = opts.order;
-  let total = 0; for (const o of order) total += Math.ceil(P.scenes[o.scene].bars * TF.BAR / tps) * o.reps;
+  let total = 0; for (const o of order) total += tfSceneSamples(P, o.scene, sr) * o.reps;
   const tail = Math.round((opts.tail || 0) * sr), N = total + tail;
   if (N > sr * 600) throw new Error('longer than 10 minutes');
   const L = new Float32Array(N), R = new Float32Array(N), sL = new Float32Array(128), sR = new Float32Array(128);
@@ -722,4 +735,4 @@ async function tfRenderOffline(module, P, samples, opts) {
   }
   return { L, R, sr };
 }
-if (typeof module !== 'undefined') module.exports = { TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { TF_TEMPO_KEY, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

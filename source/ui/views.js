@@ -15,7 +15,8 @@ function renderPads(V) {
   top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'));
   const grid = h('div', 'grid');
   for (const cell of padOrder(16)) { const pd = h('div', 'pad' + (PADHELD.has(cell) ? ' held' : '')); pd.dataset.cell = cell;
-    pd.addEventListener('pointerdown', e => padPress(e, () => padDown(cell), () => padUp(cell))); grid.append(pd); }   // no pointer capture: see padPress
+    grid.append(pd); }
+  bindPadGrid(grid);   // touches land on the grid and go to the nearest pad (see bindPadGrid)
   const chop = padChop(); if (chop) w.classList.add('chopping');
   w.append(top); if (chop) w.append(chopWave(UI.pad)); w.append(grid); V.append(w); refreshPadDots(); if (chop) requestAnimationFrame(drawChop);
 }
@@ -56,6 +57,7 @@ function openLaneSheet(c) {
       for (const [key, name, sub] of items) { const has = key !== 'notes' && sc.auto[key] && sc.auto[key].length, li = h('div', 'li' + (UI.tl.lane === key && tlTarget() === c ? ' on' : ''));
         li.innerHTML = `<div class="lt"><b>${esc(name)}</b><span>${esc(sub)}</span></div>` + (has ? '<span class="dot" title="Automated in this scene"></span>' : ''); li.onclick = () => pick(key); l.append(li); }
       card.append(l); };
+    if (c === MASTER) list('Song', [[TF_TEMPO_KEY, 'Tempo', 'The song\'s BPM through the scene: ramps, drops, halftime feels']]);
     if (c < G0) { card.append(h('div', 'sec', 'Notes')); const l = h('div', 'list');
       for (let b = 0; b < 4; b++) { const used = [...Array(16)].reduce((a, _, i) => a + ((sc.notes[b * 16 + i] || []).length ? 1 : 0), 0);
         const li = h('div', 'li' + (UI.tl.lane === 'notes' && UI.tl.mode === 'bank' && UI.bank === b ? ' on' : ''));
@@ -145,6 +147,10 @@ function drawDisp() {
       for (let x = 0; x < W; x++) { const mn = pk[x * 2], mx = pk[x * 2 + 1]; g.fillRect(x, mid - mx * mid * .88, 1, Math.max(1, (mx - mn) * mid * .88)); }
       const xs = pad.start * W, xe = pad.end * W; g.fillStyle = 'rgba(0,0,0,.66)'; g.fillRect(0, 0, xs, H); g.fillRect(xe, 0, W - xe, H);
       g.fillStyle = COL.accent; g.fillRect(xs - 1, 0, 2, H); g.fillRect(xe - 1, 0, 2, H); g.fillRect(xs, 0, 9, 12); g.fillRect(xe - 9, H - 12, 9, 12);
+      // edits on the wave: the silenced stretch shaded, the fades as ramps from the region's edges
+      if (pad.silB > pad.silA) { g.fillStyle = 'rgba(0,0,0,.72)'; g.fillRect(pad.silA * W, 0, (pad.silB - pad.silA) * W, H); txt('silent', (pad.silA + pad.silB) / 2 * W, 22, COL.mute, 'center'); }
+      const dur = s.frames / s.sr; g.strokeStyle = COL.accent; g.lineWidth = 1.5; g.beginPath();
+      if (pad.fin > 0) { g.moveTo(xs, H - 2); g.lineTo(xs + Math.min(xe - xs, pad.fin / dur * W), 2); } if (pad.fout > 0) { g.moveTo(xe - Math.min(xe - xs, pad.fout / dur * W), 2); g.lineTo(xe, H - 2); } g.stroke();
       if (pad.mode === 'loop') { const xl = clamp(pad.loopS, pad.start, pad.end) * W; g.globalAlpha = .13; g.fillRect(xl, 0, xe - xl, H); g.globalAlpha = 1; g.fillRect(xl - 1, 0, 2, H); txt('loop', xl + 5, 22, COL.accent); }
       txt(`${(s.frames / s.sr).toFixed(2)}s · ${s.ch === 2 ? 'stereo' : 'mono'}${pad.reverse ? ' · reversed' : ''}${pad.tempo > 0 || (pad.wm && pad.wm !== 'Repitch') ? ' · ' + stretchLabel(pad) : ''}`, 8, H - 10); txt(s.name, W - 128, 15, COL.mute, 'right');
       return;
@@ -377,7 +383,17 @@ function openSoundTools(pi) {
     const g = h('div', 'g2');
     g.append(btn('Load files…', () => { closeSheet(); pickAudio(pi); }), btn('Library', () => { closeSheet(); openLibrary(); }), btn('Bounce scene here', () => { closeSheet(); bounceScene(); }),
       confirmBtn('Clear pad', 'Tap again to clear', () => { pushUndo('pad:' + pi); touchPad(pi); pad.sample = null; syncPad(pi); markDirty(); closeSheet(); }));
-    card.append(g, h('div', 'sec', 'Pad color'));
+    card.append(g);
+    if (pad.sample && pad.src !== 'drum' && pad.src !== 'synth') {   // edits: settings on the pad, the sample itself never changes
+      card.append(h('div', 'sec', 'Edits'));
+      const e = h('div', 'kgrid'), redraw = () => drawDisp(), secs = v => v < .0005 ? 'Off' : v < 1 ? Math.round(v * 1000) + ' ms' : v.toFixed(2) + ' s', pc = v => (v * 100).toFixed(1) + '%';
+      e.append(padParam(pi, 'gain', { label: 'Gain', min: -24, max: 24, step: .1, coarse: .5, big: 3, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB' }),
+        selEl('Normalise', ['Off', 'On'], () => pad.norm ? 1 : 0, k => { pushUndo('pad:' + pi); touchPad(pi); pad.norm = !!k; syncPad(pi); markDirty(); toast(pad.norm ? `Normalised: ${(20 * Math.log10(pad.ng)).toFixed(1)} dB to reach -1 dBFS` : 'Normalise off'); }),
+        padParam(pi, 'fin', { label: 'Fade in', min: 0, max: 2, step: .001, coarse: .01, big: .1, def: 0, fmt: secs }), padParam(pi, 'fout', { label: 'Fade out', min: 0, max: 2, step: .001, coarse: .01, big: .1, def: 0, fmt: secs }),
+        padParam(pi, 'silA', { label: 'Silence from', step: .001, coarse: .01, big: .05, def: 0, fmt: pc }), padParam(pi, 'silB', { label: 'Silence to', step: .001, coarse: .01, big: .05, def: 0, fmt: v => v <= pad.silA ? 'Off' : pc(v) }),
+        btn('Reset edits', () => { pushUndo('pad:' + pi); touchPad(pi); Object.assign(pad, { gain: 0, norm: false, ng: 1, fin: 0, fout: 0, silA: 0, silB: 0, start: 0, end: 1 }); syncPad(pi); markDirty(); closeSheet(); renderView(); toast('Edits reset'); }, 'key'));
+      card.append(e, h('p', 'note', 'Start and End crop it. Nothing here changes the sample: switch any of it off and the original is back.')); }
+    card.append(h('div', 'sec', 'Pad color'));
     const t = h('div', 'tgrid'); PAD_COLORS.forEach((c, i) => { const b = btn(`<span style="display:block;height:6px;border-radius:1px;background:${c};box-shadow:0 0 6px ${c}"></span>`, () => { pushUndo('pad:' + pi); pad.color = i; markDirty(); closeSheet(); }, pad.color === i ? 'on' : ''); b.setAttribute('aria-label', 'Color ' + (i + 1)); t.append(b); });
     card.append(t);
   });

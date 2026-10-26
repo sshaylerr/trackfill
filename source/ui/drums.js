@@ -22,7 +22,7 @@ function makeDrumPad(pi, mod, type) { const pad = P.pads[pi]; pushUndo('pad:' + 
   if (!T || T.m !== mc) type = drumTypesFor(mod, mc)[0] || type;   // stay on the same machine when it has this module
   pad.drum = drumDefault(mod, type, 1 + Math.floor(Math.random() * 9999)); pad.src = 'drum'; pad.mode = 'one';
   if (!pad.name || DRUM_TYPE_NAMES.has(pad.name)) pad.name = drumTypeName(mod, pad.drum.type).slice(0, 12); refreshDrum(pi); renderAll(); audition(pi); }
-const DRUM_TYPE_NAMES = new Set(Object.values(DRUM_MODS).flatMap(m => Object.values(m.types).map(t => t.n)));
+const DRUM_TYPE_NAMES = { has: n => Object.values(DRUM_MODS).some(m => Object.values(m.types).some(t => t.n === n)) };   // types of yours come and go
 
 function drumFmt(d, id, v, pi) {
   if (id === 'tune' || id === 'pitch') { const t = Object.assign({}, d, { k: Object.assign({}, d.k, { [id]: v }) }), hz = drumHz(t, { kit: pi != null ? kitOf(pi) : null, key: P.key });
@@ -87,8 +87,11 @@ function openDrumMore(pi) {
     if (M.tuned) { st.append(h('div', 'sec', 'Tuned to the key')); const g = h('div', 'g3'); for (const k of DRUM_KEYLOCK) g.append(btn(k, () => { pushUndo('pad:' + pi); d.key = k; refreshDrum(pi); closeSheet(); renderView(); audition(pi); }, 'btn' + (d.key === k ? ' on' : ''))); st.append(g); }
     st.append(h('div', 'sec', 'Lock knobs (More like this leaves them alone)')); const lk = h('div', 'g3');
     for (const [id, label] of M.knobs) lk.append(btn(label, () => { const i = d.locks.indexOf(id); if (i >= 0) d.locks.splice(i, 1); else d.locks.push(id); markDirty(); closeSheet(); openDrumMore(pi); }, 'btn' + (d.locks.includes(id) ? ' on' : ''))); st.append(lk);
-    st.append(h('div', 'sec', 'This drum')); const g2 = h('div', 'g2');
-    g2.append(btn('Save to library', () => { const s = SAMPLES.get(pad.sample); if (!s) return; const id = addUserSample((pad.name || drumTypeName(d.mod, d.type)).slice(0, 24), s.sr, s.ch, s.data); closeSheet(); toast(`Saved "${SAMPLES.get(id).name}" to your sounds`); }),
+    st.append(h('div', 'sec', 'This drum')); const g2 = h('div', 'g2'); const T = M.types[d.type];
+    g2.append(btn('Make from a sample…', () => { closeSheet(); pickFitSample(pi); }, 'btn hot'),
+      ...(T && T.m === 'Yours' ? [btn('Rename', () => { closeSheet(); textSheet('Name', T.n, v => { v = (v || '').trim().slice(0, 24); if (!v) return; const was = T.n; T.n = v; drumTag(d); if (!pad.name || pad.name === was.slice(0, 12)) pad.name = v.slice(0, 12); userDrumsSave(); markDirty(); renderAll(); }); }),
+        btn('Remove from Yours', () => { closeSheet(); userDrumsSave(d.type); toast('Removed from Yours (this pad keeps it)'); })] : []),
+      btn('Save to library', () => { const s = SAMPLES.get(pad.sample); if (!s) return; const id = addUserSample((pad.name || drumTypeName(d.mod, d.type)).slice(0, 24), s.sr, s.ch, s.data); closeSheet(); toast(`Saved "${SAMPLES.get(id).name}" to your sounds`); }),
       btn('Reset to type', () => { closeSheet(); setDrumType(pi, d.type); }), btn('Kit builder…', () => { closeSheet(); openKitBuilder(pi); }), btn('Clear slots', () => { d.slots = []; markDirty(); closeSheet(); renderView(); }),
       btn(d.kit ? 'Leave the kit' : 'Join the bank\'s kit', () => { pushUndo('pad:' + pi); d.kit = !d.kit; refreshDrum(pi); closeSheet(); renderView(); }));
     st.append(g2); }); }
@@ -116,3 +119,53 @@ function buildKit(bank, vibe) {
   UI.bank = bank; UI.pad = bank * 16; markDirty(); renderAll(); audition(UI.pad); toast(`${vibe} kit · bank ${BANKS[bank]}`); }
 function rerollPiece(bank, i) { const pi = bank * 16 + i, kit = P.drumKits[bank]; pushUndo('pad:' + pi); const d = drumKitPiece(kit.vibe, i, 1 + Math.floor(Math.random() * 99999)); d.slots = P.pads[pi].drum ? [JSON.parse(JSON.stringify(Object.assign({}, P.pads[pi].drum, { slots: [] })))] : [];
   P.pads[pi].drum = d; refreshDrum(pi); audition(pi); toast(KIT_ROLES[i][0] + ' rerolled · old one in slot A'); }
+
+/* ----- Make from a sample: the drum voice is fitted to a hit you load. The nearest type comes first (a second or so), then the fit
+   refines it in a worker, the pad sounding the best so far all along; keep it whenever it sounds right. It joins Yours. ----- */
+const FIT_KINDS = [['kick', 'Kick'], ['808', '808'], ['snare', 'Snare'], ['clap', 'Clap'], ['snap', 'Snap'], ['tom', 'Tom'], ['closed hat', 'Closed hat'], ['open hat', 'Open hat'], ['ride', 'Ride'], ['crash', 'Crash'], ['shaker', 'Shaker'], ['perc', 'Perc']];
+const FIT_DEF = { kick: 'kick', snare: 'snare', clap: 'clap', hats: 'closed hat', perc: 'perc' };
+// your library of types: [{ mod, n, v, kind }] in kv 'userDrums'
+function userDrumsSave(removeId) { const out = []; for (const mod in DRUM_MODS) for (const id in DRUM_MODS[mod].types) { const t = DRUM_MODS[mod].types[id]; if (t.m === 'Yours' && t.lib && id !== removeId) out.push({ mod, n: t.n, v: t.v, kind: t.kind }); else if (id === removeId) t.lib = false; }
+  DB.put('kv', 'userDrums', out); }
+async function userDrumsLoad() { const L = await DB.get('kv', 'userDrums'); if (Array.isArray(L)) for (const u of L) { const id = drumAddUser(u.mod, u.n, u.v, u.kind); if (id) DRUM_MODS[u.mod].types[id].lib = true; } }
+function pickFitSample(pi) { ensureAudio(); const inp = h('input'); inp.type = 'file'; inp.accept = 'audio/*'; inp.hidden = true; document.body.append(inp);   // in the page: iOS only reports picks from inputs it can see
+  inp.onchange = async () => { const f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
+    try { const ab = await f.arrayBuffer(), oc = new OfflineAudioContext(1, 1, 48000), buf = await new Promise((res, rej) => { const p = oc.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
+      const n = Math.min(buf.length, buf.sampleRate * 3), x = new Float32Array(n); for (let c = 0; c < buf.numberOfChannels; c++) { const ch = buf.getChannelData(c); for (let i = 0; i < n; i++) x[i] += ch[i] / buf.numberOfChannels; }
+      let pk = 0; for (const v of x) pk = Math.max(pk, Math.abs(v)); if (pk < 1e-4) return toast('That sample is silent');
+      openFitKind(pi, x, f.name.replace(/\.[^.]+$/, '').slice(0, 24)); }
+    catch (e) { toast('Could not read that file'); } }; inp.click(); }
+function openFitKind(pi, x, name) { const d = P.pads[pi].drum, def = FIT_DEF[d.mod];
+  openSheet('What is it?', card => { const g = h('div', 'g3'); for (const [k, label] of FIT_KINDS) g.append(btn(label, () => { closeSheet(); runFit(pi, x, name, k); }, 'btn' + (k === def ? ' on' : ''))); card.append(g); }); }
+function fitWorker() { try { return new Worker(URL.createObjectURL(new Blob([TF_DRUMFIT_SRC + '\nonmessage = e => { for (const m of dfSteps(e.data)) postMessage(m); };'], { type: 'text/javascript' }))); } catch (e) { return null; } }
+// without a worker: the same steps, a slice per frame
+function fitInline(msg, onMsg) { const steps = new Function(TF_DRUMFIT_SRC + '\nreturn dfSteps;')()(msg); let stop = false;
+  const tick = () => { if (stop) return; const t0 = performance.now(); while (performance.now() - t0 < 12) { const r = steps.next(); if (r.done) return; onMsg(r.value); if (stop) return; } setTimeout(tick, 4); }; setTimeout(tick, 0);
+  return { terminate: () => { stop = true; } }; }
+function runFit(pi, x, name, kind) {
+  const pad = P.pads[pi], mod = DRUM_KIND_MOD[kind], pk = DRUM_PEAK[kind] ? kind : mod === 'kick' ? 'kick' : 'perc', was = JSON.parse(JSON.stringify(pad.drum)), wasName = pad.name, cands = [];
+  for (const id in DRUM_MODS[mod].types) { const t = DRUM_MODS[mod].types[id]; if (t.m !== 'Yours' && (t.kind === pk || cands.length < 4)) cands.push({ id, v: t.v }); }
+  pushUndo('pad:' + pi); touchPad(pi);
+  // the original, level-matched to how the drum will sit, for A/B
+  const g = Math.pow(10, DRUM_PEAK[pk] / 20) / x.reduce((m, v) => Math.max(m, Math.abs(v)), 1e-9), orig = 'f:orig'; SAMPLES.set(orig, { id: orig, name, sr: 48000, ch: 2, frames: x.length, data: interleave([x.map(v => v * g), x.map(v => v * g)], x.length) }); ENG.sent.delete(orig);
+  let best = null, temp = null, kept = false, lastSet = 0, pend = null; const st = { txt: 'Listening…', pct: 0 };
+  const setVoice = (p, final) => { const id = drumAddUser(mod, name, p, pk); if (!id) return; if (temp && temp !== id && !DRUM_MODS[mod].types[temp].lib && temp !== was.type) drumRemoveUser(mod, temp); temp = id;
+    const nd = drumDefault(mod, id, was.mod === mod ? was.seed : 1); nd.kit = false; pad.src = 'drum'; pad.drum = nd; if (!wasName || DRUM_TYPE_NAMES.has(wasName) || final) pad.name = name.slice(0, 12); refreshDrum(pi, true); lastSet = performance.now(); };
+  const view = {}; const w = fitWorker() || null, job = w || fitInline({ x, kind, cands, iters: 40 }, m => onMsg(m));
+  function onMsg(m) {
+    if (m.t === 'scan') { st.pct = Math.min(8, st.pct + 8 / cands.length); }
+    else if (m.t === 'near') { st.txt = 'Closest: ' + drumTypeName(mod, m.id) + ' · refining'; const t = DRUM_MODS[mod].types[m.id]; best = { p: t.v, d: m.d }; setVoice(t.v); audition(pi); }
+    else if (m.t === 'step' || m.t === 'tick') { st.pct = 8 + 92 * m.n / m.total; if (m.t === 'step') { best = { p: m.p, d: m.d }; pend = m.p; } if (pend && performance.now() - lastSet > 1200) { setVoice(pend); pend = null; } }
+    else if (m.t === 'done') { best = { p: m.p, d: m.d }; st.pct = 100; closeSheet(); return; }
+    draw(); }
+  if (w) { w.onmessage = e => onMsg(e.data); w.onerror = () => { st.txt = 'Could not fit this one'; draw(); }; w.postMessage({ x, kind, cands, iters: 40 }); }
+  function draw() { if (!view.bar) return; view.bar.style.width = st.pct.toFixed(1) + '%'; view.txt.textContent = st.txt + (st.pct < 100 && st.pct > 8 ? ' ' + Math.round(st.pct) + '%' : ''); }
+  function finish() { job.terminate(); if (kept) return; kept = true; if (best) { setVoice(best.p, true); const t = DRUM_MODS[mod].types[pad.drum.type]; t.lib = true; drumTag(pad.drum); userDrumsSave(); toast(`"${name}" is in Yours`); }
+    else cancelFit(); SAMPLES.delete(orig); markDirty(); renderAll(); }
+  function cancelFit() { job.terminate(); kept = true; if (temp && temp !== was.type && !DRUM_MODS[mod].types[temp].lib) drumRemoveUser(mod, temp); pad.drum = was; pad.name = wasName; SAMPLES.delete(orig); refreshDrum(pi, true); markDirty(); renderAll(); }
+  openSheet('Make from a sample', card => { const st2 = h('div', 'stack'); card.append(st2);
+    const lcd = h('div', 'fitlcd'); view.txt = h('div', 'fittxt'); const tr = h('div', 'fitbar'); view.bar = h('i'); tr.append(view.bar); lcd.append(view.txt, tr); st2.append(lcd);
+    const ab = h('div', 'g2'); ab.append(btn('Original', () => previewSample(orig)), btn('Drum', () => { if (pend) { setVoice(pend); pend = null; } audition(pi); })); st2.append(ab);
+    const k = h('div', 'g2'); k.append(btn('Cancel', () => { cancelFit(); closeSheet(); }), btn('Keep', () => closeSheet(), 'btn hot')); st2.append(k); draw();
+  }, () => finish());
+}
