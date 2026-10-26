@@ -32,6 +32,15 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       for (let i = 0, n = Math.ceil(300 * per / 128) + 40; i < n; i++) host.render(128, L, R);
       hits.forEach((h, k) => { worst = Math.max(worst, Math.abs(h - (hits[0] + k * per))); }); }
     ok(worst < 1.5, `the song keeps true tempo: after 300 loops every loop still starts within ${worst.toFixed(2)} samples of where it should`); }
+  console.log('analyzer');
+  { const run = (gen, sec, sr = 48000) => { const a = new H.TFAnalyzer(sr), L = new Float32Array(128), R = new Float32Array(128); let n = 0;
+      for (let b = 0; b < Math.round(sec * sr / 128); b++) { for (let i = 0; i < 128; i++, n++) { const v = gen(n / sr); L[i] = R[i] = v; } a.feed(L, R, 128, 1); } return a.report(1).loud; };
+    const sine = (f, db, ph = 0) => t => Math.pow(10, db / 20) * Math.sin(2 * Math.PI * f * t + ph);
+    const a = run(sine(1000, -23), 20), a44 = run(sine(1000, -23), 20, 44100), g = run(t => sine(1000, t < 10 || t >= 70 ? -36 : -23)(t), 80), r = run(t => sine(1000, t < 20 ? -20 : -30)(t), 40), tp = run(sine(12000, 0, Math.PI / 4), 3);
+    ok(Math.abs(a[2] + 23) < .05 && Math.abs(a44[2] + 23) < .05, `1 kHz at -23 dBFS reads -23.0 LUFS integrated at 48 and 44.1 kHz (${a[2].toFixed(2)}, ${a44[2].toFixed(2)})`);
+    ok(Math.abs(g[2] + 23) < .1, `integrated loudness gates out the quiet parts (${g[2].toFixed(2)} LUFS)`);
+    ok(Math.abs(r[3] - 10) < .3, `loudness range of -20 then -30 dBFS reads 10 LU (${r[3].toFixed(1)})`);
+    ok(tp[4] > -.3 && Math.abs(tp[5] + 3.01) < .1, `true peak finds the peak between samples (${tp[4].toFixed(2)} dBTP where samples read ${tp[5].toFixed(2)})`); }
   console.log('monitoring');
   { const go = (msg) => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); host.msg({ t: 'project', P: Q });
       for (const [key, sm] of kit) host.msg({ t: 'sample', key, data: sm.data, frames: sm.frames, ch: sm.ch, sr: sm.sr }); if (msg) host.msg(msg); host.msg({ t: 'play', scene: 1, loop: 'scene' });

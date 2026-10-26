@@ -763,6 +763,7 @@ static void processChan(i32 c, i32 n) {
    brighter, plus a few early reflections from a small treated room. Correction: up to 8 biquads (a headphone's measured EQ) with headroom taken first.
    Everything here is skipped when off. */
 enum { MDL = 1024 };
+static float mixL[MAXN], mixR[MAXN];   // the mix before monitoring (only written while monitoring is on; otherwise the output is the mix)
 static i32 monMode = 0, monNB = 0; static float monBq[8][5], monZ[8][2][2], monPre = 1.f;
 static float xfLo[2], xfHi[2], xfIn[2];
 static float spD[2][MDL]; static i32 spW = 0; static float spSh[2][2][2], spRl[2];   // per speaker: a delay line; head-shadow filter state [speaker][ear]; reflection tone per ear
@@ -822,9 +823,11 @@ EX void tf_render(i32 n) {
     if (al > pkL) pkL = al; if (ar > pkR) pkR = ar;
     oL[i] = clampf(l, -1.f, 1.f); oR[i] = clampf(r, -1.f, 1.f);
   }
-  if (monMode || monNB) monitor(n);   // after the meters: they read the mix itself
+  if (monMode || monNB) { __builtin_memcpy(mixL, oL, n * 4); __builtin_memcpy(mixR, oR, n * 4); monitor(n); }   // after the meters: they read the mix itself (and so does the analyzer, from mixL/R)
 }
 EX float* tf_out_l() { return oL; }
+EX float* tf_mix_l() { return monMode || monNB ? mixL : oL; }
+EX float* tf_mix_r() { return monMode || monNB ? mixR : oR; }
 EX float* tf_ch_peaks() { return chPk; }
 EX float* tf_out_r() { return oR; }
 EX float* tf_key_l(i32 c) { return keyL[c < 0 || c >= NCH ? 0 : c]; }

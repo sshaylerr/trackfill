@@ -353,6 +353,10 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .scopebox span,.scopebox i{position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .scopebox i{flex:none;display:flex;color:var(--mute)} .scopebox i svg{width:14px;height:14px;fill:currentColor}
 .anbox{height:min(240px,34vh)} .anbox canvas,.fxvis canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.anstack{display:flex;flex-direction:column;gap:6px} .anp{display:flex;flex-direction:column;gap:4px} .anh{display:flex;align-items:center;gap:6px;height:30px}
+.anTitle{flex:1;height:30px;display:flex;align-items:center;gap:6px;background:none;border:0;color:var(--ink);font:700 12px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;padding:0 2px;text-align:left}
+.anTitle .car{color:var(--mute);width:12px} .anp:not(.open) .anTitle{color:var(--mute)} .anh .key.sm{height:26px;min-width:52px}
+.anbody{position:relative;flex:none} .anbody canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
 .anread{font-size:12px;color:var(--ink);margin-top:8px}
 .fxvis{flex:none;height:112px;margin-bottom:8px}
 .fxvrow{display:flex;gap:4px;flex:none;height:112px} #view .fxvrow>.fxvis{flex:1;min-width:0;height:auto;margin:0} #view.short .fxvrow{height:78px} #view.tiny .fxvrow{height:48px}
@@ -474,7 +478,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
     <button class="tb ic" id="bPanel" aria-label="Precision controls"><svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" opacity=".95"/></svg></button>
     <button class="tb ic" id="bMenu" aria-label="Project menu"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="2.2" rx="1.1"/><rect x="4" y="11" width="16" height="2.2" rx="1.1"/><rect x="4" y="16" width="16" height="2.2" rx="1.1"/></svg></button>
   </header>
-  <div id="meter" title="Output level. Tap to reset the clip light."><div class="bars"><div class="bar"><i></i></div><div class="bar"><i></i></div></div><span class="cpu lcd">CPU —</span><span class="mon" id="bMon" title="Monitoring: speakers or crossfeed on headphones">MON</span><span class="clip">CLIP</span></div>
+  <div id="meter" title="Output level. Tap for the master analyzer (and to reset the clip light)."><div class="bars"><div class="bar"><i></i></div><div class="bar"><i></i></div></div><span class="cpu lcd">CPU —</span><span class="mon" id="bMon" title="Monitoring: speakers or crossfeed on headphones">MON</span><span class="clip">CLIP</span></div>
   <nav id="scenes" aria-label="Scenes"></nav>
   <main id="view"></main>
   <section id="panel" hidden aria-label="Precision controls">
@@ -656,7 +660,7 @@ const DB = { db: null, ok: false,
 let saveTimer = 0;
 function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
 function saveNow() { clearTimeout(saveTimer); if (P) DB.put('kv', 'project', P); }
-function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon }); }
+function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -1816,7 +1820,7 @@ const meterLast = [-1, -1];
 function drawMeter() { [METER.l, METER.r].forEach((v, i) => { const db = v > 1e-5 ? 20 * Math.log10(v) : -99, f = Math.round(clamp((db + 48) / 48, 0, 1) * 200) / 200; if (f === meterLast[i]) return; meterLast[i] = f;   // write the style only when it changes
     meterEls[i].style.transform = `scaleX(${f})`; meterEls[i].classList.toggle('hot', db > -3); }); clipEl.classList.toggle('on', METER.clip);
   const n = performance.now(); if (n - lastCpuDraw > 400) { lastCpuDraw = n; const c = ENG.ready ? Math.round(REP.cpu * 100) : null; cpuEl.textContent = c == null ? 'CPU —' : `CPU ${c}%`; cpuEl.classList.toggle('hot', c != null && c > 60); } }
-$('#meter').addEventListener('click', () => { METER.clip = false; drawMeter(); });
+$('#meter').addEventListener('click', () => { METER.clip = false; drawMeter(); openAnalyzer(MASTER); });   // the output meter opens the master's analyzer
 $('#bMon').addEventListener('click', e => { e.stopPropagation(); openMonitor(); });
 $('#bPlay').onclick = play;
 $('#bRec').onclick = () => { T.rec = !T.rec; sendClick(); REC.saved = -1; REC.last = null; updateTransport(); if (T.rec && !T.playing) toast('Record armed. Press play, then play pads or move controls.'); };
@@ -1863,7 +1867,7 @@ async function boot() {
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (pr.snap != null) UI.tl.snap = pr.snap;
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
-    UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
+    UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);

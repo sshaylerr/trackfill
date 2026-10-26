@@ -209,6 +209,89 @@ class TFSpectrum {
   }
 }
 
+/* ---------- the full analyzer (only while its sheet is open; each panel's work only while that panel is open) ----------
+   mask: 1 loudness · 2 spectrum · 4 spectrogram (uses the spectrum) · 8 waveform · 16 stereo · 32 the spectrum's side line
+   Loudness follows ITU-R BS.1770 / EBU R128: K-weighting, 400 ms momentary, 3 s short-term, gated integrated (−70 LUFS absolute, −10 LU relative),
+   loudness range (EBU Tech 3342: short-term values, −20 LU relative gate, 10th to 95th percentile) and true peak (4× oversampled). */
+function tfFFT(N) { const rev = new Uint16Array(N), cs = new Float32Array(N / 2), sn = new Float32Array(N / 2);
+  for (let i = 0, j = 0; i < N; i++) { rev[i] = j; let b = N >> 1; while (j & b) { j ^= b; b >>= 1; } j |= b; }
+  for (let i = 0; i < N / 2; i++) { cs[i] = Math.cos(2 * Math.PI * i / N); sn[i] = -Math.sin(2 * Math.PI * i / N); }
+  return (re, im) => { for (let size = 2; size <= N; size <<= 1) { const half = size >> 1, step = N / size;
+    for (let s = 0; s < N; s += size) for (let k = 0; k < half; k++) { const c = cs[k * step], si = sn[k * step], a = s + k, b = a + half;
+      const tr = re[b] * c - im[b] * si, ti = re[b] * si + im[b] * c; re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti; } } }; }
+const TF_AN_BANDS = 160, TF_AN_LO = 20, TF_AN_HI = 20000;
+class TFAnalyzer {
+  constructor(sr) {
+    this.sr = sr; const N = this.N = 4096; this.rL = new Float32Array(N); this.rR = new Float32Array(N); this.w = 0;
+    this.fft = tfFFT(N); this.rev = new Uint16Array(N); for (let i = 0, j = 0; i < N; i++) { this.rev[i] = j; let b = N >> 1; while (j & b) { j ^= b; b >>= 1; } j |= b; }
+    this.win = new Float32Array(N); let ws = 0; for (let i = 0; i < N; i++) { this.win[i] = .5 - .5 * Math.cos(2 * Math.PI * i / (N - 1)); ws += this.win[i]; } this.wsum = ws;
+    this.re = new Float32Array(N); this.im = new Float32Array(N); this.pM = new Float32Array(N / 2); this.pS = new Float32Array(N / 2);
+    this.bf = new Float32Array(TF_AN_BANDS + 1); for (let b = 0; b <= TF_AN_BANDS; b++) this.bf[b] = TF_AN_LO * Math.pow(TF_AN_HI / TF_AN_LO, b / TF_AN_BANDS) * N / sr;   // band edges in bins
+    // K-weighting (the sample-rate-independent form of the BS.1770 filters)
+    { let f0 = 1681.974450955533, G = 3.999843853973347, Q = .7071752369554196, K = Math.tan(Math.PI * f0 / sr), Vh = Math.pow(10, G / 20), Vb = Math.pow(Vh, .4996667741545416), a0 = 1 + K / Q + K * K;
+      this.k1 = [(Vh + Vb * K / Q + K * K) / a0, 2 * (K * K - Vh) / a0, (Vh - Vb * K / Q + K * K) / a0, 2 * (K * K - 1) / a0, (1 - K / Q + K * K) / a0];
+      f0 = 38.13547087602444; Q = .5003270373238773; K = Math.tan(Math.PI * f0 / sr); const d = 1 + K / Q + K * K;
+      this.k2 = [1, -2, 1, 2 * (K * K - 1) / d, (1 - K / Q + K * K) / d]; }
+    this.kz = new Float64Array(8); this.bl = Math.round(sr * .1);
+    // true peak: 4× polyphase interpolation (48-tap windowed sinc)
+    const T = 48; this.tp = new Float32Array(T); for (let n = 0; n < T; n++) { const x = (n - (T - 1) / 2) / 4, w = .42 - .5 * Math.cos(2 * Math.PI * n / (T - 1)) + .08 * Math.cos(4 * Math.PI * n / (T - 1)); this.tp[n] = (x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x)) * w; }
+    this.tH = [new Float32Array(T / 2), new Float32Array(T / 2)]; this.tw = 0;   // each channel's last 12 samples, stored twice so a window never wraps
+    this.colN = Math.max(64, Math.round(sr * .005)); this.vs = new Float32Array(2048); this.vw = 0;
+    this.resetLoud(); this.resetCols();
+  }
+  resetLoud() { this.blk = 0; this.bn = 0; this.bE = new Float64Array(30); this.bW = 0; this.bc = 0; this.hI = new Float64Array(900); this.hIe = new Float64Array(900); this.hS = new Float64Array(900); this.hSe = new Float64Array(900);
+    this.tpMax = 0; this.spMax = 0; this.hist = []; }
+  resetCols() { this.cAcc = 0; this.cMin = 1; this.cMax = -1; this.cLo = 0; this.cMid = 0; this.cHi = 0; this.l1 = 0; this.l2 = 0; this.cols = []; this.cLL = 0; this.cRR = 0; this.cLR = 0; this.cMM = 0; this.cSS = 0; }
+  feed(L, R, m, mask) {
+    const k1 = this.k1, k2 = this.k2, z = this.kz, rL = this.rL, rR = this.rR, Nm = this.N - 1, tp = this.tp, tH = this.tH;
+    const aLo = 1 - Math.exp(-2 * Math.PI * 250 / this.sr), aHi = 1 - Math.exp(-2 * Math.PI * 4000 / this.sr);
+    for (let i = 0; i < m; i++) { const l = L[i], r = R[i]; rL[this.w] = l; rR[this.w] = r; this.w = (this.w + 1) & Nm;
+      if (mask & 1) {   // K-weighted energy into 100 ms blocks, and the true peak
+        let e = 0; for (let c = 0; c < 2; c++) { const x = c ? r : l, o = c * 4;
+          const y1 = k1[0] * x + z[o]; z[o] = k1[1] * x - k1[3] * y1 + z[o + 1]; z[o + 1] = k1[2] * x - k1[4] * y1;
+          const y2 = y1 + z[o + 2]; z[o + 2] = -2 * y1 - k2[3] * y2 + z[o + 3]; z[o + 3] = y1 - k2[4] * y2; e += y2 * y2; }
+        this.blk += e; if (++this.bn >= this.bl) this.block();
+        const a = Math.max(Math.abs(l), Math.abs(r)); if (a > this.spMax) this.spMax = a;
+        const P = 12, w0 = this.tw; tH[0][w0] = tH[0][w0 + P] = l; tH[1][w0] = tH[1][w0 + P] = r; this.tw = (w0 + 1) % P;
+        if (a > this.tpMax * .7) for (let c = 0; c < 2; c++) { const hb = tH[c], e = w0 + P; for (let ph = 0; ph < 4; ph++) { let acc = 0; for (let k = 0; k < P; k++) acc += tp[k * 4 + ph] * hb[e - k]; if (acc < 0) acc = -acc; if (acc > this.tpMax) this.tpMax = acc; } } }   // only near the running peak can a new true peak hide
+      if (mask & 8) { const mo = (l + r) * .5; this.l1 += (mo - this.l1) * aLo; this.l2 += (mo - this.l2) * aHi; const lo = this.l1, hi = mo - this.l2, mi = this.l2 - this.l1;
+        if (mo < this.cMin) this.cMin = mo; if (mo > this.cMax) this.cMax = mo; this.cLo += lo * lo; this.cMid += mi * mi; this.cHi += hi * hi;
+        if (++this.cAcc >= this.colN) { if (this.cols.length < 600) this.cols.push(this.cMin, this.cMax, Math.sqrt(this.cLo / this.cAcc), Math.sqrt(this.cMid / this.cAcc), Math.sqrt(this.cHi / this.cAcc)); this.cAcc = 0; this.cMin = 1; this.cMax = -1; this.cLo = this.cMid = this.cHi = 0; } }
+      if (mask & 16) { this.cLL += l * l; this.cRR += r * r; this.cLR += l * r; const M = (l + r) * .5, S = (l - r) * .5; this.cMM += M * M; this.cSS += S * S;
+        if (i & 1) { this.vs[this.vw] = l; this.vs[this.vw + 1] = r; this.vw = (this.vw + 2) & 2047; } } }
+  }
+  block() {   // every 100 ms: momentary (last 4 blocks) feeds the integrated gate, short-term (last 30) the range
+    const L = x => -.691 + 10 * Math.log10(x + 1e-20), bin = l => Math.max(0, Math.min(899, Math.round((l + 80) * 10)));
+    this.bE[this.bW] = this.blk / this.bn; this.bW = (this.bW + 1) % 30; this.bc++; this.blk = 0; this.bn = 0;
+    const mean = n => { let s = 0; for (let k = 1; k <= n; k++) s += this.bE[(this.bW - k + 30) % 30]; return s / n; };
+    if (this.bc >= 4) { const e = mean(4), l = L(e); this.mom = l; if (l > -70) { const b = bin(l); this.hI[b]++; this.hIe[b] += e; } } else this.mom = -120;
+    if (this.bc >= 30) { const e = mean(30), l = L(e); this.st = l; if (l > -70) { const b = bin(l); this.hS[b]++; this.hSe[b] += e; } } else this.st = this.bc >= 4 ? L(mean(this.bc)) : -120;
+    this.hist.push(this.st, this.mom);
+  }
+  integrated() { const L = x => -.691 + 10 * Math.log10(x + 1e-20); let n = 0, e = 0; for (let b = 0; b < 900; b++) { n += this.hI[b]; e += this.hIe[b]; } if (!n) return -120;
+    const rel = L(e / n) - 10, b0 = Math.max(0, Math.round((rel + 80) * 10)); n = 0; e = 0; for (let b = b0; b < 900; b++) { n += this.hI[b]; e += this.hIe[b]; } return n ? L(e / n) : -120; }
+  range() { const L = x => -.691 + 10 * Math.log10(x + 1e-20); let n = 0, e = 0; for (let b = 0; b < 900; b++) { n += this.hS[b]; e += this.hSe[b]; } if (n < 2) return 0;
+    const b0 = Math.max(0, Math.round((L(e / n) - 20 + 80) * 10)); let tot = 0; for (let b = b0; b < 900; b++) tot += this.hS[b]; if (tot < 2) return 0;
+    const pc = q => { let acc = 0; for (let b = b0; b < 900; b++) { acc += this.hS[b]; if (acc >= q * tot) return b / 10 - 80; } return 0; }; return pc(.95) - pc(.10); }
+  spectrum(side) {   // mid and side power (side only when it's shown), smoothed into 160 log bands (bands narrower than a bin read the bins around them)
+    const N = this.N, re = this.re, im = this.im, w = this.w, win = this.win, rev = this.rev, g = 2 / this.wsum, out = new Float32Array(TF_AN_BANDS * 2);
+    for (const [k, pw] of side ? [[0, this.pM], [1, this.pS]] : [[0, this.pM]]) { for (let i = 0; i < N; i++) { const j = rev[i], a = this.rL[(w + i) & (N - 1)], b = this.rR[(w + i) & (N - 1)]; re[j] = (k ? (a - b) : (a + b)) * .5 * win[i]; im[j] = 0; }
+      this.fft(re, im); for (let i = 0; i < N / 2; i++) pw[i] = (re[i] * re[i] + im[i] * im[i]) * g * g;
+      for (let b = 0; b < TF_AN_BANDS; b++) { const a = this.bf[b], c = this.bf[b + 1]; let p;
+        if (c - a < 1) { const x = (a + c) / 2, i0 = Math.floor(x), f = x - i0; p = pw[i0] + (pw[Math.min(N / 2 - 1, i0 + 1)] - pw[i0]) * f; }
+        else { let s = 0, n = 0; for (let i = Math.ceil(a); i < c; i++) { s += pw[i]; n++; } p = n ? s / n : pw[Math.round(a)]; }
+        out[k * TF_AN_BANDS + b] = 10 * Math.log10(p + 1e-12); } }
+    return out; }
+  report(mask) {
+    const r = { mask };
+    if (mask & 1) { r.loud = [this.mom ?? -120, this.st ?? -120, this.integrated(), this.range(), 20 * Math.log10(this.tpMax + 1e-9), 20 * Math.log10(this.spMax + 1e-9)]; r.hist = this.hist; this.hist = []; }
+    if (mask & 6) r.spec = this.spectrum(mask & 32);
+    if (mask & 8) { r.cols = this.cols; this.cols = []; }
+    if (mask & 16) { const d = Math.sqrt(this.cLL * this.cRR); r.st = [d > 1e-12 ? this.cLR / d : 0, this.cMM + this.cSS > 1e-12 ? this.cSS / (this.cMM + this.cSS) : 0, this.cLL + this.cRR > 1e-12 ? (this.cRR - this.cLL) / (this.cLL + this.cRR) : 0];
+      this.cLL = this.cRR = this.cLR = this.cMM = this.cSS = 0; r.vs = Array.from(this.vs); }
+    return r; }
+}
+
 class TFHeap {
   constructor() { this.a = []; }
   get size() { return this.a.length; }
@@ -277,6 +360,7 @@ class TFHost {
       case 'preview': this.preview(m.key); break;
       case 'panic': this.panic(); break;
       case 'scope': this.setScope(m); break;
+      case 'anReset': if (this.an) this.an.resetLoud(); break;
       case 'monitor': { if (!this.ex.tf_mon) break; this.ex.tf_mon(m.mode | 0); const ph = TF_PHONES[m.phones];   // live output only: exports never get this message
         if (ph) { ph.bands.forEach((b, k) => this.ex.tf_mon_band(k, ...tfBiquad(b[0], b[1], b[2], b[3], this.sr))); this.ex.tf_mon_eq(ph.bands.length, Math.pow(10, ph.pre / 20)); } else this.ex.tf_mon_eq(0, 1); break; }
     }
@@ -417,16 +501,20 @@ class TFHost {
   // ch: the channel to analyze (or -1: no analyzer at all). fc/fs: an effect whose live gain change the screen shows (one number, no analysis).
   setScope(m) {
     this.visFx = m.fc != null && m.fc >= 0 ? [m.fc, m.fs] : null; if (this.ex.tf_fxio_ch) this.ex.tf_fxio_ch(this.visFx ? m.fc : -1);
-    if (m.ch == null || m.ch < 0 || m.ch >= TF.NCH) { this.scope = null; return; }
+    this.anMask = m.full | 0; if (!this.anMask) this.an = null;
+    if (m.ch == null || m.ch < 0 || m.ch >= TF.NCH) { this.scope = null; this.an = null; return; }
+    if (this.anMask && (!this.an || this.an.ch !== m.ch)) { this.an = new TFAnalyzer(this.sr); this.an.ch = m.ch; }
     let s = this.scope; if (!s) { s = this.scope = { buf: new Float32Array(2048), w: 0, pkL: 0, pkR: 0, ssL: 0, ssR: 0, n: 0, mem: null }; if (!this.spec) this.spec = new TFSpectrum(this.sr); }
     if (s.ch !== m.ch) { s.ch = m.ch; s.mem = null; s.buf.fill(0); s.pkL = s.pkR = s.ssL = s.ssR = 0; s.n = 0; }   // never carry the last channel's levels over
   }
   scopeFeed(m) {
     const s = this.scope, ex = this.ex, mem = ex.memory.buffer;
-    if (s.mem !== mem) { s.mem = mem; s.vL = new Float32Array(mem, ex.tf_key_l(s.ch), 128); s.vR = new Float32Array(mem, ex.tf_key_r(s.ch), 128); }
+    const ptr = s.ch === TF.MASTER && ex.tf_mix_l ? ex.tf_mix_l() : ex.tf_key_l(s.ch);   // the master is read after its fader (the mix you hear, before any monitoring); others before theirs
+    if (s.mem !== mem || s.ptr !== ptr) { s.mem = mem; s.ptr = ptr; s.vL = new Float32Array(mem, ptr, 128); s.vR = new Float32Array(mem, s.ch === TF.MASTER && ex.tf_mix_r ? ex.tf_mix_r() : ex.tf_key_r(s.ch), 128); }
     const L = s.vL, R = s.vR, buf = s.buf; let w = s.w, pl = s.pkL, pr = s.pkR, sl = 0, sr = 0;
     for (let i = 0; i < m; i++) { const l = L[i], r = R[i]; buf[w] = (l + r) * .5; w = (w + 1) & 2047; const al = l < 0 ? -l : l, ar = r < 0 ? -r : r; if (al > pl) pl = al; if (ar > pr) pr = ar; sl += l * l; sr += r * r; }
     s.w = w; s.pkL = pl; s.pkR = pr; s.ssL += sl; s.ssR += sr; s.n += m;
+    if (this.an && this.anMask) this.an.feed(L, R, m, this.anMask);
   }
   /* the ducker's scrolling waveforms: per block, the peak of its channel (after the duck), the peak of its key (the trigger pads,
      or the source channel in Audio mode) and the duck gain. About 375 columns a second, sent with each report. */
@@ -443,6 +531,7 @@ class TFHost {
   }
   scopeReport() {
     const s = this.scope, v = this.visFx, r = { ch: s ? s.ch : -1, vis: v ? this.ex.tf_fx_vis(v[0], v[1], 0) : 0, vis3: v ? [0, 1, 2].map(i => this.ex.tf_fx_vis(v[0], v[1], i)) : null };
+    if (this.an && this.anMask && s) r.an = this.an.report(this.anMask);
     if (v && this.ex.tf_fxio) { const a = new Float32Array(this.ex.memory.buffer, this.ex.tf_fxio(), 32), o = v[1] * 4; r.io = [a[o], a[o + 1], a[o + 2], a[o + 3]]; a.fill(0); }   // the device's in/out peaks since the last report
     const w = this.wv; if (w && v && w.c === v[0] && w.s === v[1]) { if (w.cols.length) { r.wv = w.cols; for (let i = 2; i < w.cols.length; i += 3) r.vis = Math.min(r.vis, w.cols[i]); } w.cols = []; }   // the meter shows the deepest dip, however short
     if (s) { const loud = s.pkL > 1e-5 || s.pkR > 1e-5, n = Math.max(1, s.n);
@@ -462,6 +551,7 @@ class TFHost {
   }
   /* ---------- transport ---------- */
   start(scene, loop, count) {
+    if (this.an) this.an.resetLoud();   // integrated loudness and the true-peak hold measure from the moment playback starts
     this.stop(true);
     if (loop) this.loop = loop;
     this.playing = true; this.pending = null;
@@ -632,4 +722,4 @@ async function tfRenderOffline(module, P, samples, opts) {
   }
   return { L, R, sr };
 }
-if (typeof module !== 'undefined') module.exports = { TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
