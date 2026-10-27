@@ -109,7 +109,8 @@ EX void* tf_malloc(u32 n) {
   }
   if (!heap_top) heap_top = ((u32)&__heap_base + 15u) & ~15u;
   u32 end = heap_top + need, have = (u32)__builtin_wasm_memory_size(0) * 65536u;
-  if (end > have) { u32 pages = (end - have + 65535u) / 65536u; if (__builtin_wasm_memory_grow(0, pages) == (__SIZE_TYPE__)-1) return 0; }
+  if (end > have) { u32 pages = (end - have + 65535u) / 65536u, more = have / 4u / 65536u;   // grow by a quarter at least: a few big steps, not one per sound (each grow can copy the whole heap)
+    if (more > pages && __builtin_wasm_memory_grow(0, more) != (__SIZE_TYPE__)-1) {} else if (__builtin_wasm_memory_grow(0, pages) == (__SIZE_TYPE__)-1) return 0; }
   b = (Blk*)heap_top; b->size = need; heap_top = end;
   return (u8*)b + 16;
 }

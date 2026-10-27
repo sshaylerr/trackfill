@@ -850,7 +850,7 @@ function ensureAudio() {
   try {
     unmuteIOS();
     if (!ctx) newContext();
-    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    if (ctx.state !== 'running') { send({ t: 'soft' }); ctx.resume().catch(() => {}); }   // waking: the first sound fades in
     setTimeout(updateSoundChip, 80); return true;
   } catch (e) { console.error(e); toast('Sound could not start on this device'); return false; }
 }
@@ -949,9 +949,18 @@ const rangeStr = (a, b) => a % BAR || b % BAR ? `from ${posStr(a).split('.').sli
 function sendClick() { send({ t: 'click', on: UI.click === 'always' || (UI.click === 'rec' && T.rec), vol: UI.clickVol }); $('#bTempo').classList.toggle('clk', UI.click === 'always' || (UI.click === 'rec' && T.rec)); }
 function stop() { T.playing = false; if (T.rec) { T.rec = false; sendClick(); } send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
 function panic(msg) { T.playing = false; send({ t: 'panic' }); KEYS.latch = null; for (const k in HELD) delete HELD[k]; METER.l = METER.r = 0; METER.clip = false; drawMeter(); updateTransport(); updatePlayingSlot(null); toast(msg || 'Panic: all sound stopped and effect tails cleared'); }
-function heardPos() {
+/* The audio clock as heard: the moment leaving the speaker right now, on the context's clock. The output timestamp pairs a moment the
+   speaker played with the page's own clock, so it runs smooth and true between audio blocks (the context's clock on the page steps, and on
+   some phones lags); without it, the context's clock less its reported latency. Everything that shows sound (playhead, lit notes, pad
+   flashes, meters) and recording read this one clock. */
+function heardTime() { if (!ctx) return 0; const fb = ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0);
+  const ts = ctx.state === 'running' && ctx.getOutputTimestamp ? ctx.getOutputTimestamp() : null;
+  if (ts && ts.contextTime > 0 && ts.performanceTime > 0) { const t = ts.contextTime + (performance.now() - ts.performanceTime) / 1000; const c = ctx.currentTime; if (t > c - .6 && t < c + .02) return t; }
+  return fb; }
+const DISP_LEAD = 1 / 60;   // a frame drawn now reaches the screen about one refresh later: drawings show the sound heard then
+function heardPos(ahead = 0) {
   if (!T.playing || !REP.playing || !REP.pos || !ctx) return null;
-  const lat = ctx.outputLatency || ctx.baseLatency || 0, dt = (ctx.currentTime - lat) - REP.time, sc = REP.pos.scene;
+  const dt = heardTime() + ahead - REP.time, sc = REP.pos.scene;
   return { scene: sc, tick: clamp(REP.pos.tick + dt * ctx.sampleRate * REP.pos.tps, 0, sceneLen(sc) - 1e-6) };
 }
 // ms: how long after the tap this note sounded (a strum); it's kept as played, after the tap itself is snapped to the grid
@@ -961,8 +970,10 @@ const REC = { pass: 0, saved: -1, last: null };
 function recReset() { REC.pass = 0; REC.saved = -1; REC.last = null; }
 function recTrack() { const p = heardPos(); if (!p) return; const l = REC.last; if (l && (p.scene !== l.scene || p.tick < l.tick - 1)) REC.pass++; REC.last = p; }
 function recMark() { recTrack(); if (REC.saved !== REC.pass) { pushUndo('all'); REC.saved = REC.pass; } }
+// a busy page can take a few ms to hand a touch over: a note is placed where the song was heard at the touch itself, not when it was handled
+const TOUCH = { at: -1e9 }, tapLag = () => { const d = (performance.now() - TOUCH.at) / 1000; return d > 0 && d < .15 ? d : 0; };
 function recordNote(pi, semi, vel = .9, ms = 0) {
-  const pos = heardPos(); if (!pos) return null; recMark(); touchPad(pi);
+  const pos = heardPos(-tapLag()); if (!pos) return null; recMark(); touchPad(pi);
   const sc = P.scenes[pos.scene], len = sc.bars * BAR, s = UI.tl.snap, off = ms / 1000 / spt(); let t = pos.tick; if (s) t = gridQ(t, s); t = fixT((((t + off) % len) + len) % len);
   const n = { t, len: s || 24, p: semi, v: +vel.toFixed(3) }, ahead = ((t - pos.tick - off + len) % len) * spt();
   if (ahead < .3) n.f = 1;   // the engine skips this once: you already heard it live
@@ -979,7 +990,7 @@ function recAuto(key, v) {
 }
 // Capture: everything played on the pads is remembered, so a good idea can be kept after the fact.
 const CAP = [];
-function capHit(pi, semi, vel, ms = 0) { const pos = heardPos(), off = ms / 1000 / spt();
+function capHit(pi, semi, vel, ms = 0) { const pos = heardPos(-tapLag()), off = ms / 1000 / spt();
   const e = { pi, semi, vel: +vel.toFixed(3), at: (ctx ? ctx.currentTime : 0) + ms / 1000, pos: pos ? { scene: pos.scene, tick: (pos.tick + off) % sceneLen(pos.scene) } : null, len: 24 }; CAP.push(e); if (CAP.length > 512) CAP.shift(); return e; }
 function doCapture() {
   const now = ctx ? ctx.currentTime : 0, fresh = CAP.filter(e => now - e.at < 120); CAP.length = 0;
@@ -1084,7 +1095,7 @@ const WAKE = { hold: false, fails: 0, off: false };
 
 // after 2 minutes with nothing playing and no touches, audio sleeps to save battery; the first tap wakes it (expect a short delay on that tap)
 let lastAct = Date.now();
-for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { lastAct = Date.now(); wake(); if (ENG.slept) ensureAudio(); }, true);
+for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, e => { lastAct = Date.now(); TOUCH.at = e.timeStamp; wake(); if (ENG.slept) ensureAudio(); }, true);
 setInterval(() => { if (!ctx || ctx.state !== 'running' || T.playing || busy || REP.voices > 0 || Date.now() - lastAct < 120000) return;
   ENG.slept = true; ctx.suspend().then(updateSoundChip).catch(() => {}); try { if (mediaTag) mediaTag.pause(); } catch (e) {} }, 5000);
 
@@ -1340,17 +1351,18 @@ function drawTL() {
 }
 function tlBlit() { const g = TL.cx; g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(TL.cache, 0, 0); g.setTransform(TL.dpr, 0, 0, TL.dpr, 0, 0); tlHead(); }
 // the playhead is its own thin line over the canvas, slid by the compositor: playback no longer repaints the timeline every frame
-function tlHead() { const el = TL.head; if (!el || !el.isConnected) return; const pos = heardPos(), x = pos && pos.scene === UI.scene ? Math.round(t2x(pos.tick) * 2) / 2 : -1, on = x >= LABEL_W && x <= TL.W;
+const VIS = { pos: null };   // the heard position this frame draws (set by the frame loop)
+function tlHead() { const el = TL.head; if (!el || !el.isConnected) return; const pos = T.playing ? VIS.pos : null, x = pos && pos.scene === UI.scene ? Math.round(t2x(pos.tick) * 2) / 2 : -1, on = x >= LABEL_W && x <= TL.W;
   if (on !== TL.headOn) { el.style.display = on ? 'block' : 'none'; TL.headOn = on; } if (on && x !== TL.headX) { el.style.transform = `translateX(${x - 1}px)`; TL.headX = x; } }
 /* ---------- what's playing, lit as the pads light on the Pads page: a note lights at its hit, stays lit while it sounds (at least as long
    as a pad's flash), then fades in the same three steps; its row's name lights with it. A layer of its own, redrawn only when something
    lights or dims, at the moment it's heard (swing and timing included). ---------- */
 const LIT_HOLD = .09, LIT_FADE = .25;
-function tlLit() { const cv = TL.glow; if (!cv || !cv.isConnected || !TL.W) return; const tl = UI.tl, pos = heardPos(), lit = [];
+function tlLit() { const cv = TL.glow; if (!cv || !cv.isConnected || !TL.W) return; const tl = UI.tl, pos = T.playing ? VIS.pos : null, lit = [];
   if (pos && pos.scene === UI.scene && tl.lane === 'notes') { const sc = P.scenes[UI.scene], st = spt(), hold = LIT_HOLD / st, fade = LIT_FADE / st, tick = pos.tick;
     const pads = tl.mode === 'bank' ? Array.from({ length: 16 }, (_, k) => UI.bank * 16 + k) : [UI.pad];
-    for (const pi of pads) { const pad = P.pads[pi], sw = pad.swg != null ? pad.swg : P.swing, off = (pad.tim || 0) / 1000 / st;
-      for (const n of sc.notes[pi] || []) { const s0 = n.t + tfSwing(n.t, sw) + off; if (tick < s0) continue; const end = Math.max(s0 + n.len, s0 + hold);
+    for (const pi of pads) { const pad = P.pads[pi], sw = pad.swg != null ? pad.swg : P.swing, ms = (pad.tim || 0) / 1000, sl = sceneLen(UI.scene);
+      for (const n of sc.notes[pi] || []) { const s0 = Math.max(0, Math.min(sl - 1e-3, n.t + tfSwing(n.t, sw) + (ms ? ms * tfBpmAt(P, UI.scene, n.t) * BEAT / 60 : 0))); if (tick < s0) continue; const end = Math.max(s0 + n.len, s0 + hold);   // s0: just where the engine places it
         const lv = tick < end ? 3 : 2 - Math.floor((tick - end) / fade * 3); if (lv <= 0) continue;
         const r = tl.mode === 'bank' ? pi - UI.bank * 16 : KR.row(n.p); if (r < 0 || r > maxRow()) continue; lit.push({ pi, n, r, lv }); } } }
   const sig = lit.map(x => x.pi + ':' + x.n.t + ':' + x.n.p + ':' + x.lv).join('|'); if (sig === TL.litSig) return; TL.litSig = sig;
@@ -2123,7 +2135,7 @@ const METQ = [], METER_FALL = 24;
 function meterTake(r) { if (r.fl) for (const v of r.fl) flashPad(v & 255, (v >> 8) - 1); METER.l = Math.max(METER.l, r.pk[0]); METER.r = Math.max(METER.r, r.pk[1]); if (r.pk[0] > 1 || r.pk[1] > 1) METER.clip = true;
   const cm = r.cm || []; if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) m.v[k] = Math.max(m.v[k], cm[m.c * 2 + k] || 0);
   if (r.sc) onScope(r.sc); }
-function meterFeed(dt) { const live = ctx && ctx.state === 'running', heard = live ? ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) : Infinity;
+function meterFeed(dt) { const live = ctx && ctx.state === 'running', heard = live ? heardTime() + DISP_LEAD : Infinity;
   while (METQ.length && (METQ[0].at <= heard || METQ[0].at - heard > .5)) meterTake(METQ.shift());   // (a report from far ahead means the clock jumped: show it now)
   const g = Math.pow(10, -METER_FALL * dt / 20), z = v => v * g < 1e-3 ? 0 : v * g;   // under -60 dB nothing shows: done, and the screen can rest
   METER.l = z(METER.l); METER.r = z(METER.r); for (const m of STRIP_METERS) { m.v[0] = z(m.v[0]); m.v[1] = z(m.v[1]); } }
@@ -2144,7 +2156,7 @@ document.addEventListener('pointerdown', ensureAudio, true);
 for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
 document.addEventListener('touchmove', e => { if (e.touches.length > 1 || !e.target.closest('#sheet .card, #scenes, .fxPanel')) e.preventDefault(); }, { passive: false });
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
-document.addEventListener('touchend', () => { if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); }, true);
+document.addEventListener('touchend', () => { if (ctx && ctx.state !== 'running') { send({ t: 'soft' }); ctx.resume().catch(() => {}); } }, true);
 document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(); if (T.playing) stop(); if (mediaTag) mediaTag.pause(); } });
 new ResizeObserver(() => { placeSheet(); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); }).observe($('#view'));
 let lastHeard = -1;
@@ -2162,7 +2174,7 @@ function frame(ts) {
   if (!ctx) return;
   if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) { const db = m.v[k] > 1e-5 ? 20 * Math.log10(m.v[k]) : -99, f = tfFaderPos(m.v[k]);   // stereo, on the fader's own scale: 0 dBFS sits on the unity mark
     const el = m.el[k]; el.style.height = (f * 100).toFixed(1) + '%'; el.style.background = db > 0 ? COL.rec : db > -6 ? COL.accent : COL.play; }
-  const pos = heardPos();
+  const pos = heardPos(DISP_LEAD); VIS.pos = pos;
   if (pos) {
     if (pos.scene !== lastHeard) { lastHeard = pos.scene; if (pos.scene !== UI.scene && !TL.drag) { UI.scene = pos.scene; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.sx = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else if (UI.view === 'seq') renderView(); } }
     updatePlayingSlot(pos);
