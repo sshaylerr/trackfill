@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-koIr+/OuS0jA/D/w3XKwjtIG9VTbLWPpaw+PW3BL2eA=' 'sha256-gV+Qg8FiR017NcL8tXRFS6+v68MV6fpfYTURs7uHXvU=' 'sha256-ygHyqGamZo5UBbmfhwHvcBR2URK3G9vSyXEbR81NtiE=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-koIr+/OuS0jA/D/w3XKwjtIG9VTbLWPpaw+PW3BL2eA=' 'sha256-gV+Qg8FiR017NcL8tXRFS6+v68MV6fpfYTURs7uHXvU=' 'sha256-yUwYHX8J4N+1cAi3DeYydDUhncyhfnr+Lfji4U9Gdt4=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -3699,7 +3699,8 @@ function keyMeta(key) {
 
 /* ================= rendering ================= */
 function renderAll() { renderScenes(); renderView(); updateTransport(); updatePanel(); }
-function setView(v) { navReset(); UI.view = v; renderView(); savePrefs(); }
+function setView(v) { if (UI.sheet && v !== UI.view) closeSheet();   // a menu belongs to the page it was opened on: changing page closes it
+  navReset(); UI.view = v; renderView(); savePrefs(); }
 function renderView() {
   for (const k in HELD) if (k[0] !== 's') padUp(+k);   // strip pads (keys 's…') live in the panel and keep playing
   if (NAV.mode === 'edit') navEndEdit(true);
