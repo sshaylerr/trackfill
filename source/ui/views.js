@@ -133,7 +133,7 @@ function samplePeaks(s, W) { if (s._pk && s._pk.w === W) return s._pk.a; const d
   for (let x = 0; x < W; x++) { const i0 = Math.floor(x * n / W), i1 = Math.floor((x + 1) * n / W); let mn = 0, mx = 0; for (let i = i0; i < i1; i += stride) { const v = d[i * ch] / 32768; if (v < mn) mn = v; if (v > mx) mx = v; } a[x * 2] = mn; a[x * 2 + 1] = mx; }
   s._pk = { w: W, a }; return a; }
 function drawDisp() {
-  const cv = dispCv; if (!cv || !cv.isConnected || UI.view !== 'sound') return; const r = cv.parentNode.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = r.height;
+  const cv = dispCv; if (!cv || !cv.isConnected || UI.view !== 'sound') return; const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = r.height;
   if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; } const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
   const pi = UI.pad, pad = P.pads[pi], s = SAMPLES.get(pad.sample), col = PAD_COLORS[pad.color];
   const txt = (t, x, y, c = COL.mute, al = 'left', sz = 10.5) => { g.fillStyle = c; g.font = `500 ${sz}px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle'; g.fillText(t, x, y); g.textAlign = 'left'; };

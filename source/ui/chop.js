@@ -87,7 +87,7 @@ function windowPeaks(s, a, b, W) {
 /* ---------- drawing ---------- */
 function drawChop() {
   const cv = CV.cv; if (!cv || !cv.isConnected || !chopShown()) return;
-  const r = cv.parentNode.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, Math.round(r.height)), small = H < 96;
+  const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, Math.round(r.height)), small = H < 96;
   const OV_H = CV.ov = small ? 8 : 16, FOOT = small ? 0 : 15;   // short screens: thinner overview, no footer line
   if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; } CV.W = W; CV.H = H;
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-ikW2/FCXi3adSpBFy8QCirPoym/HobMRLG4nT/oxVhI=' 'sha256-0lZSqfLkF/x9Cq6xXxczkyWmPQ8YM5Oep+KV4GCRcQU=' 'sha256-/VxuhqDbYgKCP02vwYhpcW3/FXsS1NYaeAltJjpwos0=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-ikW2/FCXi3adSpBFy8QCirPoym/HobMRLG4nT/oxVhI=' 'sha256-0lZSqfLkF/x9Cq6xXxczkyWmPQ8YM5Oep+KV4GCRcQU=' 'sha256-aSn09asBbN+O5mwdGXDh/wx42GjI6CeBgA7+C2QnDXk=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -3247,6 +3247,8 @@ const KR = { chop: () => UI.tl.mode === 'keys' ? chopOf(UI.pad) : null, rows: ()
   p: r => KR.chop() ? r : KEY_HI - r, row: p => { const c = KR.chop(); return c ? clamp(Math.round(p) || 0, 0, c.pts.length - 1) : KEY_HI - p; },
   name: p => KR.chop() ? 'Slice ' + (KR.row(p) + 1) : noteName(p) };
 const $ = s => document.querySelector(s);
+// the space inside a box's border: a canvas filling it (inset 0) is exactly this size, so drawings and overlays line up to the pixel
+const innerBox = el => ({ width: el.clientWidth, height: el.clientHeight });
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -4117,7 +4119,7 @@ function zoomV(f) { const tl = UI.tl, viewH = noteH() - RULER_H, mid = (vOff() +
   if (tl.mode === 'bank') tl.rv = clamp(Math.round((tl.rv || 16) / f * 100) / 100, 4, 16); else tl.kh = clamp((tl.kh || KEY_H) * f, 14, 56);
   const v = mid * rowH() - viewH / 2; if (tl.mode === 'bank') tl.by = v; else tl.sy = v; drawTL(); }
 function zoomTL(f) { const tl = UI.tl, mid = x2t(LABEL_W + (TL.W - LABEL_W) / 2); tl.zoom = clamp(tl.zoom * f, (TL.W - LABEL_W) / (tlLen() * 1.02), 3); tl.sx = mid - (TL.W - LABEL_W) / 2 / tl.zoom; drawTL(); }
-function sizeTL() { if (!TL.cv) return; const r = TL.cv.parentNode.getBoundingClientRect(); TL.dpr = window.devicePixelRatio || 1; TL.W = r.width; TL.H = r.height;
+function sizeTL() { if (!TL.cv) return; const r = innerBox(TL.cv.parentNode); TL.dpr = window.devicePixelRatio || 1; TL.W = r.width; TL.H = r.height;
   TL.cv.width = Math.round(r.width * TL.dpr); TL.cv.height = Math.round(r.height * TL.dpr); drawTL(); }
 function drawGrid(g, y0, y1) {
   const tl = UI.tl, len = tlLen(), W = TL.W, t0 = Math.max(0, Math.floor(tl.sx)), t1 = Math.min(len, x2t(W));
@@ -5372,7 +5374,7 @@ function samplePeaks(s, W) { if (s._pk && s._pk.w === W) return s._pk.a; const d
   for (let x = 0; x < W; x++) { const i0 = Math.floor(x * n / W), i1 = Math.floor((x + 1) * n / W); let mn = 0, mx = 0; for (let i = i0; i < i1; i += stride) { const v = d[i * ch] / 32768; if (v < mn) mn = v; if (v > mx) mx = v; } a[x * 2] = mn; a[x * 2 + 1] = mx; }
   s._pk = { w: W, a }; return a; }
 function drawDisp() {
-  const cv = dispCv; if (!cv || !cv.isConnected || UI.view !== 'sound') return; const r = cv.parentNode.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = r.height;
+  const cv = dispCv; if (!cv || !cv.isConnected || UI.view !== 'sound') return; const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = r.height;
   if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; } const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
   const pi = UI.pad, pad = P.pads[pi], s = SAMPLES.get(pad.sample), col = PAD_COLORS[pad.color];
   const txt = (t, x, y, c = COL.mute, al = 'left', sz = 10.5) => { g.fillStyle = c; g.font = `500 ${sz}px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle'; g.fillText(t, x, y); g.textAlign = 'left'; };
@@ -5744,7 +5746,7 @@ function windowPeaks(s, a, b, W) {
 /* ---------- drawing ---------- */
 function drawChop() {
   const cv = CV.cv; if (!cv || !cv.isConnected || !chopShown()) return;
-  const r = cv.parentNode.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, Math.round(r.height)), small = H < 96;
+  const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, Math.round(r.height)), small = H < 96;
   const OV_H = CV.ov = small ? 8 : 16, FOOT = small ? 0 : 15;   // short screens: thinner overview, no footer line
   if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; } CV.W = W; CV.H = H;
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
@@ -7073,7 +7075,7 @@ function openPresetBrowser(pi) {
 /* ----- the screen ----- */
 function drawSynDisp() {
   const cv = synCv; if (!cv || !cv.isConnected) return; const pi = UI.pad, S = synOf(pi); if (!S) return;
-  const r = cv.parentNode.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
+  const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
   cv.parentNode.classList.toggle('gone', H < 34); if (H < 34) return;   // too small to read: the screen steps aside until there's room
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
@@ -7630,7 +7632,7 @@ function renderDrumPage(w, pi, head, pages) {
 }
 function drawDrumDisp() {
   const cv = drumCv; if (!cv || !cv.isConnected) return; const pi = UI.pad, pad = P.pads[pi], d = pad.drum; if (!d) return; const s = SAMPLES.get(pad.sample);
-  const r = cv.parentNode.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
+  const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
   cv.parentNode.classList.toggle('gone', H < 34); if (H < 34) return;
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H); const col = PAD_COLORS[pad.color];

@@ -6,14 +6,14 @@
 //   4. a long play leaves no growing pile of page elements or memory, and no errors
 'use strict';
 const { chromium } = require('playwright'), path = require('path'), http = require('http'), fs = require('fs');
-const HTML = path.join(__dirname, '../../dist/trackfill.html');   // served over http: a page opened from a file can't load the audio worklet
+const HTML = process.env.TF_HTML || path.join(__dirname, '../../dist/trackfill.html');   // served over http: a page opened from a file can't load the audio worklet
 let fails = 0; const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails++; };
 const QUICK = process.argv.includes('--quick');   // deploy.sh: one phone size, no long play
 const SIZES = QUICK ? [[390, 844]] : [[375, 667], [390, 844], [430, 932]];
 
 // runs inside the page: every state the crawl visits, as [name, setup]
 const crawl = async () => {
-  const sl = ms => new Promise(r => setTimeout(r, ms)), out = { errs: [], wide: [], moved: [], unreached: [], states: 0, menus: 0, navd: 0, navs: 0 };
+  const sl = ms => new Promise(r => setTimeout(r, ms)), out = { errs: [], wide: [], moved: [], unreached: [], blurry: [], states: 0, menus: 0, navd: 0, navs: 0 };
   const bars = () => ['#top', '#tabs'].map(s => { const e = document.querySelector(s); if (!e) return s + ':none'; const r = e.getBoundingClientRect(); return [s, Math.round(r.top), Math.round(r.height), Math.round(r.width)].join(':'); }).join(' ');
   const base = bars();
   const reach = () => { const items = navItems(); if (items.length < 2) return [];
@@ -24,6 +24,8 @@ const crawl = async () => {
   const check = (name, dpad = true) => { out.states++;
     const W = innerWidth, sw = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth); if (sw > W + 1) out.wide.push(`${name} (${sw}px)`);
     if (!UI.sheet && bars() !== base) out.moved.push(name);
+    for (const cv of document.querySelectorAll('canvas')) { const r = cv.getBoundingClientRect(), d = devicePixelRatio; if (!r.width || !cv.width || cv.width < 8) continue;   // a canvas shown at its drawn size: no stretch (overlays line up, lines stay sharp)
+      if (Math.abs(r.width * d - cv.width) > d + .5 || Math.abs(r.height * d - cv.height) > d + .5) out.blurry.push(`${name} ${cv.className || 'canvas'} ${r.width.toFixed(1)}×${r.height.toFixed(1)} drawn ${(cv.width / d).toFixed(1)}×${(cv.height / d).toFixed(1)}`); }
     if (dpad) { const u = reach(); if (u.length) out.unreached.push(`${name}: ${u.slice(0, 4).join(' | ')}${u.length > 4 ? ` (+${u.length - 4})` : ''}`); } };
   const at = async (name, f, dpad) => { try { await f(); await sl(60); check(name, dpad); } catch (e) { out.errs.push(name + ': ' + e.message); } };
   for (const v of ['pads', 'seq', 'mix']) await at(v, () => setView(v));
@@ -62,6 +64,7 @@ const crawl = async () => {
     const r = await pg.evaluate(crawl);
     ok(!r.errs.length && !errs.length, `${r.states} pages and ${r.menus} menus open without errors` + (r.errs.length || errs.length ? ': ' + r.errs.concat(errs).slice(0, 4).join(' / ') : ''));
     ok(!r.wide.length, 'nothing wider than the screen' + (r.wide.length ? ': ' + r.wide.slice(0, 5).join(', ') : ''));
+    ok(!r.blurry.length, 'every canvas is shown at the size it was drawn' + (r.blurry.length ? ': ' + [...new Set(r.blurry)].slice(0, 6).join(', ') : ''));
     ok(!r.moved.length, 'transport and tabs stay put on every page' + (r.moved.length ? ': ' + r.moved.slice(0, 5).join(', ') : ''));
     ok(!r.unreached.length, `the d-pad reaches every control (${r.navd} on ${r.navs} pages and menus)` + (r.unreached.length ? ':\n      ' + r.unreached.slice(0, 12).join('\n      ') + (r.unreached.length > 12 ? `\n      (+${r.unreached.length - 12} more)` : '') : ''));
     if (w === 390 && !QUICK) { errs.length = 0;   // a long play on the busiest page: no growing pile of elements, memory, or errors

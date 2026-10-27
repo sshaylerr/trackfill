@@ -52,7 +52,7 @@ function renderDrumPage(w, pi, head, pages) {
 }
 function drawDrumDisp() {
   const cv = drumCv; if (!cv || !cv.isConnected) return; const pi = UI.pad, pad = P.pads[pi], d = pad.drum; if (!d) return; const s = SAMPLES.get(pad.sample);
-  const r = cv.parentNode.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
+  const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
   cv.parentNode.classList.toggle('gone', H < 34); if (H < 34) return;
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H); const col = PAD_COLORS[pad.color];
