@@ -2,6 +2,8 @@
 const IC = {
   del: '<svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4zM6 9h12l-1 12H7z"/></svg>',
   draw: '<svg viewBox="0 0 24 24"><path d="M4 17.5V20h2.5L17 9.5 14.5 7zM19.7 6.8l-2.5-2.5-1.6 1.6 2.5 2.5z"/></svg>',
+  select: '<svg viewBox="0 0 24 24"><path d="M3 3h4v2H5v2H3zm6 0h6v2H9zm8 0h4v4h-2V5h-2zM3 9h2v6H3zm16 0h2v4h-2zM3 17h2v2h2v2H3zm6 2h4v2H9zm5.5-6.5l7 2.6-3 1.2 2.6 2.6-1.4 1.4-2.6-2.6-1.2 3z"/></svg>',
+  follow: '<svg viewBox="0 0 24 24"><path d="M5 3h2.2v18H5zM10 7l9 5-9 5z"/></svg>',
   shapes: '<svg viewBox="0 0 24 24"><path d="M2 18c4 0 5-12 10-12s6 12 10 12v2.2C17 20.2 16 8.2 12 8.2S7 20.2 2 20.2z"/></svg>',
   left: '<svg viewBox="0 0 24 24"><path d="M15 5l-8 7 8 7z"/></svg>', right: '<svg viewBox="0 0 24 24"><path d="M9 5l8 7-8 7z"/></svg>' };
 
@@ -36,7 +38,10 @@ function renderSeq(V) {
   bar.append(btn(snapName(tl.snap), openSnap, 'key sm'));
   const zoom = f => { if (UI.shift && isNotes) zoomV(f); else zoomTL(f); };   // Shift + zoom: row height
   bar.append(btn('−', () => zoom(1 / 1.5), 'key sm ic'), btn('+', () => zoom(1.5), 'key sm ic'));
-  if (isNotes) { let held = false, t = 0; const sk = btn('Select', () => { if (held) { held = false; return; } tl.selMode = !tl.selMode; tl.box = null; renderView(); }, 'key sm selKey' + (tl.selMode ? ' on' : ''));   // long-press: select all
+  { let held = false, t = 0; const fb = btn(IC.follow, () => { if (held) { held = false; return; } tlFollowTap(); }, 'key sm ic follow'); TL.fbtn = fb; fb.setAttribute('aria-label', 'Follow playhead');   // follow the playhead (hold: look at it once)
+    fb.addEventListener('pointerdown', () => { held = false; clearTimeout(t); t = setTimeout(() => { held = true; haptic(); tlToPlayhead(); }, 450); }); for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) fb.addEventListener(ev, () => clearTimeout(t));
+    bar.append(fb); requestAnimationFrame(tlFollowUpd); }
+  if (isNotes) { let held = false, t = 0; const sk = btn(IC.select, () => { if (held) { held = false; return; } tl.selMode = !tl.selMode; tl.box = null; renderView(); }, 'key sm ic selKey' + (tl.selMode ? ' on' : '')); sk.setAttribute('aria-label', 'Select (hold: select all)');   // long-press: select all
     sk.addEventListener('pointerdown', () => { held = false; clearTimeout(t); t = setTimeout(() => { held = true; selectAll(); }, 450); }); for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) sk.addEventListener(ev, () => clearTimeout(t)); bar.append(sk); }
   if (!isNotes) bar.append(btn(IC.draw, () => { tl.draw = !tl.draw; renderView(); }, 'key sm ic' + (tl.draw ? ' on' : '')), btn(IC.shapes, openShapes, 'key sm ic'));
   const del = btn(IC.del, () => isNotes ? deleteSelNote() : autoCtl.del(), 'key sm ic warn'); del.setAttribute('aria-label', 'Delete'); bar.append(del);

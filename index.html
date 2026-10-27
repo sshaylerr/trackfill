@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-F2IVxE4fw2gv28w991m/0le2VabeNpS6DdxssEYtdM4=' 'sha256-BxJDIVDhyoVedpUXX6DC3ba0NacLuHsH/ntvKvbuBIg=' 'sha256-oIGwz/tbs4BdFJ/EBwmZvtmHi85YvSpRLnaqnPnv9hQ=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-F2IVxE4fw2gv28w991m/0le2VabeNpS6DdxssEYtdM4=' 'sha256-BxJDIVDhyoVedpUXX6DC3ba0NacLuHsH/ntvKvbuBIg=' 'sha256-mkxT9ayCLlfgb7Zb6WMczyRxegUykU/JBtvtFbhY14g=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -232,6 +232,8 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .toolbar{display:flex;gap:6px;align-items:center;flex:none;height:34px;flex-wrap:nowrap;min-width:0}
 .toolbar .lcdbox{flex:1 1 0}
 .toolbar{overflow:hidden}.toolbar .key.sm{padding:0 7px}
+.seqView .toolbar{gap:5px} .seqView .toolbar .key.sm.ic{width:32px;min-width:32px;padding:0;flex:none} .seqView .toolbar .lanebox{min-width:60px;padding:0 6px;gap:3px} .seqView .toolbar .key.sm:not(.ic){padding:0 6px}   /* the timeline's row: icon keys stay square so the lane name keeps its room */
+.key.follow.held svg{fill:var(--accent);opacity:.5}   /* following, paused while you work: tap to pick the playhead up again */
 .padsView{container-type:inline-size;padding-bottom:3px}
 @media (max-width:420px){.padsSel{display:none!important}}
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));gap:8px;flex:1 1 0;min-height:0;width:100%;max-height:calc(100cqw * 1.45);margin:auto 0;touch-action:none}   /* the gaps too: two fingers on the pads are never a pinch */
@@ -3279,7 +3281,7 @@ const duckerCount = () => P.chans.reduce((n, c) => n + c.fx.filter(f => f.type =
 
 /* ================= state ================= */
 let P = null;
-const UI = { mon: { mode: 0, phones: '' }, theme: 'amber', padStyle: 'dark', view: 'pads', bank: 0, pad: 0, scene: 0, keys: false, oct: 0, keyCell: 0, panel: false, shift: false, fine: 0, mirror: false, sheet: false,
+const UI = { follow: true, mon: { mode: 0, phones: '' }, theme: 'amber', padStyle: 'dark', view: 'pads', bank: 0, pad: 0, scene: 0, keys: false, oct: 0, keyCell: 0, panel: false, shift: false, fine: 0, mirror: false, sheet: false,
   tl: { mode: 'bank', lane: 'notes', target: null, zoom: null, sx: 0, sy: null, by: 0, rv: 16, kh: 24, snap: 24, sel: null, ms: null, selMode: false, box: null, selPt: -1, draw: false, cursor: { t: 0, row: 0, v: .5 } },
   snd: 0, slice: 0, click: 'rec', countIn: 1, clickVol: .5, mixPage: 0, mixSel: 0, fxCh: 0, fxSlot: 0, fxBack: 'mix', regs: [], autoRec: null, haptics: true };
 const T = { playing: false, rec: false, loop: 'scene' };
@@ -3432,7 +3434,7 @@ async function backupAll() { await projSave(); const projects = [], samples = {}
 let saveTimer = 0;
 function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
 function saveNow() { clearTimeout(saveTimer); if (P) projSave(); }
-function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex }); }
+function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -3607,7 +3609,7 @@ function play() {
   recReset();
   const sent = UPQ.jobs.length ? upFlush(T.loop === 'song' ? null : sceneNeeds(UI.scene)) : 0;   // what's about to play is in the engine before it starts
   const count = T.rec ? UI.countIn : 0, lead = Math.max(250 - (performance.now() - (AUD.runAt || 0)), Math.min(400, sent / 50000));   // just woken, or a big sound just sent: a moment more before the first note
-  T.playing = true; REP.pos = null; sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count, from: playFrom(), lead }); updateTransport();
+  T.playing = true; REP.pos = null; TL.held = false; tlFollowUpd(); sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count, from: playFrom(), lead }); updateTransport();
   if (count) toast(`Count-in: ${count} bar${count > 1 ? 's' : ''}`);
 }
 /* The timeline's start point and loop range (one scene each): playback starts at the start point, and with the loop on it goes round the range
@@ -4306,7 +4308,19 @@ function moveNoteRow(s, d) { const tl = UI.tl, sc = P.scenes[UI.scene];
     const arr = sc.notes[s.pi]; arr.splice(arr.indexOf(s.n), 1); if (!arr.length) delete sc.notes[s.pi]; (sc.notes[npi] = sc.notes[npi] || []).push(s.n); s.pi = npi; UI.pad = npi; audition(npi, s.n.p); }
   else { const np = KR.p(clamp(KR.row(s.n.p) + d, 0, KR.rows() - 1)); if (np !== s.n.p) { s.n.p = np; audition(s.pi, np); } } }
 function afterEdit() { syncScene(UI.scene); markDirty(); drawTL(); renderScenes(); updatePanel(); }
+/* Follow: the timeline turns the page with the playhead. Touching the timeline while it plays pauses that (the view stays where you
+   are working); the key dims until a tap on it, or Play, picks the playhead up again. Tap it while following to turn following off;
+   hold it to look at the playhead once. */
+const tlFollowing = () => UI.follow && !TL.held;
+function tlHold() { if (T.playing && UI.follow && !TL.held) { TL.held = true; tlFollowUpd(); } }
+function tlFollowUpd() { const b = TL.fbtn; if (!b || !b.isConnected) return; b.classList.toggle('on', tlFollowing()); b.classList.toggle('held', UI.follow && !!TL.held);
+  b.setAttribute('aria-label', !UI.follow ? 'Follow playhead: off' : TL.held ? 'Follow playhead: paused, tap to resume' : 'Follow playhead: on'); }
+function tlToPlayhead() { const pos = VIS.pos || heardPos(); if (!pos) return; if (pos.scene !== UI.scene) { UI.scene = pos.scene; UI.tl.sel = null; UI.tl.selPt = -1; renderScenes(); renderView(); }
+  const tl = UI.tl, vis = (TL.W - LABEL_W) / tl.zoom; if (pos.tick < tl.sx || pos.tick > tl.sx + vis) { tl.sx = Math.floor(pos.tick / BAR) * BAR; tlClamp(); } drawTL(); }
+function tlFollowTap() { if (!UI.follow) { UI.follow = true; TL.held = false; tlToPlayhead(); } else if (TL.held) { TL.held = false; tlToPlayhead(); } else UI.follow = false;
+  savePrefs(); haptic(); tlFollowUpd(); toast(!UI.follow ? 'Follow off: the view stays put' : 'Following the playhead'); }
 function bindTL(cv) {
+  cv.addEventListener('pointerdown', tlHold, true); cv.addEventListener('wheel', tlHold, true);
   const ptrs = new Map();   // every finger on the timeline: one finger edits, two fingers zoom and scroll
   const startPinch = () => { const d = TL.drag; if (d && d.pushed) { const e = UNDO.pop(); if (e) scopeSet(e.scope, JSON.parse(e.data)); }   // a one-finger edit that turned into a pinch is undone
     TL.drag = null; const [a, b] = [...ptrs.values()], tl = UI.tl;
@@ -5248,6 +5262,8 @@ return SignalsmithStretch; })();
 const IC = {
   del: '<svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4zM6 9h12l-1 12H7z"/></svg>',
   draw: '<svg viewBox="0 0 24 24"><path d="M4 17.5V20h2.5L17 9.5 14.5 7zM19.7 6.8l-2.5-2.5-1.6 1.6 2.5 2.5z"/></svg>',
+  select: '<svg viewBox="0 0 24 24"><path d="M3 3h4v2H5v2H3zm6 0h6v2H9zm8 0h4v4h-2V5h-2zM3 9h2v6H3zm16 0h2v4h-2zM3 17h2v2h2v2H3zm6 2h4v2H9zm5.5-6.5l7 2.6-3 1.2 2.6 2.6-1.4 1.4-2.6-2.6-1.2 3z"/></svg>',
+  follow: '<svg viewBox="0 0 24 24"><path d="M5 3h2.2v18H5zM10 7l9 5-9 5z"/></svg>',
   shapes: '<svg viewBox="0 0 24 24"><path d="M2 18c4 0 5-12 10-12s6 12 10 12v2.2C17 20.2 16 8.2 12 8.2S7 20.2 2 20.2z"/></svg>',
   left: '<svg viewBox="0 0 24 24"><path d="M15 5l-8 7 8 7z"/></svg>', right: '<svg viewBox="0 0 24 24"><path d="M9 5l8 7-8 7z"/></svg>' };
 
@@ -5282,7 +5298,10 @@ function renderSeq(V) {
   bar.append(btn(snapName(tl.snap), openSnap, 'key sm'));
   const zoom = f => { if (UI.shift && isNotes) zoomV(f); else zoomTL(f); };   // Shift + zoom: row height
   bar.append(btn('−', () => zoom(1 / 1.5), 'key sm ic'), btn('+', () => zoom(1.5), 'key sm ic'));
-  if (isNotes) { let held = false, t = 0; const sk = btn('Select', () => { if (held) { held = false; return; } tl.selMode = !tl.selMode; tl.box = null; renderView(); }, 'key sm selKey' + (tl.selMode ? ' on' : ''));   // long-press: select all
+  { let held = false, t = 0; const fb = btn(IC.follow, () => { if (held) { held = false; return; } tlFollowTap(); }, 'key sm ic follow'); TL.fbtn = fb; fb.setAttribute('aria-label', 'Follow playhead');   // follow the playhead (hold: look at it once)
+    fb.addEventListener('pointerdown', () => { held = false; clearTimeout(t); t = setTimeout(() => { held = true; haptic(); tlToPlayhead(); }, 450); }); for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) fb.addEventListener(ev, () => clearTimeout(t));
+    bar.append(fb); requestAnimationFrame(tlFollowUpd); }
+  if (isNotes) { let held = false, t = 0; const sk = btn(IC.select, () => { if (held) { held = false; return; } tl.selMode = !tl.selMode; tl.box = null; renderView(); }, 'key sm ic selKey' + (tl.selMode ? ' on' : '')); sk.setAttribute('aria-label', 'Select (hold: select all)');   // long-press: select all
     sk.addEventListener('pointerdown', () => { held = false; clearTimeout(t); t = setTimeout(() => { held = true; selectAll(); }, 450); }); for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) sk.addEventListener(ev, () => clearTimeout(t)); bar.append(sk); }
   if (!isNotes) bar.append(btn(IC.draw, () => { tl.draw = !tl.draw; renderView(); }, 'key sm ic' + (tl.draw ? ' on' : '')), btn(IC.shapes, openShapes, 'key sm ic'));
   const del = btn(IC.del, () => isNotes ? deleteSelNote() : autoCtl.del(), 'key sm ic warn'); del.setAttribute('aria-label', 'Delete'); bar.append(del);
@@ -8214,7 +8233,7 @@ function navArrow(dir, sh) {
     renderView(); updatePanel(); return; }
   if (UI.shift && NAV.mode === 'nav' && UI.view === 'seq' && UI.tl.lane === 'notes' && UI.tl.mode === 'bank' && (dir === 'up' || dir === 'down')) {   // Shift + ↑↓ flips banks on the timeline
     tlBank(UI.bank + (dir === 'down' ? 1 : -1), 'dpad'); return; }
-  if (NAV.mode === 'canvas') { canvasCtl()[dir](sh || NAV.held, sh); return; }
+  if (NAV.mode === 'canvas') { if (UI.view === 'seq') tlHold(); canvasCtl()[dir](sh || NAV.held, sh); return; }
   if (NAV.mode === 'edit' && NAV.el && NAV.el._reg) { NAV.el._reg.step(dir === 'up' || dir === 'right' ? 1 : -1, sh); return; }
   navMove(dir);
 }
@@ -8433,9 +8452,9 @@ function frame(ts) {
     const el = m.el[k]; el.style.height = (f * 100).toFixed(1) + '%'; el.style.background = db > 0 ? COL.rec : db > -6 ? COL.accent : COL.play; }
   const pos = heardPos(DISP_LEAD); VIS.pos = pos;
   if (pos) {
-    if (pos.scene !== lastHeard) { lastHeard = pos.scene; if (pos.scene !== UI.scene && !TL.drag) { UI.scene = pos.scene; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.sx = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else if (UI.view === 'seq') renderView(); } }
+    if (pos.scene !== lastHeard) { lastHeard = pos.scene; if (pos.scene !== UI.scene && !TL.drag && (UI.view !== 'seq' || tlFollowing())) { UI.scene = pos.scene; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.sx = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else if (UI.view === 'seq') renderView(); } }
     updatePlayingSlot(pos);
-    if (UI.view === 'seq' && pos.scene === UI.scene && !TL.drag) { const x = t2x(pos.tick); if (x > TL.W - 4 || x < LABEL_W) UI.tl.sx = Math.floor(pos.tick / BAR) * BAR; }
+    if (UI.view === 'seq' && pos.scene === UI.scene && !TL.drag && tlFollowing()) { const x = t2x(pos.tick); if (x > TL.W - 4 || x < LABEL_W) UI.tl.sx = Math.floor(pos.tick / BAR) * BAR; }
     if (UI.view === 'seq') drawTLFrame();
   } else if (lastHeard !== -1) { lastHeard = -1; updatePlayingSlot(null); if (UI.view === 'seq') tlLit(); }
 }
@@ -8449,6 +8468,7 @@ async function boot() {
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (SNAPS.some(x => x.t === pr.snap)) UI.tl.snap = pr.snap; UI.tl.velOpen = pr.velOpen !== false;
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
+    UI.follow = pr.follow !== false;
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: pr.mon.phones === 'Apple EarPods' ? 'Wired earbuds' : TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
