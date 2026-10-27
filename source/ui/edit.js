@@ -102,7 +102,7 @@ function placeNotes(at, items) { const sc = P.scenes[UI.scene], L = sceneLen(UI.
 function showNotes(copies) { const tl = UI.tl; setGroup(copies); if (copies.length) { tl.cursor.t = Math.min(...copies.map(x => x.n.t)); if (tl.mode === 'bank') UI.pad = tl.sel.pi; } tlEnsure(); afterEdit(); auditionSel(); }
 // paste: right after the selection, or at the cursor; the pasted notes become the selection, so Paste again carries on
 function pasteNotes() { if (!clipIs('notes')) return; const tl = UI.tl, d = CLIP.data, items = selItems();
-  const at = items.length ? (({ lo, span }) => lo + span)(selSpan(items)) : (tl.snap ? Math.floor(tl.cursor.t / tl.snap) * tl.snap : tl.cursor.t);
+  const at = items.length ? (({ lo, span }) => lo + span)(selSpan(items)) : gridQ(tl.cursor.t, tl.snap, 'floor');
   if (at >= sceneLen(UI.scene)) { toast('No room after this'); return; }
   const map = x => ({ pi: tl.mode === 'keys' && d.one ? UI.pad : UI.bank * 16 + x.pi % 16, n: x.n });
   pushUndo('scene:' + UI.scene); showNotes(placeNotes(at, d.items.map(map))); }
@@ -110,14 +110,47 @@ function pasteNotes() { if (!clipIs('notes')) return; const tl = UI.tl, d = CLIP
 function quantizeNotes(strength = 1) { const tl = UI.tl, sc = P.scenes[UI.scene], g = tl.snap || 24, L = sceneLen(UI.scene);
   let items = selItems(); if (!items.length) items = notesInBox(0, L, 0, maxRow());
   if (!items.length) { toast('No notes to quantize'); return; } pushUndo('scene:' + UI.scene); let moved = 0;
-  for (const x of items) { const t = x.n.t, q = Math.round(t / g) * g, nt = fixT(Math.min(L - g, Math.max(0, t + (q - t) * strength))); if (Math.abs(nt - t) > 1e-6) { x.n.t = nt; moved++; touchPad(x.pi); } }
+  for (const x of items) { const t = x.n.t, q = gridQ(t, g), nt = fixT(Math.min(L - g, Math.max(0, t + (q - t) * strength))); if (Math.abs(nt - t) > 1e-6) { x.n.t = nt; moved++; touchPad(x.pi); } }
   for (const pi of new Set(items.map(x => x.pi))) if (sc.notes[pi]) sc.notes[pi].sort((a, b) => a.t - b.t);
-  afterEdit(); toast(moved ? `Quantized ${moved} note${moved === 1 ? '' : 's'} to ${(SNAPS.find(s => s.t === g) || { l: '1/16' }).l}${strength < 1 ? ' at ' + Math.round(strength * 100) + '%' : ''}` : 'Already on the grid'); }
+  afterEdit(); toast(moved ? `Quantized ${moved} note${moved === 1 ? '' : 's'} to ${snapName(g)}${strength < 1 ? ' at ' + Math.round(strength * 100) + '%' : ''}` : 'Already on the grid'); }
 function duplicateNote(fill) { const items = selItems(); if (!items.length) { toast('Select notes first'); return; } const { lo, span } = selSpan(items), L = sceneLen(UI.scene);
   if (lo + span >= L) { toast('No room after this'); return; } pushUndo('scene:' + UI.scene);
   const rel = items.map(x => ({ pi: x.pi, n: Object.assign({}, x.n, { t: fixT(x.n.t - lo) }) })); let copies = [];
   for (let at = lo + span; at < L - 1e-6; at += span) { const c = placeNotes(at, rel); copies = fill ? copies.concat(c) : c; if (!fill) break; }
   showNotes(copies); }
+
+/* ----- note tools: like Quantize, they change the selection, or every note in view when nothing is selected ----- */
+function toolItems() { const items = selItems(); return items.length ? items : notesInBox(0, sceneLen(UI.scene), 0, maxRow()); }
+function noteTool(fn) { const sc = P.scenes[UI.scene], items = toolItems(); if (!items.length) { toast('No notes here'); return; }
+  pushUndo('scene:' + UI.scene); const r = fn(items, sc, sceneLen(UI.scene)) || {}; const pads = new Set(items.map(x => x.pi).concat(r.items ? r.items.map(x => x.pi) : []));
+  for (const pi of pads) { touchPad(pi); if (sc.notes[pi]) { sc.notes[pi].sort((p, q) => p.t - q.t); if (!sc.notes[pi].length) delete sc.notes[pi]; } }
+  if (r.items && selItems().length) setGroup(r.items); afterEdit(); if (r.msg) toast(r.msg); }
+const takeOut = (sc, x) => { const a = sc.notes[x.pi]; if (a) { const i = a.indexOf(x.n); if (i >= 0) a.splice(i, 1); } };
+// Legato: each note runs to the next one on its pad (a chord counts as one), the last to the end of the scene
+const toolLegato = () => noteTool((items, sc, L) => { for (const x of items) { const nx = (sc.notes[x.pi] || []).map(m => m.t).filter(t => t >= x.n.t + STACK_T).sort((p, q) => p - q)[0];
+  x.n.len = Math.max(1, fixT((nx ?? L) - x.n.t)); } return { msg: 'Legato' }; });
+// Length: every note as long as one step of the grid
+const toolLength = () => noteTool((items, sc, L) => { const g = UI.tl.snap || 24; for (const x of items) x.n.len = Math.max(1, Math.min(g, L - x.n.t)); return { msg: 'Length ' + snapName(g) }; });
+// Reverse: the notes play backwards in the space they take
+const toolReverse = () => noteTool(items => { const lo = Math.min(...items.map(x => x.n.t)), hi = Math.max(...items.map(x => x.n.t + x.n.len)); for (const x of items) x.n.t = fixT(lo + hi - (x.n.t + x.n.len)); return { msg: 'Reversed' }; });
+// Speed: twice as fast (half the length) or half as fast, from where the notes start; notes pushed past the scene's end are dropped
+const toolSpeed = f => noteTool((items, sc, L) => { const lo = Math.min(...items.map(x => x.n.t)), keep = []; let lost = 0;
+  for (const x of items) { const t = fixT(lo + (x.n.t - lo) * f); if (t >= L - 1e-6) { takeOut(sc, x); lost++; continue; } x.n.t = t; x.n.len = Math.max(1, Math.min(fixT(x.n.len * f), L - t)); keep.push(x); }
+  return { items: keep, msg: (f < 1 ? 'Twice as fast' : 'Half as fast') + (lost ? ` (${lost} past the end left out)` : '') }; });
+// Humanize: a little random push in time (up to ±8 ms) and level (up to ±8)
+const toolHumanize = () => noteTool((items, sc, L) => { const tk = 8 / 1000 / spt();
+  for (const x of items) { x.n.t = fixT(clamp(x.n.t + (Math.random() * 2 - 1) * tk, 0, L - .01)); x.n.v = clamp(Math.round((x.n.v + (Math.random() * 2 - 1) * .08) * 100) / 100, .05, 1); } return { msg: 'Humanized' }; });
+// Chop: each note cut into grid-length repeats (rolls)
+const toolChop = () => noteTool((items, sc) => { const g = UI.tl.snap || 24, out = []; let n = 0;
+  for (const x of items) { if (x.n.len <= g * 1.01) { out.push(x); continue; } takeOut(sc, x); n++;
+    for (let t = x.n.t; t < x.n.t + x.n.len - 1e-6; t += g) { const m = Object.assign({}, x.n, { t: fixT(t), len: Math.max(1, Math.min(g, fixT(x.n.t + x.n.len - t))) }); sc.notes[x.pi].push(m); out.push({ pi: x.pi, n: m }); } }
+  return { items: out, msg: n ? `Chopped into ${snapName(g)}s` : `Nothing longer than ${snapName(g)}` }; });
+// Transpose: by a note of the key (Keys view of a tuned pad) or a semitone (Bank view, slices), or an octave
+function toolTranspose(dir, oct) { const keys = UI.tl.mode === 'keys', chop = KR.chop(), key = keys && !chop ? padKey(UI.pad) : null, kx = key ? kxOf(UI.pad) : null;
+  const lo = chop ? 0 : -KEY_HI, hi = chop ? chop.pts.length - 1 : KEY_HI;
+  const step = p => { if (oct) return p + 12 * dir; if (!key) return p + dir; let q = p + dir; while (q >= lo && q <= hi && !inScale(q, key, kx)) q += dir; return q; };
+  noteTool(items => { let out = 0; for (const x of items) { const q = step(x.n.p || 0); if (q < lo || q > hi) { out++; continue; } x.n.p = q; }
+    return { msg: (oct ? `Octave ${dir > 0 ? 'up' : 'down'}` : dir > 0 ? 'Up' : 'Down') + (!oct ? (key ? ' a note in the key' : chop ? ' a slice' : ' a semitone') : '') + (out ? ` (${out} at the edge stayed)` : '') }; }); }
 
 /* ----- effect devices and channel strips ----- */
 function copyFx(c, s) { const f = P.chans[c].fx[s]; if (f) setClip('fx', `${FX_DEFS[f.type].name}${FX_DEFS[f.type].modes.length > 1 ? ' · ' + (FX_DEFS[f.type].modes[f.mode].n || '') : ''}`, f); }
@@ -154,7 +187,7 @@ function edOverview(body, bars) {
 function openEdit() {
   const ctx = editContext(), tl = UI.tl, notes = ctx === 'bars' && tl.lane === 'notes';
   if (ctx === 'bars') { const t = tl.sel ? tl.sel.n.t : tl.cursor.t || 0; EDR.from = clamp(Math.floor(t / BAR), 0, P.scenes[UI.scene].bars - 1); EDR.len = Math.min(EDR.len || 1, P.scenes[UI.scene].bars - EDR.from) || 1; }
-  const tabs = { bars: notes ? ['Notes', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'] }[ctx];
+  const tabs = { bars: notes ? ['Notes', 'Tools', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'] }[ctx];
   let tab = notes && selItems().length ? 'Notes' : tabs.includes(ED.tab[ctx]) ? ED.tab[ctx] : tabs[0];
   openSheet('Edit', card => {
     const body = h('div', 'edit'), title = card.querySelector('.shTitle span'); card.append(body);
@@ -164,11 +197,15 @@ function openEdit() {
     const draw = () => { const keys = () => [...body.querySelectorAll('.btn')], fi = NAV.el && body.contains(NAV.el) ? keys().indexOf(NAV.el) : -1; body.innerHTML = ''; title.innerHTML = 'Edit' + (CLIP ? ` <i class="clipline">· Clip <b>${esc(CLIP.label)}</b></i>` : '');
       if (tabs.length > 1) { const tb = h('div', 'g' + tabs.length + ' hrow edtabs'); for (const t of tabs) tb.append(btn(t, () => { tab = ED.tab[ctx] = t; draw(); }, 'btn sm' + (t === tab ? ' on' : ''))); body.append(tb); }
       const n = selItems().length, sc = P.scenes[UI.scene];
-      if ((tab === 'Notes' || tab === 'Bars') && UI.view === 'seq' && tl.lane === 'notes') edOverview(body, tab === 'Bars');
+      if ((tab === 'Notes' || tab === 'Tools' || tab === 'Bars') && UI.view === 'seq' && tl.lane === 'notes') edOverview(body, tab === 'Bars');
       if (tab === 'Notes') {
         grid(key('Copy', () => copyNotes(), n > 0), key('Cut', () => copyNotes(true), n > 0), key('Paste', pasteNotes, clipIs('notes'), { stay: 1 }), key('Delete', deleteSel, n > 0, { cls: 'warn' }),
           key('Duplicate', () => duplicateNote(), n > 0, { stay: 1, w: 2, cls: 'hot' }), key('Fill to end', () => duplicateNote(true), n > 0, { stay: 1 }), key('Select all', selectAll, true, { stay: 1 }),
           key(n ? 'Quantize' : 'Quantize all', () => quantizeNotes(ED.qs), true, { stay: 1 }), ...[1, .75, .5].map(q => key(Math.round(q * 100) + '%', () => { ED.qs = q; }, true, { stay: 1, cls: 'sm' + (ED.qs === q ? ' on' : '') }))); }
+      if (tab === 'Tools') { const g = snapName(tl.snap || 24);   // acts on the selection, or every note in view
+        grid(key('Legato', toolLegato, true, { stay: 1 }), key('Length ' + g, toolLength, true, { stay: 1 }), key('Reverse', toolReverse, true, { stay: 1 }), key('Chop ' + g, toolChop, true, { stay: 1 }),
+          key('×2 speed', () => toolSpeed(.5), true, { stay: 1 }), key('½ speed', () => toolSpeed(2), true, { stay: 1 }), key('Humanize', toolHumanize, true, { stay: 1, w: 2 }),
+          key('Note ▼', () => toolTranspose(-1), true, { stay: 1 }), key('Note ▲', () => toolTranspose(1), true, { stay: 1 }), key('Oct ▼', () => toolTranspose(-1, true), true, { stay: 1 }), key('Oct ▲', () => toolTranspose(1, true), true, { stay: 1 })); }
       if (tab === 'Bars') { const lab = h('div', 'lcdbox edr', `Bar ${EDR.from + 1}${EDR.len > 1 ? '–' + (EDR.from + EDR.len) : ''} / ${sc.bars}`); lab.style.gridColumn = 'span 2';
         grid(key('◀', () => { EDR.from = Math.max(0, EDR.from - 1); }, EDR.from > 0, { stay: 1 }), lab, key('▶', () => { EDR.from = Math.min(sc.bars - 1, EDR.from + 1); EDR.len = Math.min(EDR.len, sc.bars - EDR.from); }, EDR.from < sc.bars - 1, { stay: 1 }),
           ...[1, 2, 4, 8].map(k => key(k + (k > 1 ? ' bars' : ' bar'), () => { EDR.len = k; }, EDR.from + k <= sc.bars, { stay: 1, cls: 'sm' + (EDR.len === k ? ' on' : '') })),
@@ -183,7 +220,7 @@ function openEdit() {
           key('Copy chain', () => copyChain(c), P.chans[c].fx.length > 0, { w: 2 }), key('Paste chain', () => pasteChain(c), clipIs('chain'), { w: 2 })); }
       if (tab === 'Scene') { const i = UI.scene;
         grid(key('Copy', () => copyScene(i)), key('Paste', () => pasteScene(i), clipIs('scene'), { stay: 1 }), key('Duplicate', () => duplicateScene(i), i < NSCENES - 1, { stay: 1, cls: 'hot' }), confirmBtn('Clear', 'Again', () => { clearScene(i); draw(); }),
-          key('◀ Move', () => moveScene(UI.scene, -1), i > 0, { stay: 1, w: 2 }), key('Move ▶', () => moveScene(UI.scene, 1), i < NSCENES - 1, { stay: 1, w: 2 })); }
+          key('◀ Move', () => moveScene(UI.scene, -1), i > 0, { stay: 1, w: 2 }), key('Move ▶', () => moveScene(UI.scene, 1), i < NSCENES - 1, { stay: 1, w: 2 }), key('Import MIDI…', pickMidi, true, { w: 4 })); }
       if (fi >= 0) { const ks = keys(); let k = ks[Math.min(fi, ks.length - 1)]; if (k && k.disabled) k = ks.find(x => !x.disabled); if (k) setNav(k, true); }   // the d-pad stays where it was
       if (UI.panel) requestAnimationFrame(updatePanel); };
     draw();

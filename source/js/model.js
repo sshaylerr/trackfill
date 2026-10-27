@@ -425,7 +425,7 @@ function defaultChan(c) {
 }
 // tempo: the sound's own tempo in BPM (0 = off); when set, it is repitched to follow the project tempo.
 // chop: slices of the sound. Notes on a chopped pad carry the slice number in 'p' instead of a pitch.
-function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, gain: 0, norm: false, ng: 1, fin: 0, fout: 0, silA: 0, silB: 0, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08, src: 'sample', wm: 'Repitch', wp: null, stx: null, drum: null, choke: 0, syn: null, bend: .5, bendR: 2 }; }
+function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, swg: null, tim: 0, gain: 0, norm: false, ng: 1, fin: 0, fout: 0, silA: 0, silB: 0, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08, src: 'sample', wm: 'Repitch', wp: null, stx: null, drum: null, choke: 0, syn: null, bend: .5, bendR: 2 }; }
 
 /* ---------- chopping ---------- */
 const MAX_SLICES = 16;
@@ -517,6 +517,7 @@ function normalize(p) {
     d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.drum = d.drum ? DRN().drumNormalize(d.drum) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : d.src === 'drum' && d.drum ? 'drum' : 'sample';
     d.choke = Math.max(0, Math.min(4, d.choke | 0));
     d.gain = Math.max(-24, Math.min(24, +d.gain || 0)); d.norm = !!d.norm; d.ng = Math.max(0, Math.min(16, +d.ng || 1)); d.fin = Math.max(0, Math.min(10, +d.fin || 0)); d.fout = Math.max(0, Math.min(10, +d.fout || 0));   // non-destructive edits
+    d.swg = d.swg == null || d.swg === '' ? null : clamp01(+d.swg); d.tim = Math.max(-40, Math.min(40, +d.tim || 0));   // groove: own swing (null: the song's) and a timing offset in ms
     d.silA = clamp01(+d.silA || 0); d.silB = Math.max(d.silA, clamp01(+d.silB || 0));
     d.follow = Array.isArray(d.follow) ? [...new Set(d.follow.map(x => x | 0).filter(x => x >= 0 && x < NPADS))].slice(0, 16) : [];
     d.wm = ['Repitch', 'Clean', 'Beats', 'Vintage'].includes(d.wm) ? d.wm : 'Repitch'; d.wp = STN().stretchNormalize(d.wp); d.stx = null;   // the stretched render is made again on load

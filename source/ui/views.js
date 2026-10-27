@@ -33,7 +33,7 @@ function renderSeq(V) {
   const isNotes = tl.lane === 'notes', bar = h('div', 'toolbar'), lb = h('button', 'lanebox');
   lb.innerHTML = `<b>${esc(laneTitle())}</b><i>▾</i>`; lb.setAttribute('aria-label', 'Choose lane'); lb.onclick = () => openLaneSheet(tgt); bar.append(lb);
   if (isNotes) bar.append(btn(tl.mode === 'bank' ? 'Bank' : chopOf(UI.pad) ? 'Chop' : 'Keys', () => { const k = tl.mode === 'bank'; tl.mode = k ? 'keys' : 'bank'; tl.sel = null; tl.sy = null; tl.cursor.row = k ? (chopOf(UI.pad) ? 0 : KEY_HI) : UI.pad % 16; renderView(); }, 'key sm'));
-  bar.append(btn(SNAPS.find(s => s.t === tl.snap).l, () => { const i = SNAPS.findIndex(s => s.t === tl.snap); tl.snap = SNAPS[(i + 1) % SNAPS.length].t; savePrefs(); renderView(); }, 'key sm'));
+  bar.append(btn(snapName(tl.snap), openSnap, 'key sm'));
   const zoom = f => { if (UI.shift && isNotes) zoomV(f); else zoomTL(f); };   // Shift + zoom: row height
   bar.append(btn('−', () => zoom(1 / 1.5), 'key sm ic'), btn('+', () => zoom(1.5), 'key sm ic'));
   if (isNotes) { let held = false, t = 0; const sk = btn('Select', () => { if (held) { held = false; return; } tl.selMode = !tl.selMode; tl.box = null; renderView(); }, 'key sm selKey' + (tl.selMode ? ' on' : ''));   // long-press: select all
@@ -92,7 +92,7 @@ function renderSound(V) {
   const pi = UI.pad, pad = P.pads[pi], C = P.chans[pi], w = h('div', 'soundView');
   const go = d => { UI.pad = (UI.pad + NPADS + d) % NPADS; UI.bank = Math.floor(UI.pad / 16); UI.tl.target = null; renderView(); };
   const head = h('div', 'shead'), nm = h('input'); nm.maxLength = 12; nm.value = pad.name; nm.placeholder = 'NAME THIS PAD'; nm.setAttribute('aria-label', 'Pad name');
-  nm.onfocus = () => pushUndo('pad:' + pi); nm.oninput = () => { pad.name = nm.value; markDirty(); }; nm.onblur = () => renderScenes();
+  nm.onfocus = () => pushUndo('pad:' + pi); nm.oninput = () => { pad.name = tfName(nm.value, 12); markDirty(); }; nm.onblur = () => renderScenes();
   const badge = h('div', 'lcdbox', padLabel(pi)); badge.style.flex = '0 0 50px';
   head.append(btn(IC.left, () => go(-1), 'key ic'), badge, nm, synHeadKey(pi)); if (pad.src === 'synth') head.append(mapKey(pi)); head.append(btn(IC.right, () => go(1), 'key ic'));
   if (pad.src === 'synth' && pad.syn) { renderSynthSound(w, pi, head); V.append(w); return; }

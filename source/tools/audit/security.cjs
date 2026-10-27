@@ -45,6 +45,23 @@ async function page(b, url, extra = []) { const pg = await b.newPage({ viewport:
       for (const v of ['pads', 'seq', 'sound', 'mix']) { UI.view = v; try { renderView(); } catch (e) {} await new Promise(r => setTimeout(r, 120)); }
       return { n, junk: [...SAMPLES.keys()].some(k => k.includes('<')), polluted: ({}).polluted !== undefined || Object.getPrototypeOf(P) !== Object.prototype, fired: (window.__x || []).length }; });
     ok(r.n === 0 && !r.junk && !r.polluted && r.fired === 0, `a hostile backup is defused: names plain (${r.n} left), junk sound ids dropped, prototype keys ignored, nothing runs`); await pg.close(); }
+  console.log('MIDI files');
+  { const { pg } = await page(b, FILE);
+    const r = await pg.evaluate(PAY => { const enc = s => [...new TextEncoder().encode(s)], vlq = n => { const b = [n & 127]; while ((n >>= 7)) b.unshift((n & 127) | 128); return b; };
+      const chunk = (id, bytes) => [...id].map(c => c.charCodeAt(0)).concat([bytes.length >>> 24 & 255, bytes.length >>> 16 & 255, bytes.length >>> 8 & 255, bytes.length & 255], bytes);
+      const trk = (name, notes) => chunk('MTrk', [0, 0xff, 3, ...vlq(enc(name).length), ...enc(name), ...notes.flatMap(([d, k]) => [0, 0x90, k, 100, d, 0x80, k, 0]), 0, 0xff, 0x2f, 0]);
+      const file = tr => new Uint8Array(chunk('MThd', [0, 1, 0, tr.length, 0, 96]).concat(...tr)).buffer, out = {};
+      // markup in track names, imported across the bank: names stay plain, nothing runs
+      const m = midiParse(file([trk(PAY, [[96, 36]]), trk(PAY + '2', [[96, 38]])])); midiImport(m, { v: 'bank', tempo: false }); renderAll(); UI.view = 'seq'; renderView(); openSceneSheet(UI.scene); closeSheet();
+      out.plain = !P.pads.some(p => /[<>"]/.test(p.name || ''));
+      // broken files are refused with a message, not a crash or a hang
+      const bad = [new Uint8Array([1, 2, 3]).buffer, file([chunk('MTrk', [0, 0x90, 60])]), file([chunk('MTrk', [0xff, 0xff, 0xff, 0xff, 0x7f])]), new Uint8Array(chunk('MThd', [0, 1, 0, 1, 0, 96]).concat(chunk('MTrk', []).slice(0, 4), [0x7f, 0xff, 0xff, 0xff])).buffer];
+      out.refused = bad.map(x => { try { midiParse(x); return 'accepted'; } catch (e) { return e.message; } });
+      // too many notes: refused
+      try { midiParse(file([trk('x', Array.from({ length: 20001 }, () => [1, 60]))])); out.many = 'accepted'; } catch (e) { out.many = e.message; }
+      return Object.assign(out, { fired: (window.__x || []).length }); }, PAY);
+    ok(r.plain && r.fired === 0, 'markup in a MIDI file\'s track names stays plain text and never runs');
+    ok(r.refused.every(x => x !== 'accepted') && /notes/.test(r.many), `broken and oversized MIDI files are refused with a message (${r.refused.concat(r.many).join('; ')})`); await pg.close(); }
   console.log('web build');
   { const srv = await serve(), port = srv.address().port, { pg, errs, reqs } = await page(b, `http://localhost:${port}/index.html`);
     const r = await pg.evaluate(async () => { const o = { engine: !!(ENG && ENG.node) };

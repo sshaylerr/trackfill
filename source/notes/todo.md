@@ -7,9 +7,10 @@
 - (old) Drum synth reset (user: "we'll start shortly, remind me again later"): rebuild snare/cymbals/machine modes against reference recordings (user to supply 808/909/707/606 one-shots + modern refs). Cymbals for sampled-era machines from CC0 recordings; circuit models for 808-style; per-module starting points per machine; "More like this" varies the model.
 
 # MPC audit — decisions (Oct 2026)
-Done: projects (autosave, snapshots, templates) · stem export · MP3 + WAV 24/16 with dither, 44.1/48 kHz · sample edits (non-destructive) · tempo automation lane · drum synth from a sample (Yours) · pad touch fixes
+Done: timeline (velocity lane, triplet/dotted/1/64 grids, per-pad swing and timing, note tools, loop range and start point, MIDI export/import) · projects (autosave, snapshots, templates) · stem export · MP3 + WAV 24/16 with dither, 44.1/48 kHz · sample edits (non-destructive) · tempo automation lane · drum synth from a sample (Yours) · pad touch fixes
 Soon: user sample library (folders, favourites, preview) · audio tracks for vocals and reference tracks
 Later: sampling from mic/line + resampling · multisample instrument from user samples · note repeat · time signatures · more send returns
+Timeline audit, later: note chance and velocity range, ratchets, Keys-view guides (other pads, scale, fold), per-pad loop lengths, replace/punch recording, automation extras (stepped points, copy lanes, lane behind), strum/arp of placed notes. Skipped: insert/delete bars.
 Skipped for now: hardware/MIDI (and Bluetooth MIDI), erase-while-recording, velocity layers, arranger view, XY page, clip launching, stem separation, Link
 
 # Deferred

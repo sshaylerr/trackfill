@@ -345,15 +345,16 @@ class TFHost {
     switch (m.t) {
       case 'project': this.P = m.P; this.idx = []; this.syncAll(); break;
       case 'scene': P.scenes[m.i] = m.v; this.idx[m.i] = null; this.fresh.set(m.i, this.now); break;
-      case 'pad': P.pads[m.i] = m.v; this.syncPad(m.i); break;
+      case 'pad': { const o = P.pads[m.i]; if (!o || o.swg !== m.v.swg || o.tim !== m.v.tim) this.idx = []; P.pads[m.i] = m.v; this.syncPad(m.i); break; }   // its groove changed: re-time the notes
       case 'chan': P.chans[m.i] = m.v; this.syncChan(m.i); this.syncMutes(); this.buildDuck(); break;
       case 'chans': for (const [i, v] of m.v) { P.chans[i] = v; this.syncChan(i); } this.syncMutes(); this.buildDuck(); break;
-      case 'song': if (m.v.swing !== P.swing) this.idx = []; Object.assign(P, m.v); this.ex.tf_set_bpm(P.bpm); break;
+      case 'song': if (m.v.swing !== P.swing || (m.v.bpm !== P.bpm && P.pads.some(p => p.tim))) this.idx = []; Object.assign(P, m.v); this.ex.tf_set_bpm(P.bpm); break;
       case 'sample': this.addSample(m.key, m.data, m.frames, m.ch, m.sr); break;
       case 'ins': this.setIns(m.key, m.zones); break;
       case 'wtable': this.addTable(m.key, m.F, m.lv, m.fund); break;
       case 'sampleDel': this.removeSample(m.key); break;
-      case 'play': this.start(m.scene, m.loop, m.count || 0); break;
+      case 'play': this.start(m.scene, m.loop, m.count || 0, m.from || 0); break;
+      case 'range': this.range = m.v && m.v.b > m.v.a ? { scene: m.v.scene | 0, a: Math.max(0, +m.v.a), b: +m.v.b } : null; break;   // a loop range inside one scene (the timeline's loop)
       case 'click': this.click = { on: !!m.on, vol: Math.max(0, Math.min(1, +m.vol || 0)) }; if (m.on) this.makeClicks(); break;
       case 'stop': this.stop(false); break;
       case 'pending': this.pending = m.scene; break;
@@ -560,14 +561,15 @@ class TFHost {
     for (let b = Math.ceil(t0 / TF.PPQ - 1e-9) * TF.PPQ; b < t1; b += TF.PPQ) this.heap.push({ time: t + (b - t0) / tps, k: 4, acc: b % TF.BAR === 0 });
   }
   /* ---------- transport ---------- */
-  start(scene, loop, count) {
+  start(scene, loop, count, from = 0) {
     if (this.an) this.an.resetLoud();   // integrated loudness and the true-peak hold measure from the moment playback starts
     this.stop(true);
     if (loop) this.loop = loop;
     this.playing = true; this.pending = null;
     const t = this.now + this.LA, tps = this.P.bpm * TF.PPQ / (60 * this.sr), bars = Math.max(0, Math.min(2, count | 0));
     if (bars) { this.makeClicks(); this.clicks(t, 0, bars * TF.BAR, tps); }   // count-in: clicks only, then the scene starts
-    this.ah = { scene, rep: 0, tick: 0, t: t + Math.round(bars * TF.BAR / tps), started: false };
+    const len = this.P.scenes[scene] ? this.P.scenes[scene].bars * TF.BAR : TF.BAR;
+    this.ah = { scene, rep: 0, tick: Math.max(0, Math.min(len - 1, +from || 0)), t: t + Math.round(bars * TF.BAR / tps), started: false };   // from: the timeline's start point
   }
   stop(soft) {
     this.bpmNow = null; this.ex.tf_set_bpm(this.P.bpm);   // a tempo lane lets go when the transport stops
@@ -601,7 +603,7 @@ class TFHost {
           if (pos && this.arpOut.length < 256) this.arpOut.push([a.pi, x.semi, +x.vel.toFixed(3), pos.scene, +pos.tick.toFixed(3), Math.max(1, Math.round(a.rate * a.gate))]); }
         if (this.post && this.flashes.length < 64) this.flashes.push(a.pi);
         // the next step: on the transport's grid while playing (swing included), free-running from the tap when stopped
-        if (pos) { let nt = (Math.floor(pos.tick / a.rate + 1e-6) + 1) * a.rate; if (nt - pos.tick < a.rate * .5) nt += a.rate; a.next = T + (nt + tfSwing(nt, this.P.swing || 0) - pos.tick) / tps; }
+        if (pos) { let nt = (Math.floor(pos.tick / a.rate + 1e-6) + 1) * a.rate; if (nt - pos.tick < a.rate * .5) nt += a.rate; a.next = T + (nt + tfSwing(nt, pad.swg != null ? pad.swg : this.P.swing || 0) - pos.tick) / tps; }
         else a.next = T + stepF;
       }
     }
@@ -611,7 +613,9 @@ class TFHost {
   advance(n) {
     const P = this.P, a = this.ah; let t = a.t, remain = n, guard = 0;
     while (remain > 0 && guard++ < 64) {
-      const sc = P.scenes[a.scene], len = sc.bars * TF.BAR, tps = tfBpmAt(P, a.scene, a.tick) * TF.PPQ / (60 * this.sr);   // a tempo lane is read where the scheduler is
+      const sc = P.scenes[a.scene], sl = sc.bars * TF.BAR, tps = tfBpmAt(P, a.scene, a.tick) * TF.PPQ / (60 * this.sr);   // a tempo lane is read where the scheduler is
+      // a loop range in this scene: play to its end and go round from its start (already past its end: play on to the scene's end, then round)
+      const R = this.range && this.range.scene === a.scene && this.range.a < sl ? this.range : null, lpA = R ? R.a : 0, len = R && a.tick < Math.min(R.b, sl) - 1e-6 ? Math.min(R.b, sl) : sl;
       if (!a.started) { a.started = true; this.sceneStart(a.scene, t - a.tick / tps); }
       let span = Math.max(1, Math.ceil((len - a.tick) / tps - 1e-9)), sw = false, nb = len;
       if (this.pending != null) {
@@ -622,21 +626,24 @@ class TFHost {
       span = Math.min(span, remain);
       // blocks are whole samples but a loop rarely is: the part of a sample that runs past the loop's end is carried into the next one
       // (its first notes still play in this block), so loops never round up and the song stays on true tempo however long it plays
-      const t0 = a.tick, tEnd = a.tick + span * tps, t1 = Math.min(len, nb, tEnd), lo = a.fresh ? 0 : t0; a.fresh = false;
+      const t0 = a.tick, tEnd = a.tick + span * tps, t1 = Math.min(len, nb, tEnd), lo = a.fresh ? a.lo0 || 0 : t0; a.fresh = false;
       this.marks.push({ time: t, scene: a.scene, tick: t0, tps });
-      const tl = t + (lo - t0) / tps; this.emit(a.scene, sc, lo, t1, tl, tps, len); if (this.click.on) this.clicks(tl, lo, t1, tps);
+      const tl = t + (lo - t0) / tps; this.emit(a.scene, sc, lo, t1, tl, tps, sl); if (this.click.on) this.clicks(tl, lo, t1, tps);
       a.tick = t1; t += span; remain -= span;
-      if (sw) { this.cutClips(t); a.scene = this.pending; this.pending = null; a.rep = 0; a.tick = Math.max(0, tEnd - nb); a.fresh = true; a.started = false; }
+      if (sw) { this.cutClips(t); a.scene = this.pending; this.pending = null; a.rep = 0; a.tick = Math.max(0, tEnd - nb); a.lo0 = 0; a.fresh = true; a.started = false; }
       else if (a.tick >= len - 1e-6) {
-        if (this.loop === 'song') { a.rep++; if (a.rep >= sc.repeat) { a.rep = 0; a.scene = this.nextSong(a.scene); } } else a.rep = 0;
-        const nl = P.scenes[a.scene].bars * TF.BAR; a.tick = Math.min(Math.max(0, tEnd - len), nl); a.fresh = true; a.started = false;
+        if (R) { a.tick = lpA + Math.max(0, tEnd - len); a.lo0 = lpA; a.fresh = true; a.started = false; }   // round the loop range: the song stays here
+        else { if (this.loop === 'song') { a.rep++; if (a.rep >= sc.repeat) { a.rep = 0; a.scene = this.nextSong(a.scene); } } else a.rep = 0;
+          const nl = P.scenes[a.scene].bars * TF.BAR; a.tick = Math.min(Math.max(0, tEnd - len), nl); a.lo0 = 0; a.fresh = true; a.started = false; }
       }
     }
     a.t = t;
   }
   noteIndex(si, sc, len) {   // all notes of a scene, swing applied, sorted by time; rebuilt only when the scene changes
     let ix = this.idx[si]; if (ix) return ix; ix = [];
-    for (const k in sc.notes) for (const n of sc.notes[k]) { let nt = n.t + tfSwing(n.t, this.P.swing); if (nt >= len) nt = len - 1e-3; ix.push({ nt, pi: +k, n }); }
+    for (const k in sc.notes) { const pad = this.P.pads[k], sw = pad && pad.swg != null ? pad.swg : this.P.swing, ms = pad && pad.tim || 0;   // each pad's own swing, or the song's; and its timing offset
+      for (const n of sc.notes[k]) { let nt = n.t + tfSwing(n.t, sw); if (ms) nt += ms / 1000 * tfBpmAt(this.P, si, n.t) * TF.PPQ / 60;
+        nt = Math.max(0, Math.min(len - 1e-3, nt)); ix.push({ nt, pi: +k, n }); } }
     ix.sort((a, b) => a.nt - b.nt); this.idx[si] = ix; return ix;
   }
   emit(si, sc, t0, t1, time0, tps, len) {
@@ -663,7 +670,7 @@ class TFHost {
     else if (e.k === 1) ex.tf_duck_trigger(e.c, e.s, off);
     else if (e.k === 6) ex.tf_voice_release(e.tag, e.rel);
     else if (e.k === 5) { if (!e.dead) this.voice(e.pi, off, e.semi, e.vel, 3600, e.tag, e.n); }
-    else if (e.k === 2) { const s = this.sm.get(e.key); if (s) ex.tf_voice_start(e.pi, s.id, off, 1, 0, 1, 0, 1, 0.0005, 0.01, -1, TF.FRZ_TAG + e.pi, 1); }
+    else if (e.k === 2) { const s = this.sm.get(e.key), el = Math.max(0, this.now + off - e.time); if (s && el < s.frames) ex.tf_voice_start(e.pi, s.id, off, 1, el / s.frames, 1, 0, 1, el ? 0.003 : 0.0005, 0.01, -1, TF.FRZ_TAG + e.pi, 1); }   // starting mid-scene: the clip joins where it is
     else if (e.k === 3) ex.tf_voice_release(e.tag, 0.03);
     else if (e.k === 4) { const s = this.sm.get(e.acc ? 'click:hi' : 'click:lo'); if (s) ex.tf_voice_start(TF.MASTER, s.id, off, 1, 0, 1, 0, (e.acc ? 1 : .6) * (this.click.vol || .5), 0.0005, 0.005, -1, TF.CLICK_TAG, 1); }
   }

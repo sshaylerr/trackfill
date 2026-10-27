@@ -109,6 +109,7 @@ body{font-variant-numeric:tabular-nums}
 .synGrid .modded .klab::after{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:1px}
 .synGrid .maptgt{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px}
 .g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px} .g4 .btn{padding:0 6px;min-width:0}
+.g5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px} .g5 .btn{padding:0 4px;min-width:0}
 .btn.theme{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px} .btn.theme.on{background:linear-gradient(180deg,var(--on1),var(--on2));color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-ring)}
 .swd{width:12px;height:12px;border-radius:50%;flex:none;background:var(--sa);box-shadow:0 0 0 2px var(--sb),0 0 6px var(--sa)}
 /* pad styles: dark (default), tinted with the pad's colour, or fully coloured */
@@ -545,7 +546,19 @@ registerProcessor('tf-engine', TFProc);`;
 /* ================= constants & utils ================= */
 const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
 const PAD_COLORS = ['#e8916c', '#e6c162', '#a3d27d', '#6fcac1', '#78a9ea', '#ab8ee8', '#e486bb', '#cdbda8'];
-const SNAPS = [{ t: 96, l: '1/4' }, { t: 48, l: '1/8' }, { t: 24, l: '1/16' }, { t: 12, l: '1/32' }, { t: 0, l: 'Off' }];
+// the grid: straight, triplet and dotted values (in ticks, 96 to a beat); 0 is off
+const SNAPS = [{ t: 96, l: '1/4', g: 'Straight' }, { t: 48, l: '1/8', g: 'Straight' }, { t: 24, l: '1/16', g: 'Straight' }, { t: 12, l: '1/32', g: 'Straight' }, { t: 6, l: '1/64', g: 'Straight' },
+  { t: 64, l: '1/4T', g: 'Triplet' }, { t: 32, l: '1/8T', g: 'Triplet' }, { t: 16, l: '1/16T', g: 'Triplet' }, { t: 8, l: '1/32T', g: 'Triplet' },
+  { t: 144, l: '1/4D', g: 'Dotted' }, { t: 72, l: '1/8D', g: 'Dotted' }, { t: 36, l: '1/16D', g: 'Dotted' }, { t: 0, l: 'Off', g: '' }];
+const snapName = t => (SNAPS.find(s => s.t === t) || SNAPS[2]).l;
+/* A grid position near t. The grid counts from each bar line, so a dotted value (which doesn't divide a bar) starts again on every bar:
+   1/8D gives the 3-3-2 pattern. how: 'round' (nearest), 'floor' (at or before). The next bar line is always a grid position too. */
+function gridQ(t, s, how = 'round') { if (!s) return fixT(t); const b = Math.floor(t / BAR + 1e-9) * BAR, r = t - b;
+  if (how === 'floor') return fixT(b + Math.min(Math.floor(r / s + 1e-9) * s, Math.floor((BAR - 1e-6) / s) * s));
+  const q = b + Math.min(Math.round(r / s) * s, Math.floor((BAR - 1e-6) / s) * s); return fixT(Math.abs(b + BAR - t) < Math.abs(t - q) ? b + BAR : q); }
+function openSnap() { const tl = UI.tl; openSheet('Grid', card => { const st = h('div', 'stack'); card.append(st);
+  for (const grp of ['Straight', 'Triplet', 'Dotted', '']) { st.append(h('div', 'sec', grp || 'No grid')); const g = h('div', 'g5 hrow');   // keys, like the Edit sheet's
+    for (const s of SNAPS.filter(x => x.g === grp)) g.append(btn(s.t ? s.l : 'Off', () => { tl.snap = s.t; savePrefs(); closeSheet(); }, 'btn' + (tl.snap === s.t ? ' on' : ''))); st.append(g); } }); }
 const KEY_HI = 24, KEY_ROWS = 49, KEY_H = 24, LABEL_W = 50, RULER_H = 20, STRIP_H = 28;
 // a chopped pad's notes carry a slice number; in Keys mode its rows (and the 16 pads) become its slices
 const hasSound = p => !!(p && (p.src === 'synth' ? p.syn : p.sample));   // a pad makes sound: a sample, or a synth patch
@@ -578,7 +591,7 @@ const sceneLen = i => P.scenes[i].bars * BAR;
 const spt = () => 60 / (P.bpm * BEAT);
 const noteCount = sc => { let n = 0; for (const k in sc.notes) n += sc.notes[k].length; return n; };
 const lenStr = t => { if (Math.abs(t - Math.round(t)) > 1e-3) return Math.round(t * spt() * 1000) + ' ms'; t = Math.round(t); if (!t) return '0'; const g = gcd(t, BAR); return `${t / g}/${BAR / g}`; };
-function offGrid(t) { const g = UI.tl.snap || 24, off = t - Math.round(t / g) * g, ms = off * spt() * 1000; return Math.abs(ms) < 0.05 ? 'on grid' : (ms > 0 ? '+' : '−') + Math.abs(ms).toFixed(1) + ' ms off grid'; }
+function offGrid(t) { const g = UI.tl.snap || 24, off = t - gridQ(t, g), ms = off * spt() * 1000; return Math.abs(ms) < 0.05 ? 'on grid' : (ms > 0 ? '+' : '−') + Math.abs(ms).toFixed(1) + ' ms off grid'; }
 const curveFrac = tfCurve, valueAt = tfValueAt;
 const duckerCount = () => P.chans.reduce((n, c) => n + c.fx.filter(f => f.type === FX_TYPES.DUCK).length, 0);
 
@@ -737,7 +750,7 @@ async function backupAll() { await projSave(); const projects = [], samples = {}
 let saveTimer = 0;
 function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
 function saveNow() { clearTimeout(saveTimer); if (P) projSave(); }
-function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex }); }
+function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -853,7 +866,7 @@ function onEngine(m) {
     for (const v of m.fl) flashPad(v & 255, (v >> 8) - 1);
     if (m.arp) arpPlayed(m.arp);
     if (T.playing && T.rec) recTrack();
-  } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); sendMonitor(); }
+  } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); sendMonitor(); sendRange(); }
   else if (m.t === 'trip') {
     const n = Date.now(), who = m.ch === MASTER ? 'the master output' : chanName(m.ch);
     if (m.ch === MASTER) { T.playing = false; updateTransport(); }
@@ -879,9 +892,23 @@ function play() {
   if (Date.now() - lastStop < 450 && ctx) { panic(); lastStop = 0; return; }
   if (!ensureAudio()) return;
   recReset();
-  const count = T.rec ? UI.countIn : 0; T.playing = true; REP.pos = null; sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count }); updateTransport();
+  const count = T.rec ? UI.countIn : 0; T.playing = true; REP.pos = null; sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count, from: playFrom() }); updateTransport();
   if (count) toast(`Count-in: ${count} bar${count > 1 ? 's' : ''}`);
 }
+/* The timeline's start point and loop range (one scene each): playback starts at the start point, and with the loop on it goes round the range
+   (starting inside it). Tap the ruler for a start point, drag along it for a range; the corner box turns the loop on and off. */
+function playFrom() { const tl = UI.tl, L = tl.loop && tl.loop.on && tl.loop.scene === UI.scene ? tl.loop : null, s = tl.start && tl.start.scene === UI.scene ? tl.start.t : 0;
+  return L && (s < L.a || s >= L.b) ? L.a : s; }
+function sendRange() { const L = UI.tl.loop; send({ t: 'range', v: L && L.on ? { scene: L.scene, a: L.a, b: L.b } : null }); }
+function jumpTo(t) { if (!T.playing) return; REP.pos = null; send({ t: 'play', scene: UI.scene, loop: T.loop, count: 0, from: t }); }
+function loopToggle() { const tl = UI.tl, L = tl.loop;
+  if (L && L.scene === UI.scene) L.on = !L.on;
+  else { const items = selItems(), len = sceneLen(UI.scene); let a, b;   // a new range: the bars of the selection, or the bar where the start point (or the view) is
+    if (items.length) { a = Math.floor(Math.min(...items.map(x => x.n.t)) / BAR) * BAR; b = Math.ceil(Math.max(...items.map(x => x.n.t + x.n.len)) / BAR - 1e-6) * BAR; }
+    else { a = Math.floor((tl.start && tl.start.scene === UI.scene ? tl.start.t : Math.max(0, tl.sx)) / BAR) * BAR; b = a + BAR; }
+    tl.loop = { scene: UI.scene, a: Math.min(a, len - BEAT), b: Math.min(Math.max(b, a + BEAT), len), on: true }; }
+  sendRange(); haptic(); drawTL(); toast(tl.loop.on ? `Loop ${rangeStr(tl.loop.a, tl.loop.b)}` : 'Loop off'); }
+const rangeStr = (a, b) => a % BAR || b % BAR ? `from ${posStr(a).split('.').slice(0, a % BEAT ? 3 : 2).join('.')}, ${+((b - a) / BEAT).toFixed(2)} beats` : b - a === BAR ? `bar ${a / BAR + 1}` : `bars ${a / BAR + 1}–${b / BAR}`;
 // the click: off, only while recording is armed, or always. It plays on the engine's clock, so it is sample-accurate, and never reaches exports.
 function sendClick() { send({ t: 'click', on: UI.click === 'always' || (UI.click === 'rec' && T.rec), vol: UI.clickVol }); $('#bTempo').classList.toggle('clk', UI.click === 'always' || (UI.click === 'rec' && T.rec)); }
 function stop() { T.playing = false; if (T.rec) { T.rec = false; sendClick(); } send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
@@ -900,7 +927,7 @@ function recTrack() { const p = heardPos(); if (!p) return; const l = REC.last; 
 function recMark() { recTrack(); if (REC.saved !== REC.pass) { pushUndo('all'); REC.saved = REC.pass; } }
 function recordNote(pi, semi, vel = .9, ms = 0) {
   const pos = heardPos(); if (!pos) return null; recMark(); touchPad(pi);
-  const sc = P.scenes[pos.scene], len = sc.bars * BAR, s = UI.tl.snap, off = ms / 1000 / spt(); let t = pos.tick; if (s) t = Math.round(t / s) * s; t = fixT((((t + off) % len) + len) % len);
+  const sc = P.scenes[pos.scene], len = sc.bars * BAR, s = UI.tl.snap, off = ms / 1000 / spt(); let t = pos.tick; if (s) t = gridQ(t, s); t = fixT((((t + off) % len) + len) % len);
   const n = { t, len: s || 24, p: semi, v: +vel.toFixed(3) }, ahead = ((t - pos.tick - off + len) % len) * spt();
   if (ahead < .3) n.f = 1;   // the engine skips this once: you already heard it live
   (sc.notes[pi] = sc.notes[pi] || []).push(n); syncScene(pos.scene); markDirty();
@@ -923,7 +950,7 @@ function doCapture() {
   if (!fresh.length) { toast('Nothing to capture yet. Play some pads first.'); return; }
   pushUndo('all'); let placed = 0, dropped = 0;
   const live = fresh.filter(e => e.pos), loose = fresh.filter(e => !e.pos);
-  const qz = t => { const g = UI.tl.snap; return g ? Math.round(t / g) * g : t; };   // captured notes follow Snap, like recorded ones
+  const qz = t => { const g = UI.tl.snap; return g ? gridQ(t, g) : t; };   // captured notes follow Snap, like recorded ones
   for (const e of live) { const sc = P.scenes[e.pos.scene], L = sceneLen(e.pos.scene); (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(qz(e.pos.tick) % L), len: UI.tl.snap || e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); }
   if (loose.length) { const sc = P.scenes[UI.scene], len = sc.bars * BAR, t0 = loose[0].at, tpsec = 1 / spt();
     for (const e of loose) { const t = (e.at - t0) * tpsec; if (t >= len) { dropped++; continue; } const tq = qz(t); if (tq >= len) { dropped++; continue; } (sc.notes[e.pi] = sc.notes[e.pi] || []).push({ t: fixT(tq), len: UI.tl.snap || e.len, p: e.semi, v: e.vel }); placed++; touchPad(e.pi); } }
@@ -1191,14 +1218,16 @@ function padUp(cell) {
 const TL = { cv: null, cx: null, W: 0, H: 0, dpr: 1, drag: null, lastTap: { t: 0, o: null } };
 const tlLen = () => sceneLen(UI.scene);
 const tlTarget = () => UI.tl.target == null ? UI.pad : UI.tl.target;
-const rowH = () => UI.tl.mode === 'bank' ? Math.max(18, (TL.H - RULER_H) / (UI.tl.rv || 16)) : (UI.tl.kh || KEY_H);   // vertical zoom: rows on screen (bank) or key height
+// the velocity lane sits under the notes (tap its label to fold it to a strip); the notes get the rest of the height
+const VEL_OPEN = 64, VEL_SHUT = 16, velH = () => UI.tl.lane === 'notes' ? (UI.tl.velOpen === false ? VEL_SHUT : VEL_OPEN) : 0, noteH = () => TL.H - velH();
+const rowH = () => UI.tl.mode === 'bank' ? Math.max(18, (noteH() - RULER_H) / (UI.tl.rv || 16)) : (UI.tl.kh || KEY_H);   // vertical zoom: rows on screen (bank) or key height
 const maxRow = () => UI.tl.mode === 'bank' ? 15 : KR.rows() - 1;
 const t2x = t => LABEL_W + (t - UI.tl.sx) * UI.tl.zoom;
 const x2t = x => (x - LABEL_W) / UI.tl.zoom + UI.tl.sx;
 const vOff = () => UI.tl.mode === 'keys' ? UI.tl.sy : (UI.tl.by || 0);
 const row2y = r => RULER_H + r * rowH() - vOff();
 const y2row = y => Math.floor((y - RULER_H + vOff()) / rowH());
-const snapT = t => { const s = UI.tl.snap; return s ? Math.round(t / s) * s : fixT(t); };
+const snapT = t => gridQ(t, UI.tl.snap);
 const tlStep = () => UI.tl.snap || 6;
 const nudgeStep = () => UI.fine === 2 ? 0.001 / spt() : UI.fine === 1 ? 6 : tlStep();
 const gTop = () => RULER_H + STRIP_H + 8, gBot = () => TL.H - 10;
@@ -1207,21 +1236,21 @@ function lanePts(create) { const sc = P.scenes[UI.scene], k = UI.tl.lane; if (!s
 function cleanLane() { const sc = P.scenes[UI.scene]; if (sc.auto[UI.tl.lane] && !sc.auto[UI.tl.lane].length) delete sc.auto[UI.tl.lane]; }
 function tlClamp() { const tl = UI.tl; if (!tl.zoom) tl.zoom = (TL.W - LABEL_W) / (Math.min(P.scenes[UI.scene].bars, 4) * BAR);
   const vis = (TL.W - LABEL_W) / tl.zoom; tl.sx = clamp(tl.sx, 0, Math.max(0, tlLen() - vis));
-  const viewH = TL.H - RULER_H;
+  const viewH = noteH() - RULER_H;
   if (tl.mode === 'keys') { const ck = !!KR.chop(), kh = rowH(); if (tl.syChop !== ck) { tl.sy = null; tl.syChop = ck; }
     const total = KR.rows() * kh; if (tl.sy == null) tl.sy = ck ? 0 : (KEY_HI - 6) * kh - viewH / 2; tl.sy = clamp(tl.sy, 0, Math.max(0, total - viewH)); }
   else tl.by = clamp(tl.by || 0, 0, Math.max(0, 16 * rowH() - viewH)); }
 // dragging a selection box near an edge scrolls the timeline, so the box can reach notes that weren't on screen
 function boxScroll(d) { if (d.scrolling) return; d.scrolling = true; let last = performance.now();
   const step = now => { const tl = UI.tl; if (TL.drag !== d || !TL.cv) { d.scrolling = false; return; } const dt = clamp(now - last, 8, 50) / 16.7, E = 30; last = now;
-    const ex = d.x < LABEL_W + E ? -(LABEL_W + E - d.x) : d.x > TL.W - E ? d.x - (TL.W - E) : 0, ey = d.y < RULER_H + E ? -(RULER_H + E - d.y) : d.y > TL.H - E ? d.y - (TL.H - E) : 0;
+    const ex = d.x < LABEL_W + E ? -(LABEL_W + E - d.x) : d.x > TL.W - E ? d.x - (TL.W - E) : 0, ey = d.y < RULER_H + E ? -(RULER_H + E - d.y) : d.y > noteH() - E && d.y < noteH() + 4 ? d.y - (noteH() - E) : d.y >= noteH() + 4 ? E : 0;
     if (!ex && !ey) { d.scrolling = false; return; }
     const sx = tl.sx, vo = vOff(); tl.sx += Math.sign(ex) * Math.min(E, Math.abs(ex)) * .2 * dt / tl.zoom;
     if (ey) { const v = Math.sign(ey) * Math.min(E, Math.abs(ey)) * .15 * dt; if (tl.mode === 'keys') tl.sy += v; else tl.by = (tl.by || 0) + v; }
     tlClamp(); if (tl.sx === sx && vOff() === vo) { d.scrolling = false; return; } drawTL(); requestAnimationFrame(step); };
   requestAnimationFrame(step); }
 // vertical zoom (Shift + the zoom keys, or pinch): keeps the middle row in place
-function zoomV(f) { const tl = UI.tl, viewH = TL.H - RULER_H, mid = (vOff() + viewH / 2) / rowH();
+function zoomV(f) { const tl = UI.tl, viewH = noteH() - RULER_H, mid = (vOff() + viewH / 2) / rowH();
   if (tl.mode === 'bank') tl.rv = clamp(Math.round((tl.rv || 16) / f * 100) / 100, 4, 16); else tl.kh = clamp((tl.kh || KEY_H) * f, 14, 56);
   const v = mid * rowH() - viewH / 2; if (tl.mode === 'bank') tl.by = v; else tl.sy = v; drawTL(); }
 function zoomTL(f) { const tl = UI.tl, mid = x2t(LABEL_W + (TL.W - LABEL_W) / 2); tl.zoom = clamp(tl.zoom * f, (TL.W - LABEL_W) / (tlLen() * 1.02), 3); tl.sx = mid - (TL.W - LABEL_W) / 2 / tl.zoom; drawTL(); }
@@ -1230,15 +1259,21 @@ function sizeTL() { if (!TL.cv) return; const r = TL.cv.parentNode.getBoundingCl
 function drawGrid(g, y0, y1) {
   const tl = UI.tl, len = tlLen(), W = TL.W, t0 = Math.max(0, Math.floor(tl.sx)), t1 = Math.min(len, x2t(W));
   const sub = tl.snap && tl.snap * tl.zoom >= 7 ? tl.snap : (24 * tl.zoom >= 7 ? 24 : BEAT);
-  for (let t = Math.floor(t0 / sub) * sub; t <= t1; t += sub) { const x = Math.round(t2x(t)) + .5; if (x < LABEL_W) continue;
-    g.strokeStyle = t % BAR === 0 ? COL.dim : (t % BEAT === 0 ? COL.line : COL.raised); g.lineWidth = 1; g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke(); }
+  for (let b = Math.floor(t0 / BAR) * BAR; b <= t1; b += BAR) for (let r = 0; r < BAR - 1e-6; r += sub) { const t = b + r; if (t > t1) break; const x = Math.round(t2x(t)) + .5; if (x < LABEL_W) continue;   // from each bar line (dotted grids start again every bar)
+    g.strokeStyle = r === 0 ? COL.dim : (r % BEAT === 0 ? COL.line : COL.raised); g.lineWidth = 1; g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke(); }
   const xe = t2x(len); if (xe < W) { g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(Math.max(LABEL_W, xe), y0, W - xe, y1 - y0); }
+  const L = tl.loop && tl.loop.on && tl.loop.scene === UI.scene ? tl.loop : null; if (L) { g.fillStyle = 'rgba(0,0,0,.2)'; const xa = t2x(L.a), xb = Math.min(xe, t2x(L.b));   // outside an active loop: dimmed
+    if (xa > LABEL_W) g.fillRect(LABEL_W, y0, xa - LABEL_W, y1 - y0); if (xb < xe) g.fillRect(Math.max(LABEL_W, xb), y0, xe - Math.max(LABEL_W, xb), y1 - y0); }
 }
 function drawRuler(g) {
   const tl = UI.tl, len = tlLen(), W = TL.W; g.fillStyle = COL.raised; g.fillRect(0, 0, W, RULER_H); g.font = '500 11px ' + FONT_LCD; g.textBaseline = 'middle';
   for (let t = 0; t <= len; t += BEAT) { const x = t2x(t); if (x < LABEL_W - 1 || x > W) continue;
     if (t % BAR === 0) { g.fillStyle = COL.ink; if (t < len) g.fillText(String(t / BAR + 1), x + 4, RULER_H / 2 + 1); g.fillStyle = COL.dim; g.fillRect(x, 0, 1, RULER_H); } else { g.fillStyle = COL.dim; g.fillRect(x, RULER_H - 5, 1, 5); } }
-  g.fillStyle = COL.raised; g.fillRect(0, 0, LABEL_W, RULER_H); g.fillStyle = COL.mute; g.fillText(posStr(Math.max(0, Math.floor(tl.sx))).split('.').slice(0, 2).join('.'), 5, RULER_H / 2 + 1);
+  const L = tl.loop && tl.loop.scene === UI.scene ? tl.loop : null, S = tl.start && tl.start.scene === UI.scene && tl.start.t > 0 ? tl.start : null;
+  if (L) { const x1 = Math.max(LABEL_W, t2x(L.a)), x2 = Math.min(W, t2x(L.b)); if (x2 > x1) { g.fillStyle = L.on ? COL.accent : COL.mute; g.globalAlpha = L.on ? .3 : .18; g.fillRect(x1, 0, x2 - x1, RULER_H); g.globalAlpha = 1; g.fillRect(x1, 0, x2 - x1, 3); } }
+  if (S) { const x = t2x(S.t); if (x >= LABEL_W && x <= W) { g.fillStyle = COL.play; g.beginPath(); g.moveTo(x - 5, 0); g.lineTo(x + 5, 0); g.lineTo(x, 8); g.closePath(); g.fill(); g.fillRect(x - .5, 0, 1, RULER_H); } }
+  g.fillStyle = L && L.on ? COL.accent : COL.raised; g.globalAlpha = L && L.on ? .25 : 1; g.fillRect(0, 0, LABEL_W, RULER_H); g.globalAlpha = 1;   // the loop key
+  g.fillStyle = L && L.on ? COL.accent : COL.mute; g.fillText('⟲ ' + (L && L.on ? Math.floor(L.a / BAR) + 1 + (L.b - L.a > BAR || L.a % BAR || L.b % BAR ? '–' + Math.ceil(L.b / BAR) : '') : 'Loop'), 5, RULER_H / 2 + 1);
 }
 // The timeline is drawn whole into a cached bitmap; while playing, most frames only copy it and draw the playhead over it
 // (a full redraw a few times a second still picks up anything that changed, like notes being recorded).
@@ -1254,7 +1289,7 @@ function tlBlit() { const g = TL.cx; g.setTransform(1, 0, 0, 1, 0, 0); g.drawIma
 function drawTLFrame() { if (!TL.cv || !TL.cv.isConnected || !TL.W) return;
   if (!TL.cache || TL.cache.width !== TL.cv.width || TL.cache.height !== TL.cv.height || TL.cacheSx !== UI.tl.sx || ++TL.cacheAge >= (T.rec ? 4 : 8)) drawTL(); else tlBlit(); }
 function drawNotesLane(g) {
-  const tl = UI.tl, W = TL.W, H = TL.H, rh = rowH(), sc = P.scenes[UI.scene];
+  const tl = UI.tl, W = TL.W, H = noteH(), rh = rowH(), sc = P.scenes[UI.scene];
   g.save(); g.beginPath(); g.rect(0, RULER_H, W, H - RULER_H); g.clip();
   const rows = tl.mode === 'bank' ? 16 : KR.rows(), chop = KR.chop();
   for (let r = 0; r < rows; r++) { const y = row2y(r); if (y + rh < RULER_H || y > H) continue;
@@ -1283,8 +1318,26 @@ function drawNotesLane(g) {
       g.fillStyle = pi === UI.pad ? COL.ink : (p.sample ? COL.mute : COL.dim); g.fillText((p.name || padLabel(pi)).slice(0, 6), 10, y + rh / 2); }
     else if (chop) { g.fillStyle = r === UI.slice ? COL.ink : COL.mute; g.fillText('#' + (r + 1), 10, y + rh / 2); }
     else { const p = KEY_HI - r; g.fillStyle = ((p % 12) + 12) % 12 === 0 ? COL.ink : COL.dim; g.fillText(noteName(p), 6, y + rh / 2); } }
-  g.restore();
+  g.restore(); drawVelLane(g);
 }
+/* ---------- the velocity lane: a stalk for each note of the pad in focus (the highlighted row in Bank, the pad in Keys).
+   Drag across it to set each note to the height under your finger, so a sweep draws a ramp; with notes selected, only those change. ---------- */
+const velNotes = () => (P.scenes[UI.scene].notes[UI.pad] || []).map(n => ({ pi: UI.pad, n }));
+const velY = v => { const top = noteH() + 7, bot = TL.H - 4; return bot - (bot - top) * v; }, velV = y => { const top = noteH() + 7, bot = TL.H - 4; return clamp(Math.round((bot - y) / (bot - top) * 100) / 100, .01, 1); };
+function drawVelLane(g) { const tl = UI.tl, W = TL.W, y0 = noteH(), H = TL.H, open = tl.velOpen !== false;
+  g.fillStyle = COL.bg; g.fillRect(LABEL_W, y0, W - LABEL_W, H - y0); g.fillStyle = COL.dim; g.fillRect(0, y0, W, 1);
+  g.fillStyle = COL.raised; g.fillRect(0, y0 + 1, LABEL_W, H - y0 - 1); g.font = '500 10.5px ' + FONT_LCD; g.textBaseline = 'middle'; g.fillStyle = COL.mute; g.fillText(open ? 'Vel ▾' : 'Vel ▸', 6, open ? y0 + 12 : (y0 + H) / 2);
+  if (!open) return; const SEL = new Set(selItems().map(x => x.n)), col = PAD_COLORS[P.pads[UI.pad].color], d = TL.drag;
+  g.save(); g.beginPath(); g.rect(LABEL_W, y0 + 1, W - LABEL_W, H - y0 - 1); g.clip(); g.fillStyle = COL.line; g.fillRect(LABEL_W, Math.round(velY(.5)), W, 1);
+  for (const { n } of velNotes()) { const x = Math.round(t2x(n.t)) + 1; if (x < LABEL_W - 4 || x > W + 4) continue; const y = velY(n.v), on = SEL.has(n);
+    g.fillStyle = on ? COL.accent : col; g.globalAlpha = on || !SEL.size ? 1 : .45; g.fillRect(x, y, 2, TL.H - 4 - y); g.fillRect(x - 2, y - 1, 6, 3); }
+  g.globalAlpha = 1; g.restore();
+  if (d && d.kind === 'vel' && d.last != null) { g.fillStyle = COL.ink; g.font = '600 11px ' + FONT_LCD; g.textAlign = 'right'; g.fillText('Velocity ' + Math.round(d.last * 100), W - 6, y0 + 12); g.textAlign = 'left'; } }
+// set every note between two finger positions to the height along the line between them (a single touch reaches 6 px either side)
+function velPaint(d, xa, ya, xb, yb) { const lo = Math.min(xa, xb) - (xa === xb ? 6 : 1), hi = Math.max(xa, xb) + (xa === xb ? 6 : 1), SEL = new Set(selItems().map(x => x.n));
+  let ts = velNotes(); if (ts.some(x => SEL.has(x.n))) ts = ts.filter(x => SEL.has(x.n));
+  for (const { pi, n } of ts) { const x = t2x(n.t) + 2; if (x < lo || x > hi) continue; const f = xb === xa ? 1 : (x - xa) / (xb - xa), v = velV(ya + (yb - ya) * clamp(f, 0, 1));
+    if (v === n.v) { d.last = v; continue; } if (!d.pushed) { pushUndo('scene:' + UI.scene); d.pushed = true; } touchPad(pi); n.v = v; d.last = v; } }
 function drawAutoLane(g) {
   const tl = UI.tl, W = TL.W, H = TL.H, sc = P.scenes[UI.scene], tgt = tlTarget(), meta = keyMeta(tl.lane), base = tfBase(P, tl.lane), pts = lanePts(false) || [];
   g.fillStyle = COL.bg; g.globalAlpha = .4; g.fillRect(LABEL_W, RULER_H, W, STRIP_H); g.globalAlpha = 1; drawGrid(g, RULER_H, H);
@@ -1367,7 +1420,9 @@ function bindTL(cv) {
     e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} ensureAudio(); const { x, y } = tlLocal(e), tl = UI.tl; ptrs.set(e.pointerId, { x, y });
     if (ptrs.size === 2) { startPinch(); drawTL(); return; } if (ptrs.size > 1 || TL.pinch || TL.drag) return;
     const base = { id: e.pointerId, x0: x, y0: y, x, y, sx0: tl.sx, sy0: tl.sy, by0: tl.by, moved: false };
-    if (y < RULER_H) { TL.drag = Object.assign(base, { kind: 'pan' }); return; }
+    if (y < RULER_H) { TL.drag = Object.assign(base, { kind: x < LABEL_W ? 'loopkey' : 'ruler' }); return; }
+    if (tl.lane === 'notes' && y >= noteH()) { if (x < LABEL_W || tl.velOpen === false) { TL.drag = Object.assign(base, { kind: 'velhead' }); return; }
+      TL.drag = Object.assign(base, { kind: 'vel', lx: x, ly: y, pushed: false, last: null }); velPaint(TL.drag, x, y, x, y); drawTL(); return; }
     if (tl.lane === 'notes') {
       if (x < LABEL_W) { TL.drag = Object.assign(base, { kind: 'label' }); return; }
       const hit = hitNote(x, y), SEL = new Set(selItems().map(q => q.n));
@@ -1395,6 +1450,11 @@ function bindTL(cv) {
       if (pz.dy0 > 40) { const f = dy / pz.dy0; if (tl.mode === 'bank') tl.rv = clamp(pz.rv0 / f, 4, 16); else tl.kh = clamp(pz.kh0 * f, 14, 56); }
       const row = (pz.v0 + pz.cy0 - RULER_H) / pz.rh0, v = row * rowH() - (cy - RULER_H); if (tl.mode === 'bank') tl.by = v; else tl.sy = v; drawTL(); return; }
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; const len = tlLen(); d.x = x; d.y = y;
+    if (d.kind === 'vel') { velPaint(d, d.lx, d.ly, x, y); d.lx = x; d.ly = y; drawTL(); return; }
+    if (d.kind === 'ruler') { if (!d.moved && Math.abs(x - d.x0) < 8) return; d.moved = true;   // dragging along the ruler draws the loop range, in beats
+      const q = t => clamp(gridQ(x2t(t), BEAT), 0, len), a = q(Math.min(d.x0, x)), b = Math.max(q(Math.max(d.x0, x)), a + BEAT);
+      tl.loop = { scene: UI.scene, a: Math.min(a, len - BEAT), b: Math.min(b, len), on: true }; sendRange(); drawTL(); return; }
+    if (d.kind === 'loopkey') return;
     if (!d.moved && Math.hypot(x - d.x0, y - d.y0) > 7) d.moved = true; if (!d.moved) return;
     if (d.kind === 'box') { boxScroll(d); drawTL(); return; }
     if ((d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') && tl.lane === 'notes' && tl.mode === 'bank' && d.axis == null && d.y0 >= RULER_H) d.axis = Math.abs(y - d.y0) > Math.abs(x - d.x0) * 1.3 ? 'v' : 'h';
@@ -1419,11 +1479,18 @@ function bindTL(cv) {
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; TL.drag = null; const tl = UI.tl, { x, y } = tlLocal(e), now = Date.now();
     if (d.kind === 'box') { if (!d.moved) { clearSel(); drawTL(); updatePanel(); return; }
       setGroup(notesInBox(d.bt, x2t(x), y2row(d.by - vOff()), y2row(y))); if (tl.sel && tl.mode === 'bank') UI.pad = tl.sel.pi; auditionSel(); drawTL(); updatePanel(); return; }
+    if (d.kind === 'loopkey') { if (Math.hypot(x - d.x0, y - d.y0) < 10) loopToggle(); return; }
+    if (d.kind === 'ruler') { if (d.moved) { haptic(); toast(`Loop ${rangeStr(tl.loop.a, tl.loop.b)}`); return; }
+      const t = clamp(gridQ(x2t(x), tl.snap || BEAT), 0, tlLen() - 1), S = tl.start && tl.start.scene === UI.scene ? tl.start : null;   // a tap: the start point (again on it, or at the very start: none)
+      if ((S && Math.abs(t2x(S.t) - x) < 12) || t <= 0) tl.start = null; else tl.start = { scene: UI.scene, t }; jumpTo(playFrom());
+      drawTL(); return; }
+    if (d.kind === 'velhead') { if (Math.hypot(x - d.x0, y - d.y0) < 8) { tl.velOpen = tl.velOpen === false; savePrefs(); } drawTL(); return; }
+    if (d.kind === 'vel') { if (d.pushed) afterEdit(); else drawTL(); return; }
     if (d.axis === 'v') { const dy = y - d.y0; if (Math.abs(dy) > 40) tlBank(UI.bank + (dy < 0 ? 1 : -1), 'swipe'); else drawTL(); return; }
     if (d.kind === 'label' && !d.moved) { const r = y2row(y); if (r >= 0 && r <= maxRow()) { if (tl.mode === 'bank') { UI.pad = UI.bank * 16 + r; UI.tl.target = null; audition(UI.pad); } else audition(UI.pad, KR.p(r)); } drawTL(); updatePanel(); return; }
     if (d.kind === 'empty' && !d.moved) {
       if (tl.lane === 'notes' && selItems().length) { clearSel(); drawTL(); updatePanel(); TL.lastTap = { t: now, o: null }; return; }   // first tap only deselects
-      if (tl.lane === 'notes') { const r = y2row(y); if (r >= 0 && r <= maxRow()) { const s = tl.snap, t = s ? Math.floor(x2t(x) / s) * s : fixT(x2t(x)); if (t < tlLen()) addNoteAt(t, r); } }
+      if (tl.lane === 'notes') { const r = y2row(y); if (r >= 0 && r <= maxRow()) { const t = gridQ(x2t(x), tl.snap, 'floor'); if (t < tlLen()) addNoteAt(t, r); } }
       else { const t = clamp(snapT(x2t(x)), 0, tlLen()); pushUndo('scene:' + UI.scene); const pts = lanePts(true); pts.push({ t, v: Math.round(y2v(y) * 1000) / 1000, c: 0 }); pts.sort((a, b) => a.t - b.t); tl.selPt = pts.findIndex(p => p.t === t); afterEdit(); }
       TL.lastTap = { t: now, o: null }; return; }
     if ((d.kind === 'move' || d.kind === 'resize') && !d.moved) {
@@ -1543,6 +1610,14 @@ function openTempo() {
     g.append(tp, paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, get: () => P.swing, set: v => { P.swing = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 0, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
     const tap = btn('Tap tempo', () => { const n = performance.now(); taps = taps.filter(t => n - t < 2500); taps.push(n); if (taps.length >= 3) { const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); P.bpm = clamp(Math.round(60000 / iv), 40, 220); tp._upd(); syncSong(); markDirty(); } });
     tap.style.height = '56px'; tap.style.width = '100%'; tap.style.marginTop = '10px'; card.append(g, tap);
+    // this pad's groove: the song's swing or its own, and a timing offset (hats a touch late, a snare a touch early)
+    { const pi = UI.pad, pad = P.pads[pi], own = pad.swg != null, set = (k, v) => { pad[k] = v; touchPad(pi); syncPad(pi); markDirty(); };
+      card.append(h('div', 'sec', 'This pad · ' + esc(padLabel(pi) + ' ' + (pad.name || ''))));
+      const row = h('div', 'g2'); row.append(btn('Song swing · ' + Math.round(50 + P.swing * 25) + '%', () => { pushUndo('pad:' + pi); set('swg', null); closeSheet(); openTempo(); }, 'btn' + (own ? '' : ' on')), btn('Own swing', () => { if (own) return; pushUndo('pad:' + pi); set('swg', P.swing); closeSheet(); openTempo(); }, 'btn' + (own ? ' on' : ''))); card.append(row);
+      const g2 = h('div', 'g2'); g2.style.marginTop = '8px';
+      if (own) g2.append(paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, get: () => pad.swg, set: v => set('swg', v), onStart: () => pushUndo('pad:' + pi), def: P.swing, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
+      g2.append(paramEl({ label: 'Timing', min: -40, max: 40, step: .5, coarse: 2, big: 10, get: () => pad.tim || 0, set: v => set('tim', v), onStart: () => pushUndo('pad:' + pi), def: 0, bipolar: true, fmt: v => !v ? 'On time' : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + ' ms ' + (v > 0 ? 'late' : 'early'), noFocus: true }));
+      if (!own) g2.style.gridTemplateColumns = '1fr'; card.append(g2); }
     const ck = h('div', 'g2'), pick = (title, opts, cur, set) => { card.append(h('div', 'sec', title)); const row = h('div', 'g3');
       opts.forEach(([v, l]) => row.append(btn(l, () => { set(v); savePrefs(); sendClick(); closeSheet(); openTempo(); }, 'btn' + (cur === v ? ' on' : '')))); card.append(row); };
     pick('Click', [['off', 'Off'], ['rec', 'Recording'], ['always', 'Always']], UI.click, v => UI.click = v);
@@ -1580,7 +1655,7 @@ function openMenu() {
     st.append(h('p', 'note', 'Each opens as a new project; your work stays in Projects.'));
     card.append(st); });
 }
-function afterLoad() { setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
+function afterLoad() { UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
 
 /* ---------- engine check ---------- */
 async function runChecks() {
@@ -1670,10 +1745,12 @@ function stemSources(order) { const scenes = new Set(order.map(o => o.scene)), l
 function openExport() { const ex = exPrefs();
   openSheet('Export', card => { const st = h('div', 'stack'); card.append(st); const set = (k, v) => { ex[k] = v; savePrefs(); closeSheet(); openExport(); };
     const row = (title, opts, cur, k) => { st.append(h('div', 'sec', title)); const g = h('div', 'g' + opts.length); for (const [v, l] of opts) g.append(btn(l, () => set(k, v), 'btn' + (cur === v ? ' on' : ''))); st.append(g); };
-    row('What', [[false, 'Mix'], [true, 'Stems']], ex.stems, 'stems'); row('Format', Object.entries(EXF).map(([k, v]) => [k, v[0]]), ex.fmt, 'fmt'); row('Sample rate', [[48000, '48 kHz'], [44100, '44.1 kHz']], ex.sr, 'sr');
+    { st.append(h('div', 'sec', 'What')); const g = h('div', 'g3'), cur = ex.midi ? 'midi' : ex.stems ? 'stems' : 'mix';   // MIDI: the notes, for another DAW
+      for (const [v, l] of [['mix', 'Mix'], ['stems', 'Stems'], ['midi', 'MIDI']]) g.append(btn(l, () => { ex.midi = v === 'midi'; ex.stems = v === 'stems'; savePrefs(); closeSheet(); openExport(); }, 'btn' + (cur === v ? ' on' : ''))); st.append(g); }
+    if (!ex.midi) { row('Format', Object.entries(EXF).map(([k, v]) => [k, v[0]]), ex.fmt, 'fmt'); row('Sample rate', [[48000, '48 kHz'], [44100, '44.1 kHz']], ex.sr, 'sr'); }
     st.append(h('div', 'sec', 'Render')); const g = h('div', 'g2'); g.append(btn('Song', () => exportAudio('song'), 'btn hot'), btn('Scene ' + (UI.scene + 1), () => exportAudio('scene'), 'btn hot')); st.append(g);
-    st.append(h('p', 'note', ex.stems ? 'One file per group, channel and return feeding the master, without the master\'s effects: together they add up to the mix.' : ex.fmt === 'wav24' ? '24-bit WAV: the best copy to send on or master.' : ex.fmt === 'wav16' ? '16-bit WAV with dither, for CD-style copies.' : 'MP3 at 320 kbps with dither: small, for sharing.')); }); }
-async function exportAudio(which) { if (busy) return; busy = true; closeSheet(); const ex = exPrefs(), [, ext] = EXF[ex.fmt]; toast('Rendering…');
+    st.append(h('p', 'note', ex.midi ? 'A track per pad, as it plays, with the tempo.' : ex.stems ? 'One file per group, channel and return feeding the master, without the master\'s effects: together they add up to the mix.' : ex.fmt === 'wav24' ? '24-bit WAV: the best copy to send on or master.' : ex.fmt === 'wav16' ? '16-bit WAV with dither, for CD-style copies.' : 'MP3 at 320 kbps with dither: small, for sharing.')); }); }
+async function exportAudio(which) { if (exPrefs().midi) { closeSheet(); return exportMidi(which); } if (busy) return; busy = true; closeSheet(); const ex = exPrefs(), [, ext] = EXF[ex.fmt]; toast('Rendering…');
   try { const order = which === 'song' ? songOrder() : [{ scene: UI.scene, reps: 1 }], base = slug(P.name) + (which === 'song' ? '' : '-scene-' + (UI.scene + 1)), files = [];
     if (!ex.stems) { const r = await renderOffline(order, 2, -1, p => toast(`Rendering… ${Math.round(p * 100)}%`), { sr: ex.sr }); files.push({ name: base + ext, data: await encodeAudio(r, ex.fmt, p => toast(`Encoding… ${Math.round(p * 100)}%`)) }); }
     else { const src = stemSources(order), Q = JSON.parse(JSON.stringify(P)); Q.chans[MASTER].fx = []; if (!src.length) throw new Error('nothing plays in ' + (which === 'song' ? 'the song' : 'this scene'));
@@ -1868,7 +1945,7 @@ function noteAtCursor() { const c = UI.tl.cursor, st = tlStep(), sc = P.scenes[U
 function tlEnsure() { const tl = UI.tl, c = tl.cursor; let t = c.t, row = c.row; if (tl.sel) { t = tl.sel.n.t; row = tl.mode === 'bank' ? tl.sel.pi - UI.bank * 16 : KR.row(tl.sel.n.p); } else if (tl.box) { t = tl.cursor.t; row = tl.cursor.row; }
   if (tl.lane !== 'notes' && tl.selPt >= 0) { const pts = lanePts(false); if (pts && pts[tl.selPt]) t = pts[tl.selPt].t; }
   const x = t2x(t); if (x < LABEL_W + 8) tl.sx = t - 8 / tl.zoom; else if (x > TL.W - 30) tl.sx = t - (TL.W - LABEL_W - 40) / tl.zoom;
-  if (tl.lane === 'notes') { const rh = rowH(), y = row * rh - vOff(), vh = TL.H - RULER_H, set = v => { if (tl.mode === 'keys') tl.sy = v; else tl.by = v; };
+  if (tl.lane === 'notes') { const rh = rowH(), y = row * rh - vOff(), vh = noteH() - RULER_H, set = v => { if (tl.mode === 'keys') tl.sy = v; else tl.by = v; };
     if (y < 0) set(row * rh); else if (y > vh - rh) set(row * rh - vh + rh); } drawTL(); }
 const noteCtl = {
   hasSel() { return !!UI.tl.sel; },
@@ -2018,7 +2095,7 @@ async function boot() {
   for (const s of await DB.all('samples')) { const r = upgradeSampleRecord(s); if (r) { SAMPLES.set(r.id, r); if (r !== s) DB.put('samples', r.id, r); } }
   P = await projBoot(); await warmBuiltins(P); ensureBuiltinsFor(P);
   const pr = await DB.get('kv', 'ui');
-  if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (pr.snap != null) UI.tl.snap = pr.snap;
+  if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (SNAPS.some(x => x.t === pr.snap)) UI.tl.snap = pr.snap; UI.tl.velOpen = pr.velOpen !== false;
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: pr.mon.phones === 'Apple EarPods' ? 'Wired earbuds' : TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);

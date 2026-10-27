@@ -9,6 +9,7 @@ Run in this order after `./build.sh`:
 4. `node tools/audit/security.cjs`: security, in a real browser:
    - markup in every name field, every page and menu opened: nothing runs
    - a hostile backup file (markup names, junk sound ids, prototype keys): defused on import
+   - hostile MIDI files (markup track names, broken lengths, too many notes): plain names, refused with a message
    - web build under its content policy: engine, drum-fit worker and MP3 still work; injected code refused; nothing can be sent out
    - the app asks no other site for anything
 

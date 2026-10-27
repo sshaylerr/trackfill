@@ -39,6 +39,21 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     host.msg({ t: 'play', scene: 0, loop: 'scene' }); const L = new Float32Array(128), R = new Float32Array(128); for (let i = 0; i < 375 * 4; i++) host.render(128, L, R);
     const first = 60 * 48000 / (hits[1] - hits[0]), last = 60 * 48000 / (hits[8] - hits[7]), span = hits[8] - hits[0], calc = H.tfSceneSamples(Q, 0, 48000);
     ok(first > 120 && first < 130 && last > 170 && last < 180 && Math.abs(span - calc) < 64, `a tempo lane ramps the song (${first.toFixed(0)} → ${last.toFixed(0)} BPM) and exports know its length (${calc} vs ${span} samples)`); }
+  console.log('timeline playback');
+  { const run = (setup, msgs = [], blocks = 900) => { const Q = M.newProject(true); Q.bpm = 120; Q.scenes[0].bars = 2; Q.pads[0].sample = 'b:kick'; Q.pads[1].sample = 'b:kick';
+      Q.scenes[0].notes = { 0: [0, 24, 48, 72].map(t => ({ t, len: 12, p: 0, v: .9 })), 1: [0, 24].map(t => ({ t, len: 12, p: 0, v: .9 })) }; setup(Q);
+      const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null); host.msg({ t: 'project', P: Q }); const hits = [], d0 = host.dispatch.bind(host);
+      host.dispatch = (e, off) => { if (e.k === 0) hits.push([e.pi, host.now + off]); d0(e, off); }; for (const m of msgs) host.msg(m);
+      const L = new Float32Array(128), R = new Float32Array(128); for (let i = 0; i < blocks; i++) host.render(128, L, R); return hits; };
+    const spt = 60 / 120 / 96 * 48000, rel = h => h.map(([pi, t]) => [pi, t - h[0][1]]);   // samples per tick at 120 BPM
+    const a = rel(run(Q => { Q.swing = 0; Q.pads[0].swg = 1; Q.pads[0].tim = 10; }, [{ t: 'play', scene: 0, loop: 'scene' }]));
+    const p0 = a.filter(x => x[0] === 0).map(x => x[1]), p1 = a.filter(x => x[0] === 1).map(x => x[1]);
+    const swung = Math.abs((p0[1] - p0[0]) - 36 * spt) < 2, late = Math.abs(p0[0] - p1[0] - 480) < 2, straight = Math.abs((p1[1] - p1[0]) - 24 * spt) < 2;
+    ok(swung && late && straight, `a pad's own swing and timing: its offbeat 16th lands ${((p0[1] - p0[0]) / spt).toFixed(1)} ticks after the downbeat, ${((p0[0] - p1[0]) / 48).toFixed(1)} ms after the other pad, which stays straight`);
+    const f = run(() => {}, [{ t: 'play', scene: 0, loop: 'scene', from: 48 }], 60), first = f.filter(x => x[0] === 0);
+    const rg = run(() => {}, [{ t: 'range', v: { scene: 0, a: 24, b: 72 } }, { t: 'play', scene: 0, loop: 'scene', from: 24 }], 900).filter(x => x[0] === 0).slice(0, 5), gaps = rg.slice(1).map((x, i) => Math.round((x[1] - rg[i][1]) / spt));
+    ok(first.length === 2 && f.every(x => x[0] === 0), `play from a start point: the first notes heard are the ones from there on (${first.length} of 4)`);
+    ok(gaps.join(',') === '24,24,24,24', `a loop range goes round on time: the notes at 24 and 48 repeat every 24 ticks (${gaps.join(', ')})`); }
   console.log('sample edits');
   { const sr = 48000, n = sr, d = new Int16Array(n); for (let i = 0; i < n; i++) d[i] = Math.round(Math.sin(i * .05) * 8192);   // a 1 s tone at -12 dBFS
     const play = pad => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, sr, null), Q = M.newProject(true); Q.chans.forEach(c => { c.fx = []; c.vol = H.tfFaderPos(1); });
