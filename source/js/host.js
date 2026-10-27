@@ -353,7 +353,14 @@ class TFHost {
       case 'ins': this.setIns(m.key, m.zones); break;
       case 'wtable': this.addTable(m.key, m.F, m.lv, m.fund); break;
       case 'sampleDel': this.removeSample(m.key); break;
-      case 'play': this.start(m.scene, m.loop, m.count || 0, m.from || 0); break;
+      // big sounds and tables arrive in pieces, a few per block, so copying them never holds up the sound
+      case 'sampleStart': { this.removeSample(m.key); this.pendS = this.pendS || new Map(); const old = this.pendS.get(m.key); if (old) this.ex.tf_free(old.ptr);
+        const ptr = this.ex.tf_malloc(m.n * 2); if (!ptr) { this.post && this.post({ t: 'oom', key: m.key }); break; } this.pendS.set(m.key, { ptr, n: m.n, frames: m.frames, ch: m.ch, sr: m.sr }); break; }
+      case 'sampleData': { const q = this.pendS && this.pendS.get(m.key); if (q && m.off >= 0 && m.off + m.data.length <= q.n) new Int16Array(this.ex.memory.buffer, q.ptr + m.off * 2, m.data.length).set(m.data); break; }
+      case 'sampleEnd': { const q = this.pendS && this.pendS.get(m.key); if (q) { this.pendS.delete(m.key); this.finishSample(m.key, q.ptr, q.frames, q.ch, q.sr); } break; }
+      case 'wtNew': this.newTable(m.key, m.F, m.fund, m.levels); break;
+      case 'wtLevel': this.tableLevel(m.key, m.l, m.data); break;
+      case 'play': this.start(m.scene, m.loop, m.count || 0, m.from || 0, m.lead || 0); break;
       case 'range': this.range = m.v && m.v.b > m.v.a ? { scene: m.v.scene | 0, a: Math.max(0, +m.v.a), b: +m.v.b } : null; break;   // a loop range inside one scene (the timeline's loop)
       case 'click': this.click = { on: !!m.on, vol: Math.max(0, Math.min(1, +m.vol || 0)) }; if (m.on) this.makeClicks(); break;
       case 'stop': this.stop(false); break;
@@ -435,12 +442,20 @@ class TFHost {
   addSample(key, data, frames, ch, sr) {
     this.removeSample(key);
     const ex = this.ex, ptr = ex.tf_malloc(data.byteLength); if (!ptr) { this.post && this.post({ t: 'oom', key }); return; }
-    new Int16Array(ex.memory.buffer, ptr, data.length).set(data);
+    new Int16Array(ex.memory.buffer, ptr, data.length).set(data); this.finishSample(key, ptr, frames, ch, sr);
+  }
+  finishSample(key, ptr, frames, ch, sr) { const ex = this.ex;
     const id = ex.tf_sample_add(ptr, frames, ch, sr);
     if (id) this.sm.set(key, { id, frames, sr }); else ex.tf_free(ptr);
     if (id && this.P) this.P.pads.forEach((p, pi) => { if (p && p.src === 'synth' && p.syn && ((p.syn.eng === 'gr' && p.syn.gr && p.syn.gr.src === key) || (p.syn.eng === 'ins' && p.syn.ins === key))) this.syncSynth(pi); });   // a granular source or an instrument arrived
   }
   /* ---------- wavetables (prepared on the main thread): copied into the engine once, shared by every pad that uses them ---------- */
+  // a table in pieces: made empty with its fundamentals, then filled a level at a time; pads using it pick it up when the last level is in
+  newTable(key, F, fund, levels) { const ex = this.ex; if (!ex.tf_wt_new) return; this.wtm = this.wtm || new Map(); const old = this.wtm.get(key); if (old) { ex.tf_wt_free(old); this.wtm.delete(key); }
+    const id = ex.tf_wt_new(F); if (!id) { this.post && this.post({ t: 'oom', key }); return; } new Float32Array(ex.memory.buffer, ex.tf_wt_fund(id), F * 2).set(fund); this.wtm.set(key, id); (this.wtLeft = this.wtLeft || new Map()).set(key, levels); }
+  tableLevel(key, l, data) { const id = this.wtm && this.wtm.get(key); if (!id) return; const ptr = this.ex.tf_wt_lv(id, l); if (ptr) new Float32Array(this.ex.memory.buffer, ptr, data.length).set(data);
+    const left = (this.wtLeft.get(key) || 1) - 1; this.wtLeft.set(key, left);
+    if (left <= 0 && this.P) this.P.pads.forEach((p, pi) => { if (p && p.src === 'synth' && p.syn && p.syn.eng === 'wt' && p.syn.wt && (p.syn.wt.a === key || p.syn.wt.b === key)) this.syncSynth(pi); }); }
   addTable(key, F, lv, fund) {
     const ex = this.ex; if (!ex.tf_wt_new) return; this.wtm = this.wtm || new Map(); const old = this.wtm.get(key); if (old) { ex.tf_wt_free(old); this.wtm.delete(key); }
     const id = ex.tf_wt_new(F); if (!id) { this.post && this.post({ t: 'oom', key }); return; }
@@ -450,7 +465,7 @@ class TFHost {
   }
   // instruments: one sample per instrument (zones back to back) plus its zone table, sent by the app before the sample
   setIns(key, zones) { (this.insZ = this.insZ || new Map()).set(key, zones); }
-  removeSample(key) { const e = this.sm.get(key); if (e) { this.ex.tf_sample_remove(e.id); this.sm.delete(key); } }
+  removeSample(key) { const e = this.sm.get(key); if (e) { this.ex.tf_sample_remove(e.id); this.sm.delete(key); } const q = this.pendS && this.pendS.get(key); if (q) { this.ex.tf_free(q.ptr); this.pendS.delete(key); } }
   /* ---------- synth pads: push the patch into the engine (parameters 0..1, drawn LFOs as tables, routes) ---------- */
   syncSynth(pi) {
     const ex = this.ex, pad = this.P.pads[pi]; if (!ex.tf_syn_on) return;
@@ -561,12 +576,12 @@ class TFHost {
     for (let b = Math.ceil(t0 / TF.PPQ - 1e-9) * TF.PPQ; b < t1; b += TF.PPQ) this.heap.push({ time: t + (b - t0) / tps, k: 4, acc: b % TF.BAR === 0 });
   }
   /* ---------- transport ---------- */
-  start(scene, loop, count, from = 0) {
+  start(scene, loop, count, from = 0, lead = 0) {   // lead: extra ms before the first note (the sound has only just woken)
     if (this.an) this.an.resetLoud();   // integrated loudness and the true-peak hold measure from the moment playback starts
     this.stop(true);
     if (loop) this.loop = loop;
     this.playing = true; this.pending = null;
-    const t = this.now + this.LA, tps = this.P.bpm * TF.PPQ / (60 * this.sr), bars = Math.max(0, Math.min(2, count | 0));
+    const t = this.now + this.LA + Math.round(Math.max(0, Math.min(400, lead)) * this.sr / 1000), tps = this.P.bpm * TF.PPQ / (60 * this.sr), bars = Math.max(0, Math.min(2, count | 0));
     if (bars) { this.makeClicks(); this.clicks(t, 0, bars * TF.BAR, tps); }   // count-in: clicks only, then the scene starts
     const len = this.P.scenes[scene] ? this.P.scenes[scene].bars * TF.BAR : TF.BAR;
     this.ah = { scene, rep: 0, tick: Math.max(0, Math.min(len - 1, +from || 0)), t: t + Math.round(bars * TF.BAR / tps), started: false };   // from: the timeline's start point

@@ -40,7 +40,7 @@ function renderSeq(V) {
     sk.addEventListener('pointerdown', () => { held = false; clearTimeout(t); t = setTimeout(() => { held = true; selectAll(); }, 450); }); for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) sk.addEventListener(ev, () => clearTimeout(t)); bar.append(sk); }
   if (!isNotes) bar.append(btn(IC.draw, () => { tl.draw = !tl.draw; renderView(); }, 'key sm ic' + (tl.draw ? ' on' : '')), btn(IC.shapes, openShapes, 'key sm ic'));
   const del = btn(IC.del, () => isNotes ? deleteSelNote() : autoCtl.del(), 'key sm ic warn'); del.setAttribute('aria-label', 'Delete'); bar.append(del);
-  const wrap = h('div', 'scr tlwrap' + (UI.tlSlide ? ' slide' + UI.tlSlide : '')), cv = h('canvas', 'navc'); UI.tlSlide = 0; cv.setAttribute('aria-label', 'Timeline'); wrap.append(cv); w.append(bar, wrap); V.append(w);
+  const wrap = h('div', 'scr tlwrap' + (UI.tlSlide ? ' slide' + UI.tlSlide : '')), cv = h('canvas', 'navc'); UI.tlSlide = 0; cv.setAttribute('aria-label', 'Timeline'); TL.head = h('i', 'tlhead'); TL.headOn = null; TL.headX = null; wrap.append(cv, TL.head); w.append(bar, wrap); V.append(w);
   TL.cv = cv; TL.cx = cv.getContext('2d'); bindTL(cv); sizeTL();
 }
 // switch the bank the timeline shows (from the lane menu, a vertical swipe, or Shift + ↑↓); keeps the same row selected

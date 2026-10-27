@@ -129,7 +129,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 #meter{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 60px 30px 32px;gap:6px;align-items:center;height:12px;cursor:pointer}
 #meter .bars{display:flex;flex-direction:column;gap:2px}
 #meter .bar{height:3px;border-radius:2px;background:#0b0b0c;overflow:hidden}
-#meter .bar i{display:block;height:100%;width:100%;transform:scaleX(0);background:var(--play);transform-origin:left}
+#meter .bar i{display:block;height:100%;width:100%;transform:scaleX(0);background:var(--play);transform-origin:left;will-change:transform}   /* its own layer: moving it repaints nothing */
 #meter .bar i.hot{background:var(--accent)}
 #meter .cpu{font-size:8.5px;color:var(--print);text-align:right;white-space:nowrap}
 #meter .cpu.hot{color:var(--accent)} #meter .cpu.busy::after{content:' ·';color:var(--accent)}
@@ -153,7 +153,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .slot.empty .num{color:var(--dim)}
 .slot.sel{background:linear-gradient(180deg,var(--on1),var(--on2))} .slot.sel .num{color:var(--accent)}
 .slot.playing .led{background:var(--play);box-shadow:0 0 6px var(--play)}
-.slot .prog{position:absolute;left:0;bottom:0;height:2px;background:var(--play);width:0}
+.slot .prog{position:absolute;left:0;bottom:0;height:2px;background:var(--play);width:100%;transform:scaleX(0);transform-origin:left}
 
 /* ---------- view & mode keys ---------- */
 #view{flex:1;min-height:0;position:relative;overflow:hidden}
@@ -212,7 +212,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));gap:8px;flex:1 1 0;min-height:0;width:100%;max-height:calc(100cqw * 1.45);margin:auto 0}
 .pad{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#28282c 60%,#242428);border:1px solid #070708;
   box-shadow:0 3px 0 #050506,inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.4);display:flex;flex-direction:column;justify-content:space-between;padding:7px 8px 15px;position:relative;touch-action:none;min-width:0;min-height:0;overflow:hidden}
-.pad::after{content:"";position:absolute;left:7px;right:7px;bottom:6px;height:3px;border-radius:1px;background:color-mix(in srgb,var(--pc) 38%,#101012);transition:background .25s,box-shadow .25s}
+.pad::after{content:"";position:absolute;left:7px;right:7px;bottom:6px;height:3px;border-radius:1px;background:color-mix(in srgb,var(--pc) 38%,#101012);transition:background .25s steps(3,end),box-shadow .25s steps(3,end)}   /* the glow fades in three steps: a fade to the eye, three repaints instead of fifteen */
 .pad .pn{font:400 10.5px var(--font-lcd);color:var(--print);position:relative;white-space:nowrap;overflow:hidden}
 .pad .nm{font:600 13px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;height:15px;line-height:15px}
 .pad.empty{background:linear-gradient(180deg,#2a2a2e,#232326)} .pad.empty::after{background:#17171a}
@@ -235,6 +235,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .lanebox i{font-style:normal;color:var(--mute);font-size:10px;flex:none}
 .tlwrap{flex:1;min-height:120px}
 .tlwrap canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.tlhead{position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--play);display:none;pointer-events:none;will-change:transform}
 
 /* ---------- sound ---------- */
 .soundView,.fxView,.mixView{height:100%;display:flex;flex-direction:column;gap:8px;min-height:0}
@@ -258,7 +259,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .spads{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-auto-rows:36px;gap:6px 5px;flex:none}
 .spad{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#28282c 60%,#242428);border:1px solid #070708;box-shadow:0 3px 0 #050506,inset 0 1px 0 rgba(255,255,255,.07);
   position:relative;color:var(--mute);font:400 12px var(--font-lcd);padding:0 0 7px;min-width:0;touch-action:none}
-.spad::after{content:"";position:absolute;left:5px;right:5px;bottom:5px;height:3px;border-radius:1px;background:color-mix(in srgb,var(--pc) 45%,#101012);transition:background .25s,box-shadow .25s}
+.spad::after{content:"";position:absolute;left:5px;right:5px;bottom:5px;height:3px;border-radius:1px;background:color-mix(in srgb,var(--pc) 45%,#101012);transition:background .25s steps(3,end),box-shadow .25s steps(3,end)}   /* the glow fades in three steps: a fade to the eye, three repaints instead of fifteen */
 .spad.on{color:var(--accent);box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)}
 .spad.hit{transform:translateY(2px);box-shadow:0 1px 0 #050506}
 .spad.hit::after{transition:none;background:var(--pc);box-shadow:0 0 8px var(--pc),0 0 2px #fff}
@@ -654,7 +655,7 @@ function addUserSample(name, sr, ch, data, extra) {
   const id = 'u:' + uid(), s = Object.assign({ id, name: tfName(name, 24) || 'Sound', sr, ch, frames: data.length / ch, data, added: Date.now() }, extra || {});
   SAMPLES.set(id, s); DB.put('samples', id, s); return id;
 }
-function deleteSample(id) { const s = SAMPLES.get(id); if (!s || s.builtin) return; SAMPLES.delete(id); DB.del('samples', id); send({ t: 'sampleDel', key: id }); ENG.sent.delete(id); }
+function deleteSample(id) { const s = SAMPLES.get(id); if (!s || s.builtin) return; SAMPLES.delete(id); DB.del('samples', id); UPQ.jobs = UPQ.jobs.filter(j => upKey(j) !== id); send({ t: 'sampleDel', key: id }); ENG.sent.delete(id); }
 function interleave(chans, maxFrames) { const n = Math.min(chans[0].length, maxFrames), c = chans.length, o = new Int16Array(n * c);
   for (let i = 0; i < n; i++) for (let k = 0; k < c; k++) { const s = Math.max(-1, Math.min(1, chans[k][i])); o[i * c + k] = s < 0 ? s * 32768 : s * 32767; } return o; }
 function upgradeSampleRecord(s) {   // v1 stored Float32 channel arrays; v2 stores interleaved Int16
@@ -784,9 +785,34 @@ function tableFor(key) {
   else { const s = SAMPLES.get(key); if (!s || !s.wt) return null; const raw = new Float32Array(s.data.length); for (let i = 0; i < raw.length; i++) raw[i] = s.data[i] / 32767; t = tfWtPrepare(raw, s.wt); }
   WTPREP.set(key, t); return t; }
 const tableKeys = (pads = P.pads) => { const u = new Set(); for (const p of pads) if (p && p.src === 'synth' && p.syn && p.syn.eng === 'wt' && p.syn.wt) { if (p.syn.wt.a) u.add(p.syn.wt.a); if (p.syn.wt.b) u.add(p.syn.wt.b); } return u; };
-function ensureTable(key) { if (!key || ENG.sent.has('T' + key) || !ENG.node) return; const t = tableFor(key); if (!t) return; send({ t: 'wtable', key, F: t.F, lv: t.lv, fund: t.fund }); ENG.sent.add('T' + key); }
-function ensureSample(id) { if (!id || ENG.sent.has(id) || !ENG.node) return; const s = SAMPLES.get(id); if (!s || s.wt) return;
-  send({ t: 'sample', key: id, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr }); ENG.sent.add(id); }
+/* ---------- sounds into the engine: queued, and sent a piece at a time (about 256 KB every 12 ms) and only while the sound runs, so a
+   project's worth never lands on the audio thread at once (that was the click and the lag on coming back to the app). The current
+   scene's sounds go first, and anything needed right now (a pad pressed, Play, a preview) jumps the queue and goes at once. ---------- */
+const UPQ = { jobs: [], t: 0 }, UP_CH = 65536;   // values per piece (128 KB)
+function upAdd(job) { UPQ.jobs.push(job); upPump(); }
+function upPump(ms = 0) { if (!UPQ.t && UPQ.jobs.length) UPQ.t = setTimeout(upTick, ms); }
+function upTick() { UPQ.t = 0; if (!ENG.node) { UPQ.jobs.length = 0; return; } if (!ctx || ctx.state !== 'running') { upPump(150); return; }   // asleep: wait, or it all lands on waking
+  let budget = 256 * 1024; while (UPQ.jobs.length && budget > 0) budget -= upStep(UPQ.jobs[0]); upPump(12); }
+const upDone = j => { const i = UPQ.jobs.indexOf(j); if (i >= 0) UPQ.jobs.splice(i, 1); };
+function upStep(j) {   // the next piece of a job; returns its size
+  if (j.k === 's') { const d = j.s.data;
+    if (!j.started && d.length <= UP_CH) { send({ t: 'sample', key: j.id, data: d, frames: j.s.frames, ch: j.s.ch, sr: j.s.sr }); upDone(j); return d.byteLength; }
+    if (!j.started) { send({ t: 'sampleStart', key: j.id, frames: j.s.frames, ch: j.s.ch, sr: j.s.sr, n: d.length }); j.started = true; }
+    const part = d.slice(j.off, j.off + UP_CH); send({ t: 'sampleData', key: j.id, off: j.off, data: part }); j.off += part.length;
+    if (j.off >= d.length) { send({ t: 'sampleEnd', key: j.id }); upDone(j); } return part.byteLength + 64; }
+  const t = j.t; if (j.l < 0) { send({ t: 'wtNew', key: j.key, F: t.F, fund: t.fund, levels: t.lv.length }); j.l = 0; return t.fund.byteLength + 64; }
+  send({ t: 'wtLevel', key: j.key, l: j.l, data: t.lv[j.l] }); const b = t.lv[j.l].byteLength; if (++j.l >= t.lv.length) upDone(j); return b; }
+const upKey = j => j.k === 's' ? j.id : 'T' + j.key;
+// right now: whatever is still queued for these keys (all, when null) goes at once
+function upFlush(keys) { if (!UPQ.jobs.length || !ENG.node) return 0; let by = 0; for (const j of UPQ.jobs.filter(j => !keys || keys.has(upKey(j)))) { let g = 0; while (UPQ.jobs.includes(j) && g++ < 10000) by += upStep(j); } return by; }
+// the current scene's sounds to the front of the queue
+function upPrefer(si) { const want = sceneNeeds(si); UPQ.jobs.sort((a, b) => (want.has(upKey(b)) ? 1 : 0) - (want.has(upKey(a)) ? 1 : 0)); }
+// what a pad needs in the engine to sound: its sample (or stretched render), a granular source, an instrument, wavetables
+function padNeeds(pi, out = new Set()) { const p = P.pads[pi]; if (!p) return out; if (p.sample) out.add(p.sample); if (p.stx) out.add(p.stx); const g = grSrc(p); if (g) out.add(g); const i = insOf(p); if (i) out.add(i);
+  if (p.src === 'synth' && p.syn && p.syn.eng === 'wt' && p.syn.wt) { if (p.syn.wt.a) out.add('T' + p.syn.wt.a); if (p.syn.wt.b) out.add('T' + p.syn.wt.b); } if (p.frz) for (const k in p.frz) out.add(p.frz[k]); return out; }
+function sceneNeeds(si) { const out = new Set(), sc = P.scenes[si]; if (sc) for (const k in sc.notes) if (sc.notes[k].length) padNeeds(+k, out); return out; }
+function ensureTable(key) { if (!key || ENG.sent.has('T' + key) || !ENG.node) return; const t = tableFor(key); if (!t) return; ENG.sent.add('T' + key); upAdd({ k: 't', key, t, l: -1 }); }
+function ensureSample(id, now) { if (!id || !ENG.node) return; if (!ENG.sent.has(id)) { const s = SAMPLES.get(id); if (!s || s.wt) return; ENG.sent.add(id); upAdd({ k: 's', id, s, off: 0 }); } if (now) upFlush(new Set([id])); }
 function syncScene(i) { const sc = P.scenes[i]; send({ t: 'scene', i, v: sc }); for (const k in sc.notes) for (const n of sc.notes[k]) if (n.f) delete n.f; }
 // instruments: decoded on first use, zone table to the engine, then the sample
 function ensureIns(key) { if (!key || !key.startsWith('i:')) return; if (!SAMPLES.has(key)) { const s = insSample(key); if (!s) return; SAMPLES.set(key, s); }
@@ -798,7 +824,7 @@ function normGain(p) { const s = SAMPLES.get(p.sample); if (!s || !s.data) retur
 function syncPad(i) { const p = P.pads[i]; if (p.norm) p.ng = normGain(p); ensureIns(insOf(p)); ensureSample(p.sample); if (p.stx) ensureSample(p.stx); if (typeof stretchCheck === 'function') stretchCheck(i); const gs = grSrc(p); if (gs) { if (gs.startsWith('b:')) buildBuiltin(gs.slice(2)); ensureSample(gs); } for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
 function syncChan(c) { send({ t: 'chan', i: c, v: P.chans[c] }); }
 function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing } }); updateTransport(); if (typeof stretchAllSoon === 'function') stretchAllSoon(); }   // stretched pads follow the tempo
-function syncProject() { if (!ENG.node) return; for (const p of P.pads) ensureIns(insOf(p)); for (const id of usedSampleIds()) ensureSample(id); for (const k of tableKeys()) ensureTable(k); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
+function syncProject() { if (!ENG.node) return; for (const p of P.pads) ensureIns(insOf(p)); for (const id of usedSampleIds()) ensureSample(id); for (const k of tableKeys()) ensureTable(k); upPrefer(UI.scene); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
 function sendParam(key, v) { send({ t: 'param', key, v }); }
 function silentWavUrl() { const sr = 8000, n = sr / 2, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), ws = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
   ws(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE'); ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, n * 2, true);
@@ -820,7 +846,7 @@ function ensureAudio() {
   } catch (e) { console.error(e); toast('Sound could not start on this device'); return false; }
 }
 function newContext() { const AC = window.AudioContext || window.webkitAudioContext; const c = ctx = new AC({ latencyHint: 'interactive' });
-  c.onstatechange = () => { if (c.state === 'interrupted' && c === ctx) AUD.dirty = true; updateSoundChip(); }; startEngine(); }
+  c.onstatechange = () => { if (c.state === 'interrupted' && c === ctx) AUD.dirty = true; if (c.state === 'running' && c === ctx) { AUD.runAt = performance.now(); upPump(); } updateSoundChip(); }; startEngine(); }
 /* ---------- audio restart: a fresh audio engine, like closing and reopening the app ----------
    iOS shares one audio setup between apps: another app playing sound, a call, or a change of headphones can leave this page
    on a slower path until it starts over. Coming back after a while (or after any of those), the engine is rebuilt in the
@@ -830,7 +856,7 @@ async function restartAudio(manual) {
   if (AUD.restarting || !ctx) return; if (!manual && Date.now() - (AUD.last || 0) < 20000) return;   // automatic restarts: at most one every 20 s
   AUD.restarting = true; AUD.dirty = false; AUD.last = Date.now();
   const was = T.playing; if (was) stop(); KEYS.latch = null; for (const k in HELD) delete HELD[k];
-  const old = ctx; ctx = null; ENG.node = null; ENG.ready = false; ENG.slept = false; ENG.sent.clear();
+  const old = ctx; ctx = null; ENG.node = null; ENG.ready = false; ENG.slept = false; ENG.sent.clear(); UPQ.jobs.length = 0;
   try { old.onstatechange = null; await old.close(); } catch (e) {}
   try { unmuteIOS(); newContext(); if (manual) ctx.resume().catch(() => {}); } catch (e) { AUD.restarting = false; toast('Sound could not restart: ' + (e.message || e)); return; }
   const t0 = Date.now(); while (!ENG.ready && !ENG.err && Date.now() - t0 < 4000) await new Promise(r => setTimeout(r, 50));
@@ -852,7 +878,7 @@ async function startEngine() {
     node.connect(clip); clip.connect(ctx.destination);
     if (ctx !== c0) return;   // restarted while this one was loading
     node.port.onmessage = e => onEngine(e.data);
-    ENG.node = node; ENG.sent.clear(); syncProject(); sendClick();
+    ENG.node = node; ENG.sent.clear(); UPQ.jobs.length = 0; syncProject(); sendClick();
   } catch (e) { if (ctx !== c0) return;   // this one was replaced by a restart while it loaded: not a real failure
     ENG.err = e.message || String(e); ENG.errLog = (ENG.errLog || []).concat('start: ' + ENG.err).slice(-5); console.error(e); toast('The audio engine could not start: ' + ENG.err); }
 }
@@ -862,8 +888,7 @@ function onEngine(m) {
     if (m.playing || m.voices || m.pk[0] > 1e-5 || m.pk[1] > 1e-5) lastAct = Date.now();   // (sound keeps audio awake; only what a meter can show keeps the screen drawing)
     if (m.playing || m.voices || m.pk[0] > 1e-3 || m.pk[1] > 1e-3) wake();
     REP.time = m.time; REP.playing = m.playing; REP.pos = m.pos; REP.cpu = REP.cpu * .9 + m.cpu * .1; REP.voices = m.voices; REP.cm = m.cm || [];   // CPU is sampled with a 1 ms clock, so it is averaged
-    { const r = { at: m.time - 1 / 30, pk: m.pk, cm: m.cm, sc: m.sc }; if (frameOn) { METQ.push(r); if (METQ.length > 90) meterTake(METQ.shift()); } else meterTake(r); }   // resting screen: nothing to show, take it now   // meters show each report when it is heard (see meterFeed)
-    for (const v of m.fl) flashPad(v & 255, (v >> 8) - 1);
+    { const r = { at: m.time - 1 / 30, pk: m.pk, cm: m.cm, sc: m.sc, fl: m.fl }; if (frameOn) { METQ.push(r); if (METQ.length > 90) meterTake(METQ.shift()); } else meterTake(r); }   // resting screen: nothing to show, take it now   // meters show each report when it is heard (see meterFeed)   // (pads light when they're heard, with the meters)
     if (m.arp) arpPlayed(m.arp);
     if (T.playing && T.rec) recTrack();
   } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); sendMonitor(); sendRange(); }
@@ -882,8 +907,8 @@ async function renderOffline(order, tail, tap, onProgress, opts = {}) {
   const tables = new Map(); for (const k of tableKeys()) { const t = tableFor(k); if (t) tables.set(k, t); }
   return tfRenderOffline(mod, opts.P || P, samples, { sr: opts.sr || 48000, order, tail, tap, onProgress, tables, stem: opts.stem });
 }
-function audition(pi, semi = 0) { if (!ENG.node) return; const pad = P.pads[pi]; if (hasSound(pad)) { if (pad.sample) ensureSample(pad.sample); send({ t: 'hit', pad: pi, semi, vel: .8, gate: .25, tag: 0 }); } }
-function previewSample(id) { ensureAudio(); ensureSample(id); send({ t: 'preview', key: id }); }
+function audition(pi, semi = 0) { if (!ENG.node) return; const pad = P.pads[pi]; if (hasSound(pad)) { ensureSample(pad.sample); if (UPQ.jobs.length) upFlush(padNeeds(pi)); send({ t: 'hit', pad: pi, semi, vel: .8, gate: .25, tag: 0 }); } }
+function previewSample(id) { ensureAudio(); ensureSample(id, true); send({ t: 'preview', key: id }); }
 
 /* ================= transport ================= */
 let lastStop = 0;
@@ -892,7 +917,9 @@ function play() {
   if (Date.now() - lastStop < 450 && ctx) { panic(); lastStop = 0; return; }
   if (!ensureAudio()) return;
   recReset();
-  const count = T.rec ? UI.countIn : 0; T.playing = true; REP.pos = null; sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count, from: playFrom() }); updateTransport();
+  const sent = UPQ.jobs.length ? upFlush(T.loop === 'song' ? null : sceneNeeds(UI.scene)) : 0;   // what's about to play is in the engine before it starts
+  const count = T.rec ? UI.countIn : 0, lead = Math.max(250 - (performance.now() - (AUD.runAt || 0)), Math.min(400, sent / 50000));   // just woken, or a big sound just sent: a moment more before the first note
+  T.playing = true; REP.pos = null; sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count, from: playFrom(), lead }); updateTransport();
   if (count) toast(`Count-in: ${count} bar${count > 1 ? 's' : ''}`);
 }
 /* The timeline's start point and loop range (one scene each): playback starts at the start point, and with the loop on it goes round the range
@@ -1052,15 +1079,16 @@ function sceneMini(i) {
   const sc = P.scenes[i], rows = []; let n = 0, sum = 0;
   for (const k in sc.notes) { const a = sc.notes[k]; if (!a.length) continue; rows.push(+k); n += a.length; for (const x of a) sum += x.t * 7 + x.len * 3 + x.p; }
   rows.sort((a, b) => a - b); const sig = rows.map(k => k + '.' + P.pads[k].color).join(',') + '|' + n + '|' + Math.round(sum) + '|' + sc.bars + '|' + sc.repeat;
-  let m = MINI.get(i); if (m && m.sig === sig) return m.cv;
-  const cv = m ? m.cv : h('canvas', 'mini'), W = 44, H = 18, dpr = window.devicePixelRatio || 1; cv.width = W * dpr; cv.height = H * dpr;
+  let m = MINI.get(i); if (m && m.sig === sig) return m.img;
+  // drawn on a canvas, shown as a still image: a live canvas is a layer of its own, and sixteen of them made every frame cost more to put together
+  const cv = MINI.cv || (MINI.cv = document.createElement('canvas')), img = m ? m.img : h('img', 'mini'), W = 44, H = 18, dpr = window.devicePixelRatio || 1; cv.width = W * dpr; cv.height = H * dpr; img.alt = '';
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
   g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 0, W, H);
   if (rows.length) { const len = sc.bars * BAR, rh = H / Math.max(rows.length, 6), oy = (H - rh * rows.length) / 2;
     g.fillStyle = 'rgba(255,255,255,.1)'; for (let b = 1; b < sc.bars; b++) g.fillRect(Math.round(b * W / sc.bars), 0, 1, H);
     rows.forEach((pi, r) => { g.fillStyle = PAD_COLORS[P.pads[pi].color]; for (const x of sc.notes[pi]) g.fillRect(x.t / len * W, oy + r * rh, Math.max(1, x.len / len * W - .3), Math.max(1, rh - (rh > 2 ? .6 : 0))); });
     if (sc.repeat > 1) { g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(W - 15, 0, 15, 10); g.fillStyle = '#ddd'; g.font = `500 8.5px ${FONT_LCD}`; g.textAlign = 'right'; g.textBaseline = 'top'; g.fillText('×' + sc.repeat, W - 1.5, 1); } }
-  MINI.set(i, { sig, cv }); return cv;
+  img.src = cv.toDataURL(); MINI.set(i, { sig, img }); return img;
 }
 function renderScenes() {
   const S = $('#scenes'), sl = S.scrollLeft; S.innerHTML = '';
@@ -1070,7 +1098,12 @@ function renderScenes() {
   S.scrollLeft = sl; const sel = S.children[UI.scene];
   if (sel) { const l = sel.offsetLeft, r = l + sel.offsetWidth; if (l < S.scrollLeft || r > S.scrollLeft + S.clientWidth) S.scrollLeft = l - S.clientWidth / 2 + sel.offsetWidth / 2; }
 }
-function updatePlayingSlot(pos) { [...$('#scenes').children].forEach((el, i) => { const on = pos && pos.scene === i; el.classList.toggle('playing', !!on); el.querySelector('.prog').style.width = on ? (pos.tick / sceneLen(i) * 100) + '%' : '0'; }); }
+// the playing scene's light and progress line: touched only when they change (a whole pixel of progress), so playback costs the screen almost nothing
+const SLOTP = { scene: -2, px: -1 };
+function updatePlayingSlot(pos) { const sc = $('#scenes'), i = pos ? pos.scene : -1, kids = sc.children;
+  if (i !== SLOTP.scene || (kids[i] && !kids[i].classList.contains('playing'))) { for (let k = 0; k < kids.length; k++) { const on = k === i; if (kids[k].classList.contains('playing') !== on) kids[k].classList.toggle('playing', on); const pr = kids[k].querySelector('.prog'); if (!on && pr) pr.style.transform = 'scaleX(0)'; } SLOTP.scene = i; SLOTP.px = -1; }
+  if (i < 0 || !kids[i]) return; const f = Math.max(0, Math.min(1, pos.tick / sceneLen(i))), px = Math.round(f * 56); if (px === SLOTP.px) return; SLOTP.px = px;
+  const pr = kids[i].querySelector('.prog'); if (pr) pr.style.transform = `scaleX(${(px / 56).toFixed(4)})`; }
 function selectScene(i) { UI.scene = i; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.sx = 0; UI.tl.zoom = null; UI.tl.cursor.t = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else renderView(); savePrefs(); }
 function sceneTap(i) { if (i === UI.scene) { openSceneSheet(i); return; } if (T.playing) { send({ t: 'pending', scene: i }); toast(`Scene ${i + 1} plays from the next bar`); } selectScene(i); }
 
@@ -1129,7 +1162,11 @@ function arpPlayed(list) {
 function keysStatus(pi) { const kx = kxOf(pi), oc = UI.oct ? ` · Oct ${UI.oct > 0 ? '+' : ''}${UI.oct}` : '';
   if (kx.mode === 'levels') return '16 Levels · ' + (kx.lv === 'tune' ? 'Tune' : 'Velocity') + oc;
   return (kx.mode === 'chords' ? (kx.prog ? PROGS[kx.prog - 1].n : 'Chords') + (kx.arp ? ' · Arp' : '') + ' · ' : kx.mode === 'scale' ? 'Scale · ' : '') + keyName(padKey(pi)) + oc; }
-function flashCell(cell) { const pd = document.querySelector(`.grid .pad[data-cell="${cell}"]`); if (!pd) return; pd.classList.add('hit'); clearTimeout(pd._f); pd._f = setTimeout(() => pd.classList.remove('hit'), 90); }
+// a pad lights for 90 ms; the screen loop turns lights off in one pass per frame (no timer per flash)
+const FLASH = new Map(), PADEL = [];
+const padEl = c => { let el = PADEL[c]; if (!el || !el.isConnected) el = PADEL[c] = document.querySelector(`.grid .pad[data-cell="${c}"]`); return el; };
+function flashCell(cell) { const pd = padEl(cell); if (!pd) return; if (!FLASH.has(cell)) pd.classList.add('hit'); FLASH.set(cell, performance.now() + 90); wake(); }
+function flashExpire(now) { for (const [c, t] of FLASH) if (t <= now) { FLASH.delete(c); const pd = padEl(c); if (pd) pd.classList.remove('hit'); } }
 // sequenced notes light the pads; for a chopped pad the slice number comes along (k), so its slice lights and the playhead runs
 function flashPad(pi, k = -1) {
   if (k >= 0 && chopShown()) { slicePlayed(pi, k, Math.max(0, ((ctx && (ctx.outputLatency || ctx.baseLatency)) || 0) * 1000 - 10)); return; }
@@ -1182,12 +1219,12 @@ function padHeld(cell, on) { if (on) PADHELD.add(cell); else PADHELD.delete(cell
 function padDown(cell, hk = cell) {   // hk: the key this press is held under (the panel's pad strip uses its own)
   ensureAudio(); let pi, semi = 0, kc = null;
   const chop = padChop();
-  const fromStrip = typeof hk === 'string' && hk[0] === 's', flash = fromStrip ? () => {} : flashCell; if (!fromStrip) padHeld(cell, true);   // the panel's pads light themselves, never the big grid
+  const fromStrip = typeof hk === 'string' && hk[0] === 's', flash = fromStrip ? () => {} : c => queueMicrotask(() => flashCell(c)); if (!fromStrip) queueMicrotask(() => padHeld(cell, true));   // the panel's pads light themselves, never the big grid; lighting up waits until every finger's note is sent
   if (UI.keys) { pi = UI.pad; if (!fromStrip) UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flash(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flash(cell); return; } semi = kc.semi; } }
   else if (UI.swapFrom != null) { const a = UI.swapFrom; UI.swapFrom = null; pi = UI.bank * 16 + cell; if (a === pi) { refreshPadDots(); toast('Swap cancelled'); } else { swapPads(a, pi); UI.pad = pi; } return; }
   else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; requestAnimationFrame(() => { refreshPadDots(); updatePanel(); }); } }   // screen updates wait until the note is sent
   const pad = P.pads[pi]; flash(cell); if (!hasSound(pad)) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return; }
-  const tag = tagSeq++; if (pad.sample) ensureSample(pad.sample);
+  const tag = tagSeq++; ensureSample(pad.sample); if (UPQ.jobs.length) upFlush(padNeeds(pi));   // still on its way to the engine: send it now, before the note
   if (kc && kc.chord && kxOf(pi).arp) {   // arpeggiator: the engine plays the chord's notes in time; latch keeps it going after you let go
     const kx = kxOf(pi), notes = playChord(pi, kc.chord), lt = KEYS.latch;
     if (lt) { send({ t: 'arpStop', tag: lt.tag }); KEYS.latch = null; if (kx.latch && lt.pi === pi && lt.cell === cell) { refreshPadDots(); return; } }
@@ -1284,10 +1321,12 @@ function drawTL() {
   g.fillStyle = COL.panel; g.fillRect(0, 0, W, H); if (UI.tl.lane === 'notes') drawNotesLane(g); else drawAutoLane(g); drawRuler(g);
   TL.cacheSx = UI.tl.sx; TL.cacheAge = 0; tlBlit();
 }
-function tlBlit() { const g = TL.cx; g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(TL.cache, 0, 0); g.setTransform(TL.dpr, 0, 0, TL.dpr, 0, 0);
-  const pos = heardPos(); if (pos && pos.scene === UI.scene) { const x = t2x(pos.tick); if (x >= LABEL_W && x <= TL.W) { g.fillStyle = COL.play; g.fillRect(x - 1, 0, 2, TL.H); } } }
-function drawTLFrame() { if (!TL.cv || !TL.cv.isConnected || !TL.W) return;
-  if (!TL.cache || TL.cache.width !== TL.cv.width || TL.cache.height !== TL.cv.height || TL.cacheSx !== UI.tl.sx || ++TL.cacheAge >= (T.rec ? 4 : 8)) drawTL(); else tlBlit(); }
+function tlBlit() { const g = TL.cx; g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(TL.cache, 0, 0); g.setTransform(TL.dpr, 0, 0, TL.dpr, 0, 0); tlHead(); }
+// the playhead is its own thin line over the canvas, slid by the compositor: playback no longer repaints the timeline every frame
+function tlHead() { const el = TL.head; if (!el || !el.isConnected) return; const pos = heardPos(), x = pos && pos.scene === UI.scene ? Math.round(t2x(pos.tick) * 2) / 2 : -1, on = x >= LABEL_W && x <= TL.W;
+  if (on !== TL.headOn) { el.style.display = on ? 'block' : 'none'; TL.headOn = on; } if (on && x !== TL.headX) { el.style.transform = `translateX(${x - 1}px)`; TL.headX = x; } }
+function drawTLFrame() { if (!TL.cv || !TL.cv.isConnected || !TL.W) return;   // while recording, a fresh picture a few times a second shows the notes coming in
+  if (!TL.cache || TL.cache.width !== TL.cv.width || TL.cache.height !== TL.cv.height || TL.cacheSx !== UI.tl.sx || (T.rec && ++TL.cacheAge >= 6)) drawTL(); else tlHead(); }
 function drawNotesLane(g) {
   const tl = UI.tl, W = TL.W, H = noteH(), rh = rowH(), sc = P.scenes[UI.scene];
   g.save(); g.beginPath(); g.rect(0, RULER_H, W, H - RULER_H); g.clip();
@@ -1386,7 +1425,7 @@ function moveSelRows(d) { const tl = UI.tl, sc = P.scenes[UI.scene], items = sel
   if (tl.mode === 'bank') UI.pad = tl.sel.pi; auditionSel(); return d; }
 // hear the selection: its first chord (every note starting with the earliest one, up to 8)
 function auditionSel() { const items = selItems(); if (!items.length || !ENG.node) return; const t0 = Math.min(...items.map(x => x.n.t));
-  for (const x of items.filter(x => x.n.t - t0 < STACK_T).slice(0, 8)) { const pad = P.pads[x.pi]; if (!hasSound(pad)) continue; if (pad.sample) ensureSample(pad.sample); send({ t: 'hit', pad: x.pi, semi: x.n.p, vel: x.n.v, gate: .3, tag: 0 }); } }
+  for (const x of items.filter(x => x.n.t - t0 < STACK_T).slice(0, 8)) { const pad = P.pads[x.pi]; if (!hasSound(pad)) continue; ensureSample(pad.sample); if (UPQ.jobs.length) upFlush(padNeeds(x.pi)); send({ t: 'hit', pad: x.pi, semi: x.n.p, vel: x.n.v, gate: .3, tag: 0 }); } }
 function selectAll() { const tl = UI.tl; setGroup(notesInBox(0, tlLen(), 0, maxRow())); if (tl.sel && tl.mode === 'bank') UI.pad = tl.sel.pi; drawTL(); updatePanel(); haptic(); { const c = selItems().length; toast(c + (c === 1 ? ' note' : ' notes')); }; }
 function deleteSel() { const items = selItems(); if (!items.length) { toast('Select a note first'); return; } pushUndo('scene:' + UI.scene); const sc = P.scenes[UI.scene];
   for (const x of items) { touchPad(x.pi); const arr = sc.notes[x.pi]; if (!arr) continue; const i = arr.indexOf(x.n); if (i >= 0) arr.splice(i, 1); if (!arr.length) delete sc.notes[x.pi]; }
@@ -2038,7 +2077,7 @@ const METER = { l: 0, r: 0, clip: false };
    second, measured in time rather than frames, so it reads the same on any screen. Reports wait until the moment they are heard (the same
    output-latency correction as the playhead), so the meters move with the sound rather than ahead of it. */
 const METQ = [], METER_FALL = 24;
-function meterTake(r) { METER.l = Math.max(METER.l, r.pk[0]); METER.r = Math.max(METER.r, r.pk[1]); if (r.pk[0] > 1 || r.pk[1] > 1) METER.clip = true;
+function meterTake(r) { if (r.fl) for (const v of r.fl) flashPad(v & 255, (v >> 8) - 1); METER.l = Math.max(METER.l, r.pk[0]); METER.r = Math.max(METER.r, r.pk[1]); if (r.pk[0] > 1 || r.pk[1] > 1) METER.clip = true;
   const cm = r.cm || []; if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) m.v[k] = Math.max(m.v[k], cm[m.c * 2 + k] || 0);
   if (r.sc) onScope(r.sc); }
 function meterFeed(dt) { const live = ctx && ctx.state === 'running', heard = live ? ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) : Infinity;
@@ -2071,10 +2110,11 @@ let frameOn = false, lastFrame = 0, wakeAt = 0;
 function wake() { wakeAt = performance.now(); if (!frameOn) { frameOn = true; requestAnimationFrame(frame); } }
 function frame(ts) {
   if (!P) { requestAnimationFrame(frame); return; }
-  if (ts - lastFrame < 14) { requestAnimationFrame(frame); return; } const fdt = Math.min(.1, (ts - (lastFrame || ts)) / 1000); lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
-  meterFeed(fdt); drawMeter();
+  if (ts - lastFrame < (T.playing && UI.view !== 'seq' ? 30 : 14)) { requestAnimationFrame(frame); return; }   // 60 fps; 30 while playing (except the timeline's playhead): the same look, half the drawing, more room for touches
+  const fdt = Math.min(.1, (ts - (lastFrame || ts)) / 1000); lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
+  meterFeed(fdt); drawMeter(); if (FLASH.size) flashExpire(performance.now());
   const scoping = scopeMoving(); if (scoping) scopeFrame(Math.min(.1, (ts - (frame.prev || ts)) / 1000)); frame.prev = ts;
-  const busy = scoping || T.playing || METQ.length || METER.l > 0 || METER.r > 0 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 0 || m.v[1] > 0));
+  const busy = scoping || T.playing || METQ.length || FLASH.size || METER.l > 0 || METER.r > 0 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 0 || m.v[1] > 0));
   if (busy) requestAnimationFrame(frame); else { frameOn = false; return; }   // nothing moving: stop drawing until woken
   if (!ctx) return;
   if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) { const db = m.v[k] > 1e-5 ? 20 * Math.log10(m.v[k]) : -99, f = tfFaderPos(m.v[k]);   // stereo, on the fader's own scale: 0 dBFS sits on the unity mark

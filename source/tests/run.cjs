@@ -39,6 +39,15 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     host.msg({ t: 'play', scene: 0, loop: 'scene' }); const L = new Float32Array(128), R = new Float32Array(128); for (let i = 0; i < 375 * 4; i++) host.render(128, L, R);
     const first = 60 * 48000 / (hits[1] - hits[0]), last = 60 * 48000 / (hits[8] - hits[7]), span = hits[8] - hits[0], calc = H.tfSceneSamples(Q, 0, 48000);
     ok(first > 120 && first < 130 && last > 170 && last < 180 && Math.abs(span - calc) < 64, `a tempo lane ramps the song (${first.toFixed(0)} → ${last.toFixed(0)} BPM) and exports know its length (${calc} vs ${span} samples)`); }
+  console.log('sounds sent in pieces');
+  { const n = 300001 * 2, d = new Int16Array(n).map((_, i) => Math.round(Math.sin(i * .013) * 12000 + Math.sin(i * .0007) * 6000));
+    const play = chunked => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.newProject(true); Q.chans.forEach(c => { c.fx = []; c.vol = H.tfFaderPos(1); });
+      Object.assign(Q.pads[0], { sample: 's', mode: 'one' }); host.msg({ t: 'project', P: Q });
+      if (chunked) { host.msg({ t: 'sampleStart', key: 's', frames: n / 2, ch: 2, sr: 48000, n }); for (let o = 0; o < n; o += 65536) host.msg({ t: 'sampleData', key: 's', off: o, data: d.slice(o, o + 65536) }); host.msg({ t: 'sampleEnd', key: 's' }); }
+      else host.msg({ t: 'sample', key: 's', data: d, frames: n / 2, ch: 2, sr: 48000 });
+      host.msg({ t: 'hit', pad: 0, semi: 0, vel: 1, tag: 1 }); const L = new Float32Array(128), R = new Float32Array(128), o = []; for (let i = 0; i < 300; i++) { host.render(128, L, R); o.push(...L); } return o; };
+    const a = play(false), b = play(true); let diff = 0, pk = 0; for (let i = 0; i < a.length; i++) { diff = Math.max(diff, Math.abs(a[i] - b[i])); pk = Math.max(pk, Math.abs(a[i])); }
+    ok(pk > .1 && diff === 0, `a sound sent in pieces plays exactly as one sent whole (peak ${pk.toFixed(2)}, difference ${diff})`); }
   console.log('timeline playback');
   { const run = (setup, msgs = [], blocks = 900) => { const Q = M.newProject(true); Q.bpm = 120; Q.scenes[0].bars = 2; Q.pads[0].sample = 'b:kick'; Q.pads[1].sample = 'b:kick';
       Q.scenes[0].notes = { 0: [0, 24, 48, 72].map(t => ({ t, len: 12, p: 0, v: .9 })), 1: [0, 24].map(t => ({ t, len: 12, p: 0, v: .9 })) }; setup(Q);
@@ -72,6 +81,10 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(Math.abs(g[2] + 23) < .1, `integrated loudness gates out the quiet parts (${g[2].toFixed(2)} LUFS)`);
     ok(Math.abs(r[3] - 10) < .3, `loudness range of -20 then -30 dBFS reads 10 LU (${r[3].toFixed(1)})`);
     ok(tp[4] > -.3 && Math.abs(tp[5] + 3.01) < .1, `true peak finds the peak between samples (${tp[4].toFixed(2)} dBTP where samples read ${tp[5].toFixed(2)})`); }
+  console.log('source');
+  { const re = /\/\/[^\n]*?(;\s*(const|let|var)\s+\w+\s*=|\)\s*\{\s*[\w.]+\(|;\s+[A-Za-z_$][\w.$]*\s*=\s*[^=\s])/, files = ['app.html', ...fs.readdirSync(path.join(__dirname, '../ui')).map(f => 'ui/' + f), ...fs.readdirSync(path.join(__dirname, '../js')).filter(f => f.endsWith('.js')).map(f => 'js/' + f)], bad = [];
+    for (const f of files) fs.readFileSync(path.join(__dirname, '..', f), 'utf8').split('\n').forEach((l, i) => { const k = l.indexOf('//'); if (k >= 0 && !/https?:$/.test(l.slice(Math.max(0, k - 6), k)) && !l.includes("'//'") && re.test(l.slice(k))) bad.push(f + ':' + (i + 1)); });
+    ok(!bad.length, `no code hidden behind a line comment${bad.length ? ': ' + bad.join(', ') : ''}`); }
   console.log('security');
   { const evil = `"'><img src=x onerror=alert(1)>\u0000`, n = M.tfName(evil, 40), q = M.migrate(JSON.parse('{"v":3,"name":"x","__proto__":{"polluted":1},"pads":[{"name":"<b>hi</b>","__proto__":{"p":2}}],"scenes":[{"name":"<i>"}]}'));
     ok(!/[<>"\u0000]/.test(n) && ({}).polluted === undefined && q.pads[0].p === undefined && q.pads[0].name === 'bhi/b' && q.scenes[0].name === 'i', 'names are plain text and project files can\'t reach an object\'s prototype');

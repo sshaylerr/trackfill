@@ -55,7 +55,7 @@ function refreshSlicePads() { const c = chopOf(UI.pad); document.querySelectorAl
 
 /* ---------- playing, selecting, zooming ---------- */
 function playSlice(pi, k, gate) {
-  ensureAudio(); const pad = P.pads[pi]; if (!pad.sample) return 0; ensureSample(pad.sample); const tag = tagSeq++;
+  ensureAudio(); const pad = P.pads[pi]; if (!pad.sample) return 0; ensureSample(pad.sample, true); const tag = tagSeq++;
   send({ t: 'hit', pad: pi, semi: k, vel: .9, tag, gate });
   if (T.playing && T.rec) recordNote(pi, k); else capHit(pi, k, .9);
   selectSlice(k); slicePlayed(pi, k, 0); return tag;

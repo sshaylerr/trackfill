@@ -293,7 +293,8 @@ function normalizeKx(k) {
   if (!BASSES.some(v => v[0] === o.bass)) o.bass = 'off'; if (!STRUMS.some(v => v[0] === o.dir)) o.dir = 'up';
   o.arp = !!o.arp; o.latch = !!o.latch; if (!ARP_PATS.some(v => v[0] === o.apat)) o.apat = 'up'; if (!ARP_RATES.some(v => v[0] === o.arate)) o.arate = 24;
   o.aoct = Math.max(1, Math.min(3, Math.round(+o.aoct) || 1)); o.agate = Math.max(.05, Math.min(1, +o.agate || .6));
-  o.smooth = o.smooth === true; delete o.lead;   // fixed by default: a pad plays the same notes every time o.strum = Math.max(0, Math.min(80, +o.strum || 0)); o.feel = Math.max(0, Math.min(1, o.feel == null ? .5 : +o.feel || 0));
+  o.smooth = o.smooth === true; delete o.lead;   // fixed by default: a pad plays the same notes every time
+  o.strum = Math.max(0, Math.min(80, +o.strum || 0)); o.feel = Math.max(0, Math.min(1, o.feel == null ? .5 : +o.feel || 0));
   return o;
 }
 function normalizeKey(k) { const o = { root: 0, scale: SCALE_MINOR }; if (k && typeof k === 'object') { o.root = mod12(Math.round(+k.root) || 0); o.scale = Math.max(0, Math.min(SCALES.length - 1, Math.round(+k.scale) || 0)); if (k.scale == null) o.scale = SCALE_MINOR; } return o; }
