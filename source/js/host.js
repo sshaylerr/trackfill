@@ -330,7 +330,7 @@ class TFHost {
     this.soft = !!post; this.fade = null;   // soft start: the first sound after the audio wakes (or a fresh engine) fades in over 30 ms, so a cold start can't pop
     this.live = new Set(); this.autoOn = new Set(); this.fresh = new Map(); this.pos = null; this.idx = [];
     this.click = { on: false, vol: .5 }; this.idleSent = false;   // the click is live-only: offline renders never turn it on
-    this.flashes = []; this.cpuMs = 0; this.cpuBlocks = 0; this.lastReport = 0; this.tap = -1; this.buf = null;
+    this.flashes = []; this.flashT = []; this.cpuMs = 0; this.cpuBlocks = 0; this.lastReport = 0; this.tap = -1; this.buf = null;
   }
   views() {
     const ex = this.ex, b = ex.memory.buffer;
@@ -620,7 +620,7 @@ class TFHost {
           this.voice(a.pi, off, x.semi, x.vel, lenF / this.sr, nt, notes.length > 1 ? notes.length : 0);
           this.heap.push({ time: T + lenF, k: 6, tag: nt, rel: pad.rel });
           if (pos && this.arpOut.length < 256) this.arpOut.push([a.pi, x.semi, +x.vel.toFixed(3), pos.scene, +pos.tick.toFixed(3), Math.max(1, Math.round(a.rate * a.gate))]); }
-        if (this.post && this.flashes.length < 64) this.flashes.push(a.pi);
+        if (this.post && this.flashes.length < 64) { this.flashes.push(a.pi); this.flashT.push(this.now + off); }
         // the next step: on the transport's grid while playing (swing included), free-running from the tap when stopped
         if (pos) { let nt = (Math.floor(pos.tick / a.rate + 1e-6) + 1) * a.rate; if (nt - pos.tick < a.rate * .5) nt += a.rate; a.next = T + (nt + tfSwing(nt, pad.swg != null ? pad.swg : this.P.swing || 0) - pos.tick) / tps; }
         else a.next = T + stepF;
@@ -685,7 +685,7 @@ class TFHost {
     const ex = this.ex;
     if (e.k === 0) { this.voice(e.pi, off, e.semi, e.vel, e.gate, 0, 0, e.only); if (e.only) return;
       if (this.post && this.flashes.length < 64) { const c = this.P.pads[e.pi].chop, n = c && c.on ? c.pts.length : 0;   // pad | (slice + 1) << 8
-        this.flashes.push(n ? e.pi | ((Math.max(0, Math.min(n - 1, Math.round(e.semi) || 0)) + 1) << 8) : e.pi); } }
+        this.flashes.push(n ? e.pi | ((Math.max(0, Math.min(n - 1, Math.round(e.semi) || 0)) + 1) << 8) : e.pi); this.flashT.push(this.now + off); } }
     else if (e.k === 1) ex.tf_duck_trigger(e.c, e.s, off);
     else if (e.k === 6) ex.tf_voice_release(e.tag, e.rel);
     else if (e.k === 5) { if (!e.dead) this.voice(e.pi, off, e.semi, e.vel, 3600, e.tag, e.n); }
@@ -729,7 +729,8 @@ class TFHost {
       // nothing playing and nothing sounding: one last report, then quiet until something happens (saves the page waking up 30 times a second)
       const idle = !this.playing && !voices && pk[0] < 1e-5 && pk[1] < 1e-5 && !this.flashes.length;
       if (!idle || !this.idleSent) this.post({ t: 'pos', time: (typeof currentTime !== 'undefined' ? currentTime : 0) + n / this.sr, playing: this.playing, pos: this.pos,
-        pk, cm: Array.from(this.vPk), cpu: blocksMs > 0 ? this.cpuMs / blocksMs : 0, voices, fl: this.flashes.splice(0), arp: this.arpOut.length ? this.arpOut.splice(0) : undefined, sc: this.scope || this.visFx ? this.scopeReport() : null });
+        pk, cm: Array.from(this.vPk), cpu: blocksMs > 0 ? this.cpuMs / blocksMs : 0, voices, fl: this.flashes.splice(0), fa: this.flashT.splice(0).map(s => this.now - s),   // fa: how many samples ago each flash's sound started (pads light when it's heard)
+        arp: this.arpOut.length ? this.arpOut.splice(0) : undefined, sc: this.scope || this.visFx ? this.scopeReport() : null });
       else if (this.scope || this.visFx) this.scopeReport();
       this.idleSent = idle;
       this.vPk.fill(0); this.cpuMs = 0; this.cpuBlocks = 0;

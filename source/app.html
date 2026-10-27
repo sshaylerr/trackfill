@@ -177,8 +177,8 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .nf{outline:2px solid var(--accent)!important;outline-offset:-2px}
 .ne{outline:2px solid var(--play)!important;outline-offset:-2px;background-color:rgba(83,209,141,.08)}
 .typeready{outline:2px solid var(--accent)!important;outline-offset:-2px;border-radius:4px}
-#numEntry{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.35);display:flex;justify-content:center;align-items:flex-start;padding:calc(env(safe-area-inset-top) + 64px) 16px 0}
-.numbox{width:100%;max-width:340px;background:var(--raised);border:1px solid #000;border-radius:6px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+#numEntry{position:fixed;inset:0;z-index:90;pointer-events:none;background:rgba(0,0,0,.35);display:flex;justify-content:center;align-items:flex-start;padding:calc(env(safe-area-inset-top) + 64px) 16px 0}
+.numbox{pointer-events:auto;width:100%;max-width:340px;background:var(--raised);border:1px solid #000;border-radius:6px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
 .numlab{font-size:12px;letter-spacing:.06em;text-transform:uppercase;opacity:.7;margin-bottom:6px}
 .numrow{display:flex;gap:6px;align-items:center} .numrow .textin{flex:1;font-variant-numeric:tabular-nums} .numrow .btn{flex:none;height:34px;padding:0 14px}
 .numunit{font-size:13px;opacity:.75;min-width:26px}
@@ -891,13 +891,20 @@ async function startEngine() {
   } catch (e) { if (ctx !== c0) return;   // this one was replaced by a restart while it loaded: not a real failure
     ENG.err = e.message || String(e); ENG.errLog = (ENG.errLog || []).concat('start: ' + ENG.err).slice(-5); console.error(e); toast('The audio engine could not start: ' + ENG.err); }
 }
+// anything that goes wrong in the page itself: kept for Engine check, and said once a minute at most (the app carries on)
+const APPERR = { log: [], said: 0 };
+function appError(msg) { msg = String(msg || 'unknown').slice(0, 160); APPERR.log = APPERR.log.concat(new Date().toTimeString().slice(0, 8) + ' ' + msg).slice(-8);
+  if (Date.now() - APPERR.said > 60000) { APPERR.said = Date.now(); try { toast('Something went wrong: ' + msg.slice(0, 80) + ' · Engine check has the details'); } catch (e) {} } }
+addEventListener('error', e => { if (e.message) appError(e.message + (e.lineno ? ' (line ' + e.lineno + ')' : '')); });
+addEventListener('unhandledrejection', e => { const r = e.reason; if (r && (r.name === 'AbortError' || r.name === 'NotAllowedError')) return; appError(r && r.message ? r.message : r); });   // a cancelled share or a blocked play is not a fault
 let lastTrip = 0;
 function onEngine(m) {
   if (m.t === 'pos') {
     if (m.playing || m.voices || m.pk[0] > 1e-5 || m.pk[1] > 1e-5) lastAct = Date.now();   // (sound keeps audio awake; only what a meter can show keeps the screen drawing)
     if (m.playing || m.voices || m.pk[0] > 1e-3 || m.pk[1] > 1e-3) wake();
     REP.time = m.time; REP.playing = m.playing; REP.pos = m.pos; REP.cpu = REP.cpu * .9 + m.cpu * .1; REP.voices = m.voices; REP.cm = m.cm || [];   // CPU is sampled with a 1 ms clock, so it is averaged
-    { const r = { at: m.time - 1 / 30, pk: m.pk, cm: m.cm, sc: m.sc, fl: m.fl }; if (frameOn) { METQ.push(r); if (METQ.length > 90) meterTake(METQ.shift()); } else meterTake(r); }   // resting screen: nothing to show, take it now   // meters show each report when it is heard (see meterFeed)   // (pads light when they're heard, with the meters)
+    if (m.fl && m.fl.length) { const sr = ctx ? ctx.sampleRate : 48000; m.fl.forEach((v, i) => { const f = { at: m.time - ((m.fa && m.fa[i]) || 0) / sr, v }; if (frameOn) FLQ.push(f); else flashOne(f); }); if (FLQ.length > 256) FLQ.splice(0, FLQ.length - 256); }   // each pad lights when its own sound is heard
+    { const r = { at: m.time - 1 / 30, pk: m.pk, cm: m.cm, sc: m.sc }; if (frameOn) { METQ.push(r); if (METQ.length > 90) meterTake(METQ.shift()); } else meterTake(r); }   // resting screen: nothing to show, take it now   // meters show each report when it is heard (see meterFeed)   // (pads light when they're heard, with the meters)
     if (m.arp) arpPlayed(m.arp);
     if (T.playing && T.rec) recTrack();
   } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); sendMonitor(); sendRange(); }
@@ -1066,7 +1073,7 @@ function keyMeta(key) {
 
 /* ================= rendering ================= */
 function renderAll() { renderScenes(); renderView(); updateTransport(); updatePanel(); }
-function setView(v) { if (UI.sheet && v !== UI.view) closeSheet();   // a menu belongs to the page it was opened on: changing page closes it
+function setView(v) { if (UI.entry) UI.entry.close(); if (UI.sheet && v !== UI.view) closeSheet();   // a menu belongs to the page it was opened on: changing page closes it
   navReset(); UI.view = v; renderView(); savePrefs(); }
 function renderView() {
   for (const k in HELD) if (k[0] !== 's') padUp(+k);   // strip pads (keys 's…') live in the panel and keep playing
@@ -1755,6 +1762,7 @@ async function runChecks() {
   add('ok', 'Screen', `${innerWidth}×${innerHeight} of ${screen.width}×${screen.height}`);
   add(ctx && ctx.state === 'running' ? 'ok' : 'warn', 'Audio', ctx ? `${ctx.state} · ${ctx.sampleRate} Hz · base ${((ctx.baseLatency || 0) * 1000).toFixed(1)} ms · output ${((ctx.outputLatency || 0) * 1000).toFixed(1)} ms` : 'not started');
   if (ENG.errLog && ENG.errLog.length) add('fail', 'Engine errors', ENG.errLog.join(' | '));
+  if (APPERR.log.length) add('fail', 'App errors', APPERR.log.join(' | '));
   add(ENG.ready ? 'ok' : 'fail', 'Audio engine', ENG.ready ? `running · CPU ${Math.round(REP.cpu * 100)}% · ${REP.voices} voices` : (ENG.err || 'starting…'));
   const as = navigator.audioSession; add(as && as.type === 'playback' ? 'ok' : 'warn', 'Silent switch override', as ? 'audioSession = ' + as.type + (as.type === 'playback' ? '' : ' (not playback yet: tap a pad, then check again)') : 'audioSession not available; using the media-element workaround');
   let wasmMain; try { await WebAssembly.compile(WASM_BYTES); wasmMain = 'ok'; } catch (e) { wasmMain = 'blocked: ' + e.message; } add(wasmMain === 'ok' ? 'ok' : 'fail', 'WebAssembly (main thread, for exports)', wasmMain);
@@ -1925,6 +1933,7 @@ function navMove(dir) {
   setNav(band.reduce((a, b) => (Math.abs(a.o.x - c.x) <= Math.abs(b.o.x - c.x) ? a : b)).it);
 }
 function navOk(down) {
+  if (UI.entry) { if (down) UI.entry.apply(); return; }   // a value box is open: OK sets it, Back closes it, the arrows wait
   if (UI.shift && down && !UI.sheet) { UI.shift = false; $('#pShift').classList.remove('on'); openEdit(); return; }   // Shift + OK: Edit (copy, paste, duplicate)
   if (UI.shift && !down && UI.sheet) return;
   const el = navEnsure(); if (!el) return;
@@ -1956,6 +1965,7 @@ function navEndEdit(commit) {
   if (!commit || reg.get() === NAV.orig) while (UNDO.length > NAV.undoAt) UNDO.pop();   // nothing changed: drop the undo step
 }
 function navArrow(dir, sh) {
+  if (UI.entry) return;
   if (UI.shift && NAV.mode === 'nav' && UI.view === 'sound' && (dir === 'left' || dir === 'right')) {   // Shift + ←→ flips the Sound pages from anywhere
     const d = dir === 'right' ? 1 : -1, syn = P.pads[UI.pad].src === 'synth' && P.pads[UI.pad].syn;
     if (syn) SYN_ST.pg = (SYN_ST.pg + d + SYN_PAGES.length) % SYN_PAGES.length; else UI.snd = (UI.snd + d + SND_PAGES.length) % SND_PAGES.length;
@@ -1966,7 +1976,10 @@ function navArrow(dir, sh) {
   if (NAV.mode === 'edit' && NAV.el && NAV.el._reg) { NAV.el._reg.step(dir === 'up' || dir === 'right' ? 1 : -1, sh); return; }
   navMove(dir);
 }
+// a value box closes on a touch anywhere else (the d-pad's own keys work it: OK sets, Back closes)
+document.addEventListener('pointerdown', e => { if (UI.entry && !e.target.closest('.numbox, #panel')) UI.entry.close(); }, true);
 function navBack() {
+  if (UI.entry) { UI.entry.close(); return; }
   if (UI.swapFrom != null) { UI.swapFrom = null; refreshPadDots(); toast('Swap cancelled'); return; }
   if (NAV.mode === 'canvas') { if (!canvasCtl().back()) { NAV.mode = 'nav'; NAV.el && NAV.el.classList.remove('ne'); canvasDraw(); } return; }
   if (NAV.mode === 'edit') { navEndEdit(false); return; }
@@ -2132,11 +2145,13 @@ const METER = { l: 0, r: 0, clip: false };
    second, measured in time rather than frames, so it reads the same on any screen. Reports wait until the moment they are heard (the same
    output-latency correction as the playhead), so the meters move with the sound rather than ahead of it. */
 const METQ = [], METER_FALL = 24;
-function meterTake(r) { if (r.fl) for (const v of r.fl) flashPad(v & 255, (v >> 8) - 1); METER.l = Math.max(METER.l, r.pk[0]); METER.r = Math.max(METER.r, r.pk[1]); if (r.pk[0] > 1 || r.pk[1] > 1) METER.clip = true;
+const FLQ = [], flashOne = f => flashPad(f.v & 255, (f.v >> 8) - 1);
+function meterTake(r) { METER.l = Math.max(METER.l, r.pk[0]); METER.r = Math.max(METER.r, r.pk[1]); if (r.pk[0] > 1 || r.pk[1] > 1) METER.clip = true;
   const cm = r.cm || []; if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) m.v[k] = Math.max(m.v[k], cm[m.c * 2 + k] || 0);
   if (r.sc) onScope(r.sc); }
 function meterFeed(dt) { const live = ctx && ctx.state === 'running', heard = live ? heardTime() + DISP_LEAD : Infinity;
-  while (METQ.length && (METQ[0].at <= heard || METQ[0].at - heard > .5)) meterTake(METQ.shift());   // (a report from far ahead means the clock jumped: show it now)
+  while (METQ.length && (METQ[0].at <= heard || METQ[0].at - heard > .5)) meterTake(METQ.shift());
+  while (FLQ.length && (FLQ[0].at <= heard || FLQ[0].at - heard > .5)) flashOne(FLQ.shift());   // (a report from far ahead means the clock jumped: show it now)
   const g = Math.pow(10, -METER_FALL * dt / 20), z = v => v * g < 1e-3 ? 0 : v * g;   // under -60 dB nothing shows: done, and the screen can rest
   METER.l = z(METER.l); METER.r = z(METER.r); for (const m of STRIP_METERS) { m.v[0] = z(m.v[0]); m.v[1] = z(m.v[1]); } }
 const meterEls = [...document.querySelectorAll('#meter .bar i')], clipEl = document.querySelector('#meter .clip'), cpuEl = document.querySelector('#meter .cpu');
@@ -2169,7 +2184,7 @@ function frame(ts) {
   const fdt = Math.min(.1, (ts - (lastFrame || ts)) / 1000); lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
   meterFeed(fdt); drawMeter(); if (FLASH.size) flashExpire(performance.now());
   const scoping = scopeMoving(); if (scoping) scopeFrame(Math.min(.1, (ts - (frame.prev || ts)) / 1000)); frame.prev = ts;
-  const busy = scoping || T.playing || METQ.length || FLASH.size || METER.l > 0 || METER.r > 0 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 0 || m.v[1] > 0));
+  const busy = scoping || T.playing || METQ.length || FLQ.length || FLASH.size || METER.l > 0 || METER.r > 0 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 0 || m.v[1] > 0));
   if (busy) requestAnimationFrame(frame); else { frameOn = false; return; }   // nothing moving: stop drawing until woken
   if (!ctx) return;
   if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) { const db = m.v[k] > 1e-5 ? 20 * Math.log10(m.v[k]) : -99, f = tfFaderPos(m.v[k]);   // stereo, on the fader's own scale: 0 dBFS sits on the unity mark

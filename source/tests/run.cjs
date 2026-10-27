@@ -39,6 +39,13 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     host.msg({ t: 'play', scene: 0, loop: 'scene' }); const L = new Float32Array(128), R = new Float32Array(128); for (let i = 0; i < 375 * 4; i++) host.render(128, L, R);
     const first = 60 * 48000 / (hits[1] - hits[0]), last = 60 * 48000 / (hits[8] - hits[7]), span = hits[8] - hits[0], calc = H.tfSceneSamples(Q, 0, 48000);
     ok(first > 120 && first < 130 && last > 170 && last < 180 && Math.abs(span - calc) < 64, `a tempo lane ramps the song (${first.toFixed(0)} → ${last.toFixed(0)} BPM) and exports know its length (${calc} vs ${span} samples)`); }
+  console.log('pad lights');
+  { // each pad flash carries when its sound started, to the sample: pads and lit notes light when that sound is heard, not a report early
+    const ex = new WebAssembly.Instance(wasm, {}).exports, reps = [], host = new H.TFHost(ex, 48000, m => { if (m.t === 'pos') reps.push({ end: host.now, fl: m.fl, fa: m.fa }); }), Q = M.newProject(true);
+    Q.bpm = 137; Q.pads[0].sample = 'b:kick'; Q.scenes[0].notes = { 0: Array.from({ length: 16 }, (_, k) => ({ t: k * 96, len: 24, p: 0, v: .9 })) }; host.msg({ t: 'project', P: Q }); host.soft = false;
+    host.msg({ t: 'play', scene: 0, loop: 'scene' }); const L = new Float32Array(128), R = new Float32Array(128); for (let i = 0; i < 1500; i++) host.render(128, L, R);
+    const at = []; for (const r of reps) (r.fl || []).forEach((v, i) => at.push(r.end - r.fa[i])); const spb = 60 / 137 * 48000;
+    const err = Math.max(...at.map((s, k) => Math.abs(s - (at[0] + k * spb)))); ok(at.length >= 9 && err <= 1, `${at.length} pad flashes, each stamped within ${err.toFixed(2)} samples of its note`); }
   console.log('soft start');
   { // the first sound after the audio wakes fades in over 30 ms (no pop on a cold start); later sounds and offline renders are untouched
     const mk = () => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, () => {}), Q = M.newProject(true); Q.pads[0].sample = 'b:kick';
@@ -92,7 +99,7 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(Math.abs(r[3] - 10) < .3, `loudness range of -20 then -30 dBFS reads 10 LU (${r[3].toFixed(1)})`);
     ok(tp[4] > -.3 && Math.abs(tp[5] + 3.01) < .1, `true peak finds the peak between samples (${tp[4].toFixed(2)} dBTP where samples read ${tp[5].toFixed(2)})`); }
   console.log('source');
-  { const re = /\/\/[^\n]*?(;\s*(const|let|var)\s+\w+\s*=|\)\s*\{\s*[\w.]+\(|;\s+[A-Za-z_$][\w.$]*\s*=\s*[^=\s])/, files = ['app.html', ...fs.readdirSync(path.join(__dirname, '../ui')).map(f => 'ui/' + f), ...fs.readdirSync(path.join(__dirname, '../js')).filter(f => f.endsWith('.js')).map(f => 'js/' + f)], bad = [];
+  { const re = /\/\/[^\n]*?(;\s*(const|let|var)\s+\w+\s*=|\)\s*\{\s*[\w.]+\(|;\s+[A-Za-z_$][\w.$]*\s*=\s*[^=\s]|;\s*(if|for|while)\s*\(|;\s*\}\s*(else\b|\)|$))/, files = ['app.html', ...fs.readdirSync(path.join(__dirname, '../ui')).map(f => 'ui/' + f), ...fs.readdirSync(path.join(__dirname, '../js')).filter(f => f.endsWith('.js')).map(f => 'js/' + f)], bad = [];
     for (const f of files) fs.readFileSync(path.join(__dirname, '..', f), 'utf8').split('\n').forEach((l, i) => { const k = l.indexOf('//'); if (k >= 0 && !/https?:$/.test(l.slice(Math.max(0, k - 6), k)) && !l.includes("'//'") && re.test(l.slice(k))) bad.push(f + ':' + (i + 1)); });
     ok(!bad.length, `no code hidden behind a line comment${bad.length ? ': ' + bad.join(', ') : ''}`); }
   console.log('security');

@@ -33,6 +33,15 @@ async function page(b, url, extra = []) { const pg = await b.newPage({ viewport:
       for (const [n, f] of Object.entries(calls)) { try { await f(); } catch (e) { out.push(n + ': ' + e.message); } await sl(120); try { closeSheet(); } catch (e) {} }
       return { fired: (window.__x || []).length, out }; }, PAY);
     ok(r.fired === 0, `markup in every name field never runs (5 pages, 22 menus${r.out.length ? '; could not open: ' + r.out.join(', ') : ''})`); await pg.close(); }
+  console.log('typed values');
+  { const { pg } = await page(b, FILE);   // the hold-to-type box: markup in a channel name shown as its label, markup and junk typed in: plain text, nothing runs, value stays in range
+    await pg.evaluate(PAY => { P.chans.forEach(c => c.name = PAY); setView('mix'); }, PAY); await pg.waitForTimeout(300);
+    const res = []; for (const typed of [PAY, '1e999', '-1e999', 'NaN', '  ', '12abc', '<b>3</b>']) {
+      const r = await pg.evaluate(() => { const el = [...document.querySelectorAll('.fader')].find(e => e._reg && e._reg.type); el._reg.type(); return !!document.getElementById('numEntry'); });
+      await pg.keyboard.type(typed); await pg.keyboard.press('Enter'); await pg.waitForTimeout(80);
+      res.push(await pg.evaluate(() => { const v = P.chans[0].vol, box = document.getElementById('numEntry'); if (box) box.remove(); return { opened: true, v, ok: v >= 0 && v <= 1 && isFinite(v) }; })); }
+    const fired = await pg.evaluate(() => (window.__x || []).length);
+    ok(fired === 0 && res.every(x => x.ok), `markup and junk typed into a value box never run, and values stay in range (${res.map(x => +x.v.toFixed(3)).join(', ')})`); await pg.close(); }
   console.log('backup files');
   { const { pg } = await page(b, FILE), tmp = path.join(os.tmpdir(), 'tf-evil.trackfill.json');
     fs.writeFileSync(tmp, await pg.evaluate(PAY => { const p = JSON.parse(JSON.stringify(P)); p.name = PAY; p.pads.forEach(x => { x.name = PAY; if (x.syn) x.syn.name = PAY; }); p.scenes.forEach(s => s.name = PAY); p.chans.forEach(c => c.name = PAY);

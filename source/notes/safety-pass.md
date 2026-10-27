@@ -12,8 +12,24 @@ Run in this order after `./build.sh`:
    - hostile MIDI files (markup track names, broken lengths, too many notes): plain names, refused with a message
    - web build under its content policy: engine, drum-fit worker and MP3 still work; injected code refused; nothing can be sent out
    - the app asks no other site for anything
+   - the hold-to-type value box: markup and junk typed in never run, values stay in range
+5. `node tools/audit/smoke.cjs`: the app from a user's side, at three phone sizes (deploy.sh runs `--quick`, one size, and won't publish if it fails):
+   - starts with no errors; every page, Sound page (sample, drum, every synth engine page and tab), every effect and mode, and 28 menus open cleanly
+   - nothing wider than the screen; the transport and tab bar never move between pages
+   - the d-pad reaches every control on every page and menu, from where it starts, using only the arrows
+   - 20 s of playback: no growing pile of page elements or memory
+   - a saved project reopens exactly as it was, and a backup file brings it back exactly
+
+Clock and sync (check whenever timing code changes):
+- Engine: tests/run.cjs "clock" (true tempo after 300 loops), "tempo lane", "timeline playback" (swing, timing, start point, loop range), "pad lights" (each flash stamped to the sample).
+- Page: everything that shows sound (playhead, lit notes, pad flashes, meters, scopes) and recording reads one clock, `heardTime()`
+  (the output timestamp; the context clock less its latency only as a fallback). Drawings look one refresh ahead (`DISP_LEAD`); recording
+  places a note where the song was heard at the touch itself (`tapLag`). Nothing should compute its own "now" from `ctx.currentTime`.
+- Lit notes and MIDI export place notes exactly as the engine does (swing, per-pad timing at the tempo where the note is, clamped to the scene).
 
 Also review by hand whatever changed since the last pass:
+- Source: no code after a `//` on the same line (tests/run.cjs "source" catches the usual shapes; it has bitten three times).
+- Errors on the phone: Engine check lists app and engine errors (the app says once a minute when one happens).
 - Any new place that shows user text (names, file names, anything from a file) goes through `esc()`, or `textContent`, or is cleaned with `tfName()` where it comes in.
 - Any new import or file format: validate shapes and sizes, take only known keys, never trust ids.
 - No new outside requests (fonts, scripts, analytics). New libraries go in whole, with their licence, and get a line in About.

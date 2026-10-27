@@ -114,12 +114,13 @@ function padParam(pi, k, o) {
 document.addEventListener('pointerdown', psGlideStop, true);   // any touch stops a glide, as on the phone's own lists
 /* typing a value: a small box near the top (clear of the keyboard), the value as it reads now, the unit beside it; Enter or Set applies,
    anything outside closes it. o.entry = { unit, get(v) → the number shown, set(n) → the control's value }. */
-function openEntry(o, setV) { const old = $('#numEntry'); if (old) old.remove(); document.querySelectorAll('.typeready').forEach(x => x.classList.remove('typeready'));
+function openEntry(o, setV) { if (UI.entry) UI.entry.close(); document.querySelectorAll('.typeready').forEach(x => x.classList.remove('typeready'));
   const wrap = h('div', ''), box = h('div', 'numbox'), inp = h('input', 'textin'), cur = o.entry.get(o.get()); wrap.id = 'numEntry'; wrap.append(box);
   inp.type = 'text'; inp.inputMode = 'decimal'; inp.enterKeyHint = 'done'; inp.value = String(cur); inp.setAttribute('aria-label', o.label + ' in ' + o.entry.unit);
   const row = h('div', 'numrow'); row.append(inp, h('span', 'numunit', esc(o.entry.unit)), btn('Set', () => apply(), 'btn on')); box.append(h('div', 'numlab', esc(o.label)), row);
-  const close = () => { wrap.remove(); };
-  const apply = () => { const n = parseFloat(String(inp.value).replace(',', '.').replace(/[^\d.+-]/g, '')); if (!isFinite(n)) { toast('Type a number'); return; }
+  const close = () => { wrap.remove(); if (UI.entry && UI.entry.wrap === wrap) UI.entry = null; };
+  const apply = () => { const m = /^\s*([+\-\u2212]?\d*[.,]?\d+)\s*[a-z%]*\s*$/i.exec(String(inp.value)), n = m ? parseFloat(m[1].replace(',', '.').replace('\u2212', '-')) : NaN;   // a number, maybe with its unit after it
+    if (!isFinite(n)) { toast('Type a number'); inp.select(); return; }
     const mn = o.min ?? 0, mx = o.max ?? 1, v = Math.max(mn, Math.min(mx, o.entry.set(n))); o.onStart && o.onStart(); setV(v); o.onEnd && o.onEnd(); close(); toast(o.label + ' ' + o.fmt(o.get())); };
   inp.onkeydown = e => { if (e.key === 'Enter') apply(); if (e.key === 'Escape') close(); };
-  wrap.addEventListener('pointerdown', e => { if (e.target === wrap) close(); }); document.body.append(wrap); inp.focus(); inp.select(); }
+  document.body.append(wrap); UI.entry = { wrap, apply, close }; inp.focus(); inp.select(); }
