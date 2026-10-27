@@ -57,6 +57,13 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(Math.abs(g[2] + 23) < .1, `integrated loudness gates out the quiet parts (${g[2].toFixed(2)} LUFS)`);
     ok(Math.abs(r[3] - 10) < .3, `loudness range of -20 then -30 dBFS reads 10 LU (${r[3].toFixed(1)})`);
     ok(tp[4] > -.3 && Math.abs(tp[5] + 3.01) < .1, `true peak finds the peak between samples (${tp[4].toFixed(2)} dBTP where samples read ${tp[5].toFixed(2)})`); }
+  console.log('security');
+  { const evil = `"'><img src=x onerror=alert(1)>\u0000`, n = M.tfName(evil, 40), q = M.migrate(JSON.parse('{"v":3,"name":"x","__proto__":{"polluted":1},"pads":[{"name":"<b>hi</b>","__proto__":{"p":2}}],"scenes":[{"name":"<i>"}]}'));
+    ok(!/[<>"\u0000]/.test(n) && ({}).polluted === undefined && q.pads[0].p === undefined && q.pads[0].name === 'bhi/b' && q.scenes[0].name === 'i', 'names are plain text and project files can\'t reach an object\'s prototype');
+    const web = path.join(__dirname, '../dist/web/index.html');
+    if (fs.existsSync(web)) { const html = fs.readFileSync(web, 'utf8'), csp = (/http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html) || [])[1] || '', script = (/script-src ([^;]+)/.exec(csp) || [])[1] || '';
+      const urls = [...new Set((html.match(/https?:\/\/[a-z0-9.-]+/gi) || []).map(u => u.toLowerCase()))].filter(u => !['http://www.w3.org', 'http://www.mp3dev.org', 'https://developer.mozilla.org'].includes(u));   // inert strings: the SVG namespace, the MP3 library's version info, a doc comment (the browser audit checks real requests)
+      ok(csp && !/unsafe-inline/.test(script) && /connect-src 'self'/.test(csp) && /object-src 'none'/.test(csp) && !urls.length, `the web build runs only its own scripts and reaches no other site${urls.length ? ' (found ' + urls.join(', ') + ')' : ''}`); } }
   console.log('meters');
   { const sr = 48000, TF = H.TF, db = x => x > 1e-9 ? 20 * Math.log10(x) : -999, tone = n => { const d = new Int16Array(n); for (let i = 0; i < n; i++) d[i] = Math.round(Math.sin(i * 2 * Math.PI * 997 / sr) * .25 * 32767); return d; };
     const run = (setup, data = tone(sr), vis) => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, sr, null), Q = M.newProject(true), posts = [];

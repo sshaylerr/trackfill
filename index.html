@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-koIr+/OuS0jA/D/w3XKwjtIG9VTbLWPpaw+PW3BL2eA=' 'sha256-gV+Qg8FiR017NcL8tXRFS6+v68MV6fpfYTURs7uHXvU=' 'sha256-yUwYHX8J4N+1cAi3DeYydDUhncyhfnr+Lfji4U9Gdt4=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-koIr+/OuS0jA/D/w3XKwjtIG9VTbLWPpaw+PW3BL2eA=' 'sha256-gV+Qg8FiR017NcL8tXRFS6+v68MV6fpfYTURs7uHXvU=' 'sha256-LgJewxdzOzFbTwFXoff+lNdr/36sbqTt1h7MNeUiAKw=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -198,7 +198,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .knob.drag .kv{stroke:var(--accent-hi)}
 .knob.autoed .klab{color:var(--accent)}
 .knob.blank{visibility:hidden}
-.selr{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px 2px;border-radius:8px;min-width:0;touch-action:none}
+.selr{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px 2px;border-radius:8px;min-width:0;touch-action:manipulation}
 .selr .sw>span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;line-height:1.2}
 .selr .sw{height:34px;width:100%;max-width:72px;border-radius:3px;background:var(--bg);border:1px solid #000;box-shadow:inset 0 1px 6px rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;
   font:400 11.5px var(--font-lcd);color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;margin-top:9px}
@@ -3599,6 +3599,30 @@ async function freezePad(pi) {
 }
 
 /* ---------- controls: knob (drag up/right), fader (drag up), bar (drag sideways, sheets); d-pad; double-tap resets ---------- */
+/* Scrolling a page that is full of controls. Knobs, displays and analyzer panels keep their touches to themselves (nothing jitters while you
+   turn them), so a page of them was hard to scroll. Now, as in the phone's own scroll views: a touch that starts moving straight up or down
+   at once scrolls the page, with the usual glide; a touch that rests a moment first, or moves sideways, works the control as before.
+   Only where the page can scroll at all; elsewhere controls answer at once, exactly as they always have. */
+const PS_REST = 140, PS_SLOP = 6;
+function psScroller(el) { for (let e = el.parentElement; e; e = e.parentElement) { const o = getComputedStyle(e).overflowY; if ((o === 'auto' || o === 'scroll') && e.scrollHeight > e.clientHeight + 1) return e; } return null; }
+// vertical: 'gate' (a quick start scrolls, a rested one is the control's) or 'always' (any vertical drag scrolls: the control has no use for it)
+function psStart(el, e, vertical = 'gate') { if (e.pointerType !== 'touch') return null; psGlideStop(); const sc = psScroller(el); if (!sc) return null;
+  return { sc, x: e.clientX, y: e.clientY, t: performance.now(), top: sc.scrollTop, mode: '', vertical, hist: [] }; }
+// returns 'scroll' (the page has it), 'ctl' (the control has it) or 'wait' (not moved far enough to tell)
+function psMove(g, e) { if (!g) return 'ctl';
+  if (!g.mode) { const dx = e.clientX - g.x, dy = e.clientY - g.y; if (Math.hypot(dx, dy) < PS_SLOP) return 'wait';
+    g.mode = Math.abs(dy) > Math.abs(dx) * 1.2 && (g.vertical === 'always' || performance.now() - g.t < PS_REST) ? 'scroll' : 'ctl'; }
+  if (g.mode === 'scroll') { const t = performance.now(); g.sc.scrollTop = g.top - (e.clientY - g.y); g.hist.push([t, e.clientY]); while (g.hist.length > 2 && t - g.hist[0][0] > 90) g.hist.shift(); }
+  return g.mode; }
+// the finger lifts: a scroll glides on at the finger's speed and slows the way the phone's own lists do
+let psGlide = 0;
+function psEnd(g) { if (!g || g.mode !== 'scroll') return false; const h = g.hist, n = h.length; if (n < 2) return true;
+  const dt = h[n - 1][0] - h[0][0], v0 = dt > 0 ? -(h[n - 1][1] - h[0][1]) / dt : 0; if (Math.abs(v0) < .15 || performance.now() - h[n - 1][0] > 80) return true;
+  let v = v0, last = performance.now(); const sc = g.sc, step = now => { const ms = Math.min(40, now - last); last = now; const before = sc.scrollTop; sc.scrollTop += v * ms; v *= Math.pow(.998, ms);
+    if (Math.abs(v) < .02 || sc.scrollTop === before) { psGlide = 0; return; } psGlide = requestAnimationFrame(step); };
+  psGlide = requestAnimationFrame(step); return true; }
+function psGlideStop() { if (psGlide) { cancelAnimationFrame(psGlide); psGlide = 0; } }
+
 function makeCtl(o, kind) {
   const mn = o.min ?? 0, mx = o.max ?? 1, step = o.step || .002, coarse = o.coarse || .02, big = o.big || coarse * 5;
   const q = v => { v = clamp(v, mn, mx); return Number((Math.round(v / step) * step).toFixed(6)); };
@@ -3624,10 +3648,11 @@ function makeCtl(o, kind) {
   }
   const setV = v => { v = q(v); if (v !== o.get()) { o.set(v); upd(); if (UI.panel) updatePanel(); } };
   let d = null, lastTap = 0;
-  el.addEventListener('pointerdown', e => { d = { x: e.clientX, y: e.clientY, x0: e.clientX, v: o.get(), drag: false, swipe: false, id: e.pointerId }; if (kind !== 'bar') { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {} } });
+  el.addEventListener('pointerdown', e => { d = { x: e.clientX, y: e.clientY, x0: e.clientX, v: o.get(), drag: false, swipe: false, id: e.pointerId, g: kind === 'knob' ? psStart(el, e) : null }; if (kind !== 'bar') { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {} } });
   el.addEventListener('pointermove', e => {
     if (!d || e.pointerId !== d.id) return; const dx = e.clientX - d.x, dy = e.clientY - d.y;
     if (d.swipe) return;
+    if (!d.drag && d.g) { const m = psMove(d.g, e); if (m !== 'ctl') return; }   // a quick vertical start: the page scrolls, the knob stays put
     if (!d.drag) { if (o.onSwipe && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) { d.swipe = true; return; }
       const go = kind === 'bar' ? (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) : o.onSwipe ? Math.abs(dy) > 6 && Math.abs(dy) >= Math.abs(dx) : Math.hypot(dx, dy) > 4; if (!go) return;
       d.drag = true; d.x = e.clientX; d.y = e.clientY; if (kind === 'bar') { try { el.setPointerCapture(e.pointerId); } catch (_) {} } el.classList.add('drag'); o.onStart && o.onStart(); return; }
@@ -3636,6 +3661,7 @@ function makeCtl(o, kind) {
     setV(d.v + frac * (mx - mn) * fine);
   });
   const end = e => { if (!d) return;
+    if (d.g && d.g.mode === 'scroll') { psEnd(d.g); d = null; return; }
     if (d.swipe) { const ex = e.clientX - d.x0; if (e.type === 'pointerup' && Math.abs(ex) > 40) o.onSwipe(ex < 0 ? 1 : -1); d = null; return; }
     if (d.drag) { el.classList.remove('drag'); o.onEnd && o.onEnd(); }
     else if (e.type === 'pointerup') { const n = Date.now();
@@ -3678,6 +3704,7 @@ function padParam(pi, k, o) {
     set: v => { const p = P.pads[pi]; touchPad(pi); if (k === 'start') v = Math.min(v, p.end - .01); if (k === 'end') v = Math.max(v, p.start + .01); p[k] = v; if ((k === 'start' || k === 'end') && p.chop) chopLater(pi); syncPad(pi); drawDisp(); markDirty(); },
     onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); } }), 'knob');
 }
+document.addEventListener('pointerdown', psGlideStop, true);   // any touch stops a glide, as on the phone's own lists
 
 
 /* ---------- parameter metadata by key ---------- */
@@ -5701,21 +5728,66 @@ const AN_PANELS = [['loud', 'Loudness', 1, 186], ['spec', 'Spectrum', 2, 210], [
 const anPrefs = () => UI.anP || (UI.anP = { loud: 1, spec: 1, sgram: 1, wave: 1, stereo: 1, tilt: 3, side: 1 });
 const anMask = () => AN_PANELS.reduce((m, [k, , b]) => m | (anPrefs()[k] ? b : 0), 0) | (anPrefs().spec && anPrefs().side ? 32 : 0);
 function anNew() { return { loud: [-120, -120, -120, 0, -120, -120], hs: new Float32Array(1200).fill(-120), hn: 0, spec: null, disp: new Float32Array(TF_AN_BANDS * 2).fill(-120), hold: new Float32Array(TF_AN_BANDS).fill(-120),
-  seq: 0, cols: new Float32Array(1024 * 5), cn: 0, st: [0, 0, 0], stD: [0, 0, 0], vs: null }; }
+  seq: 0, cols: new Float32Array(AN_WCOLS * 5), cn: 0, st: [0, 0, 0], stD: [0, 0, 0], vs: null, sg: new Uint8Array(AN_SGF * TF_AN_BANDS), sgN: 0 }; }
+const AN_SGF = 2048, AN_WCOLS = 8192;   // history kept for scrolling back: about a minute of spectrogram, 40 s of waveform
 function anTake(a) { const A = SCOPE.an || (SCOPE.an = anNew());
   if (a.loud) A.loud = a.loud; if (a.hist) for (let i = 0; i < a.hist.length; i += 2) { A.hs[(A.hn % 600) * 2] = a.hist[i]; A.hs[(A.hn % 600) * 2 + 1] = a.hist[i + 1]; A.hn++; }
-  if (a.spec) { A.spec = a.spec; A.seq++; } if (a.cols) for (let i = 0; i + 4 < a.cols.length; i += 5) { A.cols.set(a.cols.slice(i, i + 5), (A.cn % 1024) * 5); A.cn++; }
+  if (a.spec) { A.spec = a.spec; A.seq++; if (anPrefs().sgram) { const o = (A.sgN % AN_SGF) * TF_AN_BANDS; for (let b = 0; b < TF_AN_BANDS; b++) A.sg[o + b] = Math.max(0, Math.min(255, Math.round((a.spec[b] + 120) * 2))); A.sgN++; } }
+  if (a.cols) for (let i = 0; i + 4 < a.cols.length; i += 5) { A.cols.set(a.cols.slice(i, i + 5), (A.cn % AN_WCOLS) * 5); A.cn++; }
   if (a.st) A.st = a.st; if (a.vs) A.vs = a.vs; }
 function anStep(dt) { const A = SCOPE.an; if (!A || !A.spec) return; const fall = 30 * dt;   // spectrum: instant rise, smooth fall; a held peak line that drifts down
   for (let i = 0; i < A.disp.length; i++) { const t = A.spec[i]; A.disp[i] = t > A.disp[i] ? t : Math.max(t, A.disp[i] - fall); }
   for (let i = 0; i < TF_AN_BANDS; i++) A.hold[i] = Math.max(A.disp[i], A.hold[i] - 6 * dt);
   for (let k = 0; k < 3; k++) A.stD[k] += (A.st[k] - A.stD[k]) * Math.min(1, dt * 6); }
-const anF = b => TF_AN_LO * Math.pow(TF_AN_HI / TF_AN_LO, (b + .5) / TF_AN_BANDS), anX = (f, x, w) => x + w * Math.log(f / TF_AN_LO) / Math.log(TF_AN_HI / TF_AN_LO);
+const anF = b => TF_AN_LO * Math.pow(TF_AN_HI / TF_AN_LO, (b + .5) / TF_AN_BANDS), anX = (f, x, w, v) => x + w * Math.log(f / (v ? v.fLo : TF_AN_LO)) / Math.log(v ? v.fHi / v.fLo : TF_AN_HI / TF_AN_LO);
+/* Zoom and scroll inside the analyzer (the same hands as the timeline): two fingers pinch to zoom (sideways for time or frequency, up and down
+   for frequency or level) and slide to move; one finger drags back through time on the spectrogram and waveform; tap twice for the live,
+   full view. While you look back, the picture holds still (the history keeps filling) and says how far back you are. */
+const AN_VIEW = { spec: { fLo: TF_AN_LO, fHi: TF_AN_HI }, sgram: { fLo: TF_AN_LO, fHi: TF_AN_HI, fpp: .5, right: null }, wave: { cpp: 2, amp: 1, right: null } };
+const AN_VDEF = JSON.parse(JSON.stringify(AN_VIEW));
+const anLive = k => { const v = AN_VIEW[k]; return v.right == null; };
+function anFreqZoom(v, s, c0, c1, span) {   // pinch on a log-frequency axis: s = stretch, c0 = the fraction under the fingers at the start, c1 = where they are now
+  const L0 = Math.log(v.f0Lo), L1 = Math.log(v.f0Hi), at = L0 + (L1 - L0) * c0, w = Math.max(Math.log(2), Math.min(Math.log(TF_AN_HI / TF_AN_LO), (L1 - L0) / s));
+  let lo = at - w * c1; lo = Math.max(Math.log(TF_AN_LO), Math.min(Math.log(TF_AN_HI) - w, lo)); v.fLo = Math.exp(lo); v.fHi = Math.exp(lo + w); }
+function anGestures(cv, k) {
+  const ptrs = new Map(); let one = null, pin = null, lastTap = 0;
+  const loc = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, W: r.width, H: r.height }; };
+  const A = () => SCOPE.an, now = () => k === 'sgram' ? (A() ? A().sgN - 1 : 0) : (A() ? A().cn - 1 : 0), avail = () => k === 'sgram' ? Math.min(AN_SGF, A() ? A().sgN : 0) : Math.min(AN_WCOLS, A() ? A().cn : 0);
+  const setRight = (v, r) => { const n = now(), oldest = n - avail() + 1; v.right = r >= n - .5 ? null : Math.max(oldest + 8, r); };
+  const pinStart = () => { const [a, b] = [...ptrs.values()], v = AN_VIEW[k]; one = null; cv._touch = null;
+    pin = { dx0: Math.abs(a.x - b.x), dy0: Math.abs(a.y - b.y), cx0: (a.x + b.x) / 2, cy0: (a.y + b.y) / 2, W: a.W, H: a.H, v0: Object.assign({}, v, { f0Lo: v.fLo, f0Hi: v.fHi }), r0: v.right == null ? now() : v.right }; };
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} psGlideStop(); const p = loc(e); ptrs.set(e.pointerId, p);
+    if (ptrs.size === 2) { pinStart(); return; } if (ptrs.size > 2) return;
+    one = { x: p.x, y: p.y, g: psStart(cv, e, 'always'), moved: false, r0: AN_VIEW[k].right == null ? now() : AN_VIEW[k].right };
+    if (k === 'spec') cv._touch = { x: p.x }; });
+  cv.addEventListener('pointermove', e => { if (!ptrs.has(e.pointerId)) return; const p = loc(e); ptrs.set(e.pointerId, p); const v = AN_VIEW[k];
+    if (pin && ptrs.size >= 2) { const [a, b] = [...ptrs.values()], dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+      const sx = pin.dx0 > 30 ? Math.max(.05, dx / pin.dx0) : 1, sy = pin.dy0 > 30 ? Math.max(.05, dy / pin.dy0) : 1;
+      if (k === 'spec') { v.f0Lo = pin.v0.f0Lo; v.f0Hi = pin.v0.f0Hi; anFreqZoom(v, sx, pin.cx0 / pin.W, cx / pin.W); }
+      else if (k === 'sgram') { v.fpp = Math.max(.125, Math.min(8, pin.v0.fpp / sx)); if (pin.v0.right != null) setRight(v, pin.r0 - (pin.W - pin.cx0) * pin.v0.fpp + (pin.W - cx) * v.fpp);   // live stays live: the zoom holds to now
+        v.f0Lo = pin.v0.f0Lo; v.f0Hi = pin.v0.f0Hi; anFreqZoom(v, sy, 1 - pin.cy0 / pin.H, 1 - cy / pin.H); }
+      else { v.cpp = Math.max(.25, Math.min(24, pin.v0.cpp / sx)); if (pin.v0.right != null) setRight(v, pin.r0 - (pin.W - pin.cx0) * pin.v0.cpp + (pin.W - cx) * v.cpp); v.amp = Math.max(1, Math.min(16, pin.v0.amp * sy)); }
+      wake(); return; }
+    if (!one) return; const m = psMove(one.g, e); if (m === 'scroll') { cv._touch = null; return; } if (m === 'wait') { if (k === 'spec') cv._touch = { x: p.x }; return; }
+    one.moved = true; if (k === 'spec') { cv._touch = { x: p.x }; return; }
+    setRight(v, one.r0 + (p.x - one.x) * -(k === 'sgram' ? v.fpp : v.cpp)); wake(); });   // drag right: further back in time
+  const end = e => { if (!ptrs.has(e.pointerId)) return; ptrs.delete(e.pointerId);
+    if (pin) { if (ptrs.size < 2) { pin = null; one = null; } return; }
+    if (one) { if (psEnd(one.g)) { one = null; cv._touch = null; return; }
+      if (!one.moved && e.type === 'pointerup') { const t = Date.now(); if (t - lastTap < 320) { Object.assign(AN_VIEW[k], JSON.parse(JSON.stringify(AN_VDEF[k]))); wake(); } lastTap = t; } }
+    one = null; cv._touch = null; };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end); }
 const fmtF = f => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2).replace(/\.?0+$/, '') + 'k' : String(Math.round(f));
 const NOTE_N = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'], fNote = f => { const m = Math.round(69 + 12 * Math.log2(f / 440)); return NOTE_N[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1); };
 const lufs = v => v <= -70 ? '—' : v.toFixed(1);
-function freqGrid(g, x, y, w, h, labels = true) { g.fillStyle = COL.line; for (const f of [50, 100, 200, 500, 1000, 2000, 5000, 10000]) g.fillRect(Math.round(anX(f, x, w)), y, 1, h);
-  if (labels) for (const f of [50, 100, 200, 500, 1000, 2000, 5000, 10000]) vText(g, fmtF(f), anX(f, x, w) + 3, y + h - 7, COL.dim, 'left', 9.5, 400); }
+// grid lines at round frequencies, as many as fit the range on show
+const FGRID = [20, 30, 50, 70, 100, 150, 200, 300, 500, 700, 1000, 1500, 2000, 3000, 5000, 7000, 10000, 15000];
+function fTicks(v, px) { const lo = v ? v.fLo : TF_AN_LO, hi = v ? v.fHi : TF_AN_HI, want = Math.max(2, Math.floor(px / 48)), inR = f => f >= lo && f <= hi;
+  const sets = [[100, 1000, 10000], [50, 100, 200, 500, 1000, 2000, 5000, 10000], [20, 50, 100, 200, 300, 500, 1000, 2000, 3000, 5000, 10000], FGRID]; let best = sets[0].filter(inR);
+  for (const set of sets) { const t = set.filter(inR); if (t.length <= want) best = t; else break; }   // the finest set of round numbers that still fits
+  return best.length > want ? best.filter((_, i) => i % Math.ceil(best.length / want) === 0) : best; }
+function freqGrid(g, x, y, w, h, labels = true, v = null) { const ts = fTicks(v, w); g.fillStyle = COL.line; for (const f of ts) g.fillRect(Math.round(anX(f, x, w, v)), y, 1, h);
+  if (labels) for (const f of ts) vText(g, fmtF(f), anX(f, x, w, v) + 3, y + h - 7, COL.dim, 'left', 9.5, 400); }
 // Loudness: the three big numbers (integrated largest), range and peaks under them, then short-term history with the integrated line; level meters on the right
 function drawLoud(g, W, H) { const A = SCOPE.an || anNew(), [M, S, I, LRA, TP, SP] = A.loud, mw = 46, gw = W - mw - 8;
   const big = (lab, v, x, sz, col) => { vText(g, lab, x, 10, COL.mute, 'left', 10, 600); vText(g, lufs(v), x, 10 + sz * .75, col, 'left', sz, 700); };
@@ -5731,37 +5803,48 @@ function drawLoud(g, W, H) { const A = SCOPE.an || anNew(), [M, S, I, LRA, TP, S
   if (I > -70) { g.fillStyle = COL.accent; g.fillRect(4, Math.round(Y(I)), gw - 4, 1.5); }
   drawMeters(g, W - mw, 4, mw, H - 8, { scale: true }); }
 // Spectrum: mid filled, side as a line, a held peak; optional tilt so a balanced mix reads level; touch for frequency, note and level
-function drawSpec(g, W, H, cv) { const A = SCOPE.an, pr = anPrefs(), tilt = pr.tilt || 0, x0 = 4, w = W - 34, top = 4, bot = H - 16, lo = -90, hi = 0, Y = d => bot - (bot - top) * Math.max(0, Math.min(1, (d - lo) / (hi - lo)));
-  freqGrid(g, x0, top, w, bot - top + 14); g.fillStyle = COL.line; for (let d = -12; d >= -84; d -= 12) { g.fillRect(x0, Math.round(Y(d)), w, 1); vText(g, String(d), W - 3, Y(d), COL.dim, 'right', 9, 400); }
+function drawSpec(g, W, H, cv) { const A = SCOPE.an, pr = anPrefs(), V = AN_VIEW.spec, tilt = pr.tilt || 0, x0 = 4, w = W - 34, top = 4, bot = H - 16, lo = -90, hi = 0, Y = d => bot - (bot - top) * Math.max(0, Math.min(1, (d - lo) / (hi - lo)));
+  freqGrid(g, x0, top, w, bot - top + 14, true, V); g.fillStyle = COL.line; for (let d = -12; d >= -84; d -= 12) { g.fillRect(x0, Math.round(Y(d)), w, 1); vText(g, String(d), W - 3, Y(d), COL.dim, 'right', 9, 400); }
   vText(g, tilt ? `tilt ${tilt} dB/oct` : 'flat', W - 3, top + 6, COL.dim, 'right', 9, 400);
-  if (!A || !A.spec) return; const t = b => tilt * Math.log2(anF(b) / 1000), bx = b => anX(anF(b), x0, w);
+  if (!A || !A.spec) return; const t = b => tilt * Math.log2(anF(b) / 1000), bx = b => anX(anF(b), x0, w, V);
   const curve = (off, fill, col, lw, al) => { g.beginPath(); g.moveTo(bx(0), bot); for (let b = 0; b < TF_AN_BANDS; b++) g.lineTo(bx(b), Y(A.disp[off + b] + t(b))); g.lineTo(bx(TF_AN_BANDS - 1), bot);
     if (fill) { g.globalAlpha = .28; g.fillStyle = col; g.fill(); } g.globalAlpha = al; g.strokeStyle = col; g.lineWidth = lw; g.lineJoin = 'round'; g.stroke(); g.globalAlpha = 1; };
   g.save(); g.beginPath(); g.rect(x0, top, w, bot - top); g.clip();
   curve(0, true, COL.play, 1.6, 1); if (pr.side) curve(TF_AN_BANDS, false, '#7aa8ff', 1.2, .85);
   g.beginPath(); for (let b = 0; b < TF_AN_BANDS; b++) { const y = Y(A.hold[b] + t(b)); b ? g.lineTo(bx(b), y) : g.moveTo(bx(b), y); } g.strokeStyle = COL.ink; g.globalAlpha = .35; g.lineWidth = 1; g.stroke(); g.globalAlpha = 1; g.restore();
-  if (cv._touch) { const x = Math.max(x0, Math.min(x0 + w, cv._touch.x)), f = TF_AN_LO * Math.pow(TF_AN_HI / TF_AN_LO, (x - x0) / w), b = Math.max(0, Math.min(TF_AN_BANDS - 1, Math.round(Math.log(f / TF_AN_LO) / Math.log(TF_AN_HI / TF_AN_LO) * TF_AN_BANDS - .5)));
+  if (cv._touch) { const x = Math.max(x0, Math.min(x0 + w, cv._touch.x)), f = V.fLo * Math.pow(V.fHi / V.fLo, (x - x0) / w), b = Math.max(0, Math.min(TF_AN_BANDS - 1, Math.round(Math.log(f / TF_AN_LO) / Math.log(TF_AN_HI / TF_AN_LO) * TF_AN_BANDS - .5)));
     g.fillStyle = COL.ink; g.fillRect(Math.round(x), top, 1, bot - top); const lab = `${fmtF(f)} Hz · ${fNote(f)} · ${A.disp[b].toFixed(0)} dB`; vText(g, lab, x > W / 2 ? x - 6 : x + 6, top + 8, COL.ink, x > W / 2 ? 'right' : 'left', 11, 600); }
   vText(g, 'Mid', x0 + 4, top + 8, COL.play, 'left', 10, 600); if (pr.side) vText(g, 'Side', x0 + 32, top + 8, '#7aa8ff', 'left', 10, 600); }
 // Spectrogram: time left to right (newest at the right), frequency up the side on the same log scale, colour = level
 const SG_LUT = (() => { const st = [[0, 0, 0, 0], [.18, 30, 8, 60], [.4, 120, 20, 110], [.6, 220, 60, 60], [.8, 255, 160, 30], [1, 255, 250, 200]], o = new Uint8ClampedArray(256 * 3);
   for (let i = 0; i < 256; i++) { const x = i / 255; let k = 0; while (k < st.length - 2 && x > st[k + 1][0]) k++; const [a, b] = [st[k], st[k + 1]], f = (x - a[0]) / (b[0] - a[0]); for (let c = 0; c < 3; c++) o[i * 3 + c] = a[c + 1] + (b[c + 1] - a[c + 1]) * f; } return o; })();
-function drawSgram(g, W, H, cv) { const A = SCOPE.an, dpr = window.devicePixelRatio || 1, pw = Math.round(W * dpr), ph = Math.round(H * dpr);
-  let o = cv._off; if (!o || o.width !== pw || o.height !== ph) { o = cv._off = document.createElement('canvas'); o.width = pw; o.height = ph; cv._seq = -1; }
-  if (A && A.spec && A.seq !== cv._seq) { const og = o.getContext('2d'), step = Math.max(1, Math.round(2 * dpr)); og.drawImage(o, -step, 0);
-    const col = og.createImageData(step, ph); for (let y = 0; y < ph; y++) { const fr = 1 - y / (ph - 1), b = Math.max(0, Math.min(TF_AN_BANDS - 1, Math.round(fr * (TF_AN_BANDS - 1)))), d = A.spec[b] + (anPrefs().tilt || 0) * Math.log2(anF(b) / 1000);
-      const v = Math.max(0, Math.min(255, Math.round((d + 96) / 84 * 255))); for (let x = 0; x < step; x++) { const q = (y * step + x) * 4; col.data[q] = SG_LUT[v * 3]; col.data[q + 1] = SG_LUT[v * 3 + 1]; col.data[q + 2] = SG_LUT[v * 3 + 2]; col.data[q + 3] = 255; } }
-    og.putImageData(col, pw - step, 0); cv._seq = A.seq; }
-  g.drawImage(o, 0, 0, W, H); const Yf = f => H - H * Math.log(f / TF_AN_LO) / Math.log(TF_AN_HI / TF_AN_LO);
-  g.fillStyle = 'rgba(255,255,255,.18)'; for (const f of [100, 1000, 10000]) { g.fillRect(0, Math.round(Yf(f)), W, 1); vText(g, fmtF(f), 4, Yf(f) - 7, 'rgba(255,255,255,.6)', 'left', 9.5, 500); } }
+function drawSgram(g, W, H, cv) { const A = SCOPE.an, V = AN_VIEW.sgram, tilt = anPrefs().tilt || 0, w = Math.max(1, Math.round(W)), hh = Math.max(1, Math.round(H));
+  let o = cv._off; if (!o || o.width !== w || o.height !== hh) { o = cv._off = document.createElement('canvas'); o.width = w; o.height = hh; cv._key = ''; }
+  const right = V.right == null ? (A ? A.sgN - 1 : 0) : V.right, key = [A ? (V.right == null ? A.seq : 'held') : -1, right, V.fpp, V.fLo, V.fHi, tilt, w, hh].join();
+  if (key !== cv._key && A) { cv._key = key; const og = o.getContext('2d'), img = og.createImageData(w, hh), D = img.data, n = A.sgN, oldest = n - Math.min(AN_SGF, n), L0 = Math.log(V.fLo), L1 = Math.log(V.fHi);
+    const rb = new Int16Array(hh), ra = new Float32Array(hh);   // each row's band, and its tilt in 0.5 dB steps
+    for (let y = 0; y < hh; y++) { const f = Math.exp(L1 - (L1 - L0) * (y + .5) / hh), b = Math.max(0, Math.min(TF_AN_BANDS - 1, Math.round(Math.log(f / TF_AN_LO) / Math.log(TF_AN_HI / TF_AN_LO) * TF_AN_BANDS - .5))); rb[y] = b; ra[y] = tilt * Math.log2(anF(b) / 1000) * 2; }
+    const span = Math.max(1, Math.round(V.fpp));
+    for (let x = 0; x < w; x++) { const fr = Math.round(right - (w - 1 - x) * V.fpp); if (fr < oldest || fr >= n) continue;
+      for (let y = 0; y < hh; y++) { let q = 0; for (let s2 = 0; s2 < span; s2++) { const fi = fr - s2; if (fi < oldest) break; const v = A.sg[(fi % AN_SGF) * TF_AN_BANDS + rb[y]]; if (v > q) q = v; }
+        const d = (q + ra[y]) / 2 - 120, c = Math.max(0, Math.min(255, Math.round((d + 96) / 84 * 255))), p = (y * w + x) * 4; D[p] = SG_LUT[c * 3]; D[p + 1] = SG_LUT[c * 3 + 1]; D[p + 2] = SG_LUT[c * 3 + 2]; D[p + 3] = 255; } }
+    og.putImageData(img, 0, 0); }
+  g.imageSmoothingEnabled = true; g.drawImage(o, 0, 0, W, H); const Yf = f => H - H * Math.log(f / V.fLo) / Math.log(V.fHi / V.fLo);
+  g.fillStyle = 'rgba(255,255,255,.18)'; for (const f of fTicks(V, H * 1.6)) { g.fillRect(0, Math.round(Yf(f)), W, 1); vText(g, fmtF(f), 4, Yf(f) - 7, 'rgba(255,255,255,.6)', 'left', 9.5, 500); }
+  anBadge(g, W, V.right == null ? 0 : (A.sgN - 1 - V.right) / 30, V.fpp !== AN_VDEF.sgram.fpp || V.fLo !== TF_AN_LO || V.fHi !== TF_AN_HI); }
+// how far back the picture is (and that it's zoomed): top right, only when it isn't the live, full view
+function anBadge(g, W, back, zoomed) { if (back <= 0 && !zoomed) return; const t = (back > 0 ? '−' + back.toFixed(1) + ' s' : 'Live') + (zoomed ? ' · zoom' : '');
+  g.font = `600 10px ${FONT_LCD}`; const tw = g.measureText(t).width + 10; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(W - tw - 3, 3, tw, 15); vText(g, t, W - 8, 10.5, back > 0 ? COL.accent : COL.ink, 'right', 10, 600); }
 // Waveform: the last ~3.5 s of the mix, coloured by where its energy is (lows red, mids green, highs blue)
-function drawWave2(g, W, H) { const A = SCOPE.an; g.fillStyle = COL.line; g.fillRect(0, Math.round(H / 2), W, 1); if (!A || !A.cn) return;
-  const per = 2, n = Math.min(A.cn, 1024), mid = H / 2, amp = H / 2 - 3;
-  for (let x = 0; x < W; x++) { const c1 = A.cn - (W - x) * per; if (c1 < Math.max(0, A.cn - n)) continue; let mn = 1, mx = -1, lo = 0, mi = 0, hi = 0;
-    for (let k = 0; k < per; k++) { const o = ((c1 + k) % 1024) * 5; mn = Math.min(mn, A.cols[o]); mx = Math.max(mx, A.cols[o + 1]); lo = Math.max(lo, A.cols[o + 2]); mi = Math.max(mi, A.cols[o + 3]); hi = Math.max(hi, A.cols[o + 4]); }
+function drawWave2(g, W, H) { const A = SCOPE.an, V = AN_VIEW.wave; g.fillStyle = COL.line; g.fillRect(0, Math.round(H / 2), W, 1); if (!A || !A.cn) return;
+  const n = A.cn, oldest = n - Math.min(AN_WCOLS, n), right = V.right == null ? n - 1 : V.right, mid = H / 2, amp = (H / 2 - 3) * V.amp, cpp = V.cpp;
+  g.save(); g.beginPath(); g.rect(0, 0, W, H); g.clip();
+  for (let x = 0; x < W; x++) { const c1 = right - (W - 1 - x) * cpp, a = Math.floor(c1 - cpp + 1e-6) + 1, b = Math.floor(c1); let mn = 1, mx = -1, lo = 0, mi = 0, hi = 0;
+    for (let c = Math.min(a, b); c <= b; c++) { if (c < oldest || c >= n) continue; const o = (c % AN_WCOLS) * 5; mn = Math.min(mn, A.cols[o]); mx = Math.max(mx, A.cols[o + 1]); lo = Math.max(lo, A.cols[o + 2]); mi = Math.max(mi, A.cols[o + 3]); hi = Math.max(hi, A.cols[o + 4]); }
     if (mx < mn) continue; const m = Math.max(lo, mi * 1.6, hi * 2.5, 1e-9); g.fillStyle = `rgb(${Math.round(70 + 185 * lo / m)},${Math.round(60 + 195 * mi * 1.6 / m)},${Math.round(70 + 185 * hi * 2.5 / m)})`;
-    g.fillRect(x, mid - Math.min(1, mx) * amp, 1, Math.max(1, (Math.min(1, mx) - Math.max(-1, mn)) * amp)); }
-  vText(g, '0 dB', W - 3, 6, COL.dim, 'right', 9, 400); }
+    const y1 = mid - Math.min(1, mx) * amp, y2 = mid - Math.max(-1, mn) * amp; g.fillRect(x, y1, 1, Math.max(1, y2 - y1)); }
+  g.restore(); vText(g, V.amp > 1 ? '×' + V.amp.toFixed(1) : '0 dB', 6, 8, COL.dim, 'left', 9, 400);
+  anBadge(g, W, V.right == null ? 0 : (n - 1 - V.right) * .005, V.cpp !== AN_VDEF.wave.cpp || V.amp !== 1); }
 // Stereo: a vectorscope (mid up, sides left and right), and correlation, width and balance bars
 function drawStereo(g, W, H) { const A = SCOPE.an, sz = Math.min(H - 8, W * .55), cx = 4 + sz / 2, cy = 4 + sz / 2, r = sz / 2 - 2;
   g.strokeStyle = COL.line; g.lineWidth = 1; g.beginPath(); g.arc(cx, cy, r, Math.PI, 2 * Math.PI); g.moveTo(cx, cy); g.lineTo(cx, cy - r); g.moveTo(cx, cy); g.lineTo(cx - r * .707, cy - r * .707); g.moveTo(cx, cy); g.lineTo(cx + r * .707, cy - r * .707); g.moveTo(cx - r, cy); g.lineTo(cx + r, cy); g.stroke();
@@ -5787,8 +5870,7 @@ function openAnalyzer(c) {
         if (k === 'spec' && pr[k]) hd.append(btn('Side', () => { pr.side = pr.side ? 0 : 1; savePrefs(); scopeWant(); build(); }, 'key sm' + (pr.side ? ' on' : '')), btn('Tilt ' + (pr.tilt || 0), () => { pr.tilt = pr.tilt === 3 ? 4.5 : pr.tilt === 4.5 ? 0 : 3; savePrefs(); build(); }, 'key sm'));
         p.append(hd);
         if (pr[k]) { const box = h('div', 'scr anbody'), cv = h('canvas'); box.style.height = ht + 'px'; box.append(cv); p.append(box);
-          if (k === 'spec') { const at = e => { const r = cv.getBoundingClientRect(); cv._touch = { x: e.clientX - r.left }; }; cv.addEventListener('pointerdown', e => { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} at(e); });
-            cv.addEventListener('pointermove', e => { if (cv._touch) at(e); }); const end = () => { cv._touch = null; }; cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end); }
+          if (AN_VIEW[k]) anGestures(cv, k); else cv.style.touchAction = 'pan-y';   // loudness and stereo have nothing to drag: the page scrolls over them
           scopeView(cv, () => { const { g, W, H } = prepCanvas(cv); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H); AN_DRAW[k](g, W, H, cv); }); }
         st.append(p); }
       requestAnimationFrame(() => scopeFrame(0)); };

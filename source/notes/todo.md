@@ -1,6 +1,6 @@
 # Parked (remind the user)
 
-- Recurring: every few features, remind the user to run the safety/gain-staging/performance audit (tests/levels.cjs + full test suite + idle CPU check).
+- Recurring: every few features, remind the user to run the safety pass: notes/safety-pass.md (tests, levels, performance, security audit, and a hand review of what changed).
 
 - Drum rebuild DONE (fitted voice, 115 types). Open: user reviewing drum-ab-2 (kicks/cymbals); proposed recorded cymbals (AVL CC-BY-SA) + shaping; more reference packs can be added via tools/drumref (analyze → targets → fit → presets NAMES).
 - Idea (user asked): fit synth presets to user one-shots (WASM render in node + CMA on per-engine param subsets); possible in-app 'Match' later.

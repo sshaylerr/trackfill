@@ -1,4 +1,28 @@
 /* ---------- controls: knob (drag up/right), fader (drag up), bar (drag sideways, sheets); d-pad; double-tap resets ---------- */
+/* Scrolling a page that is full of controls. Knobs, displays and analyzer panels keep their touches to themselves (nothing jitters while you
+   turn them), so a page of them was hard to scroll. Now, as in the phone's own scroll views: a touch that starts moving straight up or down
+   at once scrolls the page, with the usual glide; a touch that rests a moment first, or moves sideways, works the control as before.
+   Only where the page can scroll at all; elsewhere controls answer at once, exactly as they always have. */
+const PS_REST = 140, PS_SLOP = 6;
+function psScroller(el) { for (let e = el.parentElement; e; e = e.parentElement) { const o = getComputedStyle(e).overflowY; if ((o === 'auto' || o === 'scroll') && e.scrollHeight > e.clientHeight + 1) return e; } return null; }
+// vertical: 'gate' (a quick start scrolls, a rested one is the control's) or 'always' (any vertical drag scrolls: the control has no use for it)
+function psStart(el, e, vertical = 'gate') { if (e.pointerType !== 'touch') return null; psGlideStop(); const sc = psScroller(el); if (!sc) return null;
+  return { sc, x: e.clientX, y: e.clientY, t: performance.now(), top: sc.scrollTop, mode: '', vertical, hist: [] }; }
+// returns 'scroll' (the page has it), 'ctl' (the control has it) or 'wait' (not moved far enough to tell)
+function psMove(g, e) { if (!g) return 'ctl';
+  if (!g.mode) { const dx = e.clientX - g.x, dy = e.clientY - g.y; if (Math.hypot(dx, dy) < PS_SLOP) return 'wait';
+    g.mode = Math.abs(dy) > Math.abs(dx) * 1.2 && (g.vertical === 'always' || performance.now() - g.t < PS_REST) ? 'scroll' : 'ctl'; }
+  if (g.mode === 'scroll') { const t = performance.now(); g.sc.scrollTop = g.top - (e.clientY - g.y); g.hist.push([t, e.clientY]); while (g.hist.length > 2 && t - g.hist[0][0] > 90) g.hist.shift(); }
+  return g.mode; }
+// the finger lifts: a scroll glides on at the finger's speed and slows the way the phone's own lists do
+let psGlide = 0;
+function psEnd(g) { if (!g || g.mode !== 'scroll') return false; const h = g.hist, n = h.length; if (n < 2) return true;
+  const dt = h[n - 1][0] - h[0][0], v0 = dt > 0 ? -(h[n - 1][1] - h[0][1]) / dt : 0; if (Math.abs(v0) < .15 || performance.now() - h[n - 1][0] > 80) return true;
+  let v = v0, last = performance.now(); const sc = g.sc, step = now => { const ms = Math.min(40, now - last); last = now; const before = sc.scrollTop; sc.scrollTop += v * ms; v *= Math.pow(.998, ms);
+    if (Math.abs(v) < .02 || sc.scrollTop === before) { psGlide = 0; return; } psGlide = requestAnimationFrame(step); };
+  psGlide = requestAnimationFrame(step); return true; }
+function psGlideStop() { if (psGlide) { cancelAnimationFrame(psGlide); psGlide = 0; } }
+
 function makeCtl(o, kind) {
   const mn = o.min ?? 0, mx = o.max ?? 1, step = o.step || .002, coarse = o.coarse || .02, big = o.big || coarse * 5;
   const q = v => { v = clamp(v, mn, mx); return Number((Math.round(v / step) * step).toFixed(6)); };
@@ -24,10 +48,11 @@ function makeCtl(o, kind) {
   }
   const setV = v => { v = q(v); if (v !== o.get()) { o.set(v); upd(); if (UI.panel) updatePanel(); } };
   let d = null, lastTap = 0;
-  el.addEventListener('pointerdown', e => { d = { x: e.clientX, y: e.clientY, x0: e.clientX, v: o.get(), drag: false, swipe: false, id: e.pointerId }; if (kind !== 'bar') { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {} } });
+  el.addEventListener('pointerdown', e => { d = { x: e.clientX, y: e.clientY, x0: e.clientX, v: o.get(), drag: false, swipe: false, id: e.pointerId, g: kind === 'knob' ? psStart(el, e) : null }; if (kind !== 'bar') { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {} } });
   el.addEventListener('pointermove', e => {
     if (!d || e.pointerId !== d.id) return; const dx = e.clientX - d.x, dy = e.clientY - d.y;
     if (d.swipe) return;
+    if (!d.drag && d.g) { const m = psMove(d.g, e); if (m !== 'ctl') return; }   // a quick vertical start: the page scrolls, the knob stays put
     if (!d.drag) { if (o.onSwipe && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) { d.swipe = true; return; }
       const go = kind === 'bar' ? (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) : o.onSwipe ? Math.abs(dy) > 6 && Math.abs(dy) >= Math.abs(dx) : Math.hypot(dx, dy) > 4; if (!go) return;
       d.drag = true; d.x = e.clientX; d.y = e.clientY; if (kind === 'bar') { try { el.setPointerCapture(e.pointerId); } catch (_) {} } el.classList.add('drag'); o.onStart && o.onStart(); return; }
@@ -36,6 +61,7 @@ function makeCtl(o, kind) {
     setV(d.v + frac * (mx - mn) * fine);
   });
   const end = e => { if (!d) return;
+    if (d.g && d.g.mode === 'scroll') { psEnd(d.g); d = null; return; }
     if (d.swipe) { const ex = e.clientX - d.x0; if (e.type === 'pointerup' && Math.abs(ex) > 40) o.onSwipe(ex < 0 ? 1 : -1); d = null; return; }
     if (d.drag) { el.classList.remove('drag'); o.onEnd && o.onEnd(); }
     else if (e.type === 'pointerup') { const n = Date.now();
@@ -78,3 +104,4 @@ function padParam(pi, k, o) {
     set: v => { const p = P.pads[pi]; touchPad(pi); if (k === 'start') v = Math.min(v, p.end - .01); if (k === 'end') v = Math.max(v, p.start + .01); p[k] = v; if ((k === 'start' || k === 'end') && p.chop) chopLater(pi); syncPad(pi); drawDisp(); markDirty(); },
     onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); } }), 'knob');
 }
+document.addEventListener('pointerdown', psGlideStop, true);   // any touch stops a glide, as on the phone's own lists
