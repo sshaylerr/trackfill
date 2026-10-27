@@ -128,13 +128,15 @@ const FIT_DEF = { kick: 'kick', snare: 'snare', clap: 'clap', hats: 'closed hat'
 function userDrumsSave(removeId) { const out = []; for (const mod in DRUM_MODS) for (const id in DRUM_MODS[mod].types) { const t = DRUM_MODS[mod].types[id]; if (t.m === 'Yours' && t.lib && id !== removeId) out.push({ mod, n: t.n, v: t.v, kind: t.kind }); else if (id === removeId) t.lib = false; }
   DB.put('kv', 'userDrums', out); }
 async function userDrumsLoad() { const L = await DB.get('kv', 'userDrums'); if (Array.isArray(L)) for (const u of L) { const id = drumAddUser(u.mod, u.n, u.v, u.kind); if (id) DRUM_MODS[u.mod].types[id].lib = true; } }
-function pickFitSample(pi) { ensureAudio(); const inp = h('input'); inp.type = 'file'; inp.accept = 'audio/*'; inp.hidden = true; document.body.append(inp);   // in the page: iOS only reports picks from inputs it can see
+// pick a sound file and hand over its first seconds as one channel at 48 kHz (Make from a sample, Match a sample)
+function pickMono(secs, onMono) { ensureAudio(); const inp = h('input'); inp.type = 'file'; inp.accept = 'audio/*'; inp.hidden = true; document.body.append(inp);   // in the page: iOS only reports picks from inputs it can see
   inp.onchange = async () => { const f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
     try { const ab = await f.arrayBuffer(), oc = new OfflineAudioContext(1, 1, 48000), buf = await new Promise((res, rej) => { const p = oc.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
-      const n = Math.min(buf.length, buf.sampleRate * 3), x = new Float32Array(n); for (let c = 0; c < buf.numberOfChannels; c++) { const ch = buf.getChannelData(c); for (let i = 0; i < n; i++) x[i] += ch[i] / buf.numberOfChannels; }
+      const n = Math.min(buf.length, Math.round(buf.sampleRate * secs)), x = new Float32Array(n); for (let c = 0; c < buf.numberOfChannels; c++) { const ch = buf.getChannelData(c); for (let i = 0; i < n; i++) x[i] += ch[i] / buf.numberOfChannels; }
       let pk = 0; for (const v of x) pk = Math.max(pk, Math.abs(v)); if (pk < 1e-4) return toast('That sample is silent');
-      openFitKind(pi, x, f.name.replace(/\.[^.]+$/, '').slice(0, 24)); }
+      onMono(x, tfName(f.name.replace(/\.[^.]+$/, ''), 24)); }
     catch (e) { toast('Could not read that file'); } }; inp.click(); }
+function pickFitSample(pi) { pickMono(3, (x, name) => openFitKind(pi, x, name)); }
 function openFitKind(pi, x, name) { const d = P.pads[pi].drum, def = FIT_DEF[d.mod];
   openSheet('What is it?', card => { const g = h('div', 'g3'); for (const [k, label] of FIT_KINDS) g.append(btn(label, () => { closeSheet(); runFit(pi, x, name, k); }, 'btn' + (k === def ? ' on' : ''))); card.append(g); }); }
 function fitWorker() { try { return new Worker(URL.createObjectURL(new Blob([TF_DRUMFIT_SRC + '\nonmessage = e => { for (const m of dfSteps(e.data)) postMessage(m); };'], { type: 'text/javascript' }))); } catch (e) { return null; } }

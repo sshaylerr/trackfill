@@ -528,7 +528,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 'use strict';
 /* ================= build-time payloads ================= */
 const WASM_BYTES = (() => { const s = atob("@WASM_B64@"), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; })();
-const WORKLET_SRC = "@HOST_SRC@" + `
+const HOST_SRC = "@HOST_SRC@", WORKLET_SRC = HOST_SRC + `
 class TFProc extends AudioWorkletProcessor {
   constructor(o) { super();
     const fail = e => this.port.postMessage({ t: 'err', msg: String(e && e.message || e) });
