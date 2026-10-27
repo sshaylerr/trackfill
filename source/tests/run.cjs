@@ -76,6 +76,11 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const p0 = a.filter(x => x[0] === 0).map(x => x[1]), p1 = a.filter(x => x[0] === 1).map(x => x[1]);
     const swung = Math.abs((p0[1] - p0[0]) - 36 * spt) < 2, late = Math.abs(p0[0] - p1[0] - 480) < 2, straight = Math.abs((p1[1] - p1[0]) - 24 * spt) < 2;
     ok(swung && late && straight, `a pad's own swing and timing: its offbeat 16th lands ${((p0[1] - p0[0]) / spt).toFixed(1)} ticks after the downbeat, ${((p0[0] - p1[0]) / 48).toFixed(1)} ms after the other pad, which stays straight`);
+    { // the swing grid: 1/8 pushes the offbeat 8th (and the 16ths inside the pair move with it, in order); a pad's own grid wins over the song's
+      const at = setup => { const h = run(Q => { Q.scenes[0].notes = { 0: [0, 24, 48, 72, 96].map(t => ({ t, len: 6, p: 0, v: .9 })) }; setup(Q); }, [{ t: 'play', scene: 0, loop: 'scene' }]).filter(x => x[0] === 0); return h.slice(0, 5).map(x => Math.round((x[1] - h[0][1]) / spt)); };
+      const e8 = at(Q => { Q.swing = 1; Q.swq = 48; }), e16 = at(Q => { Q.swing = 1; Q.swq = 24; }), e32 = at(Q => { Q.swing = 1; Q.swq = 12; }), own = at(Q => { Q.swing = 1; Q.swq = 24; Q.pads[0].swg = 1; Q.pads[0].swq = 48; });
+      const want8 = [0, 36, 72, 84, 96], want16 = [0, 36, 48, 84, 96], want32 = [0, 24, 48, 72, 96], same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+      ok(same(e8, want8) && same(e16, want16) && same(e32, want32) && same(own, want8), `swing grids at 75%: 1/8 ${e8.join(' ')} · 1/16 ${e16.join(' ')} · 1/32 ${e32.join(' ')} (ticks) · a pad's own 1/8 over the song's 1/16 ${same(own, want8) ? 'works' : 'fails: ' + own.join(' ')}`); }
     const f = run(() => {}, [{ t: 'play', scene: 0, loop: 'scene', from: 48 }], 60), first = f.filter(x => x[0] === 0);
     const rg = run(() => {}, [{ t: 'range', v: { scene: 0, a: 24, b: 72 } }, { t: 'play', scene: 0, loop: 'scene', from: 24 }], 900).filter(x => x[0] === 0).slice(0, 5), gaps = rg.slice(1).map((x, i) => Math.round((x[1] - rg[i][1]) / spt));
     ok(first.length === 2 && f.every(x => x[0] === 0), `play from a start point: the first notes heard are the ones from there on (${first.length} of 4)`);

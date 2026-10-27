@@ -159,7 +159,12 @@ function tfValueAt(pts, t) {
   const a = pts[lo], b = pts[hi];
   return a.v + (b.v - a.v) * tfCurve((t - a.t) / Math.max(1e-9, b.t - a.t), a.c || 0);
 }
-function tfSwing(t, sw) { const r = ((t % 48) + 48) % 48; return Math.abs(r - 24) < 1e-4 ? sw * 12 : 0; }
+/* Swing on a grid g (ticks: 48 = 1/8, 24 = 1/16, 12 = 1/32): each pair of steps is stretched so the second one lands later (0 = straight,
+   1 = 75%, a dotted feel), and everything in between moves with it, so a roll inside the pair stays in order and evenly spread. */
+const TF_SWQ = [48, 24, 12];
+function tfSwing(t, sw, g = 24) { if (!sw) return 0; const r = ((t % (2 * g)) + 2 * g) % (2 * g), s = sw * g / 2; return (r <= g ? r : 2 * g - r) / g * s; }
+// a pad's groove: its own swing and grid, or the song's
+function tfGroove(P, pad) { const own = pad && pad.swg != null; return { sw: own ? pad.swg : P.swing || 0, g: (own && pad.swq) || P.swq || 24 }; }
 function tfDest(P, c) {
   if (c === TF.MASTER) return -1;
   const o = P.chans[c].out;
@@ -346,10 +351,10 @@ class TFHost {
     switch (m.t) {
       case 'project': this.P = m.P; this.idx = []; this.syncAll(); break;
       case 'scene': P.scenes[m.i] = m.v; this.idx[m.i] = null; this.fresh.set(m.i, this.now); break;
-      case 'pad': { const o = P.pads[m.i]; if (!o || o.swg !== m.v.swg || o.tim !== m.v.tim) this.idx = []; P.pads[m.i] = m.v; this.syncPad(m.i); break; }   // its groove changed: re-time the notes
+      case 'pad': { const o = P.pads[m.i]; if (!o || o.swg !== m.v.swg || o.swq !== m.v.swq || o.tim !== m.v.tim) this.idx = []; P.pads[m.i] = m.v; this.syncPad(m.i); break; }   // its groove changed: re-time the notes
       case 'chan': P.chans[m.i] = m.v; this.syncChan(m.i); this.syncMutes(); this.buildDuck(); break;
       case 'chans': for (const [i, v] of m.v) { P.chans[i] = v; this.syncChan(i); } this.syncMutes(); this.buildDuck(); break;
-      case 'song': if (m.v.swing !== P.swing || (m.v.bpm !== P.bpm && P.pads.some(p => p.tim))) this.idx = []; Object.assign(P, m.v); this.ex.tf_set_bpm(P.bpm); break;
+      case 'song': if (m.v.swing !== P.swing || (m.v.swq || 24) !== (P.swq || 24) || (m.v.bpm !== P.bpm && P.pads.some(p => p.tim))) this.idx = []; Object.assign(P, m.v); this.ex.tf_set_bpm(P.bpm); break;
       case 'sample': this.addSample(m.key, m.data, m.frames, m.ch, m.sr); break;
       case 'ins': this.setIns(m.key, m.zones); break;
       case 'wtable': this.addTable(m.key, m.F, m.lv, m.fund); break;
@@ -622,7 +627,7 @@ class TFHost {
           if (pos && this.arpOut.length < 256) this.arpOut.push([a.pi, x.semi, +x.vel.toFixed(3), pos.scene, +pos.tick.toFixed(3), Math.max(1, Math.round(a.rate * a.gate))]); }
         if (this.post && this.flashes.length < 64) { this.flashes.push(a.pi); this.flashT.push(this.now + off); }
         // the next step: on the transport's grid while playing (swing included), free-running from the tap when stopped
-        if (pos) { let nt = (Math.floor(pos.tick / a.rate + 1e-6) + 1) * a.rate; if (nt - pos.tick < a.rate * .5) nt += a.rate; a.next = T + (nt + tfSwing(nt, pad.swg != null ? pad.swg : this.P.swing || 0) - pos.tick) / tps; }
+        if (pos) { let nt = (Math.floor(pos.tick / a.rate + 1e-6) + 1) * a.rate; if (nt - pos.tick < a.rate * .5) nt += a.rate; a.next = T + (nt + tfSwing(nt, tfGroove(this.P, pad).sw, tfGroove(this.P, pad).g) - pos.tick) / tps; }
         else a.next = T + stepF;
       }
     }
@@ -660,8 +665,8 @@ class TFHost {
   }
   noteIndex(si, sc, len) {   // all notes of a scene, swing applied, sorted by time; rebuilt only when the scene changes
     let ix = this.idx[si]; if (ix) return ix; ix = [];
-    for (const k in sc.notes) { const pad = this.P.pads[k], sw = pad && pad.swg != null ? pad.swg : this.P.swing, ms = pad && pad.tim || 0;   // each pad's own swing, or the song's; and its timing offset
-      for (const n of sc.notes[k]) { let nt = n.t + tfSwing(n.t, sw); if (ms) nt += ms / 1000 * tfBpmAt(this.P, si, n.t) * TF.PPQ / 60;
+    for (const k in sc.notes) { const pad = this.P.pads[k], { sw, g } = tfGroove(this.P, pad), ms = pad && pad.tim || 0;   // each pad's own swing, or the song's; and its timing offset
+      for (const n of sc.notes[k]) { let nt = n.t + tfSwing(n.t, sw, g); if (ms) nt += ms / 1000 * tfBpmAt(this.P, si, n.t) * TF.PPQ / 60;
         nt = Math.max(0, Math.min(len - 1e-3, nt)); ix.push({ nt, pi: +k, n }); } }
     ix.sort((a, b) => a.nt - b.nt); this.idx[si] = ix; return ix;
   }
@@ -763,4 +768,4 @@ async function tfRenderOffline(module, P, samples, opts) {
   }
   return { L, R, sr };
 }
-if (typeof module !== 'undefined') module.exports = { TF_TEMPO_KEY, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

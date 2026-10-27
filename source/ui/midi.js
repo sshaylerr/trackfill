@@ -14,9 +14,9 @@ function midiExport(order) {
   for (const { scene, reps } of order) { const sc = P.scenes[scene], len = sc.bars * BAR;
     for (let r = 0; r < Math.max(1, reps); r++) {
       for (let t = 0; t < len; t += 24) { const b = +tfBpmAt(P, scene, t).toFixed(2); if (b !== lastBpm) { tempo(base + t, b); lastBpm = b; } if (!(sc.auto && sc.auto[TF_TEMPO_KEY] && sc.auto[TF_TEMPO_KEY].length)) break; }
-      for (const k in sc.notes) { const pi = +k, pad = P.pads[pi], sw = pad.swg != null ? pad.swg : P.swing, ms = pad.tim || 0; if (!(sc.notes[k] || []).length) continue;
+      for (const k in sc.notes) { const pi = +k, pad = P.pads[pi], { sw, g } = tfGroove(P, pad), ms = pad.tim || 0; if (!(sc.notes[k] || []).length) continue;
         const ev = pads.get(pi) || []; pads.set(pi, ev);
-        for (const n of sc.notes[k]) { let nt = n.t + tfSwing(n.t, sw); if (ms) nt += ms / 1000 * tfBpmAt(P, scene, n.t) * PPQ / 60; nt = Math.max(0, Math.min(len - 1, nt));
+        for (const n of sc.notes[k]) { let nt = n.t + tfSwing(n.t, sw, g); if (ms) nt += ms / 1000 * tfBpmAt(P, scene, n.t) * PPQ / 60; nt = Math.max(0, Math.min(len - 1, nt));
           const key = Math.max(0, Math.min(127, 60 + Math.round(n.p || 0))), on = Math.round(base + nt), off = Math.max(on + 1, Math.round(base + nt + n.len));
           ev.push([on, 1, [0x90, key, Math.max(1, Math.min(127, Math.round(n.v * 127)))]], [off, 0, [0x80, key, 64]]); } }
       base += len; } }

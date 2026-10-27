@@ -768,7 +768,7 @@ function savePrefs() { DB.put('kv', 'ui', { strip: UI.strip, theme: UI.theme, pa
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
 function scopeGet(sc) { const [k, i] = sc.split(':'), n = +i;
   switch (k) { case 'scene': return P.scenes[n]; case 'pad': return P.pads[n]; case 'chan': return P.chans[n];
-    case 'song': return { name: P.name, bpm: P.bpm, swing: P.swing, key: P.key }; default: return P; } }
+    case 'song': return { name: P.name, bpm: P.bpm, swing: P.swing, swq: P.swq || 24, key: P.key }; default: return P; } }
 // undo and redo can bring back a pad whose rendered sound (drum hit, stretched sample) was dropped when it changed: render it again
 function reviveRenders(pi) { const pad = P.pads[pi]; if (!pad) return;
   if (pad.drum && !SAMPLES.has(pad.sample) && typeof drumSampleId === 'function') pad.sample = drumSampleId(pi);
@@ -834,7 +834,7 @@ function samplePeakMap(s) { if (s._pk) return s._pk; const B = 1024, ch = s.ch, 
 function normGain(p) { const s = SAMPLES.get(p.sample); if (!s || !s.data) return 1; const pk = samplePeakMap(s), a = Math.floor(p.start * s.frames / 1024), b = Math.min(pk.length - 1, Math.ceil(p.end * s.frames / 1024)); let m = 0; for (let k = a; k <= b; k++) if (pk[k] > m) m = pk[k]; return m > 1e-4 ? Math.min(16, 0.891 / m) : 1; }
 function syncPad(i) { const p = P.pads[i]; if (p.norm) p.ng = normGain(p); ensureIns(insOf(p)); ensureSample(p.sample); if (p.stx) ensureSample(p.stx); if (typeof stretchCheck === 'function') stretchCheck(i); const gs = grSrc(p); if (gs) { if (gs.startsWith('b:')) buildBuiltin(gs.slice(2)); ensureSample(gs); } for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
 function syncChan(c) { send({ t: 'chan', i: c, v: P.chans[c] }); }
-function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing } }); updateTransport(); if (typeof stretchAllSoon === 'function') stretchAllSoon(); }   // stretched pads follow the tempo
+function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing, swq: P.swq || 24 } }); updateTransport(); if (typeof stretchAllSoon === 'function') stretchAllSoon(); }   // stretched pads follow the tempo
 function syncProject() { if (!ENG.node) return; for (const p of P.pads) ensureIns(insOf(p)); for (const id of usedSampleIds()) ensureSample(id); for (const k of tableKeys()) ensureTable(k); upPrefer(UI.scene); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
 function sendParam(key, v) { send({ t: 'param', key, v }); }
 function silentWavUrl() { const sr = 8000, n = sr / 2, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), ws = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
@@ -1370,8 +1370,8 @@ const LIT_HOLD = .09, LIT_FADE = .25;
 function tlLit() { const cv = TL.glow; if (!cv || !cv.isConnected || !TL.W) return; const tl = UI.tl, pos = T.playing ? VIS.pos : null, lit = [];
   if (pos && pos.scene === UI.scene && tl.lane === 'notes') { const sc = P.scenes[UI.scene], st = spt(), hold = LIT_HOLD / st, fade = LIT_FADE / st, tick = pos.tick;
     const pads = tl.mode === 'bank' ? Array.from({ length: 16 }, (_, k) => UI.bank * 16 + k) : [UI.pad];
-    for (const pi of pads) { const pad = P.pads[pi], sw = pad.swg != null ? pad.swg : P.swing, ms = (pad.tim || 0) / 1000, sl = sceneLen(UI.scene);
-      for (const n of sc.notes[pi] || []) { const s0 = Math.max(0, Math.min(sl - 1e-3, n.t + tfSwing(n.t, sw) + (ms ? ms * tfBpmAt(P, UI.scene, n.t) * BEAT / 60 : 0))); if (tick < s0) continue; const end = Math.max(s0 + n.len, s0 + hold);   // s0: just where the engine places it
+    for (const pi of pads) { const pad = P.pads[pi], { sw, g } = tfGroove(P, pad), ms = (pad.tim || 0) / 1000, sl = sceneLen(UI.scene);
+      for (const n of sc.notes[pi] || []) { const s0 = Math.max(0, Math.min(sl - 1e-3, n.t + tfSwing(n.t, sw, g) + (ms ? ms * tfBpmAt(P, UI.scene, n.t) * BEAT / 60 : 0))); if (tick < s0) continue; const end = Math.max(s0 + n.len, s0 + hold);   // s0: just where the engine places it
         const lv = tick < end ? 3 : 2 - Math.floor((tick - end) / fade * 3); if (lv <= 0) continue;
         const r = tl.mode === 'bank' ? pi - UI.bank * 16 : KR.row(n.p); if (r < 0 || r > maxRow()) continue; lit.push({ pi, n, r, lv }); } } }
   const sig = lit.map(x => x.pi + ':' + x.n.t + ':' + x.n.p + ':' + x.lv).join('|'); if (sig === TL.litSig) return; TL.litSig = sig;
@@ -1708,15 +1708,19 @@ function openTempo() {
     const tp = paramEl({ label: 'Tempo', min: 40, max: 220, step: .1, coarse: 1, big: 10, dragStep: 1, entry: ENTRY.bpm, get: () => P.bpm, set: v => { P.bpm = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 96, fmt: v => (+v.toFixed(1)) + ' BPM', noFocus: true });
     g.append(tp, paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, entry: ENTRY.swing, get: () => P.swing, set: v => { P.swing = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 0, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
     const tap = btn('Tap tempo', () => { const n = performance.now(); taps = taps.filter(t => n - t < 2500); taps.push(n); if (taps.length >= 3) { const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); P.bpm = clamp(Math.round(60000 / iv), 40, 220); tp._upd(); syncSong(); markDirty(); } });
-    tap.style.height = '56px'; tap.style.width = '100%'; tap.style.marginTop = '10px'; card.append(g, tap);
+    // the swing grid: which steps get pushed late (1/16 for hats and breaks, 1/8 for a shuffle, 1/32 for fast rolls)
+    const swRow = (cur, set) => { const row = h('div', 'g3'); row.style.marginTop = '8px'; [[48, '1/8'], [24, '1/16'], [12, '1/32']].forEach(([v, l]) => row.append(btn('Swing ' + l, () => set(v), 'btn' + (cur === v ? ' on' : '')))); return row; };
+    tap.style.height = '56px'; tap.style.width = '100%'; tap.style.marginTop = '10px';
+    card.append(g, swRow(P.swq || 24, v => { if ((P.swq || 24) === v) return; pushUndo('song'); P.swq = v; syncSong(); markDirty(); closeSheet(); openTempo(); }), tap);
     // this pad's groove: the song's swing or its own, and a timing offset (hats a touch late, a snare a touch early)
     { const pi = UI.pad, pad = P.pads[pi], own = pad.swg != null, set = (k, v) => { pad[k] = v; touchPad(pi); syncPad(pi); markDirty(); };
       card.append(h('div', 'sec', 'This pad · ' + esc(padLabel(pi) + ' ' + (pad.name || ''))));
-      const row = h('div', 'g2'); row.append(btn('Song swing · ' + Math.round(50 + P.swing * 25) + '%', () => { pushUndo('pad:' + pi); set('swg', null); closeSheet(); openTempo(); }, 'btn' + (own ? '' : ' on')), btn('Own swing', () => { if (own) return; pushUndo('pad:' + pi); set('swg', P.swing); closeSheet(); openTempo(); }, 'btn' + (own ? ' on' : ''))); card.append(row);
+      const row = h('div', 'g2'); row.append(btn('Song swing · ' + Math.round(50 + P.swing * 25) + '% · 1/' + 384 / (P.swq || 24), () => { pushUndo('pad:' + pi); set('swq', null); set('swg', null); closeSheet(); openTempo(); }, 'btn' + (own ? '' : ' on')), btn('Own swing', () => { if (own) return; pushUndo('pad:' + pi); set('swq', P.swq || 24); set('swg', P.swing); closeSheet(); openTempo(); }, 'btn' + (own ? ' on' : ''))); card.append(row);
       const g2 = h('div', 'g2'); g2.style.marginTop = '8px';
       if (own) g2.append(paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, entry: ENTRY.swing, get: () => pad.swg, set: v => set('swg', v), onStart: () => pushUndo('pad:' + pi), def: P.swing, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
       g2.append(paramEl({ label: 'Timing', min: -40, max: 40, step: .5, coarse: 2, big: 10, entry: ENTRY.ms, get: () => pad.tim || 0, set: v => set('tim', v), onStart: () => pushUndo('pad:' + pi), def: 0, bipolar: true, fmt: v => !v ? 'On time' : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + ' ms ' + (v > 0 ? 'late' : 'early'), noFocus: true }));
-      if (!own) g2.style.gridTemplateColumns = '1fr'; card.append(g2); }
+      if (!own) g2.style.gridTemplateColumns = '1fr'; card.append(g2);
+      if (own) card.append(swRow(pad.swq || P.swq || 24, v => { pushUndo('pad:' + pi); set('swq', v); closeSheet(); openTempo(); })); }
     const ck = h('div', 'g2'), pick = (title, opts, cur, set) => { card.append(h('div', 'sec', title)); const row = h('div', 'g3');
       opts.forEach(([v, l]) => row.append(btn(l, () => { set(v); savePrefs(); sendClick(); closeSheet(); openTempo(); }, 'btn' + (cur === v ? ' on' : '')))); card.append(row); };
     pick('Click', [['off', 'Off'], ['rec', 'Recording'], ['always', 'Always']], UI.click, v => UI.click = v);
