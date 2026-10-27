@@ -1,5 +1,7 @@
 # Parked (remind the user)
 
+- NEXT PASS (user asked, Oct 27): Step FX must follow the timeline: after stop/start (and jumps, loop range) its grid restarts in step with the song instead of carrying on from where it left off. Also add a Tape stop speed control to its tape-stop action.
+
 - Recurring: every few features, remind the user to run the safety pass: notes/safety-pass.md (tests, levels, performance, security audit, and a hand review of what changed).
 
 - Drum rebuild DONE (fitted voice, 115 types). Open: user reviewing drum-ab-2 (kicks/cymbals); proposed recorded cymbals (AVL CC-BY-SA) + shaping; more reference packs can be added via tools/drumref (analyze → targets → fit → presets NAMES).

@@ -308,6 +308,12 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       Q.chans.forEach(c => { c.fx = []; }); Object.assign(Q.pads[20], { src: 'synth', syn: patch, mode: 'gate', voice: 'poly', poly: 8, glide: 0 }, pad); host.msg({ t: 'project', P: Q });
       const L = new Float32Array(128), R = new Float32Array(128), run = (n, f) => { let e = 0, bad = 0, pk = 0; const blocks = []; for (let i = 0; i < n; i++) { host.render(128, L, R); let b = 0; for (let j = 0; j < 128; j++) { const v = L[j]; if (!(v === v)) bad++; b += v * v; pk = Math.max(pk, Math.abs(v)); } e += b; blocks.push(b); } return { e: e / (n * 128), bad, pk, blocks }; };
       return { ex, host, run, Q }; };
+    { // the sub oscillator: in the same octave as osc 1, one under, or two under
+      const hz = oct => { const { host } = mk(SP.synPatch({ n: 't', p: { o1l: 0, sbl: 1, sbo: oct, sbw: 'Sine', flt: 'Off', dri: 0, aa: .001, as: 1 } })); host.msg({ t: 'hit', pad: 20, semi: 0, vel: .8, tag: 3 });
+        const L = new Float32Array(128), R = new Float32Array(128), x = []; for (let i = 0; i < 600; i++) { host.render(128, L, R); if (i > 150) x.push(...L); }
+        let z = [], i0 = -1; for (let i = 1; i < x.length; i++) if (x[i - 1] < 0 && x[i] >= 0) z.push(i - x[i] / (x[i] - x[i - 1])); return 48000 * (z.length - 1) / (z[z.length - 1] - z[0]); };
+      const f0 = hz('0 oct'), f1 = hz('−1 oct'), f2 = hz('−2 oct');
+      ok(Math.abs(f0 / f1 - 2) < .01 && Math.abs(f1 / f2 - 2) < .01, `sub oscillator octaves: 0 → ${f0.toFixed(1)} Hz, −1 → ${f1.toFixed(1)} Hz, −2 → ${f2.toFixed(1)} Hz`); }
     // parameter maps: the engine and the app agree on every parameter
     { const { ex } = mk(SP.synPatch()); let worst = 0; for (const p of H.TFSYN) if (p.k !== 'opt') for (const n of [0, .13, .5, .77, 1]) { const a = ex.tf_syn_map(p.i, n), b = p.k === 'db' ? Math.pow(10, H.tfSynPhys(p, n) / 20) : H.tfSynPhys(p, n); worst = Math.max(worst, Math.abs(a - b) / Math.max(1, Math.abs(b))); }
       ok(worst < 2e-3, `engine and app read all ${H.TFSYN.length} synth parameters the same way (worst ${worst.toExponential(1)})`); }

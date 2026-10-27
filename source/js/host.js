@@ -51,7 +51,7 @@ const TFSYN = (() => {
   osc(3, { w: 'Square', l: 0, o: -1 }); L.push(['o3x', 'Mode', 'opt', ['Audio', 'LFO'], 0, 'Audio', 'o3'], ['o3r', 'LFO rate', 'exp', .05, 20, 2, 'o3']);
   L.push(['dri', 'Drift', 'lin', 0, 1, .15, 'vo'], ['fbk', 'Feedback', 'lin', 0, 1, 0, 'vo'], ['uni', 'Unison', 'int', 1, 7, 1, 'vo'],
     ['det', 'Detune', 'lin', 0, 1, .25, 'vo'], ['spr', 'Spread', 'lin', 0, 1, .6, 'vo'], ['vel', 'Velocity', 'lin', 0, 1, .5, 'vo'], ['pit', 'Pitch', 'lin', -24, 24, 0, 'vo'], ['gan', 'Level', 'db', -24, 6, 0, 'vo']);
-  L.push(['sbl', 'Sub', 'lin', 0, 1, 0, 'sb'], ['sbo', 'Octave', 'opt', ['−1 oct', '−2 oct'], 0, '−1 oct', 'sb'], ['sbw', 'Wave', 'opt', ['Sine', 'Triangle', 'Square'], 0, 'Sine', 'sb'],
+  L.push(['sbl', 'Sub', 'lin', 0, 1, 0, 'sb'], ['sbo', 'Octave', 'opt', ['0 oct', '−1 oct', '−2 oct'], 0, '−1 oct', 'sb'], ['sbw', 'Wave', 'opt', ['Sine', 'Triangle', 'Square'], 0, 'Sine', 'sb'],
     ['spl', 'Split', 'lin', 0, 1, 0, 'sb'], ['spn', 'Split below', 'int', 24, 96, 96, 'sb']);
   L.push(['nzn', 'Noise', 'lin', 0, 1, .7, 'nz'], ['nzt', 'Tone', 'lin', 0, 1, .6, 'nz'], ['nzb', 'Body', 'lin', 0, 1, .5, 'nz'], ['nzd', 'Drive', 'lin', 0, 1, .4, 'nz'],
     ['nzh', 'High-pass', 'exp', 100, 12000, 1500, 'nz'], ['nzl', 'Level', 'lin', 0, 1, 0, 'nz'], ['nzo', 'Body oct', 'opt', ['0', '−1 oct', '−2 oct'], 0, '−1 oct', 'nz'], ['nzk', 'Track', 'opt', ['Off', 'On'], 0, 'Off', 'nz']);
@@ -754,18 +754,19 @@ async function tfRenderOffline(module, P, samples, opts) {
   if (opts.stem != null && inst.exports.tf_stem) inst.exports.tf_stem(opts.stem);   // one stem: only this source feeds the master
   const tps = P.bpm * TF.PPQ / (60 * sr), order = opts.order;
   let total = 0; for (const o of order) total += tfSceneSamples(P, o.scene, sr) * o.reps;
+  if (opts.maxSec) total = Math.min(total, Math.round(opts.maxSec * sr));   // a timing test: only the first few seconds
   const tail = Math.round((opts.tail || 0) * sr), N = total + tail;
   if (N > sr * 600) throw new Error('longer than 10 minutes');
   const L = new Float32Array(N), R = new Float32Array(N), sL = new Float32Array(128), sR = new Float32Array(128);
   host.start(order[0].scene, order.length === 1 && order[0].reps === 1 ? 'scene' : 'song');
   let pre = host.LA; while (pre > 0) { const m = Math.min(128, pre); host.render(m, sL, sR); pre -= m; }   // pre-roll the lookahead
-  let done = 0, blocks = 0;
+  let done = 0, blocks = 0, busy = 0; const clock = opts.time && typeof performance !== 'undefined';   // time: how long the engine itself took (pauses for the screen left out)
   while (done < N) {
     if (done >= total && host.playing) host.stop(true);
     const m = Math.min(128, N - done, done < total ? total - done : N - done);
-    host.render(m, sL, sR); L.set(sL.subarray(0, m), done); R.set(sR.subarray(0, m), done); done += m;
+    const c0 = clock ? performance.now() : 0; host.render(m, sL, sR); if (clock) busy += performance.now() - c0; L.set(sL.subarray(0, m), done); R.set(sR.subarray(0, m), done); done += m;
     if (++blocks % 400 === 0) { if (opts.onProgress) opts.onProgress(done / N); await new Promise(r => setTimeout(r, 0)); }
   }
-  return { L, R, sr };
+  return { L, R, sr, busy: busy / 1000 / (N / sr) };   // busy: the share of real time the engine needed
 }
 if (typeof module !== 'undefined') module.exports = { TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

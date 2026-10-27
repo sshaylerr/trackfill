@@ -296,7 +296,7 @@ function drawSynDisp() {
     grid(); const fx = f => Math.log(f / 20) / Math.log(1000) * W, yv = db => H * .15 + (-db / 36) * H * .7;
     if (tab === 'sb') { const spl = v('spl'), ratio = .6 + spl * 2.4, f0 = 65.4, fc = Math.max(30, Math.min(300, f0 * ratio));
       g.globalAlpha = .9; line(x => { const f = 20 * Math.pow(1000, x); if (spl < .001) return yv(0); const r4 = Math.pow(f / fc, 4); return yv(10 * Math.log10(r4 * r4 / (1 + r4 * r4) + 1e-9) / 1); }, col);
-      if (v('sbl') > .001) { const fs = f0 * (v('sbo') === '−2 oct' ? .25 : .5); g.fillStyle = COL.accent; const x = fx(fs); g.fillRect(x - 2, yv(0) + 4, 4, H * .7 * v('sbl')); txt('sub', x + 6, yv(0) + 14, COL.accent); }
+      if (v('sbl') > .001) { const fs = f0 * (v('sbo') === '−2 oct' ? .25 : v('sbo') === '0 oct' ? 1 : .5); g.fillStyle = COL.accent; const x = fx(fs); g.fillRect(x - 2, yv(0) + 4, 4, H * .7 * v('sbl')); txt('sub', x + 6, yv(0) + 14, COL.accent); }
       txt(spl < .001 ? 'Sub split off · the engine keeps its own low end' : `Engine cut below ${Math.round(fc)} Hz on a C2, following every note`, 8, 12); }
     else { const n = v('nzn'), b = v('nzb'), d = v('nzd'); let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647 * 2 - 1;
       line(x => H / 2 - Math.tanh((rnd() * n * .8 + Math.sin(x * 12 * Math.PI) * b) * (1 + d * d * 24) * .5) * H * .32, col, 1.2);

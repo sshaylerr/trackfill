@@ -13,9 +13,10 @@ Run in this order after `./build.sh`:
    - web build under its content policy: engine, drum-fit worker and MP3 still work; injected code refused; nothing can be sent out
    - the app asks no other site for anything
    - the hold-to-type value box: markup and junk typed in never run, values stay in range
-5. `node tools/audit/smoke.cjs`: the app from a user's side, at three phone sizes (deploy.sh runs `--quick`, one size, and won't publish if it fails):
+5. `node tools/audit/smoke.cjs`: the app from a user's side, at three iPhone sizes and two Android phones (Chrome) (deploy.sh runs `--quick`, one size, and won't publish if it fails):
    - starts with no errors; every page, Sound page (sample, drum, every synth engine page and tab), every effect and mode, and 28 menus open cleanly
-   - nothing wider than the screen; the transport and tab bar never move between pages
+   - nothing wider than the screen, no toolbar key cut off, every canvas shown at the size it was drawn; the transport and tab bar never move between pages
+   - older browsers: one that can't run the app gets a plain explanation; one without CSS colour mixing still runs, colours mixed for it, and Engine check says so
    - the d-pad reaches every control on every page and menu, from where it starts, using only the arrows
    - 20 s of playback: no growing pile of page elements or memory
    - a saved project reopens exactly as it was, and a backup file brings it back exactly
@@ -38,3 +39,5 @@ Also review by hand whatever changed since the last pass:
 - Meters: tests/run.cjs "meters" (every meter within 0.05 dB of what's heard).
 - Repository (it is public): no personal data, no third-party audio, no pack names (the drum-fitting reference data stays local; deploy.sh excludes it). Commits use the GitHub no-reply address.
 - UI names are generic, never brand or product names.
+
+Devices (no real older iPhone or Android to hand yet): the support check at startup and Engine check's "Test this device" are the field tools; ask testers to copy Engine check results.

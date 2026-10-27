@@ -214,6 +214,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .toolbar .lcdbox{flex:1 1 0}
 .toolbar{overflow:hidden}.toolbar .key.sm{padding:0 7px}
 .seqView .toolbar{gap:5px} .seqView .toolbar .key.sm.ic{width:32px;min-width:32px;padding:0;flex:none} .seqView .toolbar .lanebox{min-width:60px;padding:0 6px;gap:3px} .seqView .toolbar .key.sm:not(.ic){padding:0 6px}   /* the timeline's row: icon keys stay square so the lane name keeps its room */
+@media (max-width:389px) { .seqView .toolbar{gap:4px} .seqView .toolbar .key.sm.ic{width:29px;min-width:29px} .seqView .toolbar .key.sm:not(.ic){padding:0 5px} .seqView .toolbar .lanebox{padding:0 5px} }   /* smaller phones: a little tighter */
 .key.follow.held svg{fill:var(--accent);opacity:.5}   /* following, paused while you work: tap to pick the playhead up again */
 .padsView{container-type:inline-size;padding-bottom:3px}
 @media (max-width:420px){.padsSel{display:none!important}}
@@ -403,7 +404,11 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .drow .st{font-weight:700;font-size:13px}
 .drow .st.ok{color:var(--play)}.drow .st.warn{color:var(--accent)}.drow .st.fail{color:var(--rec)}
 .drow b{display:block;font-size:13.5px}
-.drow span{display:block;font-family:var(--font-lcd);font-size:11.5px;font-weight:400;color:var(--mute);word-break:break-word;margin-top:2px}
+@supports not (color:color-mix(in srgb,red 50%,blue)) {   /* older browsers: plain stand-ins for the mixed pad and row tints */
+  .pad::after,.spad::after,.spk::after{background:#2c2c31} .litr{background:rgba(255,255,255,.07)}
+  #sheet .card :is(.g2,.g3,.g4):not(.hrow)>.btn.on,#sheet .card .stack>.btn.on,#sheet .card .lrow.on,#sheet .card .li.on{background:rgba(255,255,255,.05)} }
+.drow p{margin:3px 0 0;font-size:13px;line-height:1.35;color:var(--ink)}
+.drow span{display:block;font-family:var(--font-lcd);font-size:10.5px;font-weight:400;color:var(--mute);word-break:break-word;margin-top:2px}
 
 /* ---------- precision panel ---------- */
 #panel{flex:none;height:168px;background:linear-gradient(180deg,var(--body2),var(--body));border:1px solid var(--edge);border-radius:6px;padding:8px 10px 10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
@@ -469,7 +474,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 #toast::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)}
 #toast.show{opacity:1;transform:none}
 /* sound asleep (or not started): the screen dims, and the first tap only wakes the sound */
-#wakeShade{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
+#wakeShade{position:fixed;inset:0;z-index:40;background:linear-gradient(180deg,rgba(0,0,0,.62) 0,rgba(0,0,0,.62) calc(100% - 140px),rgba(0,0,0,0) 100%);   /* fades out at the bottom: the phone's own bar below it can't be dimmed */display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
 #wakeShade>div{display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;background:linear-gradient(180deg,#1b1b1f,#121215);border:1px solid var(--edge);
   color:var(--ink);font-weight:600;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
 #wakeShade>div::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
@@ -530,6 +535,29 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 <input type="file" id="fileAudio" accept="audio/*" multiple hidden>
 <input type="file" id="fileProj" accept=".json,application/json" hidden>
 
+<script>
+/* Can this browser run Trackfill? Written in old-style JavaScript on purpose, so it runs, and can explain, even where the app itself can't.
+   need: without these there is no app (say so plainly, with what works) · soft: the app works, with something less (Engine check says what). */
+(function () {
+  var need = [], soft = [], AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) need.push('playing sound');
+  else if (typeof AudioWorkletNode === 'undefined') need.push('real-time sound');
+  if (typeof WebAssembly !== 'object') need.push('the sound engine');
+  try { new Function('var a = {}; return a?.b ?? (() => 1)();'); } catch (e) { need.push('newer JavaScript'); }
+  if (typeof ResizeObserver === 'undefined' || typeof Promise === 'undefined') need.push('screen layout');
+  if (!(window.CSS && CSS.supports && CSS.supports('color', 'color-mix(in srgb, red 50%, blue)'))) soft.push('colours');
+  try { if (!window.indexedDB) soft.push('storage'); } catch (e) { soft.push('storage'); }
+  window.TF_SUPPORT = { need: need, soft: soft };
+  if (!need.length) return;
+  var list = need.length === 1 ? need[0] : need.slice(0, -1).join(', ') + ' and ' + need[need.length - 1];
+  var d = document.createElement('div');
+  d.setAttribute('style', 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:999;background:#141416;color:#ece8e0;font:16px/1.5 -apple-system,system-ui,sans-serif;padding:48px 24px;overflow:auto');
+  var t = document.createElement('h1'); t.setAttribute('style', 'font-size:22px;margin:0 0 14px;color:#f2b544'); t.textContent = 'Trackfill can’t run in this browser';
+  var p1 = document.createElement('p'); p1.textContent = 'It needs a few newer web features this browser doesn’t have yet, for ' + list + '.';
+  var p2 = document.createElement('p'); p2.textContent = 'Trackfill works on iPhone and iPad with iOS 14.5 or later (iOS 16.2 or later looks best), in Safari or any other browser, and on Android with a recent version of Chrome. Updating your device’s software, or your browser, should get it going.';
+  d.appendChild(t); d.appendChild(p1); d.appendChild(p2); document.body.appendChild(d);
+})();
+</script>
 <script>
 /*@MODEL@*/
 </script>
@@ -633,6 +661,10 @@ const BODY_VARS = ['body', 'body2', 'keyhi', 'keylo', 'glow'], SCR_VARS = ['bg',
 function applyTheme() {
   const th = THEMES.find(x => x.id === UI.theme) || THEMES[0], st = document.documentElement.style;
   st.setProperty('--accent', th.accent); st.setProperty('--accent-ink', th.ink);
+  if (window.TF_SUPPORT && TF_SUPPORT.soft.includes('colours')) {   // older browsers can't mix colours in CSS: the theme's shades are mixed here instead
+    const rgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16)), mix = (a, pct, b) => { const A = rgb(a), B = rgb(b); return 'rgb(' + A.map((v, i) => Math.round(v * pct + B[i] * (1 - pct))).join(',') + ')'; };
+    const a = th.accent; [['accent-hi', .62, '#ffffff'], ['accent-lo', .72, '#000000'], ['accent-deep', .34, '#000000'], ['accent-ring', .52, '#111111'], ['on1', .22, '#38362f'], ['on2', .16, '#2a2722']].forEach(([k, p, b]) => st.setProperty('--' + k, mix(a, p, b)));
+    const A = rgb(a); st.setProperty('--accent-glow', `rgba(${A.join(',')},.55)`); }
   BODY_VARS.forEach((k, i) => th.body ? st.setProperty('--' + k, th.body[i]) : st.removeProperty('--' + k));
   SCR_VARS.forEach((k, i) => th.scr ? st.setProperty('--' + k, th.scr[i]) : st.removeProperty('--' + k));
   document.body.dataset.pads = UI.padStyle || 'dark'; readColors();
@@ -925,7 +957,7 @@ async function renderOffline(order, tail, tap, onProgress, opts = {}) {
   const mod = await getModule(), samples = new Map();
   for (const id of usedSampleIds()) { const s = SAMPLES.get(id); if (s) samples.set(id, s); }
   const tables = new Map(); for (const k of tableKeys()) { const t = tableFor(k); if (t) tables.set(k, t); }
-  return tfRenderOffline(mod, opts.P || P, samples, { sr: opts.sr || 48000, order, tail, tap, onProgress, tables, stem: opts.stem });
+  return tfRenderOffline(mod, opts.P || P, samples, { sr: opts.sr || 48000, order, tail, tap, onProgress, tables, stem: opts.stem, maxSec: opts.maxSec, time: opts.time });
 }
 function audition(pi, semi = 0) { if (!ENG.node) return; const pad = P.pads[pi]; if (hasSound(pad)) { ensureSample(pad.sample); if (UPQ.jobs.length) upFlush(padNeeds(pi)); send({ t: 'hit', pad: pi, semi, vel: .8, gate: .25, tag: 0 }); } }
 function previewSample(id) { ensureAudio(); ensureSample(id, true); send({ t: 'preview', key: id }); }
@@ -1775,37 +1807,70 @@ function openMenu() {
 function afterLoad() { UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
 
 /* ---------- engine check ---------- */
+/* Engine check: each row says in plain words what it means for using the app, with the technical detail underneath (and in Copy results).
+   ok: nothing to do · warn: works, with something worth knowing · fail: a part of the app won't work here. */
+const LAT_OK = 30, LAT_SLOW = 60;   // ms from a tap to the sound (what the browser reports for its own path; Bluetooth adds more it can't see)
 async function runChecks() {
-  const rows = [], add = (st, name, detail) => rows.push({ st, name, detail }); ensureAudio();
-  const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-  add('ok', 'Device', `${ios ? 'iOS' : 'other'} · ${navigator.hardwareConcurrency || '?'} cores · ${screen.width}×${screen.height} @${devicePixelRatio}x`);
-  add('ok', 'Screen', `${innerWidth}×${innerHeight} of ${screen.width}×${screen.height}`);
-  add(ctx && ctx.state === 'running' ? 'ok' : 'warn', 'Audio', ctx ? `${ctx.state} · ${ctx.sampleRate} Hz · base ${((ctx.baseLatency || 0) * 1000).toFixed(1)} ms · output ${((ctx.outputLatency || 0) * 1000).toFixed(1)} ms` : 'not started');
-  if (ENG.errLog && ENG.errLog.length) add('fail', 'Engine errors', ENG.errLog.join(' | '));
-  if (APPERR.log.length) add('fail', 'App errors', APPERR.log.join(' | '));
-  add(ENG.ready ? 'ok' : 'fail', 'Audio engine', ENG.ready ? `running · CPU ${Math.round(REP.cpu * 100)}% · ${REP.voices} voices` : (ENG.err || 'starting…'));
-  const as = navigator.audioSession; add(as && as.type === 'playback' ? 'ok' : 'warn', 'Silent switch override', as ? 'audioSession = ' + as.type + (as.type === 'playback' ? '' : ' (not playback yet: tap a pad, then check again)') : 'audioSession not available; using the media-element workaround');
-  let wasmMain; try { await WebAssembly.compile(WASM_BYTES); wasmMain = 'ok'; } catch (e) { wasmMain = 'blocked: ' + e.message; } add(wasmMain === 'ok' ? 'ok' : 'fail', 'WebAssembly (main thread, for exports)', wasmMain);
-  const sab = typeof SharedArrayBuffer !== 'undefined'; add(sab && window.crossOriginIsolated ? 'ok' : 'warn', 'Shared memory', `SharedArrayBuffer ${sab ? 'present' : 'missing'} · crossOriginIsolated ${!!window.crossOriginIsolated} (not required)`);
-  add('ok', 'Safety', 'guard and hard clip run inside the engine; a second clip follows it');
-  try { const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null, per = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : null;
-    add(DB.ok ? 'ok' : 'fail', 'Local storage', `${DB.ok ? 'IndexedDB ok' : 'IndexedDB unavailable'} · persisted ${per} · ${est ? Math.round((est.usage || 0) / 1e6) + ' MB used of ' + Math.round((est.quota || 0) / 1e6) + ' MB' : 'quota unknown'}`); } catch (e) { add('warn', 'Local storage', e.message); }
-  const dl = await capDownloads(); add('ok', 'File saving', dl ? 'Claude save service' : 'share sheet (Save to Files)');
-  add(navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? 'warn' : 'fail', 'Microphone API', navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? 'present, but this hosted page is not allowed to use it' : 'absent');
-  add('requestMIDIAccess' in navigator ? 'ok' : 'warn', 'Web MIDI', 'requestMIDIAccess' in navigator ? 'available' : 'not available (expected on iPhone)');
+  const rows = [], add = (st, name, detail, tech) => rows.push({ st, name, detail, tech: tech || '' }); ensureAudio();
+  const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1), android = /Android/.test(ua);
+  const S = window.TF_SUPPORT || { need: [], soft: [] }, softTxt = { colours: 'some colours and shading look flatter than intended', storage: 'your work can’t be kept between visits' };
+  add(S.soft.length ? 'warn' : 'ok', 'This device', S.soft.length ? 'Everything works, but this browser version is a little older: ' + S.soft.map(k => softTxt[k] || k).join('; ') + '. Updating ' + (ios ? 'iOS' : 'the browser') + ' fixes it.' : 'Supports everything Trackfill uses.',
+    `${ios ? 'iOS' : android ? 'Android' : 'other'} · ${navigator.hardwareConcurrency || '?'} cores · screen ${screen.width}×${screen.height} @${devicePixelRatio}x · window ${innerWidth}×${innerHeight}${S.soft.length ? ' · missing: ' + S.soft.join(', ') : ''}`);
+  const run = ctx && ctx.state === 'running', lat = ctx ? ((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000 : 0;
+  add(run ? 'ok' : 'warn', 'Sound', run ? 'On.' : ctx ? 'Asleep to save battery. It wakes with your next tap.' : 'Not started yet. Tap a pad to start it.', ctx ? `${ctx.state} · ${ctx.sampleRate} Hz` : 'no audio context');
+  if (ctx) add(lat <= LAT_OK ? 'ok' : 'warn', 'Response time', lat <= LAT_OK ? 'Pads sound as soon as you tap them.'
+    : lat <= LAT_SLOW ? 'A slight delay between tapping a pad and hearing it. Fine for most playing; very fast finger drumming may feel a touch late.'
+    : 'A noticeable delay between tapping a pad and hearing it, so pads may feel less responsive when you play live. Playback and recording still stay in time.' + (ios ? ' Bluetooth headphones and speakers add more on top; the phone’s speaker or wired headphones respond fastest.' : ''),
+    `about ${Math.round(lat)} ms (base ${((ctx.baseLatency || 0) * 1000).toFixed(1)} ms · output ${((ctx.outputLatency || 0) * 1000).toFixed(1)} ms)`);
+  const cpu = REP.cpu || 0;
+  add(!ENG.ready ? 'fail' : cpu > .7 ? 'warn' : 'ok', 'Audio engine', !ENG.ready ? 'Not running, so there’s no sound. Try Restart audio below; if that doesn’t help, reload the page.'
+    : cpu > .7 ? 'Working hard: this song is close to what this device can play. If you hear crackles, freeze finished synth pads or remove effects you don’t need.' : 'Running smoothly.',
+    ENG.ready ? `load ${Math.round(cpu * 100)}% · ${REP.voices} voices` : (ENG.err || 'starting…'));
+  if (ENG.errLog && ENG.errLog.length || APPERR.log.length) add('fail', 'Recent problems', 'Something went wrong recently. The app kept going, but if anything behaved oddly, this is the likely reason. Copy results shares the details.', [...(ENG.errLog || []), ...APPERR.log].join(' | '));
+  if (DEVTEST.res) { const r = DEVTEST.res; add(r.st, 'Device power', r.detail, r.tech); }
+  if (ios) { const as = navigator.audioSession; add(as && as.type === 'playback' ? 'ok' : 'warn', 'Silent switch', as && as.type === 'playback' ? 'Sound plays even when the ring/silent switch is set to silent.' : 'If the switch on the side is set to silent, sound may stay muted until you tap a pad.',
+    as ? 'audioSession = ' + as.type : 'audioSession not available; using the media-element workaround'); }
+  let wasmMain; try { await getModule(); wasmMain = 'ok'; } catch (e) { wasmMain = e.message; }
+  add(wasmMain === 'ok' ? 'ok' : 'fail', 'Exports', wasmMain === 'ok' ? 'Songs, stems and bounces can be saved as audio files.' : 'This browser blocks the part that makes audio files, so exports and bounces won’t work here.', wasmMain === 'ok' ? 'WebAssembly on the main thread' : 'WebAssembly blocked: ' + wasmMain);
+  try { const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null, per = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : null, mb = est ? Math.round((est.usage || 0) / 1e6) : null;
+    const home = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+    add(!DB.ok ? 'fail' : ios && !home && !per ? 'warn' : 'ok', 'Your work', !DB.ok ? 'This browser isn’t keeping your work between visits. Save a backup from Projects before you close it.'
+      : ios && !home && !per ? 'Saved on this device. Safari may clear a website’s storage if it isn’t opened for a while, so add Trackfill to your Home Screen, and back up from Projects now and then.'
+      : 'Saved on this device' + (mb != null ? ` (${mb} MB used)` : '') + '.', `IndexedDB ${DB.ok ? 'ok' : 'unavailable'} · persisted ${per} · ${est ? mb + ' MB of ' + Math.round((est.quota || 0) / 1e6) + ' MB' : 'quota unknown'}${home ? ' · home screen app' : ''}`); } catch (e) { add('warn', 'Your work', 'Couldn’t check storage just now.', e.message); }
+  const dl = await capDownloads(); add('ok', 'Saving files', dl ? 'Files save straight to your downloads.' : 'Files open the share sheet, where you can save them to Files or send them on.', dl ? 'save service' : 'share sheet');
+  add('ok', 'Hearing safety', 'On: anything that runs away or turns harsh is muted and reset before it reaches your ears.', 'engine guard and hard clip, then a second clip');
   return rows;
 }
+/* Device power: how much of this device's sound time the built-in demo takes (rendered here, the same work the engine does live),
+   compared with a recent laptop, and how much the open song takes. */
+const DEVTEST = { res: null, running: false }, DEV_REF = .041;   // the demo's share of real time on the reference laptop (tools/perf/bench.cjs)
+async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = true;
+  try { const mod = await getModule(), time = async (proj, scene) => { await warmBuiltins(proj); const smp = new Map(); for (const p of proj.pads) { const s = p.sample && SAMPLES.get(p.sample); if (s) smp.set(p.sample, s); }
+        const tables = new Map(); for (const k of tableKeys(proj.pads)) { const t = tableFor(k); if (t) tables.set(k, t); }
+        await new Promise(r => setTimeout(r, 30)); return (await tfRenderOffline(mod, proj, smp, { sr: 48000, order: [{ scene, reps: 1 }], tail: 0, tables, time: true })).busy; };
+    const demo = demoProject(); await time(demo, 1); const d = Math.min(await time(demo, 1), await time(demo, 1));   // once to warm up, then the better of two
+    const order = songOrder(), sc = order[0] ? order[0].scene : UI.scene; let song = null; try { song = (await renderOffline([{ scene: sc, reps: 1 }], 0, null, null, { maxSec: 6, time: true })).busy; } catch (e) {}   // its first 6 seconds
+    const speed = DEV_REF / d, busy = .304 / speed;   // a busy song (stress test 2's full mix) on this device
+    const st = busy < .5 ? 'ok' : busy < .9 ? 'warn' : 'fail';
+    const detail = (busy < .5 ? 'Plenty of power, even for big songs with lots of synths and effects.' : busy < .9 ? 'Fine for most songs. Very busy ones, with many synths and reverbs at once, may crackle; freezing finished pads helps.'
+      : 'Keep songs fairly light: freeze synth pads once they’re done and share one reverb on a send. Big songs are likely to crackle on this device.')
+      + (song != null ? ` This song uses about ${Math.max(1, Math.round(song * 100))}% of what it can do${song > .7 ? ', which is close to the limit' : ''}.` : '');
+    DEVTEST.res = { st, detail, tech: `demo ${(d * 100).toFixed(1)}% of real time · ${speed.toFixed(2)}× the reference laptop · busy song ≈ ${Math.round(busy * 100)}%${song != null ? ' · this song ' + (song * 100).toFixed(1) + '%' : ''}` };
+  } catch (e) { DEVTEST.res = { st: 'warn', detail: 'The test couldn’t finish. Try again, or restart audio first.', tech: e.message }; }
+  DEVTEST.running = false; }
 function openAbout() { openSheet('About', card => { const st = h('div', 'stack'); card.append(st);
   st.append(h('div', 'sec', 'Your work'), h('p', 'note', 'Everything stays on this device. Trackfill never sends your work or anything about you anywhere: no accounts, no tracking, no ads. Back up from Projects.'));
   st.append(h('div', 'sec', 'Built with'), h('p', 'note', 'MP3 encoding: lamejs (LGPL-3.0), unmodified · Time stretch: Signalsmith Stretch (MIT) · Font: Figtree (SIL Open Font License) · Sampled instruments: VCSL and VSCO 2 Community Edition (CC0) · Source and licences: github.com/sshaylerr/trackfill')); }); }
 function openDiag() {
-  openSheet('Engine check', async card => { const box = h('div', 'diag'); box.append(h('p', 'note', 'Checking what this browser allows…')); card.append(box);
-    const rows = await runChecks(); box.innerHTML = ''; const sym = { ok: '✓', warn: '!', fail: '×' };
-    for (const r of rows) { const d = h('div', 'drow'); d.innerHTML = `<span class="st ${r.st}">${sym[r.st]}</span><div><b>${esc(r.name)}</b><span>${esc(r.detail)}</span></div>`; box.append(d); }
-    const text = rows.map(r => `${sym[r.st]} ${r.name}: ${r.detail}`).join('\n'), ta = h('textarea', 'textin'); ta.value = text; ta.readOnly = true; ta.style.height = '90px'; ta.style.paddingBlock = '8px'; ta.style.fontSize = '11px';
-    const cp = btn('Copy results', () => { const f = () => { ta.select(); toast('Selected. Use Copy from the menu.'); }; try { navigator.clipboard.writeText(text).then(() => toast('Copied'), f); } catch (e) { f(); } }, 'btn on'); cp.style.width = '100%';
-    const rs = btn('Restart audio', () => { closeSheet(); restartAudio(true); }, 'btn'); rs.style.width = '100%';
-    box.append(rs, cp, ta); });
+  openSheet('Engine check', async card => { const box = h('div', 'diag'); box.append(h('p', 'note', 'Checking this device…')); card.append(box);
+    const draw = async () => { const rows = await runChecks(); box.innerHTML = ''; const sym = { ok: '✓', warn: '!', fail: '×' };
+      for (const r of rows) { const d = h('div', 'drow'); d.innerHTML = `<span class="st ${r.st}">${sym[r.st]}</span><div><b>${esc(r.name)}</b><p>${esc(r.detail)}</p><span>${esc(r.tech)}</span></div>`; box.append(d); }
+      const text = rows.map(r => `${sym[r.st]} ${r.name}: ${r.detail}${r.tech ? ' [' + r.tech + ']' : ''}`).join('\n'), ta = h('textarea', 'textin'); ta.value = text; ta.readOnly = true; ta.style.height = '90px'; ta.style.paddingBlock = '8px'; ta.style.fontSize = '11px';
+      const tst = btn(DEVTEST.running ? 'Testing…' : DEVTEST.res ? 'Test this device again' : 'Test this device', async () => { if (DEVTEST.running) return; if (T.playing) stop(); tst.textContent = 'Testing… (a few seconds)'; tst.disabled = true; await deviceTest(); if (box.isConnected) draw(); }, 'btn on'); tst.style.width = '100%';
+      const cp = btn('Copy results', () => { const f = () => { ta.select(); toast('Selected. Use Copy from the menu.'); }; try { navigator.clipboard.writeText(text).then(() => toast('Copied'), f); } catch (e) { f(); } }, 'btn'); cp.style.width = '100%';
+      const rs = btn('Restart audio', () => { closeSheet(); restartAudio(true); }, 'btn'); rs.style.width = '100%';
+      box.append(tst, rs, cp, ta); };
+    await draw(); });
 }
 
 /* ---------- export, backup ---------- */
@@ -2220,6 +2285,7 @@ function frame(ts) {
 
 /* ================= boot ================= */
 async function boot() {
+  if (window.TF_SUPPORT && TF_SUPPORT.need.length) return;   // this browser can't run it: the message says why
   readColors(); buildBuiltins(); await DB.open(); await loadUserPresets(); await userDrumsLoad();
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {}
   for (const s of await DB.all('samples')) { const r = upgradeSampleRecord(s); if (r) { SAMPLES.set(r.id, r); if (r !== s) DB.put('samples', r.id, r); } }

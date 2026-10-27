@@ -9,11 +9,12 @@ const { chromium } = require('playwright'), path = require('path'), http = requi
 const HTML = process.env.TF_HTML || path.join(__dirname, '../../dist/trackfill.html');   // served over http: a page opened from a file can't load the audio worklet
 let fails = 0; const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails++; };
 const QUICK = process.argv.includes('--quick');   // deploy.sh: one phone size, no long play
-const SIZES = QUICK ? [[390, 844]] : [[375, 667], [390, 844], [430, 932]];
+const ANDROID = { label: 'Android phone (Chrome)', userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36', dpr: 2.625, mobile: true };
+const SIZES = QUICK ? [[390, 844]] : [[375, 667], [390, 844], [430, 932], [412, 915, ANDROID], [360, 780, Object.assign({}, ANDROID, { label: 'small Android phone (Chrome)', dpr: 3 })]];
 
 // runs inside the page: every state the crawl visits, as [name, setup]
 const crawl = async () => {
-  const sl = ms => new Promise(r => setTimeout(r, ms)), out = { errs: [], wide: [], moved: [], unreached: [], blurry: [], states: 0, menus: 0, navd: 0, navs: 0 };
+  const sl = ms => new Promise(r => setTimeout(r, ms)), out = { errs: [], wide: [], moved: [], unreached: [], blurry: [], cut: [], states: 0, menus: 0, navd: 0, navs: 0 };
   const bars = () => ['#top', '#tabs'].map(s => { const e = document.querySelector(s); if (!e) return s + ':none'; const r = e.getBoundingClientRect(); return [s, Math.round(r.top), Math.round(r.height), Math.round(r.width)].join(':'); }).join(' ');
   const base = bars();
   const reach = () => { const items = navItems(); if (items.length < 2) return [];
@@ -24,6 +25,7 @@ const crawl = async () => {
   const check = (name, dpad = true) => { out.states++;
     const W = innerWidth, sw = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth); if (sw > W + 1) out.wide.push(`${name} (${sw}px)`);
     if (!UI.sheet && bars() !== base) out.moved.push(name);
+    if (!UI.sheet) for (const tb of document.querySelectorAll('#view .toolbar')) { const R = tb.getBoundingClientRect(); for (const k of tb.children) { const r = k.getBoundingClientRect(); if (r.width && r.right > R.right + 1) out.cut.push(`${name}: ${(k.getAttribute('aria-label') || k.textContent || k.className).trim().slice(0, 16)}`); } }   // a toolbar key cut off at the edge
     for (const cv of document.querySelectorAll('canvas')) { const r = cv.getBoundingClientRect(), d = devicePixelRatio; if (!r.width || !cv.width || cv.width < 8) continue;   // a canvas shown at its drawn size: no stretch (overlays line up, lines stay sharp)
       if (Math.abs(r.width * d - cv.width) > d + .5 || Math.abs(r.height * d - cv.height) > d + .5) out.blurry.push(`${name} ${cv.className || 'canvas'} ${r.width.toFixed(1)}×${r.height.toFixed(1)} drawn ${(cv.width / d).toFixed(1)}×${(cv.height / d).toFixed(1)}`); }
     if (dpad) { const u = reach(); if (u.length) out.unreached.push(`${name}: ${u.slice(0, 4).join(' | ')}${u.length > 4 ? ` (+${u.length - 4})` : ''}`); } };
@@ -52,18 +54,19 @@ const crawl = async () => {
   setView('pads'); return out; };
 
 (async () => {
-  const srv = await new Promise(res => { const s = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html' }); fs.createReadStream(HTML).pipe(r); }).listen(0, () => res(s)); });
+  const srv = await new Promise(res => { const s = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); fs.createReadStream(HTML).pipe(r); }).listen(0, () => res(s)); });
   const FILE = `http://localhost:${srv.address().port}/`;
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--enable-precise-memory-info'] });
-  for (const [w, hgt] of SIZES) {
-    console.log(`${w}×${hgt}`);
-    const pg = await b.newPage({ viewport: { width: w, height: hgt }, deviceScaleFactor: 2, hasTouch: true }), errs = [];
+  for (const [w, hgt, dev] of SIZES) {
+    console.log(`${w}×${hgt}${dev ? ' · ' + dev.label : ' · iPhone size'}`);
+    const pg = await b.newPage(Object.assign({ viewport: { width: w, height: hgt }, deviceScaleFactor: dev ? dev.dpr : 2, hasTouch: true }, dev ? { userAgent: dev.userAgent, isMobile: true } : {})), errs = [];
     pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => { if (m.type() === 'error' && !/favicon|ERR_FILE/.test(m.text())) errs.push('console: ' + m.text()); }); pg.on('dialog', d => d.dismiss());
     await pg.goto(FILE); await pg.waitForTimeout(2500); ok(!errs.length, 'starts with no errors' + (errs.length ? ': ' + errs.slice(0, 2).join(' / ') : ''));
     await pg.mouse.click(w / 2, hgt / 2); await pg.waitForTimeout(500); await pg.evaluate(() => { WAKE.off = true; const s = document.getElementById('wakeShade'); if (s) s.remove(); });
     const r = await pg.evaluate(crawl);
     ok(!r.errs.length && !errs.length, `${r.states} pages and ${r.menus} menus open without errors` + (r.errs.length || errs.length ? ': ' + r.errs.concat(errs).slice(0, 4).join(' / ') : ''));
     ok(!r.wide.length, 'nothing wider than the screen' + (r.wide.length ? ': ' + r.wide.slice(0, 5).join(', ') : ''));
+    ok(!r.cut.length, 'no toolbar key is cut off' + (r.cut.length ? ': ' + [...new Set(r.cut)].slice(0, 6).join(', ') : ''));
     ok(!r.blurry.length, 'every canvas is shown at the size it was drawn' + (r.blurry.length ? ': ' + [...new Set(r.blurry)].slice(0, 6).join(', ') : ''));
     ok(!r.moved.length, 'transport and tabs stay put on every page' + (r.moved.length ? ': ' + r.moved.slice(0, 5).join(', ') : ''));
     ok(!r.unreached.length, `the d-pad reaches every control (${r.navd} on ${r.navs} pages and menus)` + (r.unreached.length ? ':\n      ' + r.unreached.slice(0, 12).join('\n      ') + (r.unreached.length > 12 ? `\n      (+${r.unreached.length - 12} more)` : '') : ''));
@@ -83,5 +86,12 @@ const crawl = async () => {
       ok(back === before, back === before ? 'a backup file brings the project back exactly' : `a backup changed the project: ${(() => { let i = 0; while (i < before.length && before[i] === back[i]) i++; return before.slice(Math.max(0, i - 60), i + 40) + '  ⟶  ' + back.slice(Math.max(0, i - 60), i + 40); })()}`);
       ok(before === after, before === after ? 'a saved project reopens exactly as it was' : `a saved project changed on reopening: ${(() => { let i = 0; while (i < before.length && before[i] === after[i]) i++; return before.slice(Math.max(0, i - 60), i + 40) + '  ⟶  ' + after.slice(Math.max(0, i - 60), i + 40); })()}`); }
     await pg.close(); }
+  if (!QUICK) { console.log('older browsers');   // pretend to be a browser without real-time audio, then one without CSS colour mixing
+    let pg = await b.newPage({ viewport: { width: 390, height: 844 } }), errs = []; pg.on('pageerror', e => errs.push(e.message)); await pg.addInitScript(() => { delete window.AudioWorkletNode; });
+    await pg.goto(FILE); await pg.waitForTimeout(1500); const msg = await pg.evaluate(() => document.body.textContent);
+    ok(/can’t run in this browser/.test(msg) && /iOS 14\.5/.test(msg) && !errs.length, 'a browser that can’t run the app gets a plain explanation of what works instead' + (errs.length ? ': ' + errs.join(' / ') : '') + (/iOS 14/.test(msg) ? '' : ' (no message)')); await pg.close();
+    pg = await b.newPage({ viewport: { width: 390, height: 844 } }); errs = []; pg.on('pageerror', e => errs.push(e.message)); await pg.addInitScript(() => { const f = CSS.supports.bind(CSS); CSS.supports = (a, c) => /color-mix/.test(String(a) + String(c)) ? false : f(a, c); });
+    await pg.goto(FILE); await pg.waitForTimeout(2500); const r = await pg.evaluate(async () => { const rows = await runChecks(); return { hi: getComputedStyle(document.documentElement).getPropertyValue('--accent-hi').trim(), row: rows[0] }; });
+    ok(/^rgb\(/.test(r.hi) && r.row.st === 'warn' && /flatter/.test(r.row.detail) && !errs.length, `an older browser still runs, with its colours mixed for it, and Engine check says what's different (${r.hi})`); await pg.close(); }
   await b.close(); srv.close(); console.log(fails ? `\n${fails} failed` : '\nall passed'); process.exit(fails ? 1 : 0);
 })();

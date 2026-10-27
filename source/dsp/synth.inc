@@ -117,7 +117,7 @@ EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 ta
   for (i32 o = 0; o < 3; o++) { for (i32 u = 0; u < MAXUNI; u++) v->ph[o][u] = st(P->p[PHO[o]]); v->dr[o] = v->drT[o] = 0.f; }
   for (i32 o = 0; o < 2; o++) for (i32 u = 0; u < MAXUNI; u++) v->wph[o][u] = st(P->p[PHW[o]]);
   for (i32 k = 0; k < 4; k++) for (i32 u = 0; u < MAXUNI; u++) v->fph[k][u] = st(P->p[PHF[k]]);
-  v->sph = st(P->p[SP_O1H] * 0.5f);   // the sub oscillator runs an octave under osc 1: half its phase keeps them lined up
+  { const i32 so = disc(P->p[SP_SBO], 3); v->sph = st(P->p[SP_O1H] * (so == 2 ? 0.25f : so == 1 ? 0.5f : 1.f)); }   // the sub runs 0, 1 or 2 octaves under osc 1: the same share of its phase keeps them lined up
   for (i32 k = 0; k < 4; k++) { v->lph[k] = P->p[SP_L1P + k * 6]; v->ldone[k] = 0; }
   if (disc(P->p[SP_SUP], 2)) v->suph = (frnd(&svRng) + 1.f) * 0.5f;
   v->izn = -1; if (P->isid && P->inz) {   // instrument: the zone for this key and velocity (or the nearest root), started at Start
@@ -455,7 +455,7 @@ static void renderSynth(i32 n) {
     if (splitOn) { float sfc = clampf(f0 * (0.6f + spl * 2.4f), 30.f, 300.f), w = ftan(3.14159265f * sfc / SR), w2 = w * w, k = 1.41421356f, a0 = 1.f / (1.f + k * w + w2);
       hb[0] = a0; hb[1] = -2.f * a0; hb[2] = a0; hb[3] = 2.f * (w2 - 1.f) * a0; hb[4] = (1.f - k * w + w2) * a0; apc = (w - 1.f) / (w + 1.f); }
     // sub oscillator
-    const float subL = isX ? 0.f : m[SP_SBL]; const i32 subW = disc(m[SP_SBW], 3); const float subInc = f0 * (disc(m[SP_SBO], 2) ? 0.25f : 0.5f) / SR;
+    const float subL = isX ? 0.f : m[SP_SBL]; const i32 subW = disc(m[SP_SBW], 3); const i32 subO = disc(m[SP_SBO], 3); const float subInc = f0 * (subO == 2 ? 0.25f : subO == 1 ? 0.5f : 1.f) / SR;   // 0, −1 or −2 octaves under osc 1
     // noise crunch
     const float nzL = isX ? 0.f : m[SP_NZL]; float nzA = 0, nzB = 0, nzDrive = 0, nzMk = 0, nzTone = 0, nzhg = 0, bodyInc = 0;
     if (nzL > 0.0005f) { nzA = m[SP_NZN]; nzB = m[SP_NZB]; nzDrive = 1.f + m[SP_NZD] * m[SP_NZD] * 24.f; nzMk = 1.f / (0.35f + 0.65f * fsat(nzDrive * 0.3f)); nzTone = onepole(expmap(m[SP_NZT], 400.f, 18000.f));
