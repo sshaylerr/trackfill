@@ -57,12 +57,25 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(Math.abs(g[2] + 23) < .1, `integrated loudness gates out the quiet parts (${g[2].toFixed(2)} LUFS)`);
     ok(Math.abs(r[3] - 10) < .3, `loudness range of -20 then -30 dBFS reads 10 LU (${r[3].toFixed(1)})`);
     ok(tp[4] > -.3 && Math.abs(tp[5] + 3.01) < .1, `true peak finds the peak between samples (${tp[4].toFixed(2)} dBTP where samples read ${tp[5].toFixed(2)})`); }
+  console.log('meters');
+  { const sr = 48000, TF = H.TF, db = x => x > 1e-9 ? 20 * Math.log10(x) : -999, tone = n => { const d = new Int16Array(n); for (let i = 0; i < n; i++) d[i] = Math.round(Math.sin(i * 2 * Math.PI * 997 / sr) * .25 * 32767); return d; };
+    const run = (setup, data = tone(sr), vis) => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, sr, null), Q = M.newProject(true), posts = [];
+      Q.chans.forEach(c => { c.fx = []; c.vol = H.tfFaderPos(1); c.pan = .5; }); Object.assign(Q.pads[0], { sample: 'tone', mode: 'one', atk: 0, rel: .001, start: 0, end: 1 }); setup(Q); host.post = m => posts.push(m);
+      host.msg({ t: 'project', P: Q }); host.msg({ t: 'sample', key: 'tone', data, frames: data.length, ch: 1, sr }); if (vis) host.msg(Object.assign({ t: 'scope' }, vis)); host.msg({ t: 'hit', pad: 0, semi: 0, vel: 1, tag: 1 });
+      const L = new Float32Array(128), R = new Float32Array(128); let out = 0; for (let i = 0; i < 300; i++) { host.render(128, L, R); if (i > 40) for (let k = 0; k < 128; k++) out = Math.max(out, Math.abs(L[k])); }
+      const rep = posts.filter(p => p.t === 'pos').slice(3), cm = (c, k = 0) => db(Math.max(...rep.map(p => p.cm[c * 2 + k]))), io = k => db(Math.max(0, ...rep.filter(p => p.sc && p.sc.io).map(p => p.sc.io[k])));
+      return { cm, io, out: db(out), top: db(Math.max(...rep.map(p => p.pk[0]))) }; };
+    const b = run(() => {}), f6 = run(Q => { Q.chans[0].vol = H.tfFaderPos(.5); }), hl = run(Q => { Q.chans[0].pan = 0; }), mu = run(Q => { Q.chans[0].mute = true; }), gr = run(Q => { Q.chans[0].out = TF.G0; Q.chans[TF.G0].vol = H.tfFaderPos(.5); });
+    const rt = run(Q => { Q.chans[0].sa = H.tfSendPos(1); }), ut = run(Q => { Q.chans[0].fx = [M.newFx(M.FX_TYPES.UTIL, { 0: .5 + 6 / 48 })]; }, undefined, { ch: 0, fc: 0, fs: 0 }), click = new Int16Array(sr); click[20000] = 16384; const ck = run(() => {}, click);
+    const near = (a, x) => Math.abs(a - x) < .05, checks = [near(b.cm(0), b.out), near(b.cm(TF.MASTER), b.out), near(b.top, b.out), near(f6.cm(0) - b.cm(0), -6.02), near(hl.cm(0) - b.cm(0), 3.01), hl.cm(0, 1) < -100, mu.cm(0) < -300,
+      near(gr.cm(TF.G0) - gr.cm(0), -6.02), near(gr.cm(TF.MASTER), gr.out), near(rt.cm(TF.R0), rt.cm(0)), near(ut.io(0), b.cm(0)), near(ut.io(2) - ut.io(0), 6), near(ck.cm(0), ck.out)];
+    ok(checks.every(Boolean), `meters read what is heard within 0.05 dB: pad, fader, pan law, mute, group, return, master, output, device in/out, a one-sample click (${checks.map(x => x ? '✓' : '·').join('')})`); }
   console.log('monitoring');
   { const go = (msg) => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); host.msg({ t: 'project', P: Q });
       for (const [key, sm] of kit) host.msg({ t: 'sample', key, data: sm.data, frames: sm.frames, ch: sm.ch, sr: sm.sr }); if (msg) host.msg(msg); host.msg({ t: 'play', scene: 1, loop: 'scene' });
       const L = new Float32Array(128), R = new Float32Array(128), o = { L: [], pk: 0, bad: 0, ms: 0 }; const t0 = Date.now();
       for (let i = 0; i < 750; i++) { host.render(128, L, R); for (let j = 0; j < 128; j++) { if (!(L[j] === L[j])) o.bad++; o.pk = Math.max(o.pk, Math.abs(L[j]), Math.abs(R[j])); if (i % 50 === 0) o.L.push(L[j]); } } o.ms = Date.now() - t0; return o; };
-    const base = go(null), off = go({ t: 'monitor', mode: 0, phones: '' }), modes = [1, 2].map(mode => go({ t: 'monitor', mode, phones: 'Apple EarPods' }));
+    const base = go(null), off = go({ t: 'monitor', mode: 0, phones: '' }), modes = [1, 2].map(mode => go({ t: 'monitor', mode, phones: 'Wired earbuds' }));
     ok(off.L.every((x, i) => x === base.L[i]), 'monitoring off is bit-identical to no monitoring at all (nothing runs)');
     ok(modes.every(r => !r.bad && r.pk <= 1 && r.pk > .05), `crossfeed and speakers with headphone correction stay finite and within 0 dBFS (peaks ${modes.map(r => r.pk.toFixed(2)).join(', ')})`); }
   console.log('ducker');
@@ -119,7 +132,7 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       ok(lMax > 1 && rMax > 1, `Autopan swings the sound left (${lMax}) and right (${rMax}) on the beat`); }
     { const f = M.newFx(19, { 0: 1, 1: 2 / 7, 3: 1, 5: 0 }); f.lfo = M.FX_LFO_SHAPES['Gate 1/8'].map(q => Object.assign({}, q)); const s = mk(f), o = s.run(2), l = per16(o.L).slice(2);
       const hi = l.filter(v => v > .05).length, lo = l.filter(v => v < .005).length;
-      ok(hi >= 6 && lo >= 6, `LFO Tool gates on the grid (${hi} open sixteenths, ${lo} closed at full depth)`); }
+      ok(hi >= 6 && lo >= 6, `Shaper gates on the grid (${hi} open sixteenths, ${lo} closed at full depth)`); }
     { const f = M.newFx(20, { 0: 0, 1: 0, 2: 0, 3: 0, 5: tfN(.3), 6: tfN(.3) }); function tfN(sec) { return Math.log(sec / .05) / Math.log(80); }
       const s = mk(f); let stopAt = Math.round(.5 * 48000 / 128), startAt = Math.round(1.5 * 48000 / 128);
       const o = s.run(2.5, b => { if (b === stopAt) { f.p[4] = 1; s.host.msg({ t: 'chan', i: 20, v: s.Q.chans[20] }); s.host.syncChan(20); } if (b === startAt) { f.p[4] = 0; s.host.syncChan(20); } });

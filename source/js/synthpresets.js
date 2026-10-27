@@ -260,7 +260,7 @@ function synPatch(pr) {
 }
 function normalizeSyn(s) {
   if (!s || typeof s !== 'object') return null;
-  const o = { eng: ['fm', 'wt', 'gr', 'sub', 'ins', 'sfx'].includes(s.eng) ? s.eng : 'analog', sig: typeof s.sig === 'number' ? s.sig : undefined, name: String(s.name || ''), p: Object.assign({}, s.p || {}), mods: Array.isArray(s.mods) ? s.mods.filter(m => m && typeof m.d === 'string' && m.s >= 0 && m.s < SYN_SRC.length).slice(0, 32).map(m => ({ s: m.s | 0, d: m.d, a: Math.max(-1, Math.min(1, +m.a || 0)), c: Math.max(0, Math.min(3, m.c | 0)), v: m.v == null ? undefined : m.v | 0 })) : [] };
+  const o = { eng: ['fm', 'wt', 'gr', 'sub', 'ins', 'sfx'].includes(s.eng) ? s.eng : 'analog', sig: typeof s.sig === 'number' ? s.sig : undefined, name: String(s.name || '').replace(/[<>"`\u0000-\u001f\u007f]/g, '').slice(0, 40), p: Object.assign({}, s.p || {}), mods: Array.isArray(s.mods) ? s.mods.filter(m => m && typeof m.d === 'string' && m.s >= 0 && m.s < SYN_SRC.length).slice(0, 32).map(m => ({ s: m.s | 0, d: m.d, a: Math.max(-1, Math.min(1, +m.a || 0)), c: Math.max(0, Math.min(3, m.c | 0)), v: m.v == null ? undefined : m.v | 0 })) : [] };
   if (o.p.rph == null && o.p.ret === 'Off') o.p.rph = 1;   // the old Retrig switch: Off meant every note started anywhere
   delete o.p.ret;
   if (o.eng === 'ins' || s.ins) o.ins = typeof s.ins === 'string' && /^i:[a-z0-9]+$/.test(s.ins) ? s.ins : 'i:house';

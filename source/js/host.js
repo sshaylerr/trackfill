@@ -36,7 +36,7 @@ const TF_WARPS = ['Off', 'Sync', 'Bend', 'PWM', 'Mirror', 'Quantize', 'FM', 'AM'
 const TF_OPMODES = ['FM', 'Ring', 'Filter', 'Filter FM', 'Fold'];
 const TF_FMWAVES = ['Sine', 'Digital', 'Triangle', 'Saw', 'Square', 'Sine 1+2', 'Sine 1+3', 'Saw 3', 'Square 3', 'Noise'];
 // headphone corrections for monitoring: the average of the published measurements (AutoEq, MIT licence), smoothed and refitted (tools/monitor)
-const TF_PHONES = { 'Apple EarPods': { pre: -6.4, bands: [['LSC', 122, 6.4, .63], ['PK', 5915, -4.8, 1.09], ['PK', 2086, -3, 1.09], ['PK', 4057, 2.9, 1.46], ['PK', 3048, -1.8, 1.61], ['PK', 572, 1.9, .59], ['PK', 4178, 1, 1.95]] } };
+const TF_PHONES = { 'Wired earbuds': { pre: -6.4, bands: [['LSC', 122, 6.4, .63], ['PK', 5915, -4.8, 1.09], ['PK', 2086, -3, 1.09], ['PK', 4057, 2.9, 1.46], ['PK', 3048, -1.8, 1.61], ['PK', 572, 1.9, .59], ['PK', 4178, 1, 1.95]] } };
 function tfBiquad(t, f, g, q, sr) { const A = Math.pow(10, g / 40), w = 2 * Math.PI * f / sr, c = Math.cos(w), s = Math.sin(w), al = s / (2 * q); let b0, b1, b2, a0, a1, a2;
   if (t === 'PK') { b0 = 1 + al * A; b1 = -2 * c; b2 = 1 - al * A; a0 = 1 + al / A; a1 = -2 * c; a2 = 1 - al / A; }
   else { const sq = 2 * Math.sqrt(A) * al;
@@ -392,7 +392,7 @@ class TFHost {
       const f = C.fx[s], t = f ? f.type : -1, mode = f ? (f.mode | 0) : 0, id = t < 0 ? -1 : t * 16 + mode;   // an effect slot is identified by type and mode
       if (id !== this.fxT[c][s]) { let ok = ex.tf_fx_type(c, s, t); if (ok && t >= 0 && mode) ok = ex.tf_fx_mode(c, s, mode);
         this.fxT[c][s] = ok ? id : -1; if (!ok && t >= 0 && this.post) this.post({ t: 'oom' }); }
-      if (f && ex.tf_fx_tab && (f.type === 19 || f.type === 21)) { const ptr = ex.tf_fx_tab(c, s); if (ptr) { const T = new Float32Array(ex.memory.buffer, ptr, 256);   // the LFO Tool's shape (0..1) or the Step FX pattern
+      if (f && ex.tf_fx_tab && (f.type === 19 || f.type === 21)) { const ptr = ex.tf_fx_tab(c, s); if (ptr) { const T = new Float32Array(ex.memory.buffer, ptr, 256);   // the Shaper's shape (0..1) or the Step FX pattern
         if (f.type === 19) { const t = tfLfoTable(f.lfo); for (let i = 0; i < 256; i++) T[i] = (t[i] + 1) * .5; } else { T.fill(0); (f.steps || []).forEach((v, i) => { if (i < 16) T[i] = v; }); } } }
       if (f) { for (let i = 0; i < f.p.length; i++) ex.tf_fx_param(c, s, i, f.p[i]); ex.tf_fx_on(c, s, f.on && !frz ? 1 : 0); ex.tf_fx_key(c, s, (f.type === 6 || f.type === 16) && f.key != null ? f.key : -1); }
     }

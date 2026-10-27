@@ -388,7 +388,7 @@ const FX_DEFS = [
   { name: 'Disperser', short: 'Disp', params: [P_('Amount', .5, v => Math.round(1 + v * 47) + ' stages'), P_('Frequency', .55, v => fHz(expmap(v, 20, 20000))), P_('Pinch', .5, v => expmap(v, .2, 8).toFixed(2)), P_('Mix', 1, fPct)] },
   { name: 'Autopan', short: 'Pan', params: [P_('Sync', 1, null, ['Off', 'On']), P_('Division', .4, null, ['1/16', '1/8', '1/4', '1/2', '1 bar', '2 bars']), P_('Rate', .5, v => expmap(v, .05, 20).toFixed(2) + ' Hz'),
     P_('Depth', .7, fPct), P_('Shape', 0, null, ['Sine', 'Triangle', 'Square']), P_('Phase', 0, v => Math.round(v * 360) + '°')] },
-  { name: 'LFO Tool', short: 'LFO', params: [P_('Sync', 1, null, ['Off', 'On']), P_('Division', 3 / 7, null, ['1/32', '1/16', '1/8', '1/4', '1/2', '1 bar', '2 bars', '4 bars']), P_('Rate', .5, v => expmap(v, .05, 20).toFixed(2) + ' Hz'),
+  { name: 'Shaper', short: 'Shape', params: [P_('Sync', 1, null, ['Off', 'On']), P_('Division', 3 / 7, null, ['1/32', '1/16', '1/8', '1/4', '1/2', '1 bar', '2 bars', '4 bars']), P_('Rate', .5, v => expmap(v, .05, 20).toFixed(2) + ' Hz'),
     P_('Depth', .8, fPct), P_('Filter', 0, v => v < .005 ? 'Off' : fPct(v)), P_('Smooth', .15, v => fMs(v * v * 50)), P_('Phase', 0, v => Math.round(v * 360) + '°'), P_('Stereo', 0, v => Math.round(v * 180) + '°')] },
   { name: 'Vinyl', short: 'Vinyl', params: [P_('Crackle', .3, fPct), P_('Noise', .2, fPct), P_('Wear', .3, fPct), P_('Wow', .15, fPct), P_('Stop', 0, null, ['Off', 'On']),
     P_('Stop time', .684, v => fMs(expmap(v, .05, 4) * 1000)), P_('Start time', .474, v => fMs(expmap(v, .05, 4) * 1000)), P_('Mix', 1, fPct)] },
@@ -396,7 +396,7 @@ const FX_DEFS = [
     P_('Filter', .6, fPct), P_('Smooth', .3, v => fMs(.5 + v * v * 30)), P_('Mix', 1, fPct)] },
   { name: 'Grin', short: 'Grin', params: GRIN_P }
 ];
-// LFO Tool shapes (the drawn curve: 1 = full level, 0 = the Depth's dip) and Step FX actions
+// Shaper shapes (the drawn curve: 1 = full level, 0 = the Depth's dip) and Step FX actions
 const FX_LFO_SHAPES = { Pump: [{ x: 0, y: 0, c: -.65 }, { x: .55, y: 1, c: 0 }, { x: .97, y: 1, c: 0 }], 'Gate 1/8': [{ x: 0, y: 1, c: 0 }, { x: .45, y: 1, c: 0 }, { x: .5, y: 0, c: 0 }, { x: .95, y: 0, c: 0 }],
   Trance: [0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0].flatMap((v, i) => [{ x: i / 16, y: v, c: 0 }, { x: i / 16 + .055, y: v, c: 0 }]), Sine: [{ x: 0, y: .5, c: -.19 }, { x: .25, y: 1, c: .19 }, { x: .5, y: .5, c: -.19 }, { x: .75, y: 0, c: .19 }],
   Triangle: [{ x: 0, y: 0, c: 0 }, { x: .5, y: 1, c: 0 }], 'Saw down': [{ x: 0, y: 1, c: 0 }, { x: .97, y: 0, c: 0 }], 'Saw up': [{ x: 0, y: 0, c: 0 }, { x: .97, y: 1, c: 0 }], Swell: [{ x: 0, y: 0, c: .6 }, { x: .97, y: 1, c: 0 }] };
@@ -466,8 +466,10 @@ function newProject(blank) {
   return p;
 }
 /* ---------- migration: every saved project passes through here ---------- */
+// a name typed or loaded from a file: plain text only (no markup characters, no control characters), so it can never become part of the page
+function tfName(s, max = 40) { return String(s ?? '').replace(/[<>"`\u0000-\u001f\u007f]/g, '').slice(0, max); }
 function migrate(src) {
-  let p = JSON.parse(JSON.stringify(src || {}));
+  let p = JSON.parse(JSON.stringify(src || {}), (k, v) => k === '__proto__' || k === 'constructor' || k === 'prototype' ? undefined : v);   // a project file's keys can't reach an object's prototype
   if (!p.v || p.v < 2) {   // v1 → v2: channel strips move out of pads; master delay/reverb become returns; automation keys
     const old = p.master || { vol: .8, dlyTime: 2, dlyFb: .35, rvbSize: .5 }, oldPads = p.pads || [];
     const n = newProject(true); n.name = p.name || 'Untitled'; n.bpm = p.bpm || 96; n.swing = p.swing || 0;
@@ -505,11 +507,11 @@ const SPN = () => typeof normalizeSyn === 'function' ? { normalizeSyn, SYN_PRESE
 const FDR = () => typeof tfFaderPos === 'function' ? { tfFaderPos, tfSendPos } : require('./host.js');
 const HMN = () => typeof normalizeKx === 'function' ? { normalizeKx, normalizeKey, PROGS, chordPads, voiceChord } : require('./harmony.js');
 function normalize(p) {
-  const n = newProject(true); Object.assign(n, p); n.v = PROJECT_VERSION;
+  const n = newProject(true); Object.assign(n, p); n.v = PROJECT_VERSION; n.name = tfName(n.name || 'Untitled', 40);
   n.key = HMN().normalizeKey(p.key);
   n.drumKits = {}; if (p.drumKits && typeof p.drumKits === 'object') for (const b of ['0', '1', '2', '3']) { const k = p.drumKits[b]; if (k && typeof k === 'object') n.drumKits[b] = { vibe: String(k.vibe || ''), seed: k.seed | 0, tune: c01(k.tune, .5), len: c01(k.len, .5), bright: c01(k.bright, .5), drive: c01(k.drive, .3), room: c01(k.room, .2) }; }
   n.pads = Array.from({ length: NPADS }, (_, i) => { const d = Object.assign(defaultPad(i), (p.pads || [])[i] || {});
-    d.tempo = +d.tempo > 0 ? Math.min(300, Math.max(20, +d.tempo)) : 0;
+    d.name = tfName(d.name, 24); d.tempo = +d.tempo > 0 ? Math.min(300, Math.max(20, +d.tempo)) : 0;
     d.kx = d.kx ? HMN().normalizeKx(d.kx) : null;
     d.bend = d.bend == null ? .5 : clamp01(+d.bend); d.bendR = [1, 2, 3, 5, 7, 12, 24].includes(+d.bendR) ? +d.bendR : 2;
     d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.drum = d.drum ? DRN().drumNormalize(d.drum) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : d.src === 'drum' && d.drum ? 'drum' : 'sample';
@@ -524,14 +526,14 @@ function normalize(p) {
       c.on = !!c.on; c.choke = !!c.choke; c.pts = (Array.isArray(c.pts) ? c.pts : []).map(Number).filter(v => v >= 0 && v <= 1).sort((x, y) => x - y).filter((v, k, a) => !k || v - a[k - 1] > 1e-6).slice(0, MAX_SLICES); d.chop = c; }
     return d; });
   n.chans = Array.from({ length: NCHANS }, (_, c) => { const d = defaultChan(c), s = (p.chans || [])[c]; if (!s) return d;
-    const o = Object.assign(d, s); o.fx = (s.fx || []).filter(f => f && FX_DEFS[f.type]).slice(0, NSLOTS).map(f => {
+    const o = Object.assign(d, s); o.name = tfName(o.name, 24); o.fx = (s.fx || []).filter(f => f && FX_DEFS[f.type]).slice(0, NSLOTS).map(f => {
       const mode = Math.max(0, Math.min(FX_DEFS[f.type].modes.length - 1, f.mode | 0)), def = newFx(f.type, null, mode);
       const o = Object.assign(def, f, { mode, p: def.p.map((v, i) => f.p && f.p[i] != null ? clamp01(f.p[i]) : v), trig: (f.trig || []).filter(x => x >= 0 && x < NPADS) });
       if (o.type === 19) o.lfo = Array.isArray(f.lfo) && f.lfo.length >= 2 ? f.lfo.slice(0, 40).map(q => ({ x: clamp01(+q.x || 0), y: clamp01(+q.y || 0), c: Math.max(-.97, Math.min(.97, +q.c || 0)) })) : def.lfo;
       if (o.type === 21) o.steps = Array.from({ length: 16 }, (_, i) => Math.max(0, Math.min(6, (Array.isArray(f.steps) ? f.steps[i] : 0) | 0)));
       return o; });
     return o; });
-  n.scenes = Array.from({ length: NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.notes = s.notes || {}; s.auto = s.auto || {}; return s; });
+  n.scenes = Array.from({ length: NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.name = tfName(s.name, 14); s.notes = s.notes && typeof s.notes === 'object' ? s.notes : {}; s.auto = s.auto && typeof s.auto === 'object' ? s.auto : {}; return s; });
   n.bpm = Math.min(220, Math.max(40, +n.bpm || 96)); n.swing = clamp01(+n.swing || 0);
   return n;
 }
@@ -667,5 +669,5 @@ function stress2V2() {
   for (const s of [0, 1]) { S[s].auto['8.-2.0'] = lane([[0, .35], [4 * BAR, 1], [8 * BAR - 24, .5]]);     S[s].auto['31.-1.3'] = lane([[4 * BAR, 0], [8 * BAR - 24, .45]]); S[s].auto[G.bass + '.-1.0'] = lane([[0, .3], [BAR, .45], [8 * BAR - 24, .45]]); }
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
+if (typeof module !== 'undefined') module.exports = { tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
   buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };

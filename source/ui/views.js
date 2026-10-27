@@ -237,7 +237,7 @@ function stripEl(c) {
 function detailEl(c) {
   const C = P.chans[c], d = h('div', 'detail'), bt = h('div', 'dbtns'), dk = h('div', 'dk');
   bt.append(scopeBox(c));
-  if (c < R0) bt.append(btn('→ ' + destName(c), () => openOutputPicker(c), 'key sm'));
+  if (c < R0) bt.append(btn('→ ' + esc(destName(c)), () => openOutputPicker(c), 'key sm'));
   bt.append(btn(`FX ${C.fx.length} · ` + (C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'none'), () => openFx(c, 'mix'), 'key sm' + (C.fx.length ? ' on' : '')));
   if (c < R0) { dk.append(keyParam(c + '.-1.2', { label: 'Send A' }), keyParam(c + '.-1.3', { label: 'Send B' })); }
   else { dk.append(blankCell(), blankCell()); }
@@ -346,8 +346,8 @@ function renderFx(V) {
     // one device per line, grouped, like every other menu: colour dot (the device's faceplate), name, and its modes or what it does
     const add = t => { pushUndo('chan:' + c); const nf = newFx(t); if (t === FX_TYPES.DUCK) { const kick = P.pads.findIndex(p => p.sample === 'b:dkick' || p.sample === 'b:kick'); if (kick >= 0 && kick !== c) nf.trig = [kick]; }
       C.fx.push(nf); UI.fxSlot = C.fx.length - 1; fxChanged(c); };
-    const ABOUT = { Autopan: 'moves the sound left and right', 'LFO Tool': 'a drawn shape on the volume: gate, pump, tremolo', Vinyl: 'crackle, wear and the turntable stop', 'Step FX': 'paint stutters, reverses and tape stops on a grid', Grin: 'one knob for the whole build-up', Ducker: 'ducks this channel when a pad plays or a sound gets loud', Utility: 'gain, pan, width, bass mono', Transient: 'more or less attack and sustain', Gate: 'cuts the sound below a threshold', Disperser: 'smears a band in time: zaps and thicker hits' };
-    const GROUPS = [['Tone', ['EQ', 'Filter', 'Saturation', 'Clipper', 'Bitcrush', 'Tape', 'Vinyl']], ['Dynamics', ['Compressor', 'Limiter', 'Multiband', 'Transient', 'Gate', 'Ducker']], ['Rhythm and build-ups', ['Step FX', 'LFO Tool', 'Autopan', 'Grin']], ['Space and movement', ['Delay', 'Reverb', 'Chorus', 'Phaser', 'Disperser']], ['Utility', ['Utility']]];
+    const ABOUT = { Autopan: 'moves the sound left and right', 'Shaper': 'a drawn shape on the volume: gate, pump, tremolo', Vinyl: 'crackle, wear and the turntable stop', 'Step FX': 'paint stutters, reverses and tape stops on a grid', Grin: 'one knob for the whole build-up', Ducker: 'ducks this channel when a pad plays or a sound gets loud', Utility: 'gain, pan, width, bass mono', Transient: 'more or less attack and sustain', Gate: 'cuts the sound below a threshold', Disperser: 'smears a band in time: zaps and thicker hits' };
+    const GROUPS = [['Tone', ['EQ', 'Filter', 'Saturation', 'Clipper', 'Bitcrush', 'Tape', 'Vinyl']], ['Dynamics', ['Compressor', 'Limiter', 'Multiband', 'Transient', 'Gate', 'Ducker']], ['Rhythm and build-ups', ['Step FX', 'Shaper', 'Autopan', 'Grin']], ['Space and movement', ['Delay', 'Reverb', 'Chorus', 'Phaser', 'Disperser']], ['Utility', ['Utility']]];
     const seen = new Set();
     for (const [title, names] of GROUPS.concat([['More', FX_DEFS.map(d => d.name)]])) { const l = h('div', 'list');
       for (const n of names) { const t = FX_DEFS.findIndex(d => d.name === n); if (t < 0 || seen.has(t)) continue; seen.add(t); const d = FX_DEFS[t], full = t === FX_TYPES.DUCK && duckerCount() >= MAX_DUCKERS, lk = fxLook(t, 0);
@@ -399,9 +399,9 @@ function openSoundTools(pi) {
   });
 }
 
-/* ----- LFO Tool shapes and Step FX patterns ----- */
+/* ----- Shaper shapes and Step FX patterns ----- */
 function openFxShapes(c, s) { const f = P.chans[c].fx[s];
-  openSheet('LFO Tool shape', card => { const l = h('div', 'list');
+  openSheet('Shaper shape', card => { const l = h('div', 'list');
     for (const n in FX_LFO_SHAPES) { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(n)}</b></div>`; li.onclick = () => { pushUndo('chan:' + c); f.lfo = FX_LFO_SHAPES[n].map(q => Object.assign({ c: 0 }, q)); LFOED.sel = 0; syncChan(c); markDirty(); closeSheet(); }; l.append(li); }
     card.append(l); }); }
 const STEP_PATTERNS = { Clear: Array(16).fill(0), 'Stutter end': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2], 'Tape stop end': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 6, 6, 6],

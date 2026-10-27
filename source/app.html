@@ -1,9 +1,7 @@
 <title>Trackfill</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&display=swap">
 <style>
+/*@FONTS@*/
 /* Trackfill hardware: a matte charcoal body with rubber keys, backlit pads and knobs; data lives in recessed screens.
    Layout is fixed like a device: every region has a set size, nothing wraps, text truncates, numbers use fixed-width digits. */
 :root{
@@ -640,13 +638,14 @@ const grSrc = p => p && p.src === 'synth' && p.syn && p.syn.eng === 'gr' && p.sy
 function ensureBuiltinsFor(proj) { if (proj === P) P.pads.forEach((p, i) => { if (p.drum && (p.src === 'drum' || (p.sample && p.sample.startsWith('d:')))) { p.sample = null; p.sample = drumSampleId(i); } });   // drums are rendered again from their settings
   for (const p of proj.pads) { if (p.sample && p.sample.startsWith('b:')) buildBuiltin(p.sample.slice(2)); const g = grSrc(p); if (g && g.startsWith('b:')) buildBuiltin(g.slice(2)); } }
 function addUserSample(name, sr, ch, data, extra) {
-  const id = 'u:' + uid(), s = Object.assign({ id, name, sr, ch, frames: data.length / ch, data, added: Date.now() }, extra || {});
+  const id = 'u:' + uid(), s = Object.assign({ id, name: tfName(name, 24) || 'Sound', sr, ch, frames: data.length / ch, data, added: Date.now() }, extra || {});
   SAMPLES.set(id, s); DB.put('samples', id, s); return id;
 }
 function deleteSample(id) { const s = SAMPLES.get(id); if (!s || s.builtin) return; SAMPLES.delete(id); DB.del('samples', id); send({ t: 'sampleDel', key: id }); ENG.sent.delete(id); }
 function interleave(chans, maxFrames) { const n = Math.min(chans[0].length, maxFrames), c = chans.length, o = new Int16Array(n * c);
   for (let i = 0; i < n; i++) for (let k = 0; k < c; k++) { const s = Math.max(-1, Math.min(1, chans[k][i])); o[i * c + k] = s < 0 ? s * 32768 : s * 32767; } return o; }
 function upgradeSampleRecord(s) {   // v1 stored Float32 channel arrays; v2 stores interleaved Int16
+  if (!s || typeof s.id !== 'string') return null; s.name = tfName(s.name, 24);
   if (s.data instanceof Int16Array) return s;
   if (s.chans) { const data = interleave(s.chans, s.chans[0].length); return { id: s.id, name: s.name, sr: s.sr, ch: s.chans.length, frames: s.chans[0].length, data, added: 0 }; }
   return null;
@@ -656,9 +655,10 @@ const usedSampleIds = () => { const u = new Set(); for (const p of P.pads) { if 
 /* ================= storage ================= */
 const DB = { db: null, ok: false,
   async open() { try { this.db = await new Promise((res, rej) => { const r = indexedDB.open('trackfill', 2); r.onupgradeneeded = () => { const d = r.result; for (const n of ['kv', 'samples', 'projects', 'pmeta']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); }; r.onsuccess = () => { const d = r.result; d.onversionchange = () => d.close(); res(d); }; r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error('blocked')); }); this.ok = true; } catch (e) { this.db = null; this.ok = false; } },
-  req(store, mode, fn) { return new Promise(res => { if (!this.db) return res(undefined); try { const tx = this.db.transaction(store, mode), q = fn(tx.objectStore(store)); tx.oncomplete = () => res(q && q.result); tx.onerror = () => res(undefined); } catch (e) { res(undefined); } }); },
+  req(store, mode, fn) { return new Promise(res => { if (!this.db) return res(undefined); try { const tx = this.db.transaction(store, mode), q = fn(tx.objectStore(store)); tx.oncomplete = () => res(q && q.result); tx.onerror = tx.onabort = () => res(undefined); } catch (e) { res(undefined); } }); },
   get(store, key) { return this.req(store, 'readonly', s => s.get(key)); },
-  put(store, key, val) { return this.req(store, 'readwrite', s => s.put(val, key)); },
+  // a write that doesn't land (storage full, or the browser refused) says so once a minute, so nobody thinks unsaved work is safe
+  put(store, key, val) { return this.req(store, 'readwrite', s => s.put(val, key)).then(r => { if (r !== undefined || !this.db) return true; const t = Date.now(); if (t - (this.warned || 0) > 60000) { this.warned = t; toast('Couldn\'t save to this device (storage may be full). Save a backup from Projects.'); } return false; }); },
   del(store, key) { return this.req(store, 'readwrite', s => s.delete(key)); },
   all(store) { return this.req(store, 'readonly', s => s.getAll()).then(r => r || []); } };
 /* ================= projects: autosaved songs, snapshots, templates =================
@@ -699,7 +699,7 @@ const projSub = m => [m.bpm ? Math.round(m.bpm) + ' BPM' : '', m.key && typeof k
 function projRow(m, onTap, cur) { const li = h('div', 'li projli' + (cur ? ' on' : '')); const dots = (m.cols || []).map(c => `<i style="background:${PAD_COLORS[c] || '#888'}"></i>`).join('');
   li.innerHTML = `<div class="lt"><b>${esc(m.name)}</b><span>${esc(projSub(m))}</span></div><div class="pdots">${dots}</div>`; li.onclick = onTap; return li; }
 function textSheet(title, value, onOk, okLabel = 'Save') { openSheet(title, card => { const inp = h('input', 'textin'); inp.value = value || ''; inp.maxLength = 30; const row = h('div', 'saveRow');
-  const go = () => { const v = inp.value.trim(); if (!v) return; closeSheet(); onOk(v); }; inp.onkeydown = e => { if (e.key === 'Enter') go(); }; row.append(inp, btn(okLabel, go, 'btn on')); card.append(row); setTimeout(() => inp.focus(), 50); }); }
+  const go = () => { const v = tfName(inp.value, 30).trim(); if (!v) return; closeSheet(); onOk(v); }; inp.onkeydown = e => { if (e.key === 'Enter') go(); }; row.append(inp, btn(okLabel, go, 'btn on')); card.append(row); setTimeout(() => inp.focus(), 50); }); }
 async function openProjects() {
   await projSave(); const list = await projList(), tpl = await projList('template'); let est = null; try { est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null; } catch (e) {}
   openSheet('Projects', card => { const st = h('div', 'stack'); card.append(st);
@@ -846,12 +846,12 @@ async function startEngine() {
 let lastTrip = 0;
 function onEngine(m) {
   if (m.t === 'pos') {
-    if (m.playing || m.voices || m.pk[0] > 1e-5 || m.pk[1] > 1e-5) { wake(); lastAct = Date.now(); }
+    if (m.playing || m.voices || m.pk[0] > 1e-5 || m.pk[1] > 1e-5) lastAct = Date.now();   // (sound keeps audio awake; only what a meter can show keeps the screen drawing)
+    if (m.playing || m.voices || m.pk[0] > 1e-3 || m.pk[1] > 1e-3) wake();
     REP.time = m.time; REP.playing = m.playing; REP.pos = m.pos; REP.cpu = REP.cpu * .9 + m.cpu * .1; REP.voices = m.voices; REP.cm = m.cm || [];   // CPU is sampled with a 1 ms clock, so it is averaged
-    METER.l = Math.max(m.pk[0], METER.l * .8); METER.r = Math.max(m.pk[1], METER.r * .8); if (m.pk[0] > 1 || m.pk[1] > 1) METER.clip = true;
+    { const r = { at: m.time - 1 / 30, pk: m.pk, cm: m.cm, sc: m.sc }; if (frameOn) { METQ.push(r); if (METQ.length > 90) meterTake(METQ.shift()); } else meterTake(r); }   // resting screen: nothing to show, take it now   // meters show each report when it is heard (see meterFeed)
     for (const v of m.fl) flashPad(v & 255, (v >> 8) - 1);
     if (m.arp) arpPlayed(m.arp);
-    if (m.sc) onScope(m.sc);
     if (T.playing && T.rec) recTrack();
   } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); sendMonitor(); }
   else if (m.t === 'trip') {
@@ -1522,7 +1522,7 @@ function openSceneSheet(i) {
   const sc = P.scenes[i];
   openSheet('Scene ' + (i + 1), card => {
     const names = ['Intro', 'Verse', 'Pre', 'Chorus', 'Hook', 'Drop', 'Break', 'Bridge', 'Outro'], chips = h('div', 'chips'); chips.style.flexWrap = 'wrap';
-    const inp = h('input', 'textin'); inp.value = sc.name; inp.placeholder = 'Or type a label'; inp.maxLength = 14; inp.onfocus = () => pushUndo('scene:' + i); inp.oninput = () => { sc.name = inp.value; markDirty(); };
+    const inp = h('input', 'textin'); inp.value = sc.name; inp.placeholder = 'Or type a label'; inp.maxLength = 14; inp.onfocus = () => pushUndo('scene:' + i); inp.oninput = () => { sc.name = tfName(inp.value, 14); markDirty(); };
     for (const n of names) { const c = h('button', 'chip' + (sc.name === n ? ' on' : ''), n); c.onclick = () => { pushUndo('scene:' + i); sc.name = sc.name === n ? '' : n; inp.value = sc.name; [...chips.children].forEach(x => x.classList.toggle('on', x.textContent === sc.name)); markDirty(); }; chips.append(c); }
     const st = h('div', 'stack'); st.append(chips, inp);
     const g = h('div', 'g2');
@@ -1563,7 +1563,7 @@ function openMonitor() {
 function openMenu() {
   openSheet(P.name || 'Project', card => { const st = h('div', 'stack');
     st.append(btn('Projects · ' + esc(P.name || 'Untitled'), () => { closeSheet(); openProjects(); }, 'btn hot'));
-    const pg = h('div', 'g2'); pg.append(btn('Panic: stop all sound', () => { closeSheet(); panic(); }, 'btn warn'), btn('Engine check', () => { closeSheet(); openDiag(); })); st.append(pg);
+    const pg = h('div', 'g3'); pg.append(btn('Panic', () => { closeSheet(); panic(); }, 'btn warn'), btn('Engine check', () => { closeSheet(); openDiag(); }), btn('About', () => { closeSheet(); openAbout(); })); st.append(pg);
     st.append(btn('Monitoring: ' + (UI.mon && (UI.mon.mode || UI.mon.phones) ? [UI.mon.mode ? MON_MODES[UI.mon.mode] : '', UI.mon.phones].filter(Boolean).join(' · ') : 'Off'), () => { closeSheet(); openMonitor(); }, 'btn' + (UI.mon && (UI.mon.mode || UI.mon.phones) ? ' on' : '')));
     const inp = h('input', 'textin'); inp.value = P.name; inp.maxLength = 30; inp.setAttribute('aria-label', 'Project name'); inp.onfocus = () => pushUndo('song'); inp.oninput = () => { P.name = inp.value; markDirty(); }; st.append(inp);
     st.append(h('div', 'sec', 'Export')); let g = h('div', 'g2'); g.append(btn('Export…', () => { closeSheet(); openExport(); }), btn('Projects…', () => { closeSheet(); openProjects(); })); st.append(g);
@@ -1601,6 +1601,9 @@ async function runChecks() {
   add('requestMIDIAccess' in navigator ? 'ok' : 'warn', 'Web MIDI', 'requestMIDIAccess' in navigator ? 'available' : 'not available (expected on iPhone)');
   return rows;
 }
+function openAbout() { openSheet('About', card => { const st = h('div', 'stack'); card.append(st);
+  st.append(h('div', 'sec', 'Your work'), h('p', 'note', 'Everything stays on this device. Trackfill never sends your work or anything about you anywhere: no accounts, no tracking, no ads. Back up from Projects.'));
+  st.append(h('div', 'sec', 'Built with'), h('p', 'note', 'MP3 encoding: lamejs (LGPL-3.0), unmodified · Time stretch: Signalsmith Stretch (MIT) · Font: Figtree (SIL Open Font License) · Sampled instruments: VCSL and VSCO 2 Community Edition (CC0) · Source and licences: github.com/sshaylerr/trackfill')); }); }
 function openDiag() {
   openSheet('Engine check', async card => { const box = h('div', 'diag'); box.append(h('p', 'note', 'Checking what this browser allows…')); card.append(box);
     const rows = await runChecks(); box.innerHTML = ''; const sym = { ok: '✓', warn: '!', fail: '×' };
@@ -1684,20 +1687,23 @@ async function bounceScene() { if (busy) return; busy = true; toast('Bouncing sc
     pushUndo('pad:' + UI.pad); touchPad(UI.pad); Object.assign(P.pads[UI.pad], { sample: id, name, start: 0, end: 1, pitch: 0, fine: 0, reverse: false, mode: 'one' }); syncPad(UI.pad); markDirty(); renderView(); toast(`Scene ${UI.scene + 1} is now on ${padLabel(UI.pad)}`); }
   catch (e) { console.error(e); toast('Bounce failed: ' + e.message); } busy = false; }
 function i16ToB64(a) { const u = new Uint8Array(a.buffer, a.byteOffset, a.byteLength); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+// a sound from a backup file: only your own sounds (u:…) are taken, never over one you already have, and only if it adds up
+function sampleFromFile(id, s) { if (!/^u:[A-Za-z0-9_-]{1,40}$/.test(id) || SAMPLES.has(id) || !s || typeof s !== 'object') return null;
+  const sr = +s.sr, ch = s.data ? s.ch | 0 : Array.isArray(s.chans) ? s.chans.length : 0; if (!(sr >= 8000 && sr <= 192000) || !(ch === 1 || ch === 2)) return null;
+  let data; try { if (typeof s.data === 'string') data = b64ToI16(s.data); else if (Array.isArray(s.chans) && s.chans.every(b => typeof b === 'string')) { const chans = s.chans.map(b => { const i16 = b64ToI16(b), f32 = new Float32Array(i16.length); for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768; return f32; }); data = interleave(chans, chans[0].length); } } catch (e) { return null; }
+  if (!data || !data.length || data.length % ch) return null;
+  const rec = { id, name: tfName(s.name, 24) || 'Sound', sr, ch, frames: data.length / ch, data, added: Date.now() }; if (s.frz && typeof s.frz === 'object') rec.frz = s.frz; return rec; }
 function b64ToI16(b) { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Int16Array(u.buffer); }
 async function saveBackup() { const samples = {}; for (const id of usedSampleIds()) { const s = SAMPLES.get(id); if (s && !s.builtin) samples[id] = { name: s.name, sr: s.sr, ch: s.ch, frz: !!s.frz, data: i16ToB64(s.data) }; }
   await saveFile(slug(P.name) + '.trackfill.json', JSON.stringify({ format: 'trackfill', version: PROJECT_VERSION, saved: new Date().toISOString(), project: P, samples })); }
 $('#fileProj').addEventListener('change', async e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
   try { const d = JSON.parse(await f.text());
     if (d.format === 'trackfill-all' && Array.isArray(d.projects)) {   // a full backup: every song and template comes back as its own entry; nothing here is replaced
-      for (const [id, sm] of Object.entries(d.samples || {})) { if (SAMPLES.has(id) || !sm.data) continue; const data = b64ToI16(sm.data), rec = { id, name: sm.name, sr: sm.sr, ch: sm.ch, frames: data.length / sm.ch, data, frz: sm.frz, added: Date.now() }; SAMPLES.set(id, rec); DB.put('samples', id, rec); }
+      for (const [id, sm] of Object.entries(d.samples || {})) { const rec = sampleFromFile(id, sm); if (rec) { SAMPLES.set(id, rec); DB.put('samples', id, rec); } }
       let n = 0; for (const x of d.projects) { if (!x || !x.data) continue; await projCreate(migrate(x.data), x.meta && x.meta.kind === 'template' ? 'template' : 'project'); n++; }
       closeSheet(); toast(`Restored ${n} project${n === 1 ? '' : 's'} and templates`); return; }
     if (d.format !== 'trackfill' || !d.project) throw new Error('not a Trackfill backup');
-    for (const [id, s] of Object.entries(d.samples || {})) { let rec;
-      if (s.data) { const data = b64ToI16(s.data); rec = { id, name: s.name, sr: s.sr, ch: s.ch, frames: data.length / s.ch, data, frz: s.frz, added: Date.now() }; }
-      else if (s.chans) { const chans = s.chans.map(b => { const i16 = b64ToI16(b), f32 = new Float32Array(i16.length); for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768; return f32; }); rec = { id, name: s.name, sr: s.sr, ch: chans.length, frames: chans[0].length, data: interleave(chans, chans[0].length), added: Date.now() }; }
-      if (rec) { SAMPLES.set(id, rec); DB.put('samples', id, rec); ENG.sent.delete(id); } }
+    for (const [id, sm] of Object.entries(d.samples || {})) { const rec = sampleFromFile(id, sm); if (rec) { SAMPLES.set(id, rec); DB.put('samples', id, rec); ENG.sent.delete(id); } }
     closeSheet(); await projNew(migrate(d.project)); }
   catch (err) { toast('Couldn’t open that file: ' + err.message); } });
 
@@ -1950,6 +1956,17 @@ addEventListener('keyup', e => { if (e.key === 'Enter' && e.target.tagName !== '
 
 /* ================= meter, transport wiring & frame loop ================= */
 const METER = { l: 0, r: 0, clip: false };
+/* Every meter (output, mixer strips, devices, analyzer) works the same way: it rises at once to the peak of each report, then falls 24 dB a
+   second, measured in time rather than frames, so it reads the same on any screen. Reports wait until the moment they are heard (the same
+   output-latency correction as the playhead), so the meters move with the sound rather than ahead of it. */
+const METQ = [], METER_FALL = 24;
+function meterTake(r) { METER.l = Math.max(METER.l, r.pk[0]); METER.r = Math.max(METER.r, r.pk[1]); if (r.pk[0] > 1 || r.pk[1] > 1) METER.clip = true;
+  const cm = r.cm || []; if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) m.v[k] = Math.max(m.v[k], cm[m.c * 2 + k] || 0);
+  if (r.sc) onScope(r.sc); }
+function meterFeed(dt) { const live = ctx && ctx.state === 'running', heard = live ? ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) : Infinity;
+  while (METQ.length && (METQ[0].at <= heard || METQ[0].at - heard > .5)) meterTake(METQ.shift());   // (a report from far ahead means the clock jumped: show it now)
+  const g = Math.pow(10, -METER_FALL * dt / 20), z = v => v * g < 1e-3 ? 0 : v * g;   // under -60 dB nothing shows: done, and the screen can rest
+  METER.l = z(METER.l); METER.r = z(METER.r); for (const m of STRIP_METERS) { m.v[0] = z(m.v[0]); m.v[1] = z(m.v[1]); } }
 const meterEls = [...document.querySelectorAll('#meter .bar i')], clipEl = document.querySelector('#meter .clip'), cpuEl = document.querySelector('#meter .cpu');
 let lastCpuDraw = 0;
 const meterLast = [-1, -1];
@@ -1976,13 +1993,13 @@ let frameOn = false, lastFrame = 0, wakeAt = 0;
 function wake() { wakeAt = performance.now(); if (!frameOn) { frameOn = true; requestAnimationFrame(frame); } }
 function frame(ts) {
   if (!P) { requestAnimationFrame(frame); return; }
-  if (ts - lastFrame < 14) { requestAnimationFrame(frame); return; } lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
-  METER.l *= .97; METER.r *= .97; drawMeter();
+  if (ts - lastFrame < 14) { requestAnimationFrame(frame); return; } const fdt = Math.min(.1, (ts - (lastFrame || ts)) / 1000); lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
+  meterFeed(fdt); drawMeter();
   const scoping = scopeMoving(); if (scoping) scopeFrame(Math.min(.1, (ts - (frame.prev || ts)) / 1000)); frame.prev = ts;
-  const busy = scoping || T.playing || METER.l > 1e-4 || METER.r > 1e-4 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 1e-4 || m.v[1] > 1e-4));
+  const busy = scoping || T.playing || METQ.length || METER.l > 0 || METER.r > 0 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 0 || m.v[1] > 0));
   if (busy) requestAnimationFrame(frame); else { frameOn = false; return; }   // nothing moving: stop drawing until woken
   if (!ctx) return;
-  if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) { const pk = REP.cm[m.c * 2 + k] || 0; m.v[k] = Math.max(pk, m.v[k] * .9); const db = m.v[k] > 1e-5 ? 20 * Math.log10(m.v[k]) : -99, f = tfFaderPos(m.v[k]);   // stereo, on the fader's own scale: 0 dBFS sits on the unity mark
+  if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) { const db = m.v[k] > 1e-5 ? 20 * Math.log10(m.v[k]) : -99, f = tfFaderPos(m.v[k]);   // stereo, on the fader's own scale: 0 dBFS sits on the unity mark
     const el = m.el[k]; el.style.height = (f * 100).toFixed(1) + '%'; el.style.background = db > 0 ? COL.rec : db > -6 ? COL.accent : COL.play; }
   const pos = heardPos();
   if (pos) {
@@ -2002,10 +2019,13 @@ async function boot() {
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (pr.snap != null) UI.tl.snap = pr.snap;
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
-    UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
+    UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: pr.mon.phones === 'Apple EarPods' ? 'Wired earbuds' : TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
+  // Safari clears a website's storage after a week unused, but never an app on the Home Screen: say so (at most once a week) when that applies
+  else if (location.protocol === 'https:' && !(navigator.standalone || matchMedia('(display-mode: standalone)').matches) && /iPhone|iPad|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document) {
+    const last = await DB.get('kv', 'hsHint'); if (!last || Date.now() - last > 7 * 864e5) { DB.put('kv', 'hsHint', Date.now()); setTimeout(() => toast('Add Trackfill to your Home Screen so Safari keeps your work'), 1500); } }
 }
 boot();
 </script>

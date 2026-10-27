@@ -5,10 +5,9 @@ self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c =>
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {
   const r = e.request; if (r.method !== 'GET') return;
-  const url = new URL(r.url), font = /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
-  if (url.origin !== location.origin && !font) return;
+  if (new URL(r.url).origin !== location.origin) return;   // the app only ever asks its own site
   e.respondWith(caches.open(CACHE).then(async c => {
-    const hit = await c.match(r, { ignoreSearch: true }), net = fetch(r, { cache: 'no-cache' }).then(res => { if (res && (res.ok || res.type === 'opaque')) c.put(r, res.clone()); return res; }).catch(() => hit);
+    const hit = await c.match(r, { ignoreSearch: true }), net = fetch(r, { cache: 'no-cache' }).then(res => { if (res && res.ok) c.put(r, res.clone()); return res; }).catch(() => hit);
     return hit || net;
   }));
 });

@@ -213,7 +213,7 @@ function openSynthSource(pi) {
 }
 /* ----- presets: factory ones per engine, plus your own (kept on this device for every project) ----- */
 let USER_PRESETS = [];
-async function loadUserPresets() { const v = await DB.get('kv', 'synPresets'); USER_PRESETS = Array.isArray(v) ? v.filter(x => x && x.n && x.syn) : []; }
+async function loadUserPresets() { const v = await DB.get('kv', 'synPresets'); USER_PRESETS = Array.isArray(v) ? v.filter(x => x && x.n && x.syn).map(x => Object.assign(x, { n: tfName(x.n, 30) })) : []; }
 function saveUserPresets() { DB.put('kv', 'synPresets', USER_PRESETS); }
 const patchSig = s => { const j = JSON.stringify([s.p, s.mods, s.lfo, s.wt || null, s.gr || null, s.ins || null]); let hsh = 0; for (let i = 0; i < j.length; i++) hsh = (hsh * 31 + j.charCodeAt(i)) | 0; return hsh; };
 const engPresets = pi => isXPad(pi) ? [SYN_FX_INIT, ...SFX_PRESETS] : isInPad(pi) ? [SYN_IN_INIT, ...IN_PRESETS] : isSuPad(pi) ? [SYN_SU_INIT, ...SU_PRESETS] : isFmPad(pi) ? [SYN_FM_INIT, ...FM_PRESETS] : isWtPad(pi) ? [SYN_WT_INIT, ...WT_PRESETS] : isGrPad(pi) ? [SYN_GR_INIT, ...GR_PRESETS] : [SYN_INIT, ...SYN_PRESETS];
@@ -585,7 +585,7 @@ function openGrainSource(pi) {
 }
 
 /* ----- LFO editor: drag points, tap to add, double-tap to remove, drag a line to bend it ----- */
-// The editor works on a "source": the synth's LFOs or the LFO Tool effect (points, what to do after a change, how to redraw, undo key, snap)
+// The editor works on a "source": the synth's LFOs or the Shaper effect (points, what to do after a change, how to redraw, undo key, snap)
 const LFOED = { sel: 0, drag: null, last: { t: 0, i: -1 }, src: null };
 function lfoPts(pi) { const k = +synTab()[1] - 1; return synOf(pi).lfo[k]; }
 function lfoChanged(pi) { syncPad(pi); markDirty(); drawSynDisp(); }

@@ -7,7 +7,9 @@ host = (root / 'js/host.js').read_text()
 controls = (root / 'ui/controls.js').read_text()
 views = 'const TF_DRUMFIT_SRC = ' + json.dumps((root / 'js/drumvoice.js').read_text() + '\n' + (root / 'js/drumfit.js').read_text().replace("'use strict';", '', 1)) + ';   // Make from a sample: the drum voice and its fitter, run in a worker\n' + 'const lamejs = (() => {   // MP3 encoder: lamejs (LGPL-3.0, js/vendor/LAME-LICENSE.txt), kept whole in its own scope\n' + (root / 'js/vendor/lame.min.js').read_text() + '\nreturn lamejs; })();\n' + 'const SignalsmithStretch = (() => { const module = undefined, exports = undefined, define = undefined;\n' + (root / 'js/vendor/signalsmith-stretch.js').read_text() + '\nreturn SignalsmithStretch; })();\n' + (root / 'ui/views.js').read_text() + '\n' + (root / 'ui/chop.js').read_text() + '\n' + (root / 'ui/scope.js').read_text() + '\n' + (root / 'ui/fxvis.js').read_text() + '\n' + (root / 'ui/devices.js').read_text() + '\n' + (root / 'ui/keys.js').read_text() + '\n' + (root / 'ui/edit.js').read_text() + '\n' + (root / 'ui/synth.js').read_text() + '\n' + (root / 'ui/drums.js').read_text() + '\n' + (root / 'ui/stretch.js').read_text()
 wasm = base64.b64encode((root / 'build/engine.wasm').read_bytes()).decode()
-for marker, value in [('/*@MODEL@*/', model), ('/*@HOST@*/', host), ('"@HOST_SRC@"', json.dumps(host)), ('@WASM_B64@', wasm), ('/*@CONTROLS@*/', controls), ('/*@VIEWS@*/', views)]:
+# the UI font (Figtree, SIL OFL 1.1, fonts/OFL.txt) is built in, so the app asks no other site for anything
+fonts = ''.join("@font-face{font-family:'Figtree';font-style:normal;font-display:swap;font-weight:%d;src:url(data:font/woff2;base64,%s) format('woff2')}\n" % (w, base64.b64encode((root / ('fonts/figtree-latin-%d-normal.woff2' % w)).read_bytes()).decode()) for w in (300, 400, 500, 600, 700))
+for marker, value in [('/*@FONTS@*/', fonts), ('/*@MODEL@*/', model), ('/*@HOST@*/', host), ('"@HOST_SRC@"', json.dumps(host)), ('@WASM_B64@', wasm), ('/*@CONTROLS@*/', controls), ('/*@VIEWS@*/', views)]:
     assert app.count(marker) == 1, marker
     app = app.replace(marker, value)
 assert '</script' not in host and '</script' not in model
@@ -47,6 +49,13 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 }
 </script>"""
 page = head + app[:cut] + '\n<style>html{margin:0;height:100%;background:#0b0b0c}body{margin:0;height:100%;background:#1c1c1f}</style>\n</head>\n<body>\n' + app[cut:] + '\n' + sw + '\n</body>\n</html>\n'
+# a content security policy: only this page's own scripts run (by hash), and the page can reach nothing but its own site. If a name or a
+# shared project ever slipped markup past the escaping, it could neither run nor send anything anywhere.
+import re as _re
+hashes = ' '.join("'sha256-%s'" % base64.b64encode(hashlib.sha256(m.encode()).digest()).decode() for m in _re.findall(r'<script>(.*?)</script>', page, _re.S))
+csp = ("default-src 'self'; script-src 'self' %s 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; "
+       "img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'") % hashes
+page = page.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<meta http-equiv="Content-Security-Policy" content="%s">' % csp, 1)
 build = hashlib.sha1(page.encode()).hexdigest()[:10]   # changes whenever the page does, so phones see sw.js change and update
 (web / 'index.html').write_text(page)
 shutil.copy(root / 'web/manifest.webmanifest', web)

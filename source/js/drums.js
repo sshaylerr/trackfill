@@ -38,7 +38,7 @@ const dvHash = v => { let h = 2166136261; const s = JSON.stringify(Object.keys(v
 const dvClean = v => { if (!v || typeof v !== 'object') return null; const o = {}; for (const k in v) if (typeof v[k] === 'number' && isFinite(v[k])) o[k] = v[k]; return Object.keys(o).length ? o : null; };
 // register a type of yours; returns its id ('Yours <hash>', the same id wherever the same voice turns up)
 function drumAddUser(mod, name, v, kind) { v = dvClean(v); if (!v || !DRUM_MODS[mod]) return null; kind = DRUM_PEAK[kind] ? kind : 'perc';
-  const id = 'Yours ' + dvHash(v), T = DRUM_MODS[mod].types; if (!T[id]) T[id] = { m: 'Yours', n: String(name || 'Mine').slice(0, 24), v, kind }; return id; }
+  const id = 'Yours ' + dvHash(v), T = DRUM_MODS[mod].types; if (!T[id]) T[id] = { m: 'Yours', n: String(name || 'Mine').replace(/[<>"`\u0000-\u001f\u007f]/g, '').slice(0, 24) || 'Mine', v, kind }; return id; }
 function drumRemoveUser(mod, id) { const T = DRUM_MODS[mod] && DRUM_MODS[mod].types[id]; if (T && T.m === 'Yours') delete DRUM_MODS[mod].types[id]; }
 // a drum on a type of yours carries the voice itself, so the project opens anywhere
 function drumTag(d) { const T = DRUM_MODS[d.mod] && DRUM_MODS[d.mod].types[d.type]; if (T && T.m === 'Yours') d.uv = { n: T.n, v: T.v, kind: T.kind }; else delete d.uv; return d; }
