@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-xspI/yGSe+UdLQHf2ZVMJLY1kT7rL7t9LHTIZacYyYQ=' 'sha256-MUntWWNrvxpxSopIyuHhtsLIGttQNjerOd+P9LETVsw=' 'sha256-ElPaVOsDnItA0/ZvgykXWHXIeT6FfYRRNtodNoIDGns=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-xspI/yGSe+UdLQHf2ZVMJLY1kT7rL7t9LHTIZacYyYQ=' 'sha256-MUntWWNrvxpxSopIyuHhtsLIGttQNjerOd+P9LETVsw=' 'sha256-M2QvEtFR6eiXvbdGc7rYJty0BgGmoNyaZ5cBmFBHNwA=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -195,6 +195,12 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .knob.mini svg{width:30px;height:30px}.knob.mini .kval,.knob.mini .klab{display:none}
 .nf{outline:2px solid var(--accent)!important;outline-offset:-2px}
 .ne{outline:2px solid var(--play)!important;outline-offset:-2px;background-color:rgba(83,209,141,.08)}
+.typeready{outline:2px solid var(--accent)!important;outline-offset:-2px;border-radius:4px}
+#numEntry{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.35);display:flex;justify-content:center;align-items:flex-start;padding:calc(env(safe-area-inset-top) + 64px) 16px 0}
+.numbox{width:100%;max-width:340px;background:var(--raised);border:1px solid #000;border-radius:6px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+.numlab{font-size:12px;letter-spacing:.06em;text-transform:uppercase;opacity:.7;margin-bottom:6px}
+.numrow{display:flex;gap:6px;align-items:center} .numrow .textin{flex:1;font-variant-numeric:tabular-nums} .numrow .btn{flex:none;height:34px;padding:0 14px}
+.numunit{font-size:13px;opacity:.75;min-width:26px}
 .knob.nf,.knob.ne,.selr.nf,.selr.ne,.fader.nf,.fader.ne{border-radius:4px}
 .knob.drag .kv{stroke:var(--accent-hi)}
 .knob.autoed .klab{color:var(--accent)}
@@ -3729,19 +3735,25 @@ function makeCtl(o, kind) {
   }
   const setV = v => { v = q(v); if (v !== o.get()) { o.set(v); upd(); if (UI.panel) updatePanel(); } };
   let d = null, lastTap = 0;
-  el.addEventListener('pointerdown', e => { d = { x: e.clientX, y: e.clientY, x0: e.clientX, v: o.get(), drag: false, swipe: false, id: e.pointerId, g: kind === 'knob' ? psStart(el, e) : null }; if (kind !== 'bar') { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {} } });
+  // hold still on a control that takes typing (o.entry): it lights and ticks; let go and a box opens with the keyboard (iOS only opens it on a release)
+  const lpOff = () => { if (d) { clearTimeout(d.lp); if (d.ready) { d.ready = false; el.classList.remove('typeready'); } } };
+  el.addEventListener('pointerdown', e => { d = { x: e.clientX, y: e.clientY, x0: e.clientX, v: o.get(), drag: false, swipe: false, id: e.pointerId, g: kind === 'knob' ? psStart(el, e) : null };
+    if (o.entry) { const dd = d; d.lp = setTimeout(() => { if (d === dd && !dd.drag && !dd.swipe && !(dd.g && dd.g.mode === 'scroll')) { dd.ready = true; el.classList.add('typeready'); haptic(); } }, 450); } if (kind !== 'bar') { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {} } });
   el.addEventListener('pointermove', e => {
     if (!d || e.pointerId !== d.id) return; const dx = e.clientX - d.x, dy = e.clientY - d.y;
     if (d.swipe) return;
-    if (!d.drag && d.g) { const m = psMove(d.g, e); if (m !== 'ctl') return; }   // a quick vertical start: the page scrolls, the knob stays put
+    if (d.ready && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) lpOff();   // moved after all: an ordinary drag
+    if (!d.drag && d.g) { const m = psMove(d.g, e); if (m !== 'ctl') { if (m === 'scroll') lpOff(); return; } }   // a quick vertical start: the page scrolls, the knob stays put
     if (!d.drag) { if (o.onSwipe && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) { d.swipe = true; return; }
       const go = kind === 'bar' ? (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) : o.onSwipe ? Math.abs(dy) > 6 && Math.abs(dy) >= Math.abs(dx) : Math.hypot(dx, dy) > 4; if (!go) return;
-      d.drag = true; d.x = e.clientX; d.y = e.clientY; if (kind === 'bar') { try { el.setPointerCapture(e.pointerId); } catch (_) {} } el.classList.add('drag'); o.onStart && o.onStart(); return; }
+      lpOff(); d.drag = true; d.x = e.clientX; d.y = e.clientY; if (kind === 'bar') { try { el.setPointerCapture(e.pointerId); } catch (_) {} } el.classList.add('drag'); o.onStart && o.onStart(); return; }
     const fine = UI.fine === 2 ? .04 : UI.fine ? .12 : 1, ex = e.clientX - d.x, ey = e.clientY - d.y;
     const frac = kind === 'bar' ? ex / (track.clientWidth || 100) : kind === 'knob' ? (o.onSwipe ? -ey : ex - ey) / 180 : -ey / Math.max(40, (track.clientHeight || 100) - 16);
-    setV(d.v + frac * (mx - mn) * fine);
+    const nv = d.v + frac * (mx - mn) * fine; setV(o.dragStep && !UI.fine ? Math.round(nv / o.dragStep) * o.dragStep : nv);   // dragStep: whole values by touch (Fine or the d-pad for the in-betweens)
   });
   const end = e => { if (!d) return;
+    if (d.ready && e.type === 'pointerup' && !d.drag) { lpOff(); d = null; openEntry(o, setV); return; }
+    lpOff();
     if (d.g && d.g.mode === 'scroll') { psEnd(d.g); d = null; return; }
     if (d.swipe) { const ex = e.clientX - d.x0; if (e.type === 'pointerup' && Math.abs(ex) > 40) o.onSwipe(ex < 0 ? 1 : -1); d = null; return; }
     if (d.drag) { el.classList.remove('drag'); o.onEnd && o.onEnd(); }
@@ -3753,7 +3765,8 @@ function makeCtl(o, kind) {
   const reg = { el, label: o.label, valText: () => o.fmt(o.get()), upd, edit: true, get: o.get, setv: setV,
     begin: () => { o.onStart && o.onStart(); }, finish: () => { o.onEnd && o.onEnd(); }, step: (dir, sh) => setV(o.get() + dir * (UI.fine ? step : sh ? big : coarse)),
     adjust: (dir, sh) => { if (o.scope) undoGroup('p:' + o.label + (o.key || ''), o.scope); o.onStart && o.onStart(true); setV(o.get() + dir * (UI.fine ? step : sh ? big : coarse)); o.onEnd && o.onEnd(); },
-    reset: () => { o.scope && pushUndo(o.scope); o.onStart && o.onStart(true); setV(o.def); o.onEnd && o.onEnd(); } };
+    reset: () => { o.scope && pushUndo(o.scope); o.onStart && o.onStart(true); setV(o.def); o.onEnd && o.onEnd(); },
+    type: o.entry ? () => openEntry(o, setV) : null };
   UI.regs.push(reg); el._reg = reg; upd(); el._upd = upd; return el;
 }
 const paramEl = o => makeCtl(o, 'bar');
@@ -3773,7 +3786,7 @@ const blankCell = () => h('div', 'knob blank', '<svg viewBox="0 0 48 48"></svg><
 function keyParam(key, o) {
   const { c, s } = tfParseKey(key), scope = s === -2 ? 'pad:' + c : 'chan:' + c;
   const meta = keyMeta(key), autoed = Object.values(P.scenes).some(sc => sc.auto[key] && sc.auto[key].length);
-  return makeCtl(Object.assign({ label: meta.label, def: meta.def, fmt: meta.fmt, bipolar: meta.bipolar, step: meta.step, coarse: meta.coarse, cls: autoed ? 'autoed' : '' }, o, { key, scope,
+  return makeCtl(Object.assign({ label: meta.label, def: meta.def, fmt: meta.fmt, bipolar: meta.bipolar, step: meta.step, coarse: meta.coarse, entry: meta.entry, dragStep: meta.dragStep, cls: autoed ? 'autoed' : '' }, o, { key, scope,
     get: () => tfBase(P, key),
     set: v => { if (s === -2 && P.pads[c].frz) touchPad(c); tfSetBase(P, key, v); sendParam(key, v); if (T.playing && T.rec) recAuto(key, v); if (o.after) o.after(v); markDirty(); },
     onStart: dpad => { if (!dpad) pushUndo(scope); send({ t: 'live', key, on: true }); },
@@ -3786,6 +3799,17 @@ function padParam(pi, k, o) {
     onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); } }), 'knob');
 }
 document.addEventListener('pointerdown', psGlideStop, true);   // any touch stops a glide, as on the phone's own lists
+/* typing a value: a small box near the top (clear of the keyboard), the value as it reads now, the unit beside it; Enter or Set applies,
+   anything outside closes it. o.entry = { unit, get(v) → the number shown, set(n) → the control's value }. */
+function openEntry(o, setV) { const old = $('#numEntry'); if (old) old.remove(); document.querySelectorAll('.typeready').forEach(x => x.classList.remove('typeready'));
+  const wrap = h('div', ''), box = h('div', 'numbox'), inp = h('input', 'textin'), cur = o.entry.get(o.get()); wrap.id = 'numEntry'; wrap.append(box);
+  inp.type = 'text'; inp.inputMode = 'decimal'; inp.enterKeyHint = 'done'; inp.value = String(cur); inp.setAttribute('aria-label', o.label + ' in ' + o.entry.unit);
+  const row = h('div', 'numrow'); row.append(inp, h('span', 'numunit', esc(o.entry.unit)), btn('Set', () => apply(), 'btn on')); box.append(h('div', 'numlab', esc(o.label)), row);
+  const close = () => { wrap.remove(); };
+  const apply = () => { const n = parseFloat(String(inp.value).replace(',', '.').replace(/[^\d.+-]/g, '')); if (!isFinite(n)) { toast('Type a number'); return; }
+    const mn = o.min ?? 0, mx = o.max ?? 1, v = Math.max(mn, Math.min(mx, o.entry.set(n))); o.onStart && o.onStart(); setV(v); o.onEnd && o.onEnd(); close(); toast(o.label + ' ' + o.fmt(o.get())); };
+  inp.onkeydown = e => { if (e.key === 'Enter') apply(); if (e.key === 'Escape') close(); };
+  wrap.addEventListener('pointerdown', e => { if (e.target === wrap) close(); }); document.body.append(wrap); inp.focus(); inp.select(); }
 
 
 /* ---------- parameter metadata by key ---------- */
@@ -3793,9 +3817,17 @@ const STRIP = [{ label: 'Volume', short: 'Vol', def: .85, fmt: volFmt, step: .00
   { label: 'Send A', short: 'Send A', def: 0, fmt: sendFmt, step: .0025, coarse: .025 }, { label: 'Send B', short: 'Send B', def: 0, fmt: sendFmt, step: .0025, coarse: .025 }];
 const SOUNDP = [{ label: 'Cutoff', short: 'Cutoff', def: 1, fmt: v => { const f = 20 * Math.pow(1000, v); return f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + ' kHz' : Math.round(f) + ' Hz'; }, step: .002, coarse: .025 },
   { label: 'Resonance', short: 'Reso', def: .08, fmt: v => (.7 + v * v * 18).toFixed(1), step: .005, coarse: .03 }];
+// typing a value: what the box shows (get) and the control value it sets (set)
+const ENTRY = { bpm: { unit: 'BPM', get: v => +v.toFixed(1), set: n => n },
+  tempoV: { unit: 'BPM', get: v => +tfTempoBpm(v).toFixed(1), set: n => tfTempoV(n) },
+  swing: { unit: '%', get: v => Math.round(50 + v * 25), set: n => (n - 50) / 25 },
+  ms: { unit: 'ms', get: v => +v.toFixed(1), set: n => n },
+  st: { unit: 'st', get: v => v, set: n => Math.round(n) }, ct: { unit: 'ct', get: v => v, set: n => Math.round(n) },
+  db: { unit: 'dB', get: v => { const d = tfFaderDb(v); return isFinite(d) ? +d.toFixed(1) : -70; }, set: n => n <= -68 ? 0 : tfFaderPos(Math.pow(10, Math.min(6, n) / 20)) } };
 function keyMeta(key) {
   const { c, s, i } = tfParseKey(key);
-  if (s === -4) return { label: 'Tempo', short: 'Tempo', def: tfTempoV(P.bpm), step: 1 / 1400, coarse: 1 / 140, fmt: v => tfTempoBpm(v).toFixed(1) + ' BPM' };
+  if (s === -4) return { label: 'Tempo', short: 'Tempo', def: tfTempoV(P.bpm), step: 1 / 1400, coarse: 1 / 140, dragStep: 1 / 140, fmt: v => tfTempoBpm(v).toFixed(1) + ' BPM', entry: ENTRY.tempoV };
+  if (s === -1 && i === 0) return Object.assign({}, STRIP[0], { entry: ENTRY.db });
   if (s === -1) return STRIP[i];
   if (s === -2 && i === 2) { const r = (P.pads[c] && P.pads[c].bendR) || 2; return { label: 'Pitch bend', short: 'Bend', def: .5, bipolar: true, step: .002, coarse: .02, fmt: v => { const st = (v * 2 - 1) * r; return (st > 0 ? '+' : '') + st.toFixed(Math.abs(st) < 10 ? 2 : 1) + ' st'; } }; }
   if (s === -2) return SOUNDP[i];
@@ -5284,8 +5316,8 @@ function renderSound(V) {
   if (UI.snd === PG.SAMPLE) disp.append(btn(pad.sample ? 'Replace sample' : 'Load a sound', openLibrary, 'key sm dispKey'));   // the sound itself lives on the screen, next to its name
   const g = h('div', 'kgrid'), redraw = { after: () => drawDisp() };
   if (UI.snd === PG.SAMPLE) {
-    g.append(padParam(pi, 'pitch', { label: 'Pitch', min: -24, max: 24, step: 1, coarse: 1, big: 12, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v + ' st' }),
-      padParam(pi, 'fine', { label: 'Fine', min: -100, max: 100, step: 1, coarse: 10, big: 50, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v + ' ct' }),
+    g.append(padParam(pi, 'pitch', { label: 'Pitch', entry: ENTRY.st, min: -24, max: 24, step: 1, coarse: 1, big: 12, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v + ' st' }),
+      padParam(pi, 'fine', { label: 'Fine', entry: ENTRY.ct, min: -100, max: 100, step: 1, coarse: 10, big: 50, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v + ' ct' }),
       padParam(pi, 'start', { label: 'Start', step: .001, coarse: .01, big: .05, def: 0, fmt: v => (v * 100).toFixed(1) + '%' }),
       padParam(pi, 'end', { label: 'End', step: .001, coarse: .01, big: .05, def: 1, fmt: v => (v * 100).toFixed(1) + '%' }),
       modeSel(pi), pad.mode === 'loop' ? padParam(pi, 'loopS', { label: 'Loop start', step: .001, coarse: .01, big: .05, def: .25, fmt: v => (v * 100).toFixed(1) + '%', after: () => drawDisp() })
@@ -7876,8 +7908,8 @@ function openSceneSheet(i) {
 let taps = [];
 function openTempo() {
   openSheet('Tempo & click', card => { const g = h('div', 'g2');
-    const tp = paramEl({ label: 'Tempo', min: 40, max: 220, step: .1, coarse: 1, big: 10, get: () => P.bpm, set: v => { P.bpm = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 96, fmt: v => (+v.toFixed(1)) + ' BPM', noFocus: true });
-    g.append(tp, paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, get: () => P.swing, set: v => { P.swing = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 0, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
+    const tp = paramEl({ label: 'Tempo', min: 40, max: 220, step: .1, coarse: 1, big: 10, dragStep: 1, entry: ENTRY.bpm, get: () => P.bpm, set: v => { P.bpm = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 96, fmt: v => (+v.toFixed(1)) + ' BPM', noFocus: true });
+    g.append(tp, paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, entry: ENTRY.swing, get: () => P.swing, set: v => { P.swing = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 0, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
     const tap = btn('Tap tempo', () => { const n = performance.now(); taps = taps.filter(t => n - t < 2500); taps.push(n); if (taps.length >= 3) { const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); P.bpm = clamp(Math.round(60000 / iv), 40, 220); tp._upd(); syncSong(); markDirty(); } });
     tap.style.height = '56px'; tap.style.width = '100%'; tap.style.marginTop = '10px'; card.append(g, tap);
     // this pad's groove: the song's swing or its own, and a timing offset (hats a touch late, a snare a touch early)
@@ -7885,8 +7917,8 @@ function openTempo() {
       card.append(h('div', 'sec', 'This pad · ' + esc(padLabel(pi) + ' ' + (pad.name || ''))));
       const row = h('div', 'g2'); row.append(btn('Song swing · ' + Math.round(50 + P.swing * 25) + '%', () => { pushUndo('pad:' + pi); set('swg', null); closeSheet(); openTempo(); }, 'btn' + (own ? '' : ' on')), btn('Own swing', () => { if (own) return; pushUndo('pad:' + pi); set('swg', P.swing); closeSheet(); openTempo(); }, 'btn' + (own ? ' on' : ''))); card.append(row);
       const g2 = h('div', 'g2'); g2.style.marginTop = '8px';
-      if (own) g2.append(paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, get: () => pad.swg, set: v => set('swg', v), onStart: () => pushUndo('pad:' + pi), def: P.swing, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
-      g2.append(paramEl({ label: 'Timing', min: -40, max: 40, step: .5, coarse: 2, big: 10, get: () => pad.tim || 0, set: v => set('tim', v), onStart: () => pushUndo('pad:' + pi), def: 0, bipolar: true, fmt: v => !v ? 'On time' : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + ' ms ' + (v > 0 ? 'late' : 'early'), noFocus: true }));
+      if (own) g2.append(paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, entry: ENTRY.swing, get: () => pad.swg, set: v => set('swg', v), onStart: () => pushUndo('pad:' + pi), def: P.swing, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
+      g2.append(paramEl({ label: 'Timing', min: -40, max: 40, step: .5, coarse: 2, big: 10, entry: ENTRY.ms, get: () => pad.tim || 0, set: v => set('tim', v), onStart: () => pushUndo('pad:' + pi), def: 0, bipolar: true, fmt: v => !v ? 'On time' : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + ' ms ' + (v > 0 ? 'late' : 'early'), noFocus: true }));
       if (!own) g2.style.gridTemplateColumns = '1fr'; card.append(g2); }
     const ck = h('div', 'g2'), pick = (title, opts, cur, set) => { card.append(h('div', 'sec', title)); const row = h('div', 'g3');
       opts.forEach(([v, l]) => row.append(btn(l, () => { set(v); savePrefs(); sendClick(); closeSheet(); openTempo(); }, 'btn' + (cur === v ? ' on' : '')))); card.append(row); };
@@ -8115,12 +8147,16 @@ function navOk(down) {
       NAV.holdT = setTimeout(() => { if (ctl.hasSel()) { NAV.held = true; if (ctl.holdStart) ctl.holdStart(); haptic(); canvasDraw(); updatePanel(); } }, 350); }
     else { clearTimeout(NAV.holdT); if (NAV.held) { NAV.held = false; canvasDraw(); if (ctl.holdEnd) ctl.holdEnd(); } else if (NAV.okHadSel && !ctl.okOnDown) ctl.ok(); }
     return; }
+  if (NAV.typeT && !down) { clearTimeout(NAV.typeT); NAV.typeT = 0; }
+  if (NAV.typing && !down) { NAV.typing = false; const reg = el._reg; if (NAV.mode === 'edit') navEndEdit(false); reg.type(); return; }   // OK held on a value that takes typing: the box opens on release
   if (NAV.mode === 'edit') { if (down) navEndEdit(true); return; }
   if (el.classList.contains('pad')) { const cell = +el.dataset.cell; if (down) padDown(cell); else padUp(cell); return; }
   if (!down) return;
   if (el.matches('canvas.navc')) { NAV.mode = 'canvas'; el.classList.add('ne'); canvasDraw(); return; }
   const reg = el._reg;
-  if (reg && reg.edit) { NAV.undoAt = UNDO.length; NAV.orig = reg.get(); reg.begin(); NAV.mode = 'edit'; el.classList.add('ne'); return; }
+  if (reg && reg.edit) { NAV.undoAt = UNDO.length; NAV.orig = reg.get(); reg.begin(); NAV.mode = 'edit'; el.classList.add('ne');
+    if (reg.type) NAV.typeT = setTimeout(() => { NAV.typeT = 0; if (NAV.el === el && NAV.mode === 'edit') { NAV.typing = true; el.classList.add('typeready'); haptic(); } }, 450);
+    return; }
   if (reg && reg.ok) { reg.ok(); return; }
   if (el.tagName === 'INPUT') { el.focus(); return; }
   el.click();
@@ -8158,7 +8194,7 @@ function navInfo() {
   if (NAV.mode === 'edit' && reg) return `Editing ${reg.label}: ${reg.valText()} · ↑↓ adjust · OK keep · Back cancel`;
   if (el.classList.contains('pad')) return UI.keys ? `${padChop() ? 'Slice ' + (+el.dataset.cell + 1) : keyCell(+el.dataset.cell).name} · OK plays` : `${padLabel(UI.pad)} ${P.pads[UI.pad].name || 'Empty'} · OK plays`;
   if (el.matches('canvas.navc')) return UI.view !== 'seq' ? 'Slices · OK to pick, play and move slices' : 'Timeline · OK to edit notes and points';
-  if (reg) return `${reg.label}: ${reg.valText()} · OK to ${reg.edit ? 'adjust' : 'open'}`;
+  if (reg) return `${reg.label}: ${reg.valText()} · OK to ${reg.edit ? 'adjust' + (reg.type ? ', hold to type' : '') : 'open'}`;
   const t = (el.getAttribute('aria-label') || el.value || el.textContent || '').trim().replace(/\s+/g, ' ');
   return `${t || 'Key'} · OK to press`;
 }

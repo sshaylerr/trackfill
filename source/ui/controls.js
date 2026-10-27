@@ -48,19 +48,25 @@ function makeCtl(o, kind) {
   }
   const setV = v => { v = q(v); if (v !== o.get()) { o.set(v); upd(); if (UI.panel) updatePanel(); } };
   let d = null, lastTap = 0;
-  el.addEventListener('pointerdown', e => { d = { x: e.clientX, y: e.clientY, x0: e.clientX, v: o.get(), drag: false, swipe: false, id: e.pointerId, g: kind === 'knob' ? psStart(el, e) : null }; if (kind !== 'bar') { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {} } });
+  // hold still on a control that takes typing (o.entry): it lights and ticks; let go and a box opens with the keyboard (iOS only opens it on a release)
+  const lpOff = () => { if (d) { clearTimeout(d.lp); if (d.ready) { d.ready = false; el.classList.remove('typeready'); } } };
+  el.addEventListener('pointerdown', e => { d = { x: e.clientX, y: e.clientY, x0: e.clientX, v: o.get(), drag: false, swipe: false, id: e.pointerId, g: kind === 'knob' ? psStart(el, e) : null };
+    if (o.entry) { const dd = d; d.lp = setTimeout(() => { if (d === dd && !dd.drag && !dd.swipe && !(dd.g && dd.g.mode === 'scroll')) { dd.ready = true; el.classList.add('typeready'); haptic(); } }, 450); } if (kind !== 'bar') { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {} } });
   el.addEventListener('pointermove', e => {
     if (!d || e.pointerId !== d.id) return; const dx = e.clientX - d.x, dy = e.clientY - d.y;
     if (d.swipe) return;
-    if (!d.drag && d.g) { const m = psMove(d.g, e); if (m !== 'ctl') return; }   // a quick vertical start: the page scrolls, the knob stays put
+    if (d.ready && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) lpOff();   // moved after all: an ordinary drag
+    if (!d.drag && d.g) { const m = psMove(d.g, e); if (m !== 'ctl') { if (m === 'scroll') lpOff(); return; } }   // a quick vertical start: the page scrolls, the knob stays put
     if (!d.drag) { if (o.onSwipe && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) { d.swipe = true; return; }
       const go = kind === 'bar' ? (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) : o.onSwipe ? Math.abs(dy) > 6 && Math.abs(dy) >= Math.abs(dx) : Math.hypot(dx, dy) > 4; if (!go) return;
-      d.drag = true; d.x = e.clientX; d.y = e.clientY; if (kind === 'bar') { try { el.setPointerCapture(e.pointerId); } catch (_) {} } el.classList.add('drag'); o.onStart && o.onStart(); return; }
+      lpOff(); d.drag = true; d.x = e.clientX; d.y = e.clientY; if (kind === 'bar') { try { el.setPointerCapture(e.pointerId); } catch (_) {} } el.classList.add('drag'); o.onStart && o.onStart(); return; }
     const fine = UI.fine === 2 ? .04 : UI.fine ? .12 : 1, ex = e.clientX - d.x, ey = e.clientY - d.y;
     const frac = kind === 'bar' ? ex / (track.clientWidth || 100) : kind === 'knob' ? (o.onSwipe ? -ey : ex - ey) / 180 : -ey / Math.max(40, (track.clientHeight || 100) - 16);
-    setV(d.v + frac * (mx - mn) * fine);
+    const nv = d.v + frac * (mx - mn) * fine; setV(o.dragStep && !UI.fine ? Math.round(nv / o.dragStep) * o.dragStep : nv);   // dragStep: whole values by touch (Fine or the d-pad for the in-betweens)
   });
   const end = e => { if (!d) return;
+    if (d.ready && e.type === 'pointerup' && !d.drag) { lpOff(); d = null; openEntry(o, setV); return; }
+    lpOff();
     if (d.g && d.g.mode === 'scroll') { psEnd(d.g); d = null; return; }
     if (d.swipe) { const ex = e.clientX - d.x0; if (e.type === 'pointerup' && Math.abs(ex) > 40) o.onSwipe(ex < 0 ? 1 : -1); d = null; return; }
     if (d.drag) { el.classList.remove('drag'); o.onEnd && o.onEnd(); }
@@ -72,7 +78,8 @@ function makeCtl(o, kind) {
   const reg = { el, label: o.label, valText: () => o.fmt(o.get()), upd, edit: true, get: o.get, setv: setV,
     begin: () => { o.onStart && o.onStart(); }, finish: () => { o.onEnd && o.onEnd(); }, step: (dir, sh) => setV(o.get() + dir * (UI.fine ? step : sh ? big : coarse)),
     adjust: (dir, sh) => { if (o.scope) undoGroup('p:' + o.label + (o.key || ''), o.scope); o.onStart && o.onStart(true); setV(o.get() + dir * (UI.fine ? step : sh ? big : coarse)); o.onEnd && o.onEnd(); },
-    reset: () => { o.scope && pushUndo(o.scope); o.onStart && o.onStart(true); setV(o.def); o.onEnd && o.onEnd(); } };
+    reset: () => { o.scope && pushUndo(o.scope); o.onStart && o.onStart(true); setV(o.def); o.onEnd && o.onEnd(); },
+    type: o.entry ? () => openEntry(o, setV) : null };
   UI.regs.push(reg); el._reg = reg; upd(); el._upd = upd; return el;
 }
 const paramEl = o => makeCtl(o, 'bar');
@@ -92,7 +99,7 @@ const blankCell = () => h('div', 'knob blank', '<svg viewBox="0 0 48 48"></svg><
 function keyParam(key, o) {
   const { c, s } = tfParseKey(key), scope = s === -2 ? 'pad:' + c : 'chan:' + c;
   const meta = keyMeta(key), autoed = Object.values(P.scenes).some(sc => sc.auto[key] && sc.auto[key].length);
-  return makeCtl(Object.assign({ label: meta.label, def: meta.def, fmt: meta.fmt, bipolar: meta.bipolar, step: meta.step, coarse: meta.coarse, cls: autoed ? 'autoed' : '' }, o, { key, scope,
+  return makeCtl(Object.assign({ label: meta.label, def: meta.def, fmt: meta.fmt, bipolar: meta.bipolar, step: meta.step, coarse: meta.coarse, entry: meta.entry, dragStep: meta.dragStep, cls: autoed ? 'autoed' : '' }, o, { key, scope,
     get: () => tfBase(P, key),
     set: v => { if (s === -2 && P.pads[c].frz) touchPad(c); tfSetBase(P, key, v); sendParam(key, v); if (T.playing && T.rec) recAuto(key, v); if (o.after) o.after(v); markDirty(); },
     onStart: dpad => { if (!dpad) pushUndo(scope); send({ t: 'live', key, on: true }); },
@@ -105,3 +112,14 @@ function padParam(pi, k, o) {
     onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); } }), 'knob');
 }
 document.addEventListener('pointerdown', psGlideStop, true);   // any touch stops a glide, as on the phone's own lists
+/* typing a value: a small box near the top (clear of the keyboard), the value as it reads now, the unit beside it; Enter or Set applies,
+   anything outside closes it. o.entry = { unit, get(v) → the number shown, set(n) → the control's value }. */
+function openEntry(o, setV) { const old = $('#numEntry'); if (old) old.remove(); document.querySelectorAll('.typeready').forEach(x => x.classList.remove('typeready'));
+  const wrap = h('div', ''), box = h('div', 'numbox'), inp = h('input', 'textin'), cur = o.entry.get(o.get()); wrap.id = 'numEntry'; wrap.append(box);
+  inp.type = 'text'; inp.inputMode = 'decimal'; inp.enterKeyHint = 'done'; inp.value = String(cur); inp.setAttribute('aria-label', o.label + ' in ' + o.entry.unit);
+  const row = h('div', 'numrow'); row.append(inp, h('span', 'numunit', esc(o.entry.unit)), btn('Set', () => apply(), 'btn on')); box.append(h('div', 'numlab', esc(o.label)), row);
+  const close = () => { wrap.remove(); };
+  const apply = () => { const n = parseFloat(String(inp.value).replace(',', '.').replace(/[^\d.+-]/g, '')); if (!isFinite(n)) { toast('Type a number'); return; }
+    const mn = o.min ?? 0, mx = o.max ?? 1, v = Math.max(mn, Math.min(mx, o.entry.set(n))); o.onStart && o.onStart(); setV(v); o.onEnd && o.onEnd(); close(); toast(o.label + ' ' + o.fmt(o.get())); };
+  inp.onkeydown = e => { if (e.key === 'Enter') apply(); if (e.key === 'Escape') close(); };
+  wrap.addEventListener('pointerdown', e => { if (e.target === wrap) close(); }); document.body.append(wrap); inp.focus(); inp.select(); }

@@ -176,6 +176,12 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .knob.mini svg{width:30px;height:30px}.knob.mini .kval,.knob.mini .klab{display:none}
 .nf{outline:2px solid var(--accent)!important;outline-offset:-2px}
 .ne{outline:2px solid var(--play)!important;outline-offset:-2px;background-color:rgba(83,209,141,.08)}
+.typeready{outline:2px solid var(--accent)!important;outline-offset:-2px;border-radius:4px}
+#numEntry{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.35);display:flex;justify-content:center;align-items:flex-start;padding:calc(env(safe-area-inset-top) + 64px) 16px 0}
+.numbox{width:100%;max-width:340px;background:var(--raised);border:1px solid #000;border-radius:6px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+.numlab{font-size:12px;letter-spacing:.06em;text-transform:uppercase;opacity:.7;margin-bottom:6px}
+.numrow{display:flex;gap:6px;align-items:center} .numrow .textin{flex:1;font-variant-numeric:tabular-nums} .numrow .btn{flex:none;height:34px;padding:0 14px}
+.numunit{font-size:13px;opacity:.75;min-width:26px}
 .knob.nf,.knob.ne,.selr.nf,.selr.ne,.fader.nf,.fader.ne{border-radius:4px}
 .knob.drag .kv{stroke:var(--accent-hi)}
 .knob.autoed .klab{color:var(--accent)}
@@ -1027,9 +1033,17 @@ const STRIP = [{ label: 'Volume', short: 'Vol', def: .85, fmt: volFmt, step: .00
   { label: 'Send A', short: 'Send A', def: 0, fmt: sendFmt, step: .0025, coarse: .025 }, { label: 'Send B', short: 'Send B', def: 0, fmt: sendFmt, step: .0025, coarse: .025 }];
 const SOUNDP = [{ label: 'Cutoff', short: 'Cutoff', def: 1, fmt: v => { const f = 20 * Math.pow(1000, v); return f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + ' kHz' : Math.round(f) + ' Hz'; }, step: .002, coarse: .025 },
   { label: 'Resonance', short: 'Reso', def: .08, fmt: v => (.7 + v * v * 18).toFixed(1), step: .005, coarse: .03 }];
+// typing a value: what the box shows (get) and the control value it sets (set)
+const ENTRY = { bpm: { unit: 'BPM', get: v => +v.toFixed(1), set: n => n },
+  tempoV: { unit: 'BPM', get: v => +tfTempoBpm(v).toFixed(1), set: n => tfTempoV(n) },
+  swing: { unit: '%', get: v => Math.round(50 + v * 25), set: n => (n - 50) / 25 },
+  ms: { unit: 'ms', get: v => +v.toFixed(1), set: n => n },
+  st: { unit: 'st', get: v => v, set: n => Math.round(n) }, ct: { unit: 'ct', get: v => v, set: n => Math.round(n) },
+  db: { unit: 'dB', get: v => { const d = tfFaderDb(v); return isFinite(d) ? +d.toFixed(1) : -70; }, set: n => n <= -68 ? 0 : tfFaderPos(Math.pow(10, Math.min(6, n) / 20)) } };
 function keyMeta(key) {
   const { c, s, i } = tfParseKey(key);
-  if (s === -4) return { label: 'Tempo', short: 'Tempo', def: tfTempoV(P.bpm), step: 1 / 1400, coarse: 1 / 140, fmt: v => tfTempoBpm(v).toFixed(1) + ' BPM' };
+  if (s === -4) return { label: 'Tempo', short: 'Tempo', def: tfTempoV(P.bpm), step: 1 / 1400, coarse: 1 / 140, dragStep: 1 / 140, fmt: v => tfTempoBpm(v).toFixed(1) + ' BPM', entry: ENTRY.tempoV };
+  if (s === -1 && i === 0) return Object.assign({}, STRIP[0], { entry: ENTRY.db });
   if (s === -1) return STRIP[i];
   if (s === -2 && i === 2) { const r = (P.pads[c] && P.pads[c].bendR) || 2; return { label: 'Pitch bend', short: 'Bend', def: .5, bipolar: true, step: .002, coarse: .02, fmt: v => { const st = (v * 2 - 1) * r; return (st > 0 ? '+' : '') + st.toFixed(Math.abs(st) < 10 ? 2 : 1) + ' st'; } }; }
   if (s === -2) return SOUNDP[i];
@@ -1670,8 +1684,8 @@ function openSceneSheet(i) {
 let taps = [];
 function openTempo() {
   openSheet('Tempo & click', card => { const g = h('div', 'g2');
-    const tp = paramEl({ label: 'Tempo', min: 40, max: 220, step: .1, coarse: 1, big: 10, get: () => P.bpm, set: v => { P.bpm = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 96, fmt: v => (+v.toFixed(1)) + ' BPM', noFocus: true });
-    g.append(tp, paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, get: () => P.swing, set: v => { P.swing = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 0, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
+    const tp = paramEl({ label: 'Tempo', min: 40, max: 220, step: .1, coarse: 1, big: 10, dragStep: 1, entry: ENTRY.bpm, get: () => P.bpm, set: v => { P.bpm = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 96, fmt: v => (+v.toFixed(1)) + ' BPM', noFocus: true });
+    g.append(tp, paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, entry: ENTRY.swing, get: () => P.swing, set: v => { P.swing = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 0, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
     const tap = btn('Tap tempo', () => { const n = performance.now(); taps = taps.filter(t => n - t < 2500); taps.push(n); if (taps.length >= 3) { const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); P.bpm = clamp(Math.round(60000 / iv), 40, 220); tp._upd(); syncSong(); markDirty(); } });
     tap.style.height = '56px'; tap.style.width = '100%'; tap.style.marginTop = '10px'; card.append(g, tap);
     // this pad's groove: the song's swing or its own, and a timing offset (hats a touch late, a snare a touch early)
@@ -1679,8 +1693,8 @@ function openTempo() {
       card.append(h('div', 'sec', 'This pad · ' + esc(padLabel(pi) + ' ' + (pad.name || ''))));
       const row = h('div', 'g2'); row.append(btn('Song swing · ' + Math.round(50 + P.swing * 25) + '%', () => { pushUndo('pad:' + pi); set('swg', null); closeSheet(); openTempo(); }, 'btn' + (own ? '' : ' on')), btn('Own swing', () => { if (own) return; pushUndo('pad:' + pi); set('swg', P.swing); closeSheet(); openTempo(); }, 'btn' + (own ? ' on' : ''))); card.append(row);
       const g2 = h('div', 'g2'); g2.style.marginTop = '8px';
-      if (own) g2.append(paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, get: () => pad.swg, set: v => set('swg', v), onStart: () => pushUndo('pad:' + pi), def: P.swing, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
-      g2.append(paramEl({ label: 'Timing', min: -40, max: 40, step: .5, coarse: 2, big: 10, get: () => pad.tim || 0, set: v => set('tim', v), onStart: () => pushUndo('pad:' + pi), def: 0, bipolar: true, fmt: v => !v ? 'On time' : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + ' ms ' + (v > 0 ? 'late' : 'early'), noFocus: true }));
+      if (own) g2.append(paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, entry: ENTRY.swing, get: () => pad.swg, set: v => set('swg', v), onStart: () => pushUndo('pad:' + pi), def: P.swing, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
+      g2.append(paramEl({ label: 'Timing', min: -40, max: 40, step: .5, coarse: 2, big: 10, entry: ENTRY.ms, get: () => pad.tim || 0, set: v => set('tim', v), onStart: () => pushUndo('pad:' + pi), def: 0, bipolar: true, fmt: v => !v ? 'On time' : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + ' ms ' + (v > 0 ? 'late' : 'early'), noFocus: true }));
       if (!own) g2.style.gridTemplateColumns = '1fr'; card.append(g2); }
     const ck = h('div', 'g2'), pick = (title, opts, cur, set) => { card.append(h('div', 'sec', title)); const row = h('div', 'g3');
       opts.forEach(([v, l]) => row.append(btn(l, () => { set(v); savePrefs(); sendClick(); closeSheet(); openTempo(); }, 'btn' + (cur === v ? ' on' : '')))); card.append(row); };
@@ -1909,12 +1923,16 @@ function navOk(down) {
       NAV.holdT = setTimeout(() => { if (ctl.hasSel()) { NAV.held = true; if (ctl.holdStart) ctl.holdStart(); haptic(); canvasDraw(); updatePanel(); } }, 350); }
     else { clearTimeout(NAV.holdT); if (NAV.held) { NAV.held = false; canvasDraw(); if (ctl.holdEnd) ctl.holdEnd(); } else if (NAV.okHadSel && !ctl.okOnDown) ctl.ok(); }
     return; }
+  if (NAV.typeT && !down) { clearTimeout(NAV.typeT); NAV.typeT = 0; }
+  if (NAV.typing && !down) { NAV.typing = false; const reg = el._reg; if (NAV.mode === 'edit') navEndEdit(false); reg.type(); return; }   // OK held on a value that takes typing: the box opens on release
   if (NAV.mode === 'edit') { if (down) navEndEdit(true); return; }
   if (el.classList.contains('pad')) { const cell = +el.dataset.cell; if (down) padDown(cell); else padUp(cell); return; }
   if (!down) return;
   if (el.matches('canvas.navc')) { NAV.mode = 'canvas'; el.classList.add('ne'); canvasDraw(); return; }
   const reg = el._reg;
-  if (reg && reg.edit) { NAV.undoAt = UNDO.length; NAV.orig = reg.get(); reg.begin(); NAV.mode = 'edit'; el.classList.add('ne'); return; }
+  if (reg && reg.edit) { NAV.undoAt = UNDO.length; NAV.orig = reg.get(); reg.begin(); NAV.mode = 'edit'; el.classList.add('ne');
+    if (reg.type) NAV.typeT = setTimeout(() => { NAV.typeT = 0; if (NAV.el === el && NAV.mode === 'edit') { NAV.typing = true; el.classList.add('typeready'); haptic(); } }, 450);
+    return; }
   if (reg && reg.ok) { reg.ok(); return; }
   if (el.tagName === 'INPUT') { el.focus(); return; }
   el.click();
@@ -1952,7 +1970,7 @@ function navInfo() {
   if (NAV.mode === 'edit' && reg) return `Editing ${reg.label}: ${reg.valText()} · ↑↓ adjust · OK keep · Back cancel`;
   if (el.classList.contains('pad')) return UI.keys ? `${padChop() ? 'Slice ' + (+el.dataset.cell + 1) : keyCell(+el.dataset.cell).name} · OK plays` : `${padLabel(UI.pad)} ${P.pads[UI.pad].name || 'Empty'} · OK plays`;
   if (el.matches('canvas.navc')) return UI.view !== 'seq' ? 'Slices · OK to pick, play and move slices' : 'Timeline · OK to edit notes and points';
-  if (reg) return `${reg.label}: ${reg.valText()} · OK to ${reg.edit ? 'adjust' : 'open'}`;
+  if (reg) return `${reg.label}: ${reg.valText()} · OK to ${reg.edit ? 'adjust' + (reg.type ? ', hold to type' : '') : 'open'}`;
   const t = (el.getAttribute('aria-label') || el.value || el.textContent || '').trim().replace(/\s+/g, ' ');
   return `${t || 'Key'} · OK to press`;
 }
