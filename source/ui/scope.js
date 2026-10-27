@@ -98,6 +98,22 @@ const anLive = k => { const v = AN_VIEW[k]; return v.right == null; };
 function anFreqZoom(v, s, c0, c1, span) {   // pinch on a log-frequency axis: s = stretch, c0 = the fraction under the fingers at the start, c1 = where they are now
   const L0 = Math.log(v.f0Lo), L1 = Math.log(v.f0Hi), at = L0 + (L1 - L0) * c0, w = Math.max(Math.log(2), Math.min(Math.log(TF_AN_HI / TF_AN_LO), (L1 - L0) / s));
   let lo = at - w * c1; lo = Math.max(Math.log(TF_AN_LO), Math.min(Math.log(TF_AN_HI) - w, lo)); v.fLo = Math.exp(lo); v.fHi = Math.exp(lo + w); }
+// the d-pad on a display: ←→ move through time (spectrum: along the frequencies), ↑↓ zoom; Shift: the other axis (frequency, or level); OK: live, full view
+const anNowOf = k => SCOPE.an ? (k === 'sgram' ? SCOPE.an.sgN - 1 : SCOPE.an.cn - 1) : 0, anAvailOf = k => SCOPE.an ? Math.min(k === 'sgram' ? AN_SGF : AN_WCOLS, k === 'sgram' ? SCOPE.an.sgN : SCOPE.an.cn) : 0;
+function anSetRight(k, r) { const v = AN_VIEW[k], n = anNowOf(k), oldest = n - anAvailOf(k) + 1; v.right = r >= n - .5 ? null : Math.max(oldest + 8, r); }
+function anFreqStep(v, zoom, move) { v.f0Lo = v.fLo; v.f0Hi = v.fHi; anFreqZoom(v, zoom, .5 + move, .5); }
+function anCtl(k, cv) { const v = () => AN_VIEW[k], W = () => cv.getBoundingClientRect().width || 300, f = () => UI.fine ? 1.05 : 1.25, st = () => UI.fine ? .02 : .12;
+  const back = d => { const V = v(), per = k === 'sgram' ? V.fpp : V.cpp; anSetRight(k, (V.right == null ? anNowOf(k) : V.right) + d * W() * st() * per); };
+  return { hasSel() { return false; }, heldInfo() { return ''; },
+    info() { const V = v(); if (k === 'spec') return `Spectrum ${fmtF(V.fLo)}–${fmtF(V.fHi)} Hz · ←→ move · ↑↓ zoom · OK full view`;
+      const ago = V.right == null ? 'live' : '−' + ((anNowOf(k) - V.right) * (k === 'sgram' ? 1 / 30 : .005)).toFixed(1) + ' s';
+      return (k === 'sgram' ? 'Spectrogram' : 'Waveform') + ` · ${ago} · ←→ move · ↑↓ zoom · Shift ↑↓ ${k === 'sgram' ? 'frequency' : 'level'}${k === 'sgram' ? ', Shift ←→ move it' : ''} · OK live, full view`; },
+    left(sh) { if (k === 'spec' || (sh && k === 'sgram')) anFreqStep(v(), 1, -st()); else back(-1); wake(); },
+    right(sh) { if (k === 'spec' || (sh && k === 'sgram')) anFreqStep(v(), 1, st()); else back(1); wake(); },
+    up(sh) { this.zoom(f(), sh); }, down(sh) { this.zoom(1 / f(), sh); },
+    zoom(z, sh) { const V = v(); if (k === 'spec' || (sh && k === 'sgram')) anFreqStep(V, z, 0); else if (sh) V.amp = Math.max(1, Math.min(16, V.amp * z));
+      else if (k === 'sgram') V.fpp = Math.max(.125, Math.min(8, V.fpp / z)); else V.cpp = Math.max(.25, Math.min(24, V.cpp / z)); wake(); },
+    ok() { Object.assign(AN_VIEW[k], JSON.parse(JSON.stringify(AN_VDEF[k]))); wake(); }, back() { return false; }, del() {} }; }
 function anGestures(cv, k) {
   const ptrs = new Map(); let one = null, pin = null, lastTap = 0;
   const loc = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, W: r.width, H: r.height }; };
@@ -219,7 +235,7 @@ function openAnalyzer(c) {
         if (k === 'spec' && pr[k]) hd.append(btn('Side', () => { pr.side = pr.side ? 0 : 1; savePrefs(); scopeWant(); build(); }, 'key sm' + (pr.side ? ' on' : '')), btn('Tilt ' + (pr.tilt || 0), () => { pr.tilt = pr.tilt === 3 ? 4.5 : pr.tilt === 4.5 ? 0 : 3; savePrefs(); build(); }, 'key sm'));
         p.append(hd);
         if (pr[k]) { const box = h('div', 'scr anbody'), cv = h('canvas'); box.style.height = ht + 'px'; box.append(cv); p.append(box);
-          if (AN_VIEW[k]) anGestures(cv, k); else cv.style.touchAction = 'pan-y';   // loudness and stereo have nothing to drag: the page scrolls over them
+          if (AN_VIEW[k]) { anGestures(cv, k); cv.classList.add('navc'); cv.setAttribute('aria-label', name); cv._ctl = anCtl(k, cv); cv._draw = () => wake(); } else cv.style.touchAction = 'pan-y';   // loudness and stereo have nothing to drag: the page scrolls over them
           scopeView(cv, () => { const { g, W, H } = prepCanvas(cv); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H); AN_DRAW[k](g, W, H, cv); }); }
         st.append(p); }
       requestAnimationFrame(() => scopeFrame(0)); };

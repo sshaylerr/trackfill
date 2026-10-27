@@ -209,7 +209,11 @@ function openEdit() {
       if (tab === 'Bars') { const lab = h('div', 'lcdbox edr', `Bar ${EDR.from + 1}${EDR.len > 1 ? '–' + (EDR.from + EDR.len) : ''} / ${sc.bars}`); lab.style.gridColumn = 'span 2';
         grid(key('◀', () => { EDR.from = Math.max(0, EDR.from - 1); }, EDR.from > 0, { stay: 1 }), lab, key('▶', () => { EDR.from = Math.min(sc.bars - 1, EDR.from + 1); EDR.len = Math.min(EDR.len, sc.bars - EDR.from); }, EDR.from < sc.bars - 1, { stay: 1 }),
           ...[1, 2, 4, 8].map(k => key(k + (k > 1 ? ' bars' : ' bar'), () => { EDR.len = k; }, EDR.from + k <= sc.bars, { stay: 1, cls: 'sm' + (EDR.len === k ? ' on' : '') })),
-          key('Copy', copyBars), key('Paste', pasteBars, clipIs('bars'), { stay: 1 }), key('Duplicate', duplicateBars, EDR.from + EDR.len * 2 <= 16, { stay: 1, cls: 'hot' }), key('Clear', clearBars, true, { stay: 1, cls: 'warn' })); }
+          key('Copy', copyBars), key('Paste', pasteBars, clipIs('bars'), { stay: 1 }), key('Duplicate', duplicateBars, EDR.from + EDR.len * 2 <= 16, { stay: 1, cls: 'hot' }), key('Clear', clearBars, true, { stay: 1, cls: 'warn' }),
+          // the loop range and start point, as the ruler sets them by touch
+          ...(() => { const a = EDR.from * BAR, b = Math.min(sc.bars, EDR.from + EDR.len) * BAR, L = tl.loop, looping = L && L.on && L.scene === UI.scene && L.a === a && L.b === b, S = tl.start && tl.start.scene === UI.scene ? tl.start.t : 0;
+            return [key(looping ? 'Loop off' : 'Loop ' + (EDR.len > 1 ? 'these bars' : 'this bar'), () => { tl.loop = looping ? Object.assign(L, { on: false }) : { scene: UI.scene, a, b, on: true }; sendRange(); toast(tl.loop.on ? `Loop ${rangeStr(a, b)}` : 'Loop off'); }, true, { stay: 1, w: 2, cls: looping ? 'on' : '' }),
+              key(S === a && a > 0 ? 'Start: from bar 1' : 'Start at bar ' + (EDR.from + 1), () => { tl.start = S === a || a === 0 ? null : { scene: UI.scene, t: a }; toast(tl.start ? `Plays from bar ${EDR.from + 1}` : 'Plays from the start'); }, true, { stay: 1, w: 2 })]; })()); }
       if (tab === 'Pad') { const pi = UI.view === 'mix' ? UI.mixSel : UI.pad;
         grid(key('Copy', () => copyPad(pi)), key('Paste', () => pastePad(pi), clipIs('pad')), key('Duplicate', () => duplicatePad(pi), hasSound(P.pads[pi]), { cls: 'hot' }), confirmBtn('Clear', 'Again', () => { closeSheet(); clearPad(pi); }),
           key('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap a pad to swap with ${padLabel(pi)}`); }, true, { w: 2 })); }
