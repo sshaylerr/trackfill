@@ -54,6 +54,19 @@ async function page(b, url, extra = []) { const pg = await b.newPage({ viewport:
       for (const v of ['pads', 'seq', 'sound', 'mix']) { UI.view = v; try { renderView(); } catch (e) {} await new Promise(r => setTimeout(r, 120)); }
       return { n, junk: [...SAMPLES.keys()].some(k => k.includes('<')), polluted: ({}).polluted !== undefined || Object.getPrototypeOf(P) !== Object.prototype, fired: (window.__x || []).length }; });
     ok(r.n === 0 && !r.junk && !r.polluted && r.fired === 0, `a hostile backup is defused: names plain (${r.n} left), junk sound ids dropped, prototype keys ignored, nothing runs`); await pg.close(); }
+  console.log('zip files');
+  { const { pg } = await page(b, FILE), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tfzip-'));
+    // a zip whose names carry markup and folder tricks, an entry that claims to be huge, and a file that only pretends to be a zip
+    const crc = d => { let c = ~0; for (const x of d) { c ^= x; for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xEDB88320 : c >>> 1; } return ~c >>> 0; };
+    const zip = entries => { const parts = [], cen = []; let off = 0; for (const [name, data, fake] of entries) { const nb = Buffer.from(name), lh = Buffer.alloc(30); lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt32LE(crc(data), 14); lh.writeUInt32LE(data.length, 18); lh.writeUInt32LE(fake || data.length, 22); lh.writeUInt16LE(nb.length, 26);
+        parts.push(lh, nb, data); const ch = Buffer.alloc(46); ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt32LE(crc(data), 16); ch.writeUInt32LE(data.length, 20); ch.writeUInt32LE(fake || data.length, 24); ch.writeUInt16LE(nb.length, 28); ch.writeUInt32LE(off, 42); cen.push(ch, nb); off += 30 + nb.length + data.length; }
+      const cd = Buffer.concat(cen), e = Buffer.alloc(22); e.writeUInt32LE(0x06054b50, 0); e.writeUInt16LE(entries.length, 8); e.writeUInt16LE(entries.length, 10); e.writeUInt32LE(cd.length, 12); e.writeUInt32LE(off, 16); return Buffer.concat([...parts, cd, e]); };
+    fs.writeFileSync(path.join(dir, 'evil.zip'), zip([['../../' + PAY + '.wav', Buffer.from('not audio')], ['big.wav', Buffer.from('x'), 4e9], [PAY + '/inner.wav', Buffer.alloc(100)]]));
+    fs.writeFileSync(path.join(dir, 'fake.zip'), Buffer.from('<script>window.__x=1</script>'));
+    let crashed = null; for (const f of ['evil.zip', 'fake.zip']) { const [fc] = await Promise.all([pg.waitForEvent('filechooser'), pg.evaluate(() => pickAudio(3))]); await fc.setFiles(path.join(dir, f)); await pg.waitForTimeout(1500);
+      const [fc2] = await Promise.all([pg.waitForEvent('filechooser'), pg.evaluate(() => pickMono(3, () => {}))]); await fc2.setFiles(path.join(dir, f)); await pg.waitForTimeout(1200); }
+    const r = await pg.evaluate(() => ({ fired: (window.__x || []).length, names: P.pads.map(p => p.name).filter(n => /[<>"]/.test(n)).length }));
+    ok(r.fired === 0 && r.names === 0, 'hostile zip files (markup and folder tricks in names, a huge claimed size, a fake zip) are refused or opened safely; nothing runs'); await pg.close(); }
   console.log('MIDI files');
   { const { pg } = await page(b, FILE);
     const r = await pg.evaluate(PAY => { const enc = s => [...new TextEncoder().encode(s)], vlq = n => { const b = [n & 127]; while ((n >>= 7)) b.unshift((n & 127) | 128); return b; };

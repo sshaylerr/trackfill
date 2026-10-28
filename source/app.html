@@ -540,7 +540,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 </div>
 <div id="sheet" hidden><div class="card"></div></div>
 <div id="toast" role="status"></div>
-<input type="file" id="fileAudio" accept="audio/*" multiple hidden>
+<input type="file" id="fileAudio" accept="audio/*,.wav,.wave,.aif,.aiff,.aifc,.mp3,.m4a,.aac,.flac,.ogg,.oga,.opus,.caf,.zip,application/zip" multiple hidden>
 <input type="file" id="fileProj" accept=".json,application/json" hidden>
 
 <script>
@@ -1687,7 +1687,35 @@ function openShapes() {
 let importTarget = null;
 function pickAudio(pi) { importTarget = pi; ensureAudio(); $('#fileAudio').click(); }
 $('#fileAudio').addEventListener('change', async e => { const files = [...(e.target.files || [])]; e.target.value = ''; if (files.length) await importFiles(files, importTarget); });
+/* ---------- picking audio: every common sound file, and zip files of them ----------
+   iPhone's file picker greys out files it can't match to the list it's given, so the list names the extensions as well as "audio". */
+const AUDIO_ACCEPT = 'audio/*,.wav,.wave,.aif,.aiff,.aifc,.mp3,.m4a,.aac,.flac,.ogg,.oga,.opus,.caf,.zip,application/zip', AUDIO_EXT = /\.(wav|wave|aif|aiff|aifc|mp3|m4a|aac|flac|ogg|oga|opus|caf)$/i;
+const isZip = f => /\.zip$/i.test(f.name) || /zip/.test(f.type || '');
+// the sounds inside a zip (folders and the Mac's hidden "._" files skipped); at most 500 of them and 400 MB unpacked
+async function unzipAudio(file) {
+  const u = new Uint8Array(await file.arrayBuffer()), dv = new DataView(u.buffer), out = []; let e = -1;
+  for (let i = u.length - 22; i >= Math.max(0, u.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+  if (e < 0) throw new Error('not a zip file');
+  const n = Math.min(dv.getUint16(e + 10, true), 4000); let p = dv.getUint32(e + 16, true), total = 0; const dec = new TextDecoder();
+  for (let k = 0; k < n && p + 46 <= u.length && dv.getUint32(p, true) === 0x02014b50; k++) {
+    const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), usize = dv.getUint32(p + 24, true), nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), lo = dv.getUint32(p + 42, true);
+    const name = dec.decode(u.subarray(p + 46, p + 46 + nl)), base = name.split('/').pop(); p += 46 + nl + xl + cl;
+    if (!base || base.startsWith('._') || name.includes('__MACOSX') || !AUDIO_EXT.test(base) || out.length >= 500) continue;
+    if (lo + 30 > u.length || dv.getUint32(lo, true) !== 0x04034b50) continue;
+    const d0 = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true), raw = u.subarray(d0, Math.min(u.length, d0 + csize));
+    total += usize; if (total > 400e6) break;
+    let data; if (method === 0) data = raw.slice();
+    else if (method === 8 && typeof DecompressionStream !== 'undefined') data = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    else continue;
+    out.push(new File([data], base)); }
+  return out; }
+// files as picked, with any zip files opened up into the sounds inside
+async function expandAudio(files) { const out = []; let zipFail = false;
+  for (const f of files) { if (!isZip(f)) { out.push(f); continue; } try { const inside = await unzipAudio(f); if (!inside.length) toast('No sounds found in ' + tfName(f.name, 40)); out.push(...inside); } catch (e) { zipFail = true; } }
+  if (zipFail) toast(typeof DecompressionStream === 'undefined' ? 'This browser can\'t open zip files: pick the sounds themselves' : 'That zip file couldn\'t be opened');
+  return out; }
 async function importFiles(files, firstPad) {
+  files = await expandAudio(files); if (!files.length) return;
   ensureAudio(); toast(`Loading ${files.length} file${files.length > 1 ? 's' : ''}…`);
   const ids = [], failed = [];
   for (const f of files) {

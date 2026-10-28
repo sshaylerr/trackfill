@@ -129,8 +129,12 @@ function userDrumsSave(removeId) { const out = []; for (const mod in DRUM_MODS) 
   DB.put('kv', 'userDrums', out); }
 async function userDrumsLoad() { const L = await DB.get('kv', 'userDrums'); if (Array.isArray(L)) for (const u of L) { const id = drumAddUser(u.mod, u.n, u.v, u.kind); if (id) DRUM_MODS[u.mod].types[id].lib = true; } }
 // pick a sound file and hand over its first seconds as one channel at 48 kHz (Make from a sample, Match a sample)
-function pickMono(secs, onMono) { ensureAudio(); const inp = h('input'); inp.type = 'file'; inp.accept = 'audio/*'; inp.hidden = true; document.body.append(inp);   // in the page: iOS only reports picks from inputs it can see
-  inp.onchange = async () => { const f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
+function pickMono(secs, onMono) { ensureAudio(); const inp = h('input'); inp.type = 'file'; inp.accept = AUDIO_ACCEPT; inp.hidden = true; document.body.append(inp);   // in the page: iOS only reports picks from inputs it can see
+  inp.onchange = async () => { const f0 = inp.files && inp.files[0]; inp.remove(); if (!f0) return;
+    const all = await expandAudio([f0]); if (!all.length) return;
+    if (all.length > 1) { openSheet('Which sound?', card => { const l = h('div', 'list'); for (const x of all) { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(tfName(x.name, 60))}</b></div>`; li.onclick = () => { closeSheet(); use(x); }; l.append(li); } card.append(l); }); return; }
+    use(all[0]); };
+  const use = async f => {
     try { const ab = await f.arrayBuffer(), oc = new OfflineAudioContext(1, 1, 48000), buf = await new Promise((res, rej) => { const p = oc.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
       const n = Math.min(buf.length, Math.round(buf.sampleRate * secs)), x = new Float32Array(n); for (let c = 0; c < buf.numberOfChannels; c++) { const ch = buf.getChannelData(c); for (let i = 0; i < n; i++) x[i] += ch[i] / buf.numberOfChannels; }
       let pk = 0; for (const v of x) pk = Math.max(pk, Math.abs(v)); if (pk < 1e-4) return toast('That sample is silent');
