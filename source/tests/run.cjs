@@ -104,9 +104,21 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(Math.abs(r[3] - 10) < .3, `loudness range of -20 then -30 dBFS reads 10 LU (${r[3].toFixed(1)})`);
     ok(tp[4] > -.3 && Math.abs(tp[5] + 3.01) < .1, `true peak finds the peak between samples (${tp[4].toFixed(2)} dBTP where samples read ${tp[5].toFixed(2)})`); }
   console.log('source');
-  { const re = /\/\/[^\n]*?(;\s*(const|let|var)\s+\w+\s*=|\)\s*\{\s*[\w.]+\(|;\s+[A-Za-z_$][\w.$]*\s*=\s*[^=\s]|;\s*(if|for|while)\s*\(|;\s*\}\s*(else\b|\)|$))/, files = ['app.html', ...fs.readdirSync(path.join(__dirname, '../ui')).map(f => 'ui/' + f), ...fs.readdirSync(path.join(__dirname, '../js')).filter(f => f.endsWith('.js')).map(f => 'js/' + f)], bad = [];
+  { const re = /\/\/[^\n]*?(;\s*(const|let|var)\s+\w+\s*=|\)\s*\{\s*[\w.]+\(|;\s+[A-Za-z_$][\w.$]*\s*=\s*[^=\s]|;\s*(if|for|while)\s*\(|;\s*\}\s*(else\b|\)|$)|\)\s+[A-Za-z_$][\w$]*\.[\w.$]+\s*=\s*[^=\s]|\)\s+(if|for|const|let)\s*[\w(])/, files = ['app.html', ...fs.readdirSync(path.join(__dirname, '../ui')).map(f => 'ui/' + f), ...fs.readdirSync(path.join(__dirname, '../js')).filter(f => f.endsWith('.js')).map(f => 'js/' + f)], bad = [];
     for (const f of files) fs.readFileSync(path.join(__dirname, '..', f), 'utf8').split('\n').forEach((l, i) => { const k = l.indexOf('//'); if (k >= 0 && !/https?:$/.test(l.slice(Math.max(0, k - 6), k)) && !l.includes("'//'") && re.test(l.slice(k))) bad.push(f + ':' + (i + 1)); });
     ok(!bad.length, `no code hidden behind a line comment${bad.length ? ': ' + bad.join(', ') : ''}`); }
+  console.log('every effect built the same way');
+  { const vis = fs.readFileSync(path.join(__dirname, '../ui/fxvis.js'), 'utf8'), views = fs.readFileSync(path.join(__dirname, '../ui/views.js'), 'utf8'), dev = fs.readFileSync(path.join(__dirname, '../ui/devices.js'), 'utf8'), eng = fs.readFileSync(path.join(__dirname, '../dsp/engine.cpp'), 'utf8');
+    const gm = views.match(/const GROUPS = (\[.*?\]);/), groups = gm ? eval(gm[1]).flatMap(g => g[1]) : [], miss = { display: [], look: [], menu: [], engine: [], names: [] };
+    const engCount = (eng.match(/enum \{ FX_EQ = 0,([^}]*)FX_COUNT \}/) || ['', ''])[1].split(',').filter(x => x.trim()).length + 1;
+    for (const [k, t] of Object.entries(M.FX_TYPES)) { const d = M.FX_DEFS[t];
+      if (!new RegExp('case T\\.' + k + '\\b').test(vis)) miss.display.push(d.name);
+      if (!new RegExp(`'${t}:0'`).test(dev) && !/'\d+:0'/.test('')) { if (!dev.includes(`'${t}:0'`)) miss.look.push(d.name); }
+      if (!groups.includes(d.name)) miss.menu.push(d.name);
+      for (const m of d.modes) for (const p of m.params) if (/^(Freq|Gain|Color|Speed|In gain|Out gain)$/.test(p.n) && !(t === M.FX_TYPES.UTIL && p.n === 'Gain')) miss.names.push(d.name + '/' + p.n); }
+    if (engCount !== Object.keys(M.FX_TYPES).length) miss.engine.push(`engine has ${engCount}, app ${Object.keys(M.FX_TYPES).length}`);
+    const bad = Object.entries(miss).filter(([, v]) => v.length);
+    ok(!bad.length, `every effect has its engine part, a display, a faceplate, a place in the add list and the shared control names${bad.length ? ': ' + bad.map(([k, v]) => k + ' missing for ' + v.join(', ')).join('; ') : ''}`); }
   console.log('security');
   { const evil = `"'><img src=x onerror=alert(1)>\u0000`, n = M.tfName(evil, 40), q = M.migrate(JSON.parse('{"v":3,"name":"x","__proto__":{"polluted":1},"pads":[{"name":"<b>hi</b>","__proto__":{"p":2}}],"scenes":[{"name":"<i>"}]}'));
     ok(!/[<>"\u0000]/.test(n) && ({}).polluted === undefined && q.pads[0].p === undefined && q.pads[0].name === 'bhi/b' && q.scenes[0].name === 'i', 'names are plain text and project files can\'t reach an object\'s prototype');
@@ -189,6 +201,28 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     let diff = 0, pk = 0; for (let i = 0; i < dry.L.length; i++) { diff = Math.max(diff, Math.abs(a0.L[i] - dry.L[i])); pk = Math.max(pk, Math.abs(a1.L[i])); }
     const rms = a => Math.sqrt(a.L.reduce((s, v) => s + v * v, 0) / a.L.length);
     ok(diff < 1e-4 && pk <= 1.0001 && rms(a1) > rms(dry) * 1.1, `Inflate: at 0% it changes nothing (${diff.toExponential(1)}), at 100% it is ${(20 * Math.log10(rms(a1) / rms(dry))).toFixed(1)} dB denser and never passes 0 dBFS with Clip on`); }
+  console.log('pitch, shift, ring, imager, de-esser');
+  { const zc = (x, a, b) => { let n = 0, f = -1, l = -1; for (let i = a + 1; i < b; i++) if (x[i - 1] < 0 && x[i] >= 0) { const t = i - x[i] / (x[i] - x[i - 1]); if (f < 0) f = t; l = t; n++; } return 48000 * (n - 1) / (l - f); };
+    const render = async (fx, pad) => { const Q = M.newProject(true); Object.assign(Q.pads[0], pad); Q.chans[0].fx = fx ? [fx] : []; Q.scenes[0].notes = { 0: [{ t: 0, len: 380, p: 0, v: .8 }] };
+      return H.tfRenderOffline(wasm, Q, kit, { order: [{ scene: 0, reps: 1 }], tail: 0 }); };
+    const sine = { src: 'synth', syn: SP.synPatch({ n: 't', p: { o1w: 'Sine', flt: 'Off', aa: .001, as: 1, dri: 0 } }), mode: 'gate' };
+    const fs = M.newFx(27); fs.p[0] = .5 + .5 * Math.sqrt(100 / 2000);   // +100 Hz
+    const a = await render(null, sine), b = await render(fs, sine), fa = zc(a.L, 24000, 72000), fb = zc(b.L, 24000, 72000);
+    ok(Math.abs(fb - fa - 100) < 2, `Frequency shift moves a ${fa.toFixed(1)} Hz tone by +${(fb - fa).toFixed(1)} Hz`);
+    const im = M.newFx(29); [3, 4, 5, 6].forEach(k => { im.p[k] = 0; }); const wide = await render(null, Object.assign({}, sine, { pan: 0 })), mono = await render(im, { sample: 'b:dhat', src: 'sample' }), same = await render(M.newFx(29), { sample: 'b:dhat', src: 'sample' }), ref = await render(null, { sample: 'b:dhat', src: 'sample' });
+    let dm = 0, dsm = 0; for (let i = 0; i < mono.L.length; i++) { dm = Math.max(dm, Math.abs(mono.L[i] - mono.R[i])); dsm = Math.max(dsm, Math.abs(same.L[i] - ref.L[i])); }
+    ok(dm < 1e-4 && dsm < 2e-3, `Imager: all widths at 0% is mono (${dm.toExponential(1)}), at 100% it leaves the sound as it was (${dsm.toExponential(1)})`);
+    const de = M.newFx(30); de.p[1] = .2; de.p[2] = 1; const hat = await render(de, { sample: 'b:dhat', src: 'sample' }), rms = x => Math.sqrt(x.reduce((s, v) => s + v * v, 0) / x.length);
+    ok(rms(hat.L) < rms(ref.L) * .7, `De-esser turns a bright hat down ${(20 * Math.log10(rms(hat.L) / rms(ref.L))).toFixed(1)} dB`);
+    const ps = M.newFx(26); ps.p[0] = 19 / 24; const pv = await render(ps, Object.assign({}, sine)), fp = zc(pv.L, 30000, 72000);
+    ok(Math.abs(fp / fa - Math.pow(2, 7 / 12)) < .01, `Pitch +7 st: ${fa.toFixed(1)} Hz → ${fp.toFixed(1)} Hz (a fifth up is ×1.498, got ×${(fp / fa).toFixed(3)})`); }
+  console.log('filter LFO');
+  { const fl = async (lfo, sync) => { const Q = M.newProject(true); Object.assign(Q.pads[0], { sample: 'b:dhat', src: 'sample' }); Q.scenes[0].notes = { 0: Array.from({ length: 16 }, (_, k) => ({ t: k * 24, len: 24, p: 0, v: .9 })) };
+      const f = M.newFx(2, null, 1); f.p[6] = .5; f.p[0] = .5; f.p[9] = sync; if (lfo) f.lfo = M.FX_LFO_SHAPES[lfo].map(q => Object.assign({ c: 0 }, q)); Q.chans[0].fx = [f]; Q.bpm = 120;
+      const r = await H.tfRenderOffline(wasm, Q, kit, { order: [{ scene: 0, reps: 1 }], tail: 0 }); return r.L; };
+    const sine = await fl(null, 3 / 7), saw = await fl('Saw down', 3 / 7), sine2 = await fl(null, 3 / 7), free = await fl(null, 0); let d1 = 0, d2 = 0, d3 = 0;
+    for (let i = 0; i < sine.length; i++) { d1 = Math.max(d1, Math.abs(sine[i] - saw[i])); d2 = Math.max(d2, Math.abs(sine[i] - sine2[i])); d3 = Math.max(d3, Math.abs(sine[i] - free[i])); }
+    ok(d1 > .01 && d2 === 0 && d3 > .01, `a filter's LFO plays its drawn shape (${d1.toFixed(3)} from the sine), in time with the song when synced (${d3.toFixed(3)} from free-running), the same every time`); }
   console.log('rhythm effects');
   { // synced effects follow the song: Step FX starts its pattern with the song every time you press Play, however long it was stopped
     const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, () => {}), Q = M.newProject(true); host.soft = false;

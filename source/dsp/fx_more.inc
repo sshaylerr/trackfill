@@ -93,6 +93,7 @@ static void fx_reso(Fx* f, float* L, float* R, i32 n) {
   for (i32 v = 0; v < nv; v++) { D[v] = clampf(SR / r->hz[v], 2.f, (float)(RSL - 4)); g[v] = fexp(-6.90775528f * D[v] / (t60 * SR)); ex[v] = sqrtf_(maxf(1e-4f, 1.f - g[v] * g[v]));
     const float pan = nv > 1 ? ((v & 1) ? 0.5f + 0.35f * v / (nv - 1) : 0.5f - 0.35f * v / (nv - 1)) : 0.5f; gl[v] = fcos(pan * 1.57079633f); gr[v] = fsin(pan * 1.57079633f); }
   const float mg = epMix(mix), norm = 2.8f / sqrtf_((float)nv), hpA = onepole(70.f), inA = onepole(9000.f), egA = onepole(30.f);
+  i32 lastAct = -1; float lvl = 0.f;
   for (i32 i = 0; i < n; i++) {
     float in = (L[i] + R[i]) * 0.5f + 1e-18f; in -= op1(&r->hp, in, hpA); in = op1(&r->inLp, in, inA);
     i32 act = -1; if (arp) { const double b = beatAt(i) / ARPD[arp]; act = (i32)((long long)floor_dd(b) % nv); if (act < 0) act += nv; }
@@ -106,6 +107,7 @@ static void fx_reso(Fx* f, float* L, float* R, i32 n) {
       float a = d; if (motion > 0.001f) { r->ph[v] += (0.35f + 0.21f * v) / SR; if (r->ph[v] >= 1.f) r->ph[v] -= 1.f; a *= 1.f - motion * 0.5f * (1.f + fsin(6.28318531f * r->ph[v])); }
       oL += a * gl[v]; oR += a * gr[v]; }
     r->w++;
-    oL *= norm; oR *= norm;
+    oL *= norm; oR *= norm; lastAct = act; lvl = maxf(lvl, fabsf_(oL) + fabsf_(oR));
     L[i] = (L[i] + (oL - L[i]) * mix) * mg; R[i] = (R[i] + (oR - R[i]) * mix) * mg; }   // mg: the strings and the sound don't add in step, so the blend keeps its loudness
+  f->vis[0] = (float)lastAct; f->vis[1] = lvl; f->vis[2] = (float)nv;
 }

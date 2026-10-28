@@ -29,6 +29,7 @@ Clock and sync (check whenever timing code changes):
 - Lit notes and MIDI export place notes exactly as the engine does (swing, per-pad timing at the tempo where the note is, clamped to the scene).
 
 Also review by hand whatever changed since the last pass:
+- Effects: tests/run.cjs "every effect built the same way" (engine part, display, faceplate, add-list place, shared control names) and "every effect and mode at its defaults keeps the level". New DSP adds a speck of DC (1e-18) before its filters: denormal numbers made one effect ten times slower in silence.
 - Source: no code after a `//` on the same line (tests/run.cjs "source" catches the usual shapes; it has bitten three times).
 - Errors on the phone: Engine check lists app and engine errors (the app says once a minute when one happens).
 - Any new place that shows user text (names, file names, anything from a file) goes through `esc()`, or `textContent`, or is cleaned with `tfName()` where it comes in.

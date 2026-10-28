@@ -17,7 +17,7 @@ typedef short i16;
 enum { NCH = 83, NPAD = 64, G0 = 64, B0 = 72, R0 = 80, MASTER = 82, NSLOT = 8, MAXN = 128,
        NVOICE = 96, VOICECAP = 80, NSAMP = 1024, NPARAM = 12 };
 enum { FX_EQ = 0, FX_COMP, FX_FILTER, FX_SAT, FX_DELAY, FX_REVERB, FX_DUCK, FX_UTIL, FX_CHORUS, FX_CLIP, FX_CRUSH, FX_TRANS, FX_PHASER,
-       FX_LIMIT, FX_MBAND, FX_TAPE, FX_GATE, FX_DISP, FX_APAN, FX_LFOT, FX_VINYL, FX_STEP, FX_GRIN, FX_DIST, FX_INFL, FX_RESO, FX_COUNT };
+       FX_LIMIT, FX_MBAND, FX_TAPE, FX_GATE, FX_DISP, FX_APAN, FX_LFOT, FX_VINYL, FX_STEP, FX_GRIN, FX_DIST, FX_INFL, FX_RESO, FX_PITCH, FX_FSHIFT, FX_RING, FX_IMAGER, FX_DEESS, FX_COUNT };
 
 static float SR = 48000.f, BPM = 120.f;
 
@@ -304,7 +304,7 @@ static u32 discMask(i32 t, i32 m) {
   switch (t) {
     case FX_EQ: return m == 1 ? B0 | B3 | B6 : m == 2 ? B0 | B2 | B4 | B6 | B7 | B8 : 0;
     case FX_COMP: return m == 1 ? B2 : m == 2 ? B4 : m == 3 ? B1 | B2 | B3 : 0;
-    case FX_FILTER: return m == 0 ? B0 | B3 : m == 1 || m == 3 ? B3 : 0;
+    case FX_FILTER: return m == 0 ? B0 | B3 : m == 1 ? B3 | B9 : m == 3 ? B3 | B8 : m == 6 ? B7 : B8;   // (the last: LFO sync)
     case FX_SAT: return m == 0 ? B0 | B5 : B2 | B7;
     case FX_DELAY: return B0 | B1 | B5;
     case FX_REVERB: return m == 3 ? B4 : m == 4 ? B9 : 0;
@@ -313,7 +313,7 @@ static u32 discMask(i32 t, i32 m) {
     case FX_PHASER: return m == 1 ? B2 : 0;
     case FX_LIMIT: return B3 | B4;
     case FX_APAN: return B0 | B1 | B4; case FX_LFOT: return B0 | B1; case FX_VINYL: return B4; case FX_STEP: return B0 | B1; case FX_GRIN: return B1;
-    case FX_INFL: return B3 | B4; case FX_RESO: return B0 | B1 | B2 | B6;
+    case FX_INFL: return B3 | B4; case FX_RESO: return B0 | B1 | B2 | B6; case FX_PITCH: return m == 1 ? B0 | B1 : 0; case FX_RING: return B1; case FX_DEESS: return B3 | B4;
     default: return 0;
   }
 }
@@ -626,6 +626,7 @@ static float noiseGate(float* g, const float* L, const float* R, i32 n) {
 #include "fx_modes.inc"
 #include "fx_new.inc"
 #include "fx_more.inc"
+#include "fx_more2.inc"
 #include "synth.inc"
 static u32 fxStateBytes(i32 t, i32 m) {
   if (m == 0 && t < FX_LIMIT) return fxStateBytes0(t);
@@ -636,6 +637,7 @@ static u32 fxStateBytes(i32 t, i32 m) {
     case FX_LIMIT: return sizeof(LimSt); case FX_MBAND: return sizeof(MbSt); case FX_TAPE: return sizeof(TapeSt); case FX_GATE: return sizeof(GateSt); case FX_DISP: return sizeof(DispSt);
     case FX_APAN: return sizeof(APSt); case FX_LFOT: return sizeof(LTSt); case FX_VINYL: return sizeof(VinSt); case FX_STEP: return sizeof(StepSt); case FX_GRIN: return sizeof(GrinSt);
     case FX_DIST: return sizeof(DistSt); case FX_INFL: return sizeof(InflSt); case FX_RESO: return sizeof(ResoSt);
+    case FX_PITCH: return sizeof(PitchSt); case FX_FSHIFT: return sizeof(FSh2St); case FX_RING: return sizeof(RingSt); case FX_IMAGER: return sizeof(ImgSt); case FX_DEESS: return sizeof(DeesSt);
     default: return fxStateBytes0(t);
   }
 }
@@ -665,6 +667,7 @@ static void fx_run(i32 c, Fx* f, float* L, float* R, i32 n) {
     case FX_GATE: fx_gate(f, L, R, n, kL, kR); break; case FX_DISP: fx_disp(f, L, R, n); break;
     case FX_APAN: fx_autopan(f, L, R, n); break; case FX_LFOT: fx_lfotool(f, L, R, n); break; case FX_VINYL: fx_vinyl(f, L, R, n); break; case FX_STEP: fx_step(f, L, R, n); break; case FX_GRIN: fx_grin(f, L, R, n); break;
     case FX_DIST: fx_dist(f, L, R, n); break; case FX_INFL: fx_inflate(f, L, R, n); break; case FX_RESO: fx_reso(f, L, R, n); break;
+    case FX_PITCH: fx_pitch(f, L, R, n); break; case FX_FSHIFT: fx_fshift(f, L, R, n); break; case FX_RING: fx_ring(f, L, R, n); break; case FX_IMAGER: fx_imager(f, L, R, n); break; case FX_DEESS: fx_deess(f, L, R, n); break;
   }
   (void)c;
 }

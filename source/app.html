@@ -442,6 +442,8 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 #sheet{position:fixed;z-index:20;background:var(--bg);display:flex;align-items:stretch;justify-content:center;padding:0;border-radius:6px}
 #sheet .card{width:100%;max-width:780px;height:100%;max-height:100%;align-self:stretch;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--bg);border:1px solid var(--line);border-radius:6px;box-shadow:none;padding:0 10px 12px}
 .shTitle{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 -10px 6px;padding:0 6px 0 12px;height:38px;background:var(--panel);border-bottom:1px solid var(--line)}
+.dev .lfoRow{display:flex;justify-content:center;margin-top:10px} .dev .lfoRow .key{min-width:150px;justify-content:space-between}
+.shTitle .shBack{flex:none;padding:0 9px} .shTitle .shBack+span{flex:1;min-width:0}
 .shTitle span{font:600 12px var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .shTitle .btn{height:28px;font-size:12px}
 .fitlcd{background:var(--body2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
@@ -1735,8 +1737,13 @@ function openLibrary() {
 // the menu window sits exactly over the view area (and the scene strip above it when that leaves too little room)
 function placeSheet() { const S = $('#sheet'); if (S.hidden) return; const v = $('#view').getBoundingClientRect(), sc = $('#scenes').getBoundingClientRect(), top = v.height < 300 ? sc.top : v.top;
   Object.assign(S.style, { left: v.left + 'px', top: top + 'px', width: v.width + 'px', height: (v.bottom - top) + 'px' }); }
-function openSheet(title, build, onClose) { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } UI.sheetClose = onClose || null; navReset(); const S = $('#sheet'), card = S.querySelector('.card'); card.innerHTML = ''; const hd = h('div', 'shTitle'); hd.append(h('span', '', esc(title)), btn('Close', closeSheet, 'btn sm')); card.append(hd); build(card); S.hidden = false; UI.sheet = true; placeSheet(); card.scrollTop = 0; if (UI.panel) requestAnimationFrame(updatePanel); }
-function closeSheet() { if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } navReset(); $('#sheet').hidden = true; UI.sheet = false; renderScenes(); renderView(); }
+/* Menus opened from another menu get a Back key to it (the d-pad's Back does the same); the one they came from is rebuilt fresh. */
+function openSheet(title, build, onClose) { const from = UI.justClosed && UI.justClosed.title !== title ? UI.justClosed : null; UI.justClosed = null;
+  if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } UI.sheetClose = onClose || null; navReset(); const S = $('#sheet'), card = S.querySelector('.card'); card.innerHTML = ''; const hd = h('div', 'shTitle');
+  UI.sheetCur = { title, build, onClose, back: from }; UI.sheetBack = from ? () => { const b = from; closeSheet(); UI.justClosed = b.back; openSheet(b.title, b.build, b.onClose); } : null;
+  if (from) { const bk = btn('‹ Back', UI.sheetBack, 'btn sm shBack'); bk.setAttribute('aria-label', 'Back to ' + from.title); hd.append(bk); }
+  hd.append(h('span', '', esc(title)), btn('Close', closeSheet, 'btn sm')); card.append(hd); build(card); S.hidden = false; UI.sheet = true; placeSheet(); card.scrollTop = 0; if (UI.panel) requestAnimationFrame(updatePanel); }
+function closeSheet() { if (UI.sheet && UI.sheetCur) { const jc = UI.justClosed = UI.sheetCur; setTimeout(() => { if (UI.justClosed === jc) UI.justClosed = null; }, 400); } UI.sheetCur = null; if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } navReset(); $('#sheet').hidden = true; UI.sheet = false; renderScenes(); renderView(); }
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 function confirmBtn(label, again, fn, cls = 'btn warn') { const b = btn(label, e => { if (e) e.stopPropagation(); if (b._armed) { fn(); return; } b._armed = true; b.textContent = again; setTimeout(() => { b._armed = false; b.textContent = label; }, 3000); }, cls); return b; }
 function openSceneSheet(i) {
@@ -2094,7 +2101,7 @@ function navBack() {
   if (UI.swapFrom != null) { UI.swapFrom = null; refreshPadDots(); toast('Swap cancelled'); return; }
   if (NAV.mode === 'canvas') { if (!canvasCtl().back()) { NAV.mode = 'nav'; NAV.el && NAV.el.classList.remove('ne'); canvasDraw(); } return; }
   if (NAV.mode === 'edit') { navEndEdit(false); return; }
-  if (UI.sheet) closeSheet();
+  if (UI.sheet) { if (UI.sheetBack) UI.sheetBack(); else closeSheet(); }
 }
 const shiftDup = () => UI.shift && !UI.sheet && UI.view === 'seq' && UI.tl.lane === 'notes';
 function navDel() { if (shiftDup()) { UI.shift = false; $('#pShift').classList.remove('on'); duplicateNote(); return; }   // Shift + Del: duplicate

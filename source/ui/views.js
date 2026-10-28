@@ -273,16 +273,16 @@ const FX_LAY = {
   '0:2': [['Low freq', 'Mid freq', 'High freq', 'Filter'], ['Low gain', 'Mid gain', 'High gain', 'Colour'], ['Low shape', '', 'High shape', 'Output']],
   '0:3': [['LF freq', 'LMF freq', 'HMF freq', 'HF freq'], ['LF gain', 'LMF gain', 'HMF gain', 'HF gain'], ['HPF', 'LMF Q', 'HMF Q', 'Output']],
   '1:0': [['Threshold', 'Ratio', 'Attack', 'Release'], ['Knee', 'Key HPF', 'Makeup', 'Mix']],
-  '1:1': [['Peak reduction', 'Gain', 'Emphasis'], ['Mode', 'Tube', 'Mix']],
+  '1:1': [['Peak reduction', 'Makeup', 'Emphasis'], ['Mode', 'Tube', 'Mix']],
   '1:2': [['Input', 'Ratio', 'Output'], ['Attack', 'Release', 'Mix']],
   '1:3': [['Threshold', 'Ratio', 'Attack', 'Release'], ['Key HPF', 'Makeup', 'Mix']],
   '2:0': [['Cutoff', 'Resonance', 'Drive'], ['Type', 'Slope', 'Mix']],
-  '2:1': [['Cutoff', 'Resonance', 'Type'], ['LFO rate', 'LFO depth', 'Envelope'], ['Drive', 'Bass', 'Mix']],
-  '2:2': [['Cutoff', 'Resonance', 'Squelch', 'Drive'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
-  '2:3': [['Cutoff', 'Resonance', 'Type', 'Drive'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
-  '2:4': [['Cutoff', 'Resonance', 'Morph', 'Drive'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
-  '2:5': [['Vowel', 'Shift', 'Resonance', 'Drive'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
-  '2:6': [['Freq', 'Feedback', 'Damping'], ['LFO rate', 'LFO depth', 'Envelope', 'Mix']],
+  '2:1': [['Cutoff', 'Resonance', 'Type'], ['LFO rate', 'LFO sync', 'LFO depth', 'Envelope'], ['Drive', 'Bass', 'Mix']],
+  '2:2': [['Cutoff', 'Resonance', 'Squelch'], ['LFO rate', 'LFO sync', 'LFO depth', 'Envelope'], ['Drive', 'Mix']],
+  '2:3': [['Cutoff', 'Resonance', 'Type'], ['LFO rate', 'LFO sync', 'LFO depth', 'Envelope'], ['Drive', 'Mix']],
+  '2:4': [['Cutoff', 'Resonance', 'Morph'], ['LFO rate', 'LFO sync', 'LFO depth', 'Envelope'], ['Drive', 'Mix']],
+  '2:5': [['Vowel', 'Shift', 'Resonance'], ['LFO rate', 'LFO sync', 'LFO depth', 'Envelope'], ['Drive', 'Mix']],
+  '2:6': [['Frequency', 'Feedback', 'Damping'], ['LFO rate', 'LFO sync', 'LFO depth', 'Envelope'], ['Mix']],
   '3:0': [['Type', 'Drive', 'Tone'], ['Auto gain', 'Output', 'Mix']],
   ...Object.fromEntries([1, 2, 3, 4, 5].map(m => ['3:' + m, [['Drive', 'Tone', 'Low cut', 'High cut'], ['Punish', 'Auto gain', 'Output', 'Mix']]])),
   '4:0': [['Sync', 'Division', 'Time', 'Feedback'], ['Ping-pong', 'Low cut', 'High cut', 'Mix']],
@@ -290,16 +290,16 @@ const FX_LAY = {
   '5:0': [['Size', 'Decay', 'Predelay', 'Damping'], ['Low cut', 'Width', 'Mix']],
   '5:1': [['Size', 'Decay', 'Predelay', 'Depth'], ['Bass mult', 'Bass xover', 'High mult', 'High xover'], ['Early size', 'Mod', 'High cut', 'Mix']],
   '5:2': [['Size', 'Decay', 'Predelay'], ['Damping', 'Bandwidth', 'Low cut'], ['Mod', 'Width', 'Mix']],
-  '5:3': [['Size', 'Decay', 'Predelay', 'Color'], ['Mod depth', 'Mod rate', 'Attack', 'Bass mult'], ['Low cut', 'High cut', 'Mix']],
+  '5:3': [['Size', 'Decay', 'Predelay', 'Era'], ['Mod depth', 'Mod rate', 'Attack', 'Bass mult'], ['Low cut', 'High cut', 'Mix']],
   '5:4': [['Size', 'Decay', 'Predelay', 'Gravity'], ['Mod depth', 'Mod rate', 'Low cut', 'High cut'], ['Freeze', 'Mix']],
   '6:0': [['Trigger', '@src', 'Threshold'], ['Depth', 'Curve', 'Lookahead'], ['Attack', 'Hold', 'Release']],
   '8:0': [['Rate', 'Depth', 'Delay'], ['Feedback', 'Mix']],
   '8:3': [['Rate', 'Depth', 'Manual'], ['Feedback', 'Stereo', 'Mix']],
   '10:2': [['Amount', 'Tone', 'Noise'], ['Compress', 'Mix']],
   '12:0': [['Rate', 'Depth', 'Center'], ['Feedback', 'Mix']],
-  ...Object.fromEntries([0, 1, 2, 3].map(m => ['13:' + m, [['Gain', 'Ceiling', 'True peak'], ['Release', 'Lookahead']]])),
+  ...Object.fromEntries([0, 1, 2, 3].map(m => ['13:' + m, [['Input', 'Ceiling', 'True peak'], ['Release', 'Lookahead']]])),
   '14:0': [['Threshold', 'Ratio', 'Attack', 'Release'], ['Below thr', 'Below ratio', 'Low split', 'High split'], ['Low gain', 'Mid gain', 'High gain', 'Output']],
-  '14:1': [['Depth', 'Time', 'Upward', 'Downward'], ['Low split', 'High split', 'In gain', 'Out gain'], ['Low gain', 'Mid gain', 'High gain']],
+  '14:1': [['Depth', 'Time', 'Upward', 'Downward'], ['Low split', 'High split', 'Input', 'Output'], ['Low gain', 'Mid gain', 'High gain']],
   ...Object.fromEntries([0, 1, 2].map(m => ['15:' + m, [['Drive', 'Bump', 'Tone', 'Hiss'], ['Wow', 'Flutter', 'Output', 'Mix']]])),
   '16:0': [['Threshold', 'Range', 'Hysteresis', '@key'], ['Attack', 'Hold', 'Release']],
   '18:0': [['Sync', 'Division', 'Rate'], ['Depth', 'Shape', 'Phase']],
@@ -342,17 +342,19 @@ function renderFx(V) {
       if (prm.opts) el = selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(key, f.p[i]); redrawVis(); if (f.type === FX_TYPES.DUCK && i === 0) { syncChan(c); renderView(); } markDirty(); });
       else el = keyParam(key, { label: prm.n, after: redrawVis });
       el.dataset.p = prm.n; return el; };
-    if (f.type === FX_TYPES.STEP) dev.append(stepPalette(c, s));   // Step FX: pick an action, then tap steps on the screen
+    if (f.type === FX_TYPES.STEP) dev.append(stepPalette(c, s));
     for (const r of fxRows(f)) { const els = r.map(cell).filter(Boolean); els.forEach((el, k) => { el.style.gridColumn = (k ? 'auto' : (4 - els.length + 1)) + ' / span 2'; g.append(el); }); }   // a short row sits in the middle
-    dev.append(g); panel.append(fh, dev);
+    dev.append(g);
+    if (f.type === FX_TYPES.FILTER && (f.mode | 0) > 0) { const r = h('div', 'g2 lfoRow'); r.append(btn('LFO shape… <span class="lsub">' + (f.lfo && f.lfo.length ? 'drawn' : 'sine') + '</span>', () => openFilterLfo(c, s), 'key')); dev.append(r); }   // the filter's LFO, drawn like the Shaper   // Step FX: pick an action, then tap steps on the screen
+    panel.append(fh, dev);
     if (c < G0 && P.pads[c].frz) panel.append(h('p', 'note', 'Frozen: changing effects unfreezes it.'));
   } else {
     panel.append(h('div', 'sec', 'Add a device to insert ' + (s + 1)));
     // one device per line, grouped, like every other menu: colour dot (the device's faceplate), name, and its modes or what it does
     const add = t => { pushUndo('chan:' + c); const nf = newFx(t); if (t === FX_TYPES.DUCK) { const kick = P.pads.findIndex(p => p.sample === 'b:dkick' || p.sample === 'b:kick'); if (kick >= 0 && kick !== c) nf.trig = [kick]; }
       C.fx.push(nf); UI.fxSlot = C.fx.length - 1; fxChanged(c); };
-    const ABOUT = { Autopan: 'moves the sound left and right', 'Shaper': 'a drawn shape on the volume: gate, pump, tremolo', Vinyl: 'crackle, wear and the turntable stop', 'Step FX': 'paint stutters, reverses and tape stops on a grid', Grin: 'one knob for the whole build-up', Ducker: 'ducks this channel when a pad plays or a sound gets loud', Utility: 'gain, pan, width, bass mono', Transient: 'more or less attack and sustain', Gate: 'cuts the sound below a threshold', Disperser: 'smears a band in time: zaps and thicker hits', Inflate: 'louder and denser, without squashing', Resonator: 'tuned strings that ring in the song\'s key' };
-    const GROUPS = [['Tone', ['EQ', 'Filter', 'Saturation', 'Distortion', 'Clipper', 'Bitcrush', 'Tape', 'Vinyl']], ['Dynamics', ['Compressor', 'Limiter', 'Multiband', 'Inflate', 'Transient', 'Gate', 'Ducker']], ['Rhythm and build-ups', ['Step FX', 'Shaper', 'Autopan', 'Grin']], ['Space and movement', ['Delay', 'Reverb', 'Resonator', 'Chorus', 'Phaser', 'Disperser']], ['Utility', ['Utility']]];
+    const ABOUT = { Autopan: 'moves the sound left and right', 'Shaper': 'a drawn shape on the volume: gate, pump, tremolo', Vinyl: 'crackle, wear and the turntable stop', 'Step FX': 'paint stutters, reverses and tape stops on a grid', Grin: 'one knob for the whole build-up', Ducker: 'ducks this channel when a pad plays or a sound gets loud', Utility: 'gain, pan, width, bass mono', Transient: 'more or less attack and sustain', Gate: 'cuts the sound below a threshold', Disperser: 'smears a band in time: zaps and thicker hits', Inflate: 'louder and denser, without squashing', Resonator: 'tuned strings that ring in the song\'s key', 'Frequency shift': 'moves every frequency by the same Hz: metallic, detuned', 'Ring mod': 'the sound times a tone: bells, robots, clangs', Imager: 'stereo width in four bands, mono-safe', 'De-esser': 'tames harsh s and t sounds' };
+    const GROUPS = [['Tone', ['EQ', 'Filter', 'Saturation', 'Distortion', 'Clipper', 'Bitcrush', 'Tape', 'Vinyl']], ['Dynamics', ['Compressor', 'Limiter', 'Multiband', 'Inflate', 'Transient', 'Gate', 'De-esser', 'Ducker']], ['Pitch and colour', ['Pitch', 'Frequency shift', 'Ring mod', 'Resonator']], ['Rhythm and build-ups', ['Step FX', 'Shaper', 'Autopan', 'Grin']], ['Space and movement', ['Delay', 'Reverb', 'Chorus', 'Phaser', 'Disperser']], ['Stereo and utility', ['Imager', 'Utility']]];
     const seen = new Set();
     for (const [title, names] of GROUPS.concat([['More', FX_DEFS.map(d => d.name)]])) { const l = h('div', 'list');
       for (const n of names) { const t = FX_DEFS.findIndex(d => d.name === n); if (t < 0 || seen.has(t)) continue; seen.add(t); const d = FX_DEFS[t], full = t === FX_TYPES.DUCK && duckerCount() >= MAX_DUCKERS, lk = fxLook(t, 0);
@@ -406,6 +408,19 @@ function openSoundTools(pi) {
 }
 
 /* ----- Shaper shapes and Step FX patterns ----- */
+// a filter's LFO shape: drawn here like the Shaper's (it moves the cutoff by LFO depth, at LFO rate or in time with LFO sync)
+function openFilterLfo(c, s) { const f = P.chans[c].fx[s]; if (!f) return;
+  openSheet('Filter LFO', card => { if (!f.lfo || !f.lfo.length) f.lfo = FX_LFO_SHAPES.Sine.map(q => Object.assign({ c: 0 }, q));
+    const box = h('div', 'scr fxvis'), cv = h('canvas', 'navc'); box.style.cssText = 'position:relative;height:170px'; cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;touch-action:none'; box.append(cv);
+    const draw = () => { if (!cv.isConnected) return; const { g, W, H } = prepCanvas(cv), pts = f.lfo, tb = tfLfoTable(pts), X = u => 8 + u * (W - 16), Y = v => 10 + (1 - v) * (H - 26);
+      g.fillStyle = COL.bg; g.fillRect(0, 0, W, H); g.fillStyle = COL.line; for (let k = 1; k < 4; k++) g.fillRect(Math.round(X(k / 4)), 4, 1, H - 12); g.fillRect(8, Math.round(Y(.5)), W - 16, 1);
+      g.beginPath(); for (let i = 0; i <= 256; i++) { const x = X(i / 256), y = Y((tb[i % 256] + 1) / 2); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = COL.accent; g.lineWidth = 2; g.stroke();
+      pts.forEach((q, i) => { g.beginPath(); g.arc(X(q.x), Y(q.y), i === LFOED.sel ? 5 : 3.5, 0, 7); g.fillStyle = i === LFOED.sel ? COL.ink : COL.mute; g.fill(); });
+      vText(g, 'up', 10, 14, COL.mute, 'left', 9.5); vText(g, 'down', 10, H - 22, COL.mute, 'left', 9.5); };
+    cv._ctl = lfoCtl; cv._draw = draw; cv.setAttribute('aria-label', 'LFO shape');
+    bindLfo(cv, { pts: () => f.lfo, changed: () => { syncChan(c); markDirty(); draw(); }, draw, undo: () => pushUndo('chan:' + c), snap: x => Math.round(x * 32) / 32 });
+    const l = h('div', 'list'); for (const n in FX_LFO_SHAPES) { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(n)}</b></div>`; li.onclick = () => { pushUndo('chan:' + c); f.lfo = FX_LFO_SHAPES[n].map(q => Object.assign({ c: 0 }, q)); LFOED.sel = 0; syncChan(c); markDirty(); draw(); }; l.append(li); }
+    card.append(box, h('p', 'note', 'Drag points; tap a line to add one; double-tap to remove.'), h('div', 'sec', 'Shapes'), l); requestAnimationFrame(draw); }); }
 function openFxShapes(c, s) { const f = P.chans[c].fx[s];
   openSheet('Shaper shape', card => { const l = h('div', 'list');
     for (const n in FX_LFO_SHAPES) { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(n)}</b></div>`; li.onclick = () => { pushUndo('chan:' + c); f.lfo = FX_LFO_SHAPES[n].map(q => Object.assign({ c: 0 }, q)); LFOED.sel = 0; syncChan(c); markDirty(); closeSheet(); }; l.append(li); }

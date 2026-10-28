@@ -2,7 +2,7 @@
    Curves are computed from the settings with the engine's own formulas, and drawn only when a setting changes.
    Live parts (spectrum behind EQ and Filter, gain-change meters, limiter history, multiband bands) come from the engine,
    only for the effect on screen. Colours come from the device's screen (each mode has its own look). */
-const FXV_LIVE = new Set([FX_TYPES.EQ, FX_TYPES.FILTER, FX_TYPES.COMP, FX_TYPES.DUCK, FX_TYPES.CLIP, FX_TYPES.TRANS, FX_TYPES.LIMIT, FX_TYPES.MBAND, FX_TYPES.GATE, FX_TYPES.APAN, FX_TYPES.LFOT, FX_TYPES.VINYL, FX_TYPES.STEP, FX_TYPES.GRIN]);
+const FXV_LIVE = new Set([FX_TYPES.EQ, FX_TYPES.FILTER, FX_TYPES.COMP, FX_TYPES.DUCK, FX_TYPES.CLIP, FX_TYPES.TRANS, FX_TYPES.LIMIT, FX_TYPES.MBAND, FX_TYPES.GATE, FX_TYPES.APAN, FX_TYPES.LFOT, FX_TYPES.VINYL, FX_TYPES.STEP, FX_TYPES.GRIN, FX_TYPES.INFL, FX_TYPES.RESO, FX_TYPES.PITCH, FX_TYPES.IMAGER, FX_TYPES.DEESS]);
 const fxSR = () => (ctx && ctx.sampleRate) || 48000;
 // RBJ biquads exactly as engine.cpp bq_set builds them; returns |H| in dB at f
 function bqDb(type, f0, Q, gdb, f) {
@@ -25,6 +25,16 @@ const cdb = a => 10 * Math.log10(a.re * a.re + a.im * a.im + 1e-20);
 const dB2y = (db, top, h, lo, hi) => top + h * (1 - (Math.max(lo, Math.min(hi, db)) - lo) / (hi - lo));
 const fmtHz = f => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 0 : 1) + 'k' : Math.round(f) + '';
 const lin = linmap, ex = expmap, dsc = (v, n) => Math.max(0, Math.min(n - 1, Math.round(v * (n - 1))));
+// the engine's curves, for the pictures (fx_more.inc)
+const distCurveJ = (m, u, ch) => { switch (m) { case 1: { const hh = Math.max(-1, Math.min(1, u)), sf = fsatJ(u); return sf + (hh - sf) * ch; } case 2: { let a = fsatJ(u + .18) - fsatJ(.18); return fsatJ(a * 3.2 + .08) - fsatJ(.08); }
+  case 3: { const v = u * .5 + ch * .5, t = v - Math.floor(v * .25 + .25) * 4, tri = Math.abs(t) <= 1 ? t : (t > 0 ? 2 - t : -2 - t); return Math.sin(tri * Math.PI / 2); }
+  case 4: { const half = Math.max(0, u), full = Math.abs(u); return fsatJ((half * 2 + (full - half * 2) * ch) * 1.2); } case 5: return fsatJ(u * 1.4) * .9 + Math.max(-1, Math.min(1, u)) * .1; default: { const b = ch * .45; return fsatJ(u + b) - fsatJ(b); } } };
+const inflCurveJ = (x, cp, clip) => { let a = Math.abs(x); if (clip && a > 1) a = 1; const A = 1.5 + cp, B = -2 * cp, C = cp - .5, D = .0625 - cp * .25 + cp * cp * .25; const y = a < 1 ? A * a + B * a * a + C * a ** 3 - D * (a * a - 2 * a ** 3 + a ** 4) : a; return Math.sign(x) * y; };
+// the Resonator's strings, as the engine tunes them (in the song's key)
+function resoNotes(p) { const key = P.key || { root: 0, scale: 5 }, sc = scaleOf(key.scale)[1], notes = dsc(p[0], 5), range = 1 + dsc(p[1], 4), oct = dsc(p[2], 4) - 1, n = sc.length;
+  const pc = notes === 0 ? [0] : notes === 1 ? [0, 7] : notes === 4 ? sc.slice() : Array.from({ length: notes === 2 ? 3 : 4 }, (_, d) => sc[(d * 2) % n] + 12 * Math.floor(d * 2 / n));
+  const out = []; for (let o = 0; o < range && out.length < 8; o++) for (const k of pc) { if (out.length >= 8) break; out.push(48 + 12 * oct + key.root + k + 12 * o); } return out; }
+const midiName = m => ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'][((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 const fsatJ = x => x > 3 ? 1 : x < -3 ? -1 : x * (27 + x * x) / (27 + 9 * x * x);
 
 // the ducker's live view, scrolling right to left like a waveform meter: the track (after the duck) filled, the key (the trigger pads,
@@ -261,6 +271,43 @@ function drawFxVis(cv, c, s) {
         if (k === cur) { g.strokeStyle = K.ink; g.lineWidth = 2; g.strokeRect(x + 2, y + 2, cw - 4, ch - 4); }
         if (k === STEPED.cur && NAV.el && NAV.el === cv) { g.strokeStyle = K.acc; g.lineWidth = 2; g.setLineDash([3, 2]); g.strokeRect(x + 1, y + 1, cw - 2, ch - 2); g.setLineDash([]); } }
       T2(['1/16 steps · 1 bar', '1/8 steps · 2 bars', '1/32 steps · ½ bar'][dsc(p[0], 3)], 6, 9, K.mute, 'left', 10); T2('repeat ' + ['1/16', '1/32', '1/64', '1/8'][dsc(p[1], 4)], W - 6, 9, K.mute, 'right', 10); break; }
+    case T.DIST: { const dg = Math.pow(10, lin(p[0], 0, 42) / 20), ch = m === 5 ? 0 : p[2]; let s2 = 0, so = 0; for (let k = 0; k < 64; k++) { const x = .25 * Math.sin(2 * Math.PI * (k + .5) / 64), y = distCurveJ(m, x * dg, ch); s2 += x * x; so += y * y; }
+      let mx = 1e-6; for (let k = 0; k <= 60; k++) mx = Math.max(mx, Math.abs(distCurveJ(m, (k / 30 - 1) * dg, ch))); xfer(x => distCurveJ(m, x * dg, ch) / mx, -1.1, 1.1);   // the shape, filling the screen (the level is matched separately)
+      T2(FX_DEFS[23].modes[m].n, 8, top + 8, K.ink, 'left', 11, 600); T2('+' + lin(p[0], 0, 42).toFixed(1) + ' dB', W - 8, top + 8, K.mute, 'right', 10.5);
+      if (m === 5) T2('clean below ' + fmtHz(ex(p[2], 60, 400)) + ' Hz', W - 8, top + h - 6, K.mute, 'right', 10); break; }
+    case T.INFL: { const ig = Math.pow(10, lin(p[0], -6, 12) / 20), e = p[1], cp = lin(p[2], -.5, .5), clip = p[3] > .5;
+      xfer(x => { const v = x * ig, w = inflCurveJ(v, cp, clip); let y = v + (w - v) * e; if (clip) y = Math.max(-1, Math.min(1, y)); return y; }, -1.3, 1.3);
+      T2('Effect ' + Math.round(e * 100) + '% · curve ' + Math.round(cp * 100), 8, top + 8, K.ink, 'left', 10.5, 600); T2(p[4] > .5 ? 'three bands' : 'one band', W - 8, top + h - 6, K.mute, 'right', 10);
+      if (live) T2((gr > .05 ? '+' : '') + gr.toFixed(1) + ' dB at peaks', W - 8, top + 8, Math.abs(gr) > .05 ? K.acc : K.mute, 'right', 10.5); break; }
+    case T.RESO: { const ns = resoNotes(p), v3 = live && SCOPE.vis3 ? SCOPE.vis3 : null, act = v3 ? Math.round(v3[0]) : -1, lv = v3 ? Math.min(1, v3[1] * 3) : 0, n = ns.length, sp = (h - 14) / Math.max(1, n), tnow = performance.now() / 1000;
+      ns.forEach((mi, k) => { const y = top + 10 + sp * (n - 1 - k) + sp / 2, on = act < 0 || act === k, amp = on ? lv * (2 + p[5] * 2) : 0;
+        g.beginPath(); for (let x = 46; x <= W - 8; x += 3) { const u = (x - 46) / (W - 54), yy = y + Math.sin(u * Math.PI) * Math.sin(tnow * (8 + k * 3) + u * 3) * amp; x === 46 ? g.moveTo(x, yy) : g.lineTo(x, yy); }
+        g.strokeStyle = on && lv > .02 ? K.acc : K.mute; g.lineWidth = 1.5; g.stroke(); T2(midiName(mi), 8, y, on && lv > .02 ? K.ink : K.mute, 'left', 10.5, 600); });
+      T2(['Root', 'Root + 5th', 'Chord', '7th chord', 'Scale'][dsc(p[0], 5)] + (dsc(p[6], 4) ? ' · arp ' + ['', '1/4', '1/8', '1/16'][dsc(p[6], 4)] : ''), W - 8, top + 4, K.mute, 'right', 10); break; }
+    case T.PITCH: { const v3 = live && SCOPE.vis3 ? SCOPE.vis3 : null, det = v3 && v3[0] > 0 ? 69 + 12 * Math.log2(v3[0] / 440) : null, cx0 = W / 2;
+      if (m === 2) { [['Down', p[0]], ['Dry', p[2]], ['Up', p[1]]].forEach(([nm, v], k) => { const bw = (W - 40) / 3, x = 20 + k * bw + bw * .2, bh = (h - 30) * v; g.fillStyle = K.line; g.fillRect(x, top + 16, bw * .6, h - 30); g.fillStyle = K.acc; g.fillRect(x, top + 16 + h - 30 - bh, bw * .6, bh); T2(nm, x + bw * .3, top + h - 4, K.mute, 'center', 10); }); }
+      else { const big = m === 1 ? ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'][dsc(p[0], 12)] + (2 + dsc(p[1], 4)) : (() => { const x = lin(p[0], -12, 12); return (x > .05 ? '+' : x < -.05 ? '−' : '') + Math.abs(x).toFixed(1); })();
+        T2(big, cx0, top + h / 2 - 4, K.acc, 'center', 30, 600); T2(m === 1 ? 'every note sung on' : 'semitones', cx0, top + h / 2 + 20, K.mute, 'center', 10);
+        const fm = lin(p[m === 1 ? 2 : 1], -12, 12); T2('formant ' + (fm > .05 ? '+' : fm < -.05 ? '−' : '') + Math.abs(fm).toFixed(1), 8, top + 8, K.mute, 'left', 10); }
+      T2(det != null ? 'hearing ' + midiName(Math.round(det)) : live ? 'no clear pitch' : '', W - 8, top + 8, det != null ? K.ink : K.mute, 'right', 10); break; }
+    case T.FSHIFT: { fgrid(); const x = lin(p[0], -1, 1), hz = Math.sign(x) * x * x * 2000, base = [110, 220, 330, 440, 660, 880, 1320, 1760, 2640, 3520];
+      base.forEach((fq, k) => { const x0 = specX(fq, 0, W), x1 = specX(Math.max(20, fq + hz), 0, W), hh = (h - 20) * (1 - k * .07);
+        g.fillStyle = K.line; g.fillRect(Math.round(x0), top + h - hh, 1, hh); g.fillStyle = K.acc; g.fillRect(Math.round(x1), top + h - hh, 2, hh); });
+      T2((hz > 0 ? '+' : hz < 0 ? '−' : '') + (Math.abs(hz) < 10 ? Math.abs(hz).toFixed(1) : Math.round(Math.abs(hz))) + ' Hz', 8, top + 8, K.ink, 'left', 12, 600);
+      T2(p[1] < .01 ? 'both sides' : p[1] > .99 ? 'right side opposite' : 'right side ' + Math.round(p[1] * 100) + '% opposite', W - 8, top + 8, K.mute, 'right', 10); break; }
+    case T.RING: { const hz = ex(p[0], 20, 5000), sh = dsc(p[1], 3), amt = p[2], cyc = 3, X = u => 10 + (W - 20) * u, Y = v => top + h / 2 - v * (h / 2 - 10);
+      g.fillStyle = K.line; g.fillRect(10, Math.round(Y(0)), W - 20, 1);
+      g.beginPath(); for (let k = 0; k <= 200; k++) { const u = k / 200, ph = (u * cyc) % 1, car = sh === 0 ? Math.sin(2 * Math.PI * ph) : sh === 1 ? (ph < .5 ? 4 * ph - 1 : 3 - 4 * ph) : Math.max(-1, Math.min(1, Math.sin(2 * Math.PI * ph) * 6)), v = (1 - amt) * (.5 + .5 * car) + amt * car; k ? g.lineTo(X(u), Y(v)) : g.moveTo(X(u), Y(v)); }
+      g.strokeStyle = K.acc; g.lineWidth = 2; g.stroke(); T2(fmtHz(hz) + ' Hz', 8, top + 8, K.ink, 'left', 12, 600); T2(amt < .02 ? 'tremolo' : amt > .98 ? 'ring' : Math.round(amt * 100) + '% ring', W - 8, top + 8, K.mute, 'right', 10); break; }
+    case T.IMAGER: { const xs = [ex(p[0], 60, 600), ex(p[1], 400, 4000), ex(p[2], 2000, 16000)].map(fq => specX(fq, 0, W)), ed = [0, ...xs, W], cor = live && SCOPE.vis3 ? SCOPE.vis3[0] : null, mid = top + (h - 14) / 2;
+      for (let b = 0; b < 4; b++) { const wv = p[3 + b] * 2, x0 = ed[b] + 2, x1 = ed[b + 1] - 2, hh = Math.min(1, wv / 2) * (h - 22) / 2;
+        g.fillStyle = K.line; g.globalAlpha = .5; g.fillRect(x0, top + 4, x1 - x0, h - 22); g.globalAlpha = 1; g.fillStyle = wv > 1.001 ? K.alt : K.acc; g.globalAlpha = .55; g.fillRect(x0, mid - hh, x1 - x0, hh * 2); g.globalAlpha = 1;
+        T2(Math.round(wv * 100) + '%', (x0 + x1) / 2, mid, K.ink, 'center', 10, 600); }
+      g.fillStyle = K.mute; xs.forEach(x => g.fillRect(Math.round(x), top + 4, 1, h - 22));
+      const cy = top + h - 6; g.fillStyle = K.line; g.fillRect(10, cy - 1, W - 20, 2); T2('−1', 10, cy - 8, K.mute, 'left', 9); T2('+1', W - 10, cy - 8, K.mute, 'right', 9);
+      if (cor != null) { const x = 10 + (W - 20) * (cor + 1) / 2; g.fillStyle = cor < 0 ? COL.rec : K.acc; g.fillRect(Math.round(x) - 2, cy - 5, 4, 10); }
+      if (p[7] > .001) T2('stereoize ' + Math.round(p[7] * 100) + '%', W - 8, top + 10, K.mute, 'right', 10); break; }
+    case T.DEESS: { leds(gr, 24, `${fmtHz(ex(p[0], 3000, 12000))} Hz and up · ${['split', 'wide'][dsc(p[3], 2)]}${p[4] > .5 ? ' · listening' : ''}`); break; }
   }
   g.globalAlpha = 1; if (!f.on) T2('Bypassed', 8, top + h - 8, K.mute, 'left', 10.5, 600);
 }

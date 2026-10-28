@@ -45,7 +45,7 @@ const crawl = async () => {
   for (let t = 0; t < FX_DEFS.length; t++) for (let m = 0; m < FX_DEFS[t].modes.length; m++) await at(`fx ${FX_DEFS[t].short || t}/${m}`, () => { P.chans[0].fx = [newFx(t, null, m)]; fxChanged(0); UI.fxCh = 0; UI.fxSlot = 0; UI.fxBack = 'mix'; setView('fx'); renderView(); }, m === 0);
   P.chans[0].fx = []; fxChanged(0); setView('mix');
   // menus
-  const menus = { openProjects, openLibrary, openMenu, openAppearance, openSceneSheet: () => openSceneSheet(0), openSoundTools: () => openSoundTools(samplePad), openChopTools: () => openChopTools(samplePad), openEdit, openExport,
+  const menus = { openProjects, openLibrary, openMenu, openAppearance, openFilterLfo: () => { P.chans[0].fx = [newFx(2, null, 1)]; syncChan(0); openFilterLfo(0, 0); }, openSceneSheet: () => openSceneSheet(0), openSoundTools: () => openSoundTools(samplePad), openChopTools: () => openChopTools(samplePad), openEdit, openExport,
     openDrumTypes: () => drumPad >= 0 && openDrumTypes(drumPad), openDrumMachines: () => drumPad >= 0 && openDrumMachines(drumPad), openDrumMore: () => drumPad >= 0 && openDrumMore(drumPad),
     openChannelPicker, openLaneSheet: () => openLaneSheet(0), openFollow: () => openFollow(0), openOutputPicker: () => openOutputPicker(0), openDiag, openTempo, openAnalyzer: () => openAnalyzer(0), openAbout,
     openSnap, openShapes: () => { UI.tl.lane = '0.-1.0'; openShapes(); }, openMonitor, openPresetBrowser: () => openPresetBrowser(sp), openEnginePicker: () => openEnginePicker(sp), openSourcePicker: () => { UI.pad = sp; UI.map = { target: null }; openSourcePicker(sp); }, openStretch: () => openStretch(samplePad),

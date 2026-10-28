@@ -139,17 +139,22 @@ static void fx_eq2(Fx* f, float* L, float* R, i32 n) {
 /* ================= Filter: Ladder, Diode, Screamer, Morph, Formant, Comb ================= */
 enum { CBL = 4096 };
 struct Filt2St { float st[2][4], hpf[2]; SVF sv[2], fm[3]; OS2 os[2]; float cb[2][CBL]; u32 cw; float cz[2]; float ph, fol; };
-// shared motion: LFO (sine) and envelope follower, in octaves; computed once per block
-static float filtMotion(Filt2St* t, float rate, float depth, float env, const float* L, const float* R, i32 n) {
+// shared motion: the LFO (a drawn shape, from the table; sine until one is drawn) and an envelope follower, in octaves; once per block.
+// LFO sync: Off (free, at Rate) or a note length, when it follows the song like the Shaper
+static const float FLT_SYNC[8] = { 0, 0.25f, 0.5f, 1.f, 2.f, 4.f, 8.f, 16.f };
+static float filtMotion(Filt2St* t, const Fx* f, float rate, float depth, float env, i32 sync, const float* L, const float* R, i32 n) {
   float pk = 0; for (i32 i = 0; i < n; i++) pk = maxf(pk, maxf(fabsf_(L[i]), fabsf_(R[i])));
   float a = pk > t->fol ? 0.5f : 1.f - fexp(-(float)n / (0.15f * SR)); t->fol += (pk - t->fol) * a;
-  t->ph += rate * n / SR; if (t->ph >= 1.f) t->ph -= floorf_(t->ph);
-  return depth * fsin(6.28318531f * t->ph) + env * 4.f * clampf(t->fol * 2.f, 0.f, 1.f);
+  if (sync > 0) { const double b = gBeat / FLT_SYNC[sync]; t->ph = (float)(b - (double)(long long)b); if (t->ph < 0.f) t->ph += 1.f; }
+  else { t->ph += rate * n / SR; if (t->ph >= 1.f) t->ph -= floorf_(t->ph); }
+  float lv; { const float* T = f->tab; float any = 0.f; for (i32 k = 0; k < 256; k += 32) any += fabsf_(T[k]);
+    if (any > 0.f) { const float x = t->ph * 256.f; const i32 i0 = (i32)x; const float fr = x - i0; lv = (T[i0 & 255] + (T[(i0 + 1) & 255] - T[i0 & 255]) * fr) * 2.f - 1.f; } else lv = fsin(6.28318531f * t->ph); }
+  return depth * lv + env * 4.f * clampf(t->fol * 2.f, 0.f, 1.f);
 }
 static void fx_filt2(Fx* f, float* L, float* R, i32 n) {
   Filt2St* t = (Filt2St*)f->st; float* s = f->s; const i32 m = f->mode;
   if (m == 6) {   // Comb: Freq, Feedback, Damping, Mix, Rate, Depth, Env
-    float oct = filtMotion(t, expmap(s[4], 0.05f, 20.f), s[5] * 3.f, linmap(s[6], -1, 1), L, R, n);
+    float oct = filtMotion(t, f, expmap(s[4], 0.05f, 20.f), s[5] * 3.f, linmap(s[6], -1, 1), disc(s[7], 8), L, R, n);
     float fr = clampf(expmap(s[0], 20, 5000) * fexp(oct * 0.693147181f), 20.f, 8000.f), dl = clampf(SR / fr, 2.f, (float)(CBL - 4));
     float fb = linmap(s[1], -0.97f, 0.97f), da = onepole(expmap(1.f - s[2], 800.f, 20000.f)), mix = s[3];
     for (i32 i = 0; i < n; i++) { float rp = (float)t->cw - dl; if (rp < 0) rp += CBL; u32 i0 = (u32)rp; float fr2 = rp - i0; u32 i1 = (i0 + 1) & (CBL - 1); i0 &= CBL - 1;
@@ -159,7 +164,7 @@ static void fx_filt2(Fx* f, float* L, float* R, i32 n) {
     return; }
   if (m == 5) {   // Formant: Vowel, Shift, Resonance, Mix, Drive, Rate, Depth, Env
     static const float FT[5][3] = { { 800, 1150, 2900 }, { 350, 2000, 2800 }, { 270, 2140, 2950 }, { 450, 800, 2830 }, { 325, 700, 2700 } }, FG[3] = { 1.f, 0.5f, 0.25f };
-    float mv = filtMotion(t, expmap(s[5], 0.05f, 20.f), s[6], linmap(s[7], -1, 1) * 0.25f, L, R, n), v = clampf(s[0] + mv * 0.5f, 0.f, 1.f) * 3.999f;
+    float mv = filtMotion(t, f, expmap(s[5], 0.05f, 20.f), s[6], linmap(s[7], -1, 1) * 0.25f, disc(s[8], 8), L, R, n), v = clampf(s[0] + mv * 0.5f, 0.f, 1.f) * 3.999f;
     i32 vi = (i32)v; float vf = v - vi, sh = fexp(linmap(s[1], -1, 1) * 0.693147181f), Q = expmap(s[2], 2.f, 20.f), mix = s[3], dg = db2lin(linmap(s[4], 0, 24));
     float co[3][4]; for (i32 k = 0; k < 3; k++) { float fq = (FT[vi][k] + (FT[vi + 1][k] - FT[vi][k]) * vf) * sh; svf_coef(fq, Q, &co[k][0], &co[k][1], &co[k][2], &co[k][3]); }
     for (i32 c = 0; c < 2; c++) { float* x = c ? R : L;
@@ -168,7 +173,7 @@ static void fx_filt2(Fx* f, float* L, float* R, i32 n) {
         x[i] += (y - x[i]) * mix; } }
     return; }
   // analog models (1 Ladder, 2 Diode, 3 Screamer, 4 Morph): Cutoff, Resonance, Drive, Type/Morph, Mix, Rate, Depth, Env, Bass
-  float oct = filtMotion(t, expmap(s[5], 0.05f, 20.f), s[6] * 4.f, linmap(s[7], -1, 1), L, R, n);
+  float oct = filtMotion(t, f, expmap(s[5], 0.05f, 20.f), s[6] * 4.f, linmap(s[7], -1, 1), disc(s[m == 1 ? 9 : 8], 8), L, R, n);
   float fc = clampf(expmap(s[0], 20, 20000) * fexp(oct * 0.693147181f), 20.f, 0.42f * SR), res = s[1], dg = db2lin(linmap(s[2], 0, 24)), mix = s[4], mkup = 1.f / (1.f + 0.25f * (dg - 1.f));
   if (m == 4) {   // Morph (SEM-like 12 dB state-variable): low-pass through notch to high-pass
     float a1, a2, a3, k; svf_coef(fc, 0.5f + res * res * 19.5f, &a1, &a2, &a3, &k); float mo = s[3];

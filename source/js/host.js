@@ -412,6 +412,7 @@ class TFHost {
       if (id !== this.fxT[c][s]) { let ok = ex.tf_fx_type(c, s, t); if (ok && t >= 0 && mode) ok = ex.tf_fx_mode(c, s, mode);
         this.fxT[c][s] = ok ? id : -1; if (!ok && t >= 0 && this.post) this.post({ t: 'oom' }); }
       if (f && ex.tf_fx_tab && f.type === 25) this.resoKey(c, s);   // the Resonator plays in the song's key
+      if (f && ex.tf_fx_tab && f.type === 2) { const ptr = ex.tf_fx_tab(c, s); if (ptr) { const T = new Float32Array(ex.memory.buffer, ptr, 256); if (f.lfo && f.lfo.length) { const t = tfLfoTable(f.lfo); for (let i = 0; i < 256; i++) T[i] = (t[i] + 1) * .5; } else T.fill(0); } }   // a filter's drawn LFO (empty: a sine)
       if (f && ex.tf_fx_tab && (f.type === 19 || f.type === 21)) { const ptr = ex.tf_fx_tab(c, s); if (ptr) { const T = new Float32Array(ex.memory.buffer, ptr, 256);   // the Shaper's shape (0..1) or the Step FX pattern
         if (f.type === 19) { const t = tfLfoTable(f.lfo); for (let i = 0; i < 256; i++) T[i] = (t[i] + 1) * .5; } else { T.fill(0); (f.steps || []).forEach((v, i) => { if (i < 16) T[i] = v; }); } } }
       if (f) { for (let i = 0; i < f.p.length; i++) ex.tf_fx_param(c, s, i, f.p[i]); ex.tf_fx_on(c, s, f.on && !frz ? 1 : 0); ex.tf_fx_key(c, s, (f.type === 6 || f.type === 16) && f.key != null ? f.key : -1); }
@@ -726,7 +727,7 @@ class TFHost {
       // the marks behind it, so it is the song's own position whenever the song plays (stopped, they count on by themselves)
       const songPos = this.playing && this.P && ex.tf_set_pos ? this.tickAt(this.now) : null;
       if (this.playing) this.automate(end);
-      if (ex.tf_set_pos) { const pos = songPos; this.freeBeat = (this.freeBeat || 0) + m / this.sr * (this.P ? this.P.bpm : 120) / 60;   // the song position for synced effects (free-running when stopped)
+      if (ex.tf_set_pos) { const pos = songPos; this.freeBeat = pos ? pos.tick / TF.PPQ + m / this.sr * this.P.bpm / 60 : (this.freeBeat || 0) + m / this.sr * (this.P ? this.P.bpm : 120) / 60;   // stopped, it counts on from where the song was (no jump)   // the song position for synced effects (free-running when stopped)
         ex.tf_set_pos(pos ? pos.tick / TF.PPQ : this.freeBeat, pos ? 1 : 0); }
       ex.tf_render(m); this.views(); if (this.scope) this.scopeFeed(m); if (this.visFx) this.waveFeed(m);
       const vL = this.vL, vR = this.vR;
