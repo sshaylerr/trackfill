@@ -17,7 +17,7 @@ typedef short i16;
 enum { NCH = 83, NPAD = 64, G0 = 64, B0 = 72, R0 = 80, MASTER = 82, NSLOT = 8, MAXN = 128,
        NVOICE = 96, VOICECAP = 80, NSAMP = 1024, NPARAM = 12 };
 enum { FX_EQ = 0, FX_COMP, FX_FILTER, FX_SAT, FX_DELAY, FX_REVERB, FX_DUCK, FX_UTIL, FX_CHORUS, FX_CLIP, FX_CRUSH, FX_TRANS, FX_PHASER,
-       FX_LIMIT, FX_MBAND, FX_TAPE, FX_GATE, FX_DISP, FX_APAN, FX_LFOT, FX_VINYL, FX_STEP, FX_GRIN, FX_COUNT };
+       FX_LIMIT, FX_MBAND, FX_TAPE, FX_GATE, FX_DISP, FX_APAN, FX_LFOT, FX_VINYL, FX_STEP, FX_GRIN, FX_DIST, FX_INFL, FX_RESO, FX_COUNT };
 
 static float SR = 48000.f, BPM = 120.f;
 
@@ -313,6 +313,7 @@ static u32 discMask(i32 t, i32 m) {
     case FX_PHASER: return m == 1 ? B2 : 0;
     case FX_LIMIT: return B3 | B4;
     case FX_APAN: return B0 | B1 | B4; case FX_LFOT: return B0 | B1; case FX_VINYL: return B4; case FX_STEP: return B0 | B1; case FX_GRIN: return B1;
+    case FX_INFL: return B3 | B4; case FX_RESO: return B0 | B1 | B2 | B6;
     default: return 0;
   }
 }
@@ -379,7 +380,7 @@ static u32 fxStateBytes0(i32 t) {
     case FX_TRANS: return sizeof(TransSt); case FX_PHASER: return sizeof(PhaserSt); default: return 16;
   }
 }
-static u32 fxTail(const Fx* f) { if (f->type == FX_STEP || f->type == FX_VINYL || f->type == FX_GRIN) return (u32)(4.f * SR); if (f->type == FX_REVERB) return f->mode == 4 ? 0xf0000000u : (u32)(f->mode == 0 ? 30.f * SR : 60.f * SR); return f->type == FX_DELAY ? (u32)(30.f * SR) : (u32)(0.3f * SR); }
+static u32 fxTail(const Fx* f) { if (f->type == FX_RESO) return (u32)(12.f * SR); if (f->type == FX_STEP || f->type == FX_VINYL || f->type == FX_GRIN) return (u32)(4.f * SR); if (f->type == FX_REVERB) return f->mode == 4 ? 0xf0000000u : (u32)(f->mode == 0 ? 30.f * SR : 60.f * SR); return f->type == FX_DELAY ? (u32)(30.f * SR) : (u32)(0.3f * SR); }
 // the longest stretch an effect can stay silent at its output and still have sound to come (a delay between repeats, a pre-delay)
 static u32 fxGap(const Fx* f) { switch (f->type) { case FX_DELAY: return (u32)DLEN + (u32)(0.1f * SR); case FX_STEP: case FX_VINYL: case FX_GRIN: return (u32)(4.2f * SR); case FX_REVERB: return (u32)(0.6f * SR); default: return (u32)(0.1f * SR); } }
 static void chanTail(Chan* C) { u32 t = (u32)(0.3f * SR), g = (u32)(0.1f * SR); for (i32 s = 0; s < NSLOT; s++) if (C->fx[s].type >= 0) { u32 x = fxTail(&C->fx[s]); if (x > t) t = x; x = fxGap(&C->fx[s]); if (x > g) g = x; } C->tail = t; C->gap = g; }
@@ -624,6 +625,7 @@ static float noiseGate(float* g, const float* L, const float* R, i32 n) {
 }
 #include "fx_modes.inc"
 #include "fx_new.inc"
+#include "fx_more.inc"
 #include "synth.inc"
 static u32 fxStateBytes(i32 t, i32 m) {
   if (m == 0 && t < FX_LIMIT) return fxStateBytes0(t);
@@ -633,6 +635,7 @@ static u32 fxStateBytes(i32 t, i32 m) {
     case FX_CLIP: return sizeof(Clip2St); case FX_CRUSH: return sizeof(Crush2St); case FX_PHASER: return sizeof(PhaserSt);
     case FX_LIMIT: return sizeof(LimSt); case FX_MBAND: return sizeof(MbSt); case FX_TAPE: return sizeof(TapeSt); case FX_GATE: return sizeof(GateSt); case FX_DISP: return sizeof(DispSt);
     case FX_APAN: return sizeof(APSt); case FX_LFOT: return sizeof(LTSt); case FX_VINYL: return sizeof(VinSt); case FX_STEP: return sizeof(StepSt); case FX_GRIN: return sizeof(GrinSt);
+    case FX_DIST: return sizeof(DistSt); case FX_INFL: return sizeof(InflSt); case FX_RESO: return sizeof(ResoSt);
     default: return fxStateBytes0(t);
   }
 }
@@ -661,6 +664,7 @@ static void fx_run(i32 c, Fx* f, float* L, float* R, i32 n) {
     case FX_LIMIT: fx_limit(f, L, R, n); break; case FX_MBAND: fx_mband(f, L, R, n); break; case FX_TAPE: fx_tape(f, L, R, n); break;
     case FX_GATE: fx_gate(f, L, R, n, kL, kR); break; case FX_DISP: fx_disp(f, L, R, n); break;
     case FX_APAN: fx_autopan(f, L, R, n); break; case FX_LFOT: fx_lfotool(f, L, R, n); break; case FX_VINYL: fx_vinyl(f, L, R, n); break; case FX_STEP: fx_step(f, L, R, n); break; case FX_GRIN: fx_grin(f, L, R, n); break;
+    case FX_DIST: fx_dist(f, L, R, n); break; case FX_INFL: fx_inflate(f, L, R, n); break; case FX_RESO: fx_reso(f, L, R, n); break;
   }
   (void)c;
 }

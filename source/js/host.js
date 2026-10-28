@@ -370,6 +370,7 @@ class TFHost {
       case 'range': this.range = m.v && m.v.b > m.v.a ? { scene: m.v.scene | 0, a: Math.max(0, +m.v.a), b: +m.v.b } : null; break;   // a loop range inside one scene (the timeline's loop)
       case 'click': this.click = { on: !!m.on, vol: Math.max(0, Math.min(1, +m.vol || 0)) }; if (m.on) this.makeClicks(); break;
       case 'stop': this.stop(false); break;
+      case 'key': this.key = { root: +m.root || 0, iv: Array.isArray(m.iv) && m.iv.length ? m.iv.map(Number) : [0, 2, 3, 5, 7, 8, 10] }; if (P) P.chans.forEach((C, c) => (C.fx || []).forEach((f, s) => { if (f && f.type === 25) this.resoKey(c, s); })); break;
       case 'soft': this.soft = true; break;
       case 'pending': this.pending = m.scene; break;
       case 'loop': this.loop = m.v; break;
@@ -398,6 +399,9 @@ class TFHost {
     else if (s === -2) { if (this.frozen(c)) return; ex.tf_ch_set(c, i === 0 ? 5 : 6, i === 0 ? 20 * Math.pow(1000, v) : 0.7 + v * v * 18); }
     else ex.tf_fx_param(c, s, i, v);
   }
+  // the song's key for the Resonator: root, then the scale's steps (sent by the page, which knows the scales)
+  resoKey(c, s) { const ptr = this.ex.tf_fx_tab(c, s); if (!ptr) return; const T = new Float32Array(this.ex.memory.buffer, ptr, 256), k = this.key || { root: 0, iv: [0, 2, 3, 5, 7, 8, 10] };
+    T.fill(0); T[0] = ((k.root | 0) % 12 + 12) % 12; T[1] = Math.min(12, k.iv.length); k.iv.slice(0, 12).forEach((v, i) => { T[2 + i] = v; }); }
   frozen(pi) { const p = this.P.pads[pi]; return !!(p && p.frz); }
   syncChan(c) {
     const ex = this.ex, C = this.P.chans[c], frz = c < TF.NPAD && this.frozen(c);
@@ -407,6 +411,7 @@ class TFHost {
       const f = C.fx[s], t = f ? f.type : -1, mode = f ? (f.mode | 0) : 0, id = t < 0 ? -1 : t * 16 + mode;   // an effect slot is identified by type and mode
       if (id !== this.fxT[c][s]) { let ok = ex.tf_fx_type(c, s, t); if (ok && t >= 0 && mode) ok = ex.tf_fx_mode(c, s, mode);
         this.fxT[c][s] = ok ? id : -1; if (!ok && t >= 0 && this.post) this.post({ t: 'oom' }); }
+      if (f && ex.tf_fx_tab && f.type === 25) this.resoKey(c, s);   // the Resonator plays in the song's key
       if (f && ex.tf_fx_tab && (f.type === 19 || f.type === 21)) { const ptr = ex.tf_fx_tab(c, s); if (ptr) { const T = new Float32Array(ex.memory.buffer, ptr, 256);   // the Shaper's shape (0..1) or the Step FX pattern
         if (f.type === 19) { const t = tfLfoTable(f.lfo); for (let i = 0; i < 256; i++) T[i] = (t[i] + 1) * .5; } else { T.fill(0); (f.steps || []).forEach((v, i) => { if (i < 16) T[i] = v; }); } } }
       if (f) { for (let i = 0; i < f.p.length; i++) ex.tf_fx_param(c, s, i, f.p[i]); ex.tf_fx_on(c, s, f.on && !frz ? 1 : 0); ex.tf_fx_key(c, s, (f.type === 6 || f.type === 16) && f.key != null ? f.key : -1); }

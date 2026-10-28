@@ -390,7 +390,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .li.on{border-color:var(--accent)} .li .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none}
 .tgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .tgrid button{height:44px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);font:700 12px var(--font-ui);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
-.tgrid button.on{background:var(--accent);color:var(--accent-ink)}
+.tgrid button.on{background:linear-gradient(180deg,var(--on1),var(--on2));color:var(--accent);border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{height:30px;padding:0 11px;border-radius:15px;background:var(--panel);border:1px solid var(--line);color:var(--mute);font-weight:600;font-size:12.5px;white-space:nowrap}
 .chip.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
@@ -462,6 +462,12 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 #sheet .edit{display:flex;flex-direction:column;gap:6px;padding:2px 0 4px} #sheet .edview{height:92px;border:1px solid var(--line);border-radius:4px;background:var(--panel);overflow:hidden} #sheet .edview canvas{display:block;width:100%;height:100%} #sheet .edg{gap:4px} #sheet .edg>.btn,#sheet .edg>.lcdbox{height:46px;min-height:46px;margin:0}
 #sheet .edg>.btn.sm{height:34px;min-height:34px} #sheet .edtabs{gap:4px} #sheet .edtabs>.btn{height:30px;min-height:30px}
 #sheet .edg>.btn.hot:not(:disabled){color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,var(--line))} #sheet .edg>.btn.warn{color:var(--rec)}
+/* buttons inside menus look like the device's own keys: dark, raised, a coloured label when chosen (no solid fills) */
+#sheet .card .btn{background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.09);color:var(--ink);font:600 13px var(--font-ui);border-radius:4px}
+#sheet .card .btn.on{background:linear-gradient(180deg,var(--on1),var(--on2));color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--edge));box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.06)}
+#sheet .card .btn:active{transform:translateY(1px);box-shadow:0 1px 0 #050506,inset 0 1px 0 rgba(255,255,255,.05)}
+#sheet .card .hrow>.btn{height:36px;min-height:36px} #sheet .card .edg>.btn,#sheet .card .edg>.lcdbox{height:40px;min-height:40px} #sheet .card .edtabs>.btn{height:32px;min-height:32px}
+#sheet .card .hrow,#sheet .card .edg{gap:6px}
 .shTitle .clipline{font-style:normal;color:var(--dim);font-weight:400;margin-left:2px}
 #sheet .card .note{font-size:12px;color:var(--dim)} #sheet .card .param{background:var(--panel)}
 /* messages: a small readout in the bottom-left corner, just above the mode keys */
@@ -794,7 +800,9 @@ async function backupAll() { await projSave(); const projects = [], samples = {}
   for (const [id, s] of SAMPLES) if (!s.builtin && !s.drum && !id.startsWith('b:') && !id.startsWith('d:') && !id.startsWith('i:') && !id.startsWith('w:')) samples[id] = { name: s.name, sr: s.sr, ch: s.ch, frz: !!s.frz, data: i16ToB64(s.data) };
   await saveFile('trackfill-backup-' + new Date().toISOString().slice(0, 10) + '.trackfill.json', JSON.stringify({ format: 'trackfill-all', version: PROJECT_VERSION, saved: new Date().toISOString(), projects, samples })); }
 let saveTimer = 0;
-function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
+function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); syncKey(); }
+// the song's key, for effects that play in it (the Resonator): sent whenever it changes
+let keySent = ''; function syncKey(force) { if (!P || !P.key) return; const iv = scaleOf(P.key.scale)[1], sig = P.key.root + ':' + iv.join(','); if (sig === keySent && !force) return; keySent = sig; send({ t: 'key', root: P.key.root, iv }); }
 function saveNow() { clearTimeout(saveTimer); if (P) projSave(); }
 function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex }); }
 
@@ -869,7 +877,7 @@ function normGain(p) { const s = SAMPLES.get(p.sample); if (!s || !s.data) retur
 function syncPad(i) { const p = P.pads[i]; if (p.norm) p.ng = normGain(p); ensureIns(insOf(p)); ensureSample(p.sample); if (p.stx) ensureSample(p.stx); if (typeof stretchCheck === 'function') stretchCheck(i); const gs = grSrc(p); if (gs) { if (gs.startsWith('b:')) buildBuiltin(gs.slice(2)); ensureSample(gs); } for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
 function syncChan(c) { send({ t: 'chan', i: c, v: P.chans[c] }); }
 function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing, swq: P.swq || 24 } }); updateTransport(); if (typeof stretchAllSoon === 'function') stretchAllSoon(); }   // stretched pads follow the tempo
-function syncProject() { if (!ENG.node) return; for (const p of P.pads) ensureIns(insOf(p)); for (const id of usedSampleIds()) ensureSample(id); for (const k of tableKeys()) ensureTable(k); upPrefer(UI.scene); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
+function syncProject() { if (!ENG.node) return; for (const p of P.pads) ensureIns(insOf(p)); for (const id of usedSampleIds()) ensureSample(id); for (const k of tableKeys()) ensureTable(k); upPrefer(UI.scene); syncKey(true); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
 function sendParam(key, v) { send({ t: 'param', key, v }); }
 function silentWavUrl() { const sr = 8000, n = sr / 2, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), ws = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
   ws(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE'); ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, n * 2, true);
@@ -1756,7 +1764,7 @@ function openTempo() {
     const tap = btn('Tap tempo', () => { const n = performance.now(); taps = taps.filter(t => n - t < 2500); taps.push(n); if (taps.length >= 3) { const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); P.bpm = clamp(Math.round(60000 / iv), 40, 220); tp._upd(); syncSong(); markDirty(); } });
     // the swing grid: which steps get pushed late (1/16 for hats and breaks, 1/8 for a shuffle, 1/32 for fast rolls)
     const swRow = (cur, set) => { const w = h('div', ''), row = h('div', 'g3 hrow'); [[48, '1/8'], [24, '1/16'], [12, '1/32']].forEach(([v, l]) => row.append(btn(l, () => set(v), 'btn' + (cur === v ? ' on' : '')))); w.append(h('div', 'sec', 'Swing on'), row); return w; };
-    tap.style.height = '56px'; tap.style.width = '100%';
+    tap.style.height = '56px'; tap.style.width = '100%'; tap.style.justifyContent = 'center';
     const g1 = h('div', 'g2'), swEl = g.lastChild; g1.append(swEl); card.append(g, tap, g1, swRow(P.swq || 24, v => { if ((P.swq || 24) === v) return; pushUndo('song'); P.swq = v; syncSong(); markDirty(); closeSheet(); openTempo(); }));
     // this pad's groove: the song's swing or its own, and a timing offset (hats a touch late, a snare a touch early)
     { const pi = UI.pad, pad = P.pads[pi], own = pad.swg != null, set = (k, v) => { pad[k] = v; touchPad(pi); syncPad(pi); markDirty(); };

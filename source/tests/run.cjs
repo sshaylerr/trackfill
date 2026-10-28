@@ -175,6 +175,20 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
         if (st2.bad || st2.pk > 1 || st2.rms < .0005) bad.push(`${d.name} ${md.n || ''} ${ext} (bad ${st2.bad}, peak ${st2.pk.toFixed(2)}, rms ${st2.rms.toFixed(4)})`); } }
     ok(!bad.length, `${n} renders: every mode at minimum, maximum and default settings stays finite, within 0 dBFS and audible` + (bad.length ? '\n      ' + bad.join('\n      ') : ''));
   }
+  console.log('distortion, inflate, resonator');
+  { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.newProject(true);
+    Q.pads[0].sample = 'b:kick'; Q.scenes[0].notes = { 0: [{ t: 0, len: 24, p: 0, v: 1 }] };
+    const ring = async (root, notes) => { const P2 = JSON.parse(JSON.stringify(Q)); const f = M.newFx(25); f.p[0] = notes; f.p[1] = 0; f.p[3] = .9; f.p[7] = 1; f.p[5] = 0; P2.chans[0].fx = [f];
+      const ex2 = new WebAssembly.Instance(wasm, {}).exports, h2 = new H.TFHost(ex2, 48000, null); h2.msg({ t: 'key', root, iv: [0, 2, 4, 5, 7, 9, 11] }); h2.msg({ t: 'project', P: P2 }); const s = kit.get('b:snare'); h2.msg({ t: 'sample', key: 'b:kick', data: s.data, frames: s.frames, ch: s.ch, sr: s.sr });
+      h2.msg({ t: 'hit', pad: 0, semi: 0, vel: 1, tag: 1 }); const L = new Float32Array(128), R = new Float32Array(128), x = []; for (let i = 0; i < 400; i++) { h2.render(128, L, R); if (i > 120) x.push(...L); }
+      const gz = hz => { let s0 = 0, s1 = 0, s2 = 0; const w = 2 * Math.cos(2 * Math.PI * hz / 48000); for (const v of x) { s0 = v + w * s1 - s2; s2 = s1; s1 = s0; } return Math.sqrt(s1 * s1 + s2 * s2 - w * s1 * s2); }; return gz; };
+    const c = await ring(0, 0), d = await ring(2, 0), cHz = 130.81, dHz = 146.83;
+    ok(c(cHz) > 5 * c(dHz) && d(dHz) > 5 * d(cHz), `Resonator rings in the song's key (key of C: ${(c(cHz) / c(dHz)).toFixed(0)}× more C than D; key of D: ${(d(dHz) / d(cHz)).toFixed(0)}× more D than C)`);
+    const inf = (p) => { const P2 = JSON.parse(JSON.stringify(Q)); const f = M.newFx(24); Object.assign(f.p, p); P2.chans[0].fx = [f]; return H.tfRenderOffline(wasm, P2, kit, { order: [{ scene: 0, reps: 1 }], tail: 0 }); };
+    const a0 = await inf({ 1: 0 }), dry = await H.tfRenderOffline(wasm, Q, kit, { order: [{ scene: 0, reps: 1 }], tail: 0 }), a1 = await inf({ 1: 1 });
+    let diff = 0, pk = 0; for (let i = 0; i < dry.L.length; i++) { diff = Math.max(diff, Math.abs(a0.L[i] - dry.L[i])); pk = Math.max(pk, Math.abs(a1.L[i])); }
+    const rms = a => Math.sqrt(a.L.reduce((s, v) => s + v * v, 0) / a.L.length);
+    ok(diff < 1e-4 && pk <= 1.0001 && rms(a1) > rms(dry) * 1.1, `Inflate: at 0% it changes nothing (${diff.toExponential(1)}), at 100% it is ${(20 * Math.log10(rms(a1) / rms(dry))).toFixed(1)} dB denser and never passes 0 dBFS with Clip on`); }
   console.log('rhythm effects');
   { // synced effects follow the song: Step FX starts its pattern with the song every time you press Play, however long it was stopped
     const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, () => {}), Q = M.newProject(true); host.soft = false;
@@ -609,7 +623,7 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const [gl, gr] = H.tfPanGains(.4), want = 16384 / 32768;
     ok(Q.chans.every(c => Math.abs(H.tfFaderDb(c.vol)) < 1e-9) && Math.abs(pl - want * gl) < .002 && Math.abs(pr - want * gr) < .002, `new channels are at 0 dB and the engine pans on the same curve (L ${(pl / want).toFixed(3)} want ${gl.toFixed(3)}, R ${(pr / want).toFixed(3)} want ${gr.toFixed(3)})`); }
   { // every effect at its default settings keeps the level within 1.5 dB on pink noise at -18 dBFS RMS
-    // (compressors and the multiband excepted: turning things down is their job; Fuzz is an extreme curve, allowed 4 dB; filters 2.5)
+    // (compressors and the multiband excepted: turning things down is their job; Fuzz is an extreme curve, allowed 4 dB; filters 2.5; Inflate makes things louder by design, 3)
     const n = 36000, d = new Int16Array(n); let x = 7, b0 = 0, b1 = 0, b2 = 0; const w = () => (x = (x * 16807) % 2147483647) / 2147483647 * 2 - 1, t = new Float32Array(n); let ss = 0;
     for (let i = 0; i < n; i++) { const v = w(); b0 = .99765 * b0 + v * .099046; b1 = .963 * b1 + v * .2965164; b2 = .57 * b2 + v * 1.0526913; t[i] = b0 + b1 + b2 + v * .1848; ss += t[i] ** 2; }
     const g = .1259 / Math.sqrt(ss / n); for (let i = 0; i < n; i++) d[i] = Math.round(t[i] * g * 32767);
@@ -618,7 +632,7 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       const r = await H.tfRenderOffline(wasm, Q, new Map([['pn', { id: 'pn', data: d, frames: n, ch: 1, sr: 48000 }]]), { order: [{ scene: 0, reps: 1 }], tail: 0 }); return stats(r.L, r.R, 9600, 33600).rms; };
     const dry = await lvl(null), off = [];
     for (let ty = 0; ty < M.FX_DEFS.length; ty++) { if (ty === M.FX_TYPES.COMP || ty === M.FX_TYPES.MBAND) continue;
-      for (let mo = 0; mo < M.FX_DEFS[ty].modes.length; mo++) { const dd = 20 * Math.log10(await lvl(M.newFx(ty, null, mo)) / dry), lim = ty === M.FX_TYPES.SAT && mo === 5 ? 4 : ty === M.FX_TYPES.FILTER || ty === M.FX_TYPES.VINYL ? 2.5 : 1.5;   // filters and vinyl wear take away frequencies by design
+      for (let mo = 0; mo < M.FX_DEFS[ty].modes.length; mo++) { const dd = 20 * Math.log10(await lvl(M.newFx(ty, null, mo)) / dry), lim = ty === M.FX_TYPES.SAT && mo === 5 ? 4 : ty === M.FX_TYPES.INFL ? 3 : ty === M.FX_TYPES.FILTER || ty === M.FX_TYPES.VINYL ? 2.5 : 1.5;   // filters and vinyl wear take away frequencies by design
         if (!(Math.abs(dd) <= lim)) off.push(`${M.FX_DEFS[ty].name}/${M.FX_DEFS[ty].modes[mo].n} ${dd.toFixed(1)} dB`); } }
     ok(!off.length, `every effect and mode at its defaults keeps the level (${off.length ? off.join(', ') : 'all within 1.5 dB'})`); }
   { // a channel goes to sleep once its effects fade below -120 dB, not after their worst-case tail; nothing audible is cut off,
