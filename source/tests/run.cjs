@@ -176,6 +176,19 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(!bad.length, `${n} renders: every mode at minimum, maximum and default settings stays finite, within 0 dBFS and audible` + (bad.length ? '\n      ' + bad.join('\n      ') : ''));
   }
   console.log('rhythm effects');
+  { // synced effects follow the song: Step FX starts its pattern with the song every time you press Play, however long it was stopped
+    const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, () => {}), Q = M.newProject(true); host.soft = false;
+    Q.bpm = 120; Q.pads[0] = Object.assign(Q.pads[0], { src: 'synth', syn: SP.synPatch({ n: 't', p: { o1w: 'Square', flt: 'Off', aa: .001, as: 1, ar: .01 } }), mode: 'gate' });
+    Q.scenes[0].bars = 2; Q.scenes[0].notes = { 0: [{ t: 0, len: 768, p: 0, v: .9 }] }; const fx = M.newFx(21); fx.steps = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; fx.p[4] = 1; Q.chans[0].fx = [fx]; host.msg({ t: 'project', P: Q });
+    const L = new Float32Array(128), R = new Float32Array(128), take = b => { const o = []; for (let i = 0; i < b; i++) { host.render(128, L, R); o.push(...L); } return o; };
+    const gaps = []; for (let k = 0; k < 4; k++) { take(41 + k * 67); const t0 = host.now; host.msg({ t: 'play', scene: 0, loop: 'scene' }); const x = take(500); host.msg({ t: 'stop' });
+      let on = -1, mu = -1; for (let i = 0; i < x.length - 480 && mu < 0; i += 24) { let m = 0; for (let j = 0; j < 480; j++) m = Math.max(m, Math.abs(x[i + j])); if (m > .05 && on < 0) on = i; if (on >= 0 && m < .002) mu = i; }
+      gaps.push(mu - on); }
+    ok(gaps.every(g => g > 0 && Math.abs(g - gaps[0]) <= 48), `Step FX starts in step with the song on every Play (mute step lands ${gaps.map(g => (g / 48).toFixed(0)).join(', ')} ms after the sound starts)`);
+    const quiet = st => { fx.steps = [0, 0, 0, 0, 0, 0, 0, 0, 6, 6, 6, 6, 6, 6, 6, 6]; fx.p[5] = st; host.msg({ t: 'project', P: Q }); take(400); host.msg({ t: 'play', scene: 0, loop: 'scene' }); const x = take(760); host.msg({ t: 'stop' });
+      const run0 = x.findIndex(v => Math.abs(v) > .05) + 48000; for (let i = run0; i < x.length - 480; i += 48) { let m = 0; for (let j = 0; j < 480; j++) m = Math.max(m, Math.abs(x[i + j])); if (m < .003) return (i - run0) / 48000; } return 9; };
+    const slow = quiet(1), fast = quiet(0);
+    ok(fast < .3 && slow > .8, `Step FX tape stop speed: a half-bar run of tape stop falls silent after ${fast.toFixed(2)} s at the quickest, and plays out the whole run at the slowest`); }
   { // a steady sine on pad 20 (a held synth note) through one effect on its channel; returns per-16th levels and the L/R balance
     const mk = (fx, bpm = 120) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.bpm = bpm; Q.chans.forEach(c => { c.fx = []; });
       Object.assign(Q.pads[20], { src: 'synth', syn: SP.synPatch({ p: { o1w: 'Sine', flt: 'Off', dri: 0, aa: .001, as: 1 } }), mode: 'gate', voice: 'poly' }); Q.chans[20].fx = [fx]; host.msg({ t: 'project', P: Q });

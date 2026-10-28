@@ -86,7 +86,7 @@ static void fx_vinyl(Fx* f, float* L, float* R, i32 n) {
 
 /* ----- Step FX: 16 steps, each one an action on the live sound (the pattern is the table: one code per step) ----- */
 // codes: 0 through, 1 mute, 2 repeat, 3 reverse, 4 half speed, 5 filter, 6 tape stop
-// params: Steps (1/16 over a bar, 1/8 over two, 1/32 over half), Repeat (1/16, 1/32, 1/64, 1/8), Filter, Smooth, Mix
+// params: Steps (1/16 over a bar, 1/8 over two, 1/32 over half), Repeat (1/16, 1/32, 1/64, 1/8), Filter, Smooth, Mix, Stop time (share of a tape-stop run the stop takes)
 enum { SLEN = 131072 };
 struct SMech { i32 act; u32 start; double rp; float sp, t; };
 struct StepSt { float b[2][SLEN]; u32 w; i32 step; SMech cur, old; float xf, xfN, z[2][2]; i32 init; };
@@ -105,7 +105,7 @@ static void fx_step(Fx* f, float* L, float* R, i32 n) {
       case 2: return M->t < repLen ? x : stepRead(S, c, (double)M->start + fmodpos(M->t, repLen));
       case 3: return stepRead(S, c, (double)M->start - 1.0 - M->t);
       case 4: return stepRead(S, c, (double)M->start + M->t * 0.5f);
-      case 6: return stepRead(S, c, M->rp);
+      case 6: return stepRead(S, c, M->rp) * minf(1.f, M->sp * 8.f);   // the tape slows to a stop and falls silent (no stuck sample)
       default: return x; } };
   for (i32 i = 0; i < n; i++) {
     S->b[0][S->w & (SLEN - 1)] = L[i]; S->b[1][S->w & (SLEN - 1)] = R[i];
@@ -115,7 +115,8 @@ static void fx_step(Fx* f, float* L, float* R, i32 n) {
       SMech M; M.act = a; M.start = S->w; M.t = 0; M.sp = 1.f; M.rp = (double)S->w;
       if (a == 6) { // tape stop: one ramp from full speed to a stop across the whole run of tape-stop steps
         i32 back = 0; while (back < 15 && code(st - back - 1) == 6) back++; i32 fwd = 0; while (fwd < 15 - back && code(st + fwd + 1) == 6) fwd++;
-        M.sp = 1.f - (float)back / (float)(back + fwd + 1); if (back && S->cur.act == 6) M.rp = S->cur.rp; M.t = (float)(back + fwd + 1) * stepSamps; }   // t: the run's length (for the ramp)
+        M.t = maxf(1.f, (float)(back + fwd + 1) * stepSamps * (.15f + .85f * s[5]));   // t: how long the stop takes (the whole run, or a share of it)
+        M.sp = maxf(0.f, 1.f - (float)back * stepSamps / M.t); if (back && S->cur.act == 6) M.rp = S->cur.rp; }
       S->cur = M; }
     float y[2];
     for (i32 c = 0; c < 2; c++) { const float x = c ? R[i] : L[i]; float v = mech(&S->cur, c, x);

@@ -393,7 +393,7 @@ const FX_DEFS = [
   { name: 'Vinyl', short: 'Vinyl', params: [P_('Crackle', .3, fPct), P_('Noise', .2, fPct), P_('Wear', .3, fPct), P_('Wow', .15, fPct), P_('Stop', 0, null, ['Off', 'On']),
     P_('Stop time', .684, v => fMs(expmap(v, .05, 4) * 1000)), P_('Start time', .474, v => fMs(expmap(v, .05, 4) * 1000)), P_('Mix', 1, fPct)] },
   { name: 'Step FX', short: 'Steps', params: [P_('Steps', 0, null, ['1/16 · 1 bar', '1/8 · 2 bars', '1/32 · ½ bar']), P_('Repeat', 1 / 3, null, ['1/16', '1/32', '1/64', '1/8']),
-    P_('Filter', .6, fPct), P_('Smooth', .3, v => fMs(.5 + v * v * 30)), P_('Mix', 1, fPct)] },
+    P_('Filter', .6, fPct), P_('Smooth', .3, v => fMs(.5 + v * v * 30)), P_('Mix', 1, fPct), P_('Stop time', 1, v => Math.round((.15 + .85 * v) * 100) + '%')] },   // Stop time: how much of a run of tape-stop steps the stop takes (less: a quicker stop, then silence)
   { name: 'Grin', short: 'Grin', params: GRIN_P }
 ];
 // Shaper shapes (the drawn curve: 1 = full level, 0 = the Depth's dip) and Step FX actions

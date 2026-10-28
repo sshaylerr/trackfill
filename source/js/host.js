@@ -717,8 +717,11 @@ class TFHost {
       // an event plays on the first sample at or after its exact time (never early), so a loop's next note can't creep into the one before
       while (this.heap.size && Math.ceil(this.heap.peek().time - 1e-6) < end) { const e = this.heap.pop(); this.dispatch(e, Math.max(0, Math.min(m - 1, Math.ceil(e.time - this.now - 1e-6)))); }
       this.flushFollow();
+      // the song position at the start of this slice, for the synced effects (Step FX, Autopan, LFO Tool…): read before automate() drops
+      // the marks behind it, so it is the song's own position whenever the song plays (stopped, they count on by themselves)
+      const songPos = this.playing && this.P && ex.tf_set_pos ? this.tickAt(this.now) : null;
       if (this.playing) this.automate(end);
-      if (ex.tf_set_pos) { const pos = this.playing && this.P ? this.tickAt(this.now) : null; this.freeBeat = (this.freeBeat || 0) + m / this.sr * (this.P ? this.P.bpm : 120) / 60;   // the song position for synced effects (free-running when stopped)
+      if (ex.tf_set_pos) { const pos = songPos; this.freeBeat = (this.freeBeat || 0) + m / this.sr * (this.P ? this.P.bpm : 120) / 60;   // the song position for synced effects (free-running when stopped)
         ex.tf_set_pos(pos ? pos.tick / TF.PPQ : this.freeBeat, pos ? 1 : 0); }
       ex.tf_render(m); this.views(); if (this.scope) this.scopeFeed(m); if (this.visFx) this.waveFeed(m);
       const vL = this.vL, vR = this.vR;

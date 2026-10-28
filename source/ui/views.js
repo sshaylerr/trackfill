@@ -385,22 +385,23 @@ function openKeyPicker(c, s) {
 function openSoundTools(pi) {
   const pad = P.pads[pi];
   openSheet(padLabel(pi) + ' tools', card => {
+    // sound in (load, pick, bounce), then its edits, then the pad's colour; clearing it comes last
     const g = h('div', 'g2');
-    g.append(btn('Load files…', () => { closeSheet(); pickAudio(pi); }), btn('Library', () => { closeSheet(); openLibrary(); }), btn('Bounce scene here', () => { closeSheet(); bounceScene(); }),
-      confirmBtn('Clear pad', 'Tap again to clear', () => { pushUndo('pad:' + pi); touchPad(pi); pad.sample = null; syncPad(pi); markDirty(); closeSheet(); }));
-    card.append(g);
+    g.append(btn('Load files… <span class="lsub">from Files or Photos</span>', () => { closeSheet(); pickAudio(pi); }), btn('Library… <span class="lsub">built-in and your sounds</span>', () => { closeSheet(); openLibrary(); }), btn('Bounce scene here <span class="lsub">the scene as one sound on this pad</span>', () => { closeSheet(); bounceScene(); }));
+    card.append(h('div', 'sec', 'Sound'), g);
     if (pad.sample && pad.src !== 'drum' && pad.src !== 'synth') {   // edits: settings on the pad, the sample itself never changes
       card.append(h('div', 'sec', 'Edits'));
       const e = h('div', 'kgrid'), redraw = () => drawDisp(), secs = v => v < .0005 ? 'Off' : v < 1 ? Math.round(v * 1000) + ' ms' : v.toFixed(2) + ' s', pc = v => (v * 100).toFixed(1) + '%';
       e.append(padParam(pi, 'gain', { label: 'Gain', min: -24, max: 24, step: .1, coarse: .5, big: 3, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB' }),
         selEl('Normalise', ['Off', 'On'], () => pad.norm ? 1 : 0, k => { pushUndo('pad:' + pi); touchPad(pi); pad.norm = !!k; syncPad(pi); markDirty(); toast(pad.norm ? `Normalised: ${(20 * Math.log10(pad.ng)).toFixed(1)} dB to reach -1 dBFS` : 'Normalise off'); }),
         padParam(pi, 'fin', { label: 'Fade in', min: 0, max: 2, step: .001, coarse: .01, big: .1, def: 0, fmt: secs }), padParam(pi, 'fout', { label: 'Fade out', min: 0, max: 2, step: .001, coarse: .01, big: .1, def: 0, fmt: secs }),
-        padParam(pi, 'silA', { label: 'Silence from', step: .001, coarse: .01, big: .05, def: 0, fmt: pc }), padParam(pi, 'silB', { label: 'Silence to', step: .001, coarse: .01, big: .05, def: 0, fmt: v => v <= pad.silA ? 'Off' : pc(v) }),
-        btn('Reset edits', () => { pushUndo('pad:' + pi); touchPad(pi); Object.assign(pad, { gain: 0, norm: false, ng: 1, fin: 0, fout: 0, silA: 0, silB: 0, start: 0, end: 1 }); syncPad(pi); markDirty(); closeSheet(); renderView(); toast('Edits reset'); }, 'key'));
-      card.append(e, h('p', 'note', 'Start and End crop it. Nothing here changes the sample: switch any of it off and the original is back.')); }
-    card.append(h('div', 'sec', 'Pad color'));
+        padParam(pi, 'silA', { label: 'Silence from', step: .001, coarse: .01, big: .05, def: 0, fmt: pc }), padParam(pi, 'silB', { label: 'Silence to', step: .001, coarse: .01, big: .05, def: 0, fmt: v => v <= pad.silA ? 'Off' : pc(v) }));
+      const re = h('div', 'g2'); re.append(btn('Reset edits', () => { pushUndo('pad:' + pi); touchPad(pi); Object.assign(pad, { gain: 0, norm: false, ng: 1, fin: 0, fout: 0, silA: 0, silB: 0, start: 0, end: 1 }); syncPad(pi); markDirty(); closeSheet(); renderView(); toast('Edits reset'); }));
+      card.append(e, h('p', 'note', 'Start and End crop it. Nothing here changes the sample: switch any of it off and the original is back.'), re); }
+    card.append(h('div', 'sec', 'Pad colour'));
     const t = h('div', 'tgrid'); PAD_COLORS.forEach((c, i) => { const b = btn(`<span style="display:block;height:6px;border-radius:1px;background:${c};box-shadow:0 0 6px ${c}"></span>`, () => { pushUndo('pad:' + pi); pad.color = i; markDirty(); closeSheet(); }, pad.color === i ? 'on' : ''); b.setAttribute('aria-label', 'Color ' + (i + 1)); t.append(b); });
-    card.append(t);
+    const cl = h('div', 'g2'); cl.append(confirmBtn('Clear pad', 'Tap again to clear', () => { pushUndo('pad:' + pi); touchPad(pi); pad.sample = null; syncPad(pi); markDirty(); closeSheet(); }));
+    card.append(t, h('div', 'sec', 'Pad'), cl);
   });
 }
 

@@ -1755,9 +1755,9 @@ function openTempo() {
     g.append(tp, paramEl({ label: 'Swing', min: 0, max: 1, step: .04, coarse: .2, entry: ENTRY.swing, get: () => P.swing, set: v => { P.swing = v; syncSong(); markDirty(); }, onStart: () => pushUndo('song'), def: 0, fmt: v => Math.round(50 + v * 25) + '%', noFocus: true }));
     const tap = btn('Tap tempo', () => { const n = performance.now(); taps = taps.filter(t => n - t < 2500); taps.push(n); if (taps.length >= 3) { const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); P.bpm = clamp(Math.round(60000 / iv), 40, 220); tp._upd(); syncSong(); markDirty(); } });
     // the swing grid: which steps get pushed late (1/16 for hats and breaks, 1/8 for a shuffle, 1/32 for fast rolls)
-    const swRow = (cur, set) => { const row = h('div', 'g3'); row.style.marginTop = '8px'; [[48, '1/8'], [24, '1/16'], [12, '1/32']].forEach(([v, l]) => row.append(btn('Swing ' + l, () => set(v), 'btn' + (cur === v ? ' on' : '')))); return row; };
-    tap.style.height = '56px'; tap.style.width = '100%'; tap.style.marginTop = '10px';
-    card.append(g, swRow(P.swq || 24, v => { if ((P.swq || 24) === v) return; pushUndo('song'); P.swq = v; syncSong(); markDirty(); closeSheet(); openTempo(); }), tap);
+    const swRow = (cur, set) => { const w = h('div', ''), row = h('div', 'g3 hrow'); [[48, '1/8'], [24, '1/16'], [12, '1/32']].forEach(([v, l]) => row.append(btn(l, () => set(v), 'btn' + (cur === v ? ' on' : '')))); w.append(h('div', 'sec', 'Swing on'), row); return w; };
+    tap.style.height = '56px'; tap.style.width = '100%';
+    const g1 = h('div', 'g2'), swEl = g.lastChild; g1.append(swEl); card.append(g, tap, g1, swRow(P.swq || 24, v => { if ((P.swq || 24) === v) return; pushUndo('song'); P.swq = v; syncSong(); markDirty(); closeSheet(); openTempo(); }));
     // this pad's groove: the song's swing or its own, and a timing offset (hats a touch late, a snare a touch early)
     { const pi = UI.pad, pad = P.pads[pi], own = pad.swg != null, set = (k, v) => { pad[k] = v; touchPad(pi); syncPad(pi); markDirty(); };
       card.append(h('div', 'sec', 'This pad · ' + esc(padLabel(pi) + ' ' + (pad.name || ''))));
@@ -1767,7 +1767,7 @@ function openTempo() {
       g2.append(paramEl({ label: 'Timing', min: -40, max: 40, step: .5, coarse: 2, big: 10, entry: ENTRY.ms, get: () => pad.tim || 0, set: v => set('tim', v), onStart: () => pushUndo('pad:' + pi), def: 0, bipolar: true, fmt: v => !v ? 'On time' : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + ' ms ' + (v > 0 ? 'late' : 'early'), noFocus: true }));
       if (!own) g2.style.gridTemplateColumns = '1fr'; card.append(g2);
       if (own) card.append(swRow(pad.swq || P.swq || 24, v => { pushUndo('pad:' + pi); set('swq', v); closeSheet(); openTempo(); })); }
-    const ck = h('div', 'g2'), pick = (title, opts, cur, set) => { card.append(h('div', 'sec', title)); const row = h('div', 'g3');
+    const ck = h('div', 'g2'), pick = (title, opts, cur, set) => { card.append(h('div', 'sec', title)); const row = h('div', 'g3 hrow');
       opts.forEach(([v, l]) => row.append(btn(l, () => { set(v); savePrefs(); sendClick(); closeSheet(); openTempo(); }, 'btn' + (cur === v ? ' on' : '')))); card.append(row); };
     pick('Click', [['off', 'Off'], ['rec', 'Recording'], ['always', 'Always']], UI.click, v => UI.click = v);
     pick('Count-in when recording', [[0, 'Off'], [1, '1 bar'], [2, '2 bars']], UI.countIn, v => UI.countIn = v);
@@ -1785,24 +1785,40 @@ function openMonitor() {
     const g2 = h('div', 'g2'); g2.append(btn('No correction', () => set('phones', ''), 'btn' + (!UI.mon.phones ? ' on' : ''))); for (const n of Object.keys(TF_PHONES)) g2.append(btn(n, () => set('phones', n), 'btn' + (UI.mon.phones === n ? ' on' : ''))); st.append(g2);
     st.append(h('p', 'note', 'What you hear only. Exports, bounces and freezes are never affected.')); });
 }
+/* The main menu: grouped the way most music apps order theirs (the project and its files, editing, sound, settings, help); anything with
+   more than a couple of choices opens its own page (›), so this one stays short. */
 function openMenu() {
-  openSheet(P.name || 'Project', card => { const st = h('div', 'stack');
-    st.append(btn('Projects · ' + esc(P.name || 'Untitled'), () => { closeSheet(); openProjects(); }, 'btn hot'));
-    const pg = h('div', 'g3'); pg.append(btn('Panic', () => { closeSheet(); panic(); }, 'btn warn'), btn('Engine check', () => { closeSheet(); openDiag(); }), btn('About', () => { closeSheet(); openAbout(); })); st.append(pg);
-    st.append(btn('Monitoring: ' + (UI.mon && (UI.mon.mode || UI.mon.phones) ? [UI.mon.mode ? MON_MODES[UI.mon.mode] : '', UI.mon.phones].filter(Boolean).join(' · ') : 'Off'), () => { closeSheet(); openMonitor(); }, 'btn' + (UI.mon && (UI.mon.mode || UI.mon.phones) ? ' on' : '')));
-    const inp = h('input', 'textin'); inp.value = P.name; inp.maxLength = 30; inp.setAttribute('aria-label', 'Project name'); inp.onfocus = () => pushUndo('song'); inp.oninput = () => { P.name = inp.value; markDirty(); }; st.append(inp);
-    st.append(h('div', 'sec', 'Export')); let g = h('div', 'g2'); g.append(btn('Export…', () => { closeSheet(); openExport(); }), btn('Projects…', () => { closeSheet(); openProjects(); })); st.append(g);
-    st.append('');
-    st.append((DB.ok ? '' : h('p', 'note', 'This browser isn\'t keeping your work: save a backup from Projects.')));
-    st.append(h('div', 'sec', 'Look')); const tg = h('div', 'g4');
-    for (const th of THEMES) { const b = btn(`<i class="swd" style="--sa:${th.accent};--sb:${th.body ? th.body[2] : '#3b3b41'}"></i>${th.name}`, () => { UI.theme = th.id; applyTheme(); savePrefs(); closeSheet(); openMenu(); }, 'btn theme' + (UI.theme === th.id ? ' on' : '')); tg.append(b); }
-    st.append(tg); g = h('div', 'g3'); for (const [v, l] of [['dark', 'Pads: dark'], ['tint', 'Pads: tinted'], ['bright', 'Pads: colour']]) g.append(btn(l, () => { UI.padStyle = v; applyTheme(); savePrefs(); closeSheet(); openMenu(); }, 'btn' + ((UI.padStyle || 'dark') === v ? ' on' : '')));
-    st.append(g);
-    st.append(h('div', 'sec', 'Edit')); g = h('div', 'g2'); g.append(btn('Redo', redo), btn(UI.mirror ? 'Move d-pad left' : 'Move d-pad right', () => { UI.mirror = !UI.mirror; $('#panel').classList.toggle('mirror', UI.mirror); savePrefs(); closeSheet(); })); st.append(g);
-    g = h('div', 'g2'); g.append(btn('Haptics: ' + (UI.haptics ? 'On' : 'Off'), () => { UI.haptics = !UI.haptics; savePrefs(); haptic(); closeSheet(); toast(UI.haptics ? 'Haptics on (iPhone needs iOS 18)' : 'Haptics off'); }, 'btn' + (UI.haptics ? ' on' : ''))); st.append(g);
-    st.append(h('div', 'sec', 'Testing')); g = h('div', 'g2'); g.append(btn('Stress test 2 (song)', () => newStress(true)), btn('Stress test (maximum)', () => newStress(false))); st.append(g);
-    st.append(h('p', 'note', 'Each opens as a new project; your work stays in Projects.'));
+  openSheet('Menu', card => { const st = h('div', 'stack'), row = (label, sub, fn, cls = '') => st.append(btn(`${label}${sub ? ` <span class="lsub">${sub}</span>` : ''}`, fn, 'btn ' + cls)), sec = t => st.append(h('div', 'sec', t));
+    const inp = h('input', 'textin'); inp.value = P.name; inp.maxLength = 30; inp.setAttribute('aria-label', 'Project name'); inp.placeholder = 'Project name'; inp.onfocus = () => pushUndo('song'); inp.oninput = () => { P.name = inp.value; markDirty(); };
+    st.append(inp); if (!DB.ok) st.append(h('p', 'note', 'This browser isn\'t keeping your work: save a backup from Projects.'));
+    sec('Project');
+    row('Projects…', 'open, new, templates, backups', () => { closeSheet(); openProjects(); });
+    row('Export…', 'mix, stems or MIDI', () => { closeSheet(); openExport(); });
+    row('Tempo & click…', `${+P.bpm.toFixed(1)} BPM · swing ${Math.round(50 + P.swing * 25)}%`, () => { closeSheet(); openTempo(); });
+    sec('Edit');
+    row('Redo', REDO.length ? '' : 'nothing to redo', () => { closeSheet(); redo(); });
+    sec('Sound');
+    const mon = UI.mon && (UI.mon.mode || UI.mon.phones);
+    row('Monitoring…', mon ? [UI.mon.mode ? MON_MODES[UI.mon.mode] : '', UI.mon.phones].filter(Boolean).join(' · ') : 'off', () => { closeSheet(); openMonitor(); });
+    row('Engine check…', 'sound, response time, device power', () => { closeSheet(); openDiag(); });
+    row('Panic', 'stop every sound now', () => { closeSheet(); panic(); }, 'warn');
+    sec('Settings');
+    const th = THEMES.find(x => x.id === UI.theme) || THEMES[0];
+    row('Appearance…', `${th.name} · ${{ dark: 'dark', tint: 'tinted', bright: 'colour' }[UI.padStyle || 'dark']} pads`, () => { closeSheet(); openAppearance(); });
+    row('D-pad side', UI.mirror ? 'right' : 'left', () => { UI.mirror = !UI.mirror; $('#panel').classList.toggle('mirror', UI.mirror); savePrefs(); closeSheet(); openMenu(); });
+    row('Haptics', UI.haptics ? 'on' : 'off', () => { UI.haptics = !UI.haptics; savePrefs(); haptic(); closeSheet(); openMenu(); toast(UI.haptics ? 'Haptics on (iPhone needs iOS 18)' : 'Haptics off'); });
+    sec('Help');
+    row('About…', 'licences, your data', () => { closeSheet(); openAbout(); });
     card.append(st); });
+}
+// Appearance: the colour theme and how the pads look (its own page, so the main menu stays short)
+function openAppearance() {
+  openSheet('Appearance', card => { const st = h('div', 'stack');
+    st.append(h('div', 'sec', 'Theme')); const tg = h('div', 'g4');
+    for (const th of THEMES) tg.append(btn(`<i class="swd" style="--sa:${th.accent};--sb:${th.body ? th.body[2] : '#3b3b41'}"></i>${th.name}`, () => { UI.theme = th.id; applyTheme(); savePrefs(); closeSheet(); openAppearance(); }, 'btn theme' + (UI.theme === th.id ? ' on' : '')));
+    st.append(tg, h('div', 'sec', 'Pads')); const g = h('div', 'g3');
+    for (const [v, l] of [['dark', 'Dark'], ['tint', 'Tinted'], ['bright', 'Colour']]) g.append(btn(l, () => { UI.padStyle = v; applyTheme(); savePrefs(); closeSheet(); openAppearance(); }, 'btn' + ((UI.padStyle || 'dark') === v ? ' on' : '')));
+    st.append(g); card.append(st); }, () => {});
 }
 function afterLoad() { UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
 
@@ -1869,7 +1885,8 @@ function openDiag() {
       const tst = btn(DEVTEST.running ? 'Testing…' : DEVTEST.res ? 'Test this device again' : 'Test this device', async () => { if (DEVTEST.running) return; if (T.playing) stop(); tst.textContent = 'Testing… (a few seconds)'; tst.disabled = true; await deviceTest(); if (box.isConnected) draw(); }, 'btn on'); tst.style.width = '100%';
       const cp = btn('Copy results', () => { const f = () => { ta.select(); toast('Selected. Use Copy from the menu.'); }; try { navigator.clipboard.writeText(text).then(() => toast('Copied'), f); } catch (e) { f(); } }, 'btn'); cp.style.width = '100%';
       const rs = btn('Restart audio', () => { closeSheet(); restartAudio(true); }, 'btn'); rs.style.width = '100%';
-      box.append(tst, rs, cp, ta); };
+      const tg = h('div', 'g2'); tg.append(btn('Stress test 2 (song)', () => newStress(true)), btn('Stress test (maximum)', () => newStress(false)));
+      box.append(tst, rs, cp, ta, h('div', 'sec', 'Testing'), tg, h('p', 'note', 'Each opens as a new project; your work stays in Projects.')); };
     await draw(); });
 }
 
@@ -1927,11 +1944,12 @@ function stemSources(order) { const scenes = new Set(order.map(o => o.scene)), l
   return [...live].filter(c => tfDest(P, c) === MASTER).sort((a, b) => a - b); }
 function openExport() { const ex = exPrefs();
   openSheet('Export', card => { const st = h('div', 'stack'); card.append(st); const set = (k, v) => { ex[k] = v; savePrefs(); closeSheet(); openExport(); };
-    const row = (title, opts, cur, k) => { st.append(h('div', 'sec', title)); const g = h('div', 'g' + opts.length); for (const [v, l] of opts) g.append(btn(l, () => set(k, v), 'btn' + (cur === v ? ' on' : ''))); st.append(g); };
-    { st.append(h('div', 'sec', 'What')); const g = h('div', 'g3'), cur = ex.midi ? 'midi' : ex.stems ? 'stems' : 'mix';   // MIDI: the notes, for another DAW
+    const row = (title, opts, cur, k) => { st.append(h('div', 'sec', title)); const g = h('div', 'g' + opts.length + ' hrow'); for (const [v, l] of opts) g.append(btn(l, () => set(k, v), 'btn' + (cur === v ? ' on' : ''))); st.append(g); };
+    { st.append(h('div', 'sec', 'What')); const g = h('div', 'g3 hrow'), cur = ex.midi ? 'midi' : ex.stems ? 'stems' : 'mix';   // MIDI: the notes, for another DAW
       for (const [v, l] of [['mix', 'Mix'], ['stems', 'Stems'], ['midi', 'MIDI']]) g.append(btn(l, () => { ex.midi = v === 'midi'; ex.stems = v === 'stems'; savePrefs(); closeSheet(); openExport(); }, 'btn' + (cur === v ? ' on' : ''))); st.append(g); }
     if (!ex.midi) { row('Format', Object.entries(EXF).map(([k, v]) => [k, v[0]]), ex.fmt, 'fmt'); row('Sample rate', [[48000, '48 kHz'], [44100, '44.1 kHz']], ex.sr, 'sr'); }
-    st.append(h('div', 'sec', 'Render')); const g = h('div', 'g2'); g.append(btn('Song', () => exportAudio('song'), 'btn hot'), btn('Scene ' + (UI.scene + 1), () => exportAudio('scene'), 'btn hot')); st.append(g);
+    const what = ex.midi ? 'MIDI' : ex.stems ? 'stems' : 'mix', act = h('div', 'g2'); act.append(btn(`Export the song <span class="lsub">${what}, every scene in order</span>`, () => exportAudio('song'), 'btn hot'), btn(`Export scene ${UI.scene + 1} <span class="lsub">${what}, this scene once</span>`, () => exportAudio('scene'), 'btn hot'));
+    st.append(h('div', 'sec', 'Export'), act);
     st.append(h('p', 'note', ex.midi ? 'A track per pad, as it plays, with the tempo.' : ex.stems ? 'One file per group, channel and return feeding the master, without the master\'s effects: together they add up to the mix.' : ex.fmt === 'wav24' ? '24-bit WAV: the best copy to send on or master.' : ex.fmt === 'wav16' ? '16-bit WAV with dither, for CD-style copies.' : 'MP3 at 320 kbps with dither: small, for sharing.')); }); }
 async function exportAudio(which) { if (exPrefs().midi) { closeSheet(); return exportMidi(which); } if (busy) return; busy = true; closeSheet(); const ex = exPrefs(), [, ext] = EXF[ex.fmt]; toast('Rendering…');
   try { const order = which === 'song' ? songOrder() : [{ scene: UI.scene, reps: 1 }], base = slug(P.name) + (which === 'song' ? '' : '-scene-' + (UI.scene + 1)), files = [];
