@@ -198,7 +198,8 @@ function applySynthPreset(pi, pr) {
   pushUndo('all'); const pad = P.pads[pi]; touchPad(pi); pad.src = 'synth'; pad.syn = synPatch(pr); pad.syn.sig = patchSig(pad.syn); pad.mode = 'gate';
   if (pr.voice) pad.voice = pr.voice; else if (![SYN_INIT, SYN_FM_INIT, SYN_WT_INIT, SYN_GR_INIT, SYN_SU_INIT, SYN_IN_INIT, SYN_FX_INIT].includes(pr)) pad.voice = 'poly'; pad.glide = pr.glide != null ? pr.glide : pad.glide; pad.poly = Math.max(pad.poly || 8, 8);
   if (!pad.name || SYN_PRESETS.some(x => x.n === pad.name) || FM_PRESETS.some(x => x.n === pad.name) || WT_PRESETS.some(x => x.n === pad.name) || GR_PRESETS.some(x => x.n === pad.name) || SU_PRESETS.some(x => x.n === pad.name) || IN_PRESETS.some(x => x.n === pad.name) || SFX_PRESETS.some(x => x.n === pad.name) || pad.name === 'Init' || pad.name === 'Synth') pad.name = pr.n.slice(0, 12);
-  const C = P.chans[pi]; if (pr.fx && !C.fx.length) { C.fx = pr.fx.map(f => newFx(f.type, null, f.mode || 0)); syncChan(pi); }
+  const C = P.chans[pi], fromPreset = C.fx.length && C.pfx === JSON.stringify(C.fx);
+  if (pr.fx && (!C.fx.length || fromPreset)) { C.fx = pr.fx.map(fxFromSpec); C.pfx = JSON.stringify(C.fx); syncChan(pi); } else if (!pr.fx && fromPreset) { C.fx = []; C.pfx = null; syncChan(pi); }   // a preset brings its effects; they replace the last preset's, never ones you added or changed
   syncPad(pi); markDirty(); renderAll(); audition(pi);
 }
 // the sound source: a pad plays its sample or a synth (presets live inside the synth, on the faceplate)

@@ -435,6 +435,15 @@ function newFx(type, over, mode = 0) { const f = { type, mode, on: true, p: FX_D
 function setFxMode(f, mode) { const old = fxParams(f), neu = FX_DEFS[f.type].modes[mode].params, keep = {}; old.forEach((p, i) => { keep[p.n] = f.p[i]; });
   f.mode = mode; f.p = neu.map(p => keep[p.n] != null && !p.opts === !old.find(o => o.n === p.n).opts ? keep[p.n] : p.d); return f; }
 const optVal = (k, n) => n > 1 ? k / (n - 1) : 0;
+// an effect as a preset describes it: { type } or { fx: 'Distortion' } (by name), an optional mode (index or name) and settings by control name:
+// a number is the knob position (0..1), a word picks that option ({ fx: 'Filter', mode: 'Formant', p: { Vowel: .3, 'LFO sync': '1/8' } })
+function fxFromSpec(s) {
+  const type = s.type != null ? s.type : FX_DEFS.findIndex(d => d.name === s.fx); if (!FX_DEFS[type]) throw new Error('no effect called ' + (s.fx || s.type));
+  const modes = FX_DEFS[type].modes, mode = typeof s.mode === 'string' ? modes.findIndex(m => m.n === s.mode) : s.mode || 0; if (!modes[mode]) throw new Error(`${FX_DEFS[type].name} has no mode ${s.mode}`);
+  const f = newFx(type, null, mode), ps = modes[mode].params;
+  for (const k in s.p || {}) { const i = ps.findIndex(q => q.n === k), v = s.p[k]; if (i < 0) throw new Error(`${FX_DEFS[type].name} has no control ${k}`);
+    if (typeof v === 'string') { const o = (ps[i].opts || []).indexOf(v); if (o < 0) throw new Error(`${FX_DEFS[type].name} ${k} has no option ${v}`); f.p[i] = optVal(o, ps[i].opts.length); } else f.p[i] = Math.max(0, Math.min(1, v)); }
+  if (s.on === false) f.on = false; if (s.steps) f.steps = s.steps.slice(); if (s.lfo) f.lfo = s.lfo.map(q => Object.assign({ c: 0 }, q)); return f; }
 
 /* ---------- channels ---------- */
 function chanKind(c) { return c < G0 ? 'pad' : c < B0 ? 'group' : c < R0 ? 'bus' : c < MASTER ? 'return' : 'master'; }
@@ -692,5 +701,5 @@ function stress2V2() {
   for (const s of [0, 1]) { S[s].auto['8.-2.0'] = lane([[0, .35], [4 * BAR, 1], [8 * BAR - 24, .5]]);     S[s].auto['31.-1.3'] = lane([[4 * BAR, 0], [8 * BAR - 24, .45]]); S[s].auto[G.bass + '.-1.0'] = lane([[0, .3], [BAR, .45], [8 * BAR - 24, .45]]); }
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
+if (typeof module !== 'undefined') module.exports = { fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
   buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };
