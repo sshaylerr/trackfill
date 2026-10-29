@@ -128,7 +128,7 @@ const FIT_DEF = { kick: 'kick', snare: 'snare', clap: 'clap', hats: 'closed hat'
 function userDrumsSave(removeId) { const out = []; for (const mod in DRUM_MODS) for (const id in DRUM_MODS[mod].types) { const t = DRUM_MODS[mod].types[id]; if (t.m === 'Yours' && t.lib && id !== removeId) out.push({ mod, n: t.n, v: t.v, kind: t.kind }); else if (id === removeId) t.lib = false; }
   DB.put('kv', 'userDrums', out); }
 async function userDrumsLoad() { const L = await DB.get('kv', 'userDrums'); if (Array.isArray(L)) for (const u of L) { const id = drumAddUser(u.mod, u.n, u.v, u.kind); if (id) DRUM_MODS[u.mod].types[id].lib = true; } }
-// pick a sound file and hand over its first seconds as one channel at 48 kHz (Make from a sample, Match a sample)
+// pick a sound file and hand over its first seconds as one channel at 48 kHz (Make from a sample)
 function pickMono(secs, onMono) { ensureAudio(); const inp = h('input'); inp.type = 'file'; inp.accept = AUDIO_ACCEPT; inp.hidden = true; document.body.append(inp);   // in the page: iOS only reports picks from inputs it can see
   inp.onchange = async () => { const f0 = inp.files && inp.files[0]; inp.remove(); if (!f0) return;
     const all = await expandAudio([f0]); if (!all.length) return;

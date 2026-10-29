@@ -238,7 +238,6 @@ function openPresetBrowser(pi) {
       // save: type a name and save, or update the preset you started from
       const sv = h('div', 'saveRow'), inp = h('input', 'textin'); inp.value = S.name && S.name !== 'Init' ? S.name : ''; inp.placeholder = 'Name your sound'; inp.maxLength = 24;
       const go = () => { if (savePresetAs(pi, inp.value)) { closeSheet(); renderView(); } }; inp.onkeydown = e => { if (e.key === 'Enter') go(); };
-      st.append(btn('Match a sample…', () => { closeSheet(); matchPick(pi); }, 'btn hot'));   // make a preset from a note you load
       sv.append(inp, btn('Save', go, 'btn on')); st.append(h('div', 'sec', changed ? 'Save · this sound has changes' : 'Save'), sv);
       const mine = USER_PRESETS.filter(u => sameEng(u, pi));
       if (mine.length) { st.append(h('div', 'sec', 'Yours')); const l = h('div', 'g2');
@@ -705,52 +704,3 @@ function openFollow(pi) {
     draw(); card.append(top, grid); }, () => renderView());
 }
 
-/* ----- Match a sample: a synth patch fitted to a note you load (top of the preset browser). Analog builds the sound from scratch; Wavetable
-   makes the note itself into the table and sweeps through it. The closest preset comes first, then the fit refines it in a worker with its
-   own copy of the engine, the pad sounding the best so far; keep it whenever it sounds right. It joins your presets. ----- */
-function matchPick(pi) { pickMono(4, (x, name) => openSheet('Match a sample', card => { const g = h('div', 'g2');
-  g.append(btn('Analog', () => { closeSheet(); runMatch(pi, x, name, 'analog'); }), btn('Wavetable from this sound', () => { closeSheet(); runMatch(pi, x, name, 'wt'); })); card.append(g); })); }
-const MATCH_GLUE = `\nlet job = null; const ctl = {};
-onmessage = e => { const m = e.data; if (m.t === 'stop') { ctl.stop = true; return; }
-  try { job = sfSteps(m, sfRenderer(m.wasm, m.project, m.tables), ctl); } catch (err) { postMessage({ t: 'error', msg: String(err && err.message || err) }); return; } pump(); };
-function pump() { const t0 = Date.now(); try { while (Date.now() - t0 < 30) { const r = job.next(); if (r.done) return; postMessage(r.value); } } catch (err) { postMessage({ t: 'error', msg: String(err && err.message || err) }); return; } setTimeout(pump, 0); }`;   // short slices, so Keep gets through
-function matchJob(msg, onMsg) {
-  try { const w = new Worker(URL.createObjectURL(new Blob([HOST_SRC + '\n' + TF_SYNFIT_SRC + MATCH_GLUE], { type: 'text/javascript' }))); w.onmessage = e => onMsg(e.data); w.onerror = () => onMsg({ t: 'error', msg: 'the matcher stopped' }); w.postMessage(msg);
-    return { stop: () => w.postMessage({ t: 'stop' }), end: () => w.terminate() }; }
-  catch (e) { const F = new Function(HOST_SRC + '\n' + TF_SYNFIT_SRC + '\nreturn { sfRenderer, sfSteps };')(), ctl = {}; let job, over = false;   // no worker: the same steps, a slice per frame
-    try { job = F.sfSteps(msg, F.sfRenderer(msg.wasm, msg.project, msg.tables), ctl); } catch (err) { setTimeout(() => onMsg({ t: 'error', msg: err.message }), 0); return { stop() {}, end() {} }; }
-    const tick = () => { if (over) return; const t0 = performance.now(); try { while (performance.now() - t0 < 12) { const r = job.next(); if (r.done) return; onMsg(r.value); if (over) return; } } catch (err) { onMsg({ t: 'error', msg: err.message }); return; } setTimeout(tick, 4); };
-    setTimeout(tick, 0); return { stop: () => { ctl.stop = true; }, end: () => { over = true; } }; } }
-function runMatch(pi, x, name, route) {
-  const pad = P.pads[pi], was = JSON.parse(JSON.stringify({ src: pad.src, mode: pad.mode, syn: pad.syn, name: pad.name })), Q = newProject(true);
-  Q.chans.forEach(c => { c.fx = []; c.vol = tfFaderPos(1); c.pan = .5; });
-  let table = null; const tables = [];
-  if (route === 'wt') { let s0 = 0; while (s0 < x.length && Math.abs(x[s0]) < .01) s0++; const t = wtFromSample(x.subarray(s0), 48000); if (!t) { toast('Couldn’t find a steady pitch in that sound: try Analog'); return; }
-    table = saveUserTable(name.slice(0, 16) + ' table', t.raw, t.F); tables.push([table, tableFor(table)]); }
-  const starts = route === 'wt' ? null : [SYN_INIT, ...SYN_PRESETS].map(pr => synPatch(pr)).concat(USER_PRESETS.filter(u => (u.eng || 'analog') === 'analog').map(u => JSON.parse(JSON.stringify(u.syn))));
-  pushUndo('all'); touchPad(pi);
-  const orig = 'f:orig', pkx = x.reduce((m, v) => Math.max(m, Math.abs(v)), 1e-9), g = Math.pow(10, -8 / 20) / pkx; SAMPLES.set(orig, { id: orig, name, sr: 48000, ch: 2, frames: x.length, data: interleave([x.map(v => v * g), x.map(v => v * g)], x.length) }); ENG.sent.delete(orig);
-  let oct = 0, rel = 0, best = null, final = null, pend = null, lastSet = 0, over = false; const st = { txt: 'Listening…', pct: 0 }, view = {};
-  const setPatch = (syn, withPit) => { pad.src = 'synth'; pad.mode = 'gate'; pad.syn = normalizeSyn(JSON.parse(JSON.stringify(syn))); if (withPit) pad.syn.p.pit = oct * 12; pad.syn.name = name; syncPad(pi); lastSet = performance.now(); };
-  const job = matchJob({ x, route, starts, table, tables, wasm: WASM_BYTES, project: JSON.parse(JSON.stringify(Q)), iters: 30 }, onMsg);
-  function onMsg(m) { if (over) return;
-    if (m.t === 'pitch') { oct = Math.round(m.semi / 12); rel = m.semi - oct * 12; st.txt = m.f0 ? 'Note ' + noteName(m.semi) : 'No clear pitch'; }
-    else if (m.t === 'scan') st.pct = 8 * (m.i + 1) / m.n;
-    else if (m.t === 'near') { st.txt = route === 'wt' ? 'Refining the table' : 'Closest: ' + (starts[m.i].name || 'Init') + ' · refining'; if (starts) { setPatch(starts[m.i], true); audition(pi, rel); } }   // (Wavetable: the first refined step brings the patch)
-    else if (m.t === 'step' || m.t === 'tick') { st.pct = 8 + 92 * Math.min(1, m.n / m.total); if (m.t === 'step') pend = m.syn; if (pend && performance.now() - lastSet > 1200) { setPatch(pend, true); pend = null; } }
-    else if (m.t === 'done') { final = m.syn; st.pct = 100; finish(); return; }
-    else if (m.t === 'error') { toast('Couldn’t match that: ' + m.msg); cancel(); closeSheet(); return; }
-    draw(); }
-  function draw() { if (!view.bar) return; view.bar.style.width = st.pct.toFixed(1) + '%'; view.txt.textContent = st.txt + (st.pct > 8 && st.pct < 100 ? ' ' + Math.round(st.pct) + '%' : ''); }
-  function finish() { if (over) return; over = true; job.end(); SAMPLES.delete(orig);
-    if (final) { setPatch(final, false); let n = name || 'Match', k = 2; while (USER_PRESETS.some(u => u.n === n)) n = (name || 'Match').slice(0, 21) + ' ' + k++; savePresetAs(pi, n); }
-    markDirty(); renderAll(); if (UI.sheetClose === onClose) closeSheet(); }
-  function cancel() { over = true; job.end(); SAMPLES.delete(orig); Object.assign(pad, { src: was.src, mode: was.mode, syn: was.syn, name: was.name }); if (table) deleteSample(table); syncPad(pi); markDirty(); renderAll(); }
-  const keep = () => { if (over) return; st.txt = 'Finishing…'; draw(); job.stop(); };   // the matcher finishes with the best so far: levelled and tuned like a full run
-  function onClose() { if (!over) keep(); }
-  openSheet('Match a sample', card => { const s2 = h('div', 'stack'); card.append(s2);
-    const lcd = h('div', 'fitlcd'); view.txt = h('div', 'fittxt'); const tr = h('div', 'fitbar'); view.bar = h('i'); tr.append(view.bar); lcd.append(view.txt, tr); s2.append(lcd);
-    const ab = h('div', 'g2'); ab.append(btn('Original', () => previewSample(orig)), btn('Synth', () => { if (pend) { setPatch(pend, true); pend = null; } audition(pi, rel); })); s2.append(ab);
-    const k = h('div', 'g2'); k.append(btn('Cancel', () => { cancel(); closeSheet(); }), btn('Keep', () => keep(), 'btn hot')); s2.append(k); draw();
-  }, onClose);
-}

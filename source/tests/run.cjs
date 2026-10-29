@@ -590,19 +590,6 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     DR.drumRemoveUser('kick', id); const back = DR.drumNormalize(saved), r2 = back && DR.drumRender(back);
     ok(d.mach === 'Yours' && d.uv && back && back.type === id && r2.L.length === r1.L.length && r2.L.every((v, i) => v === r1.L[i]) && DR.drumMachinesFor('kick').includes('Yours'),
       `a drum of yours carries its voice: it opens (and sounds the same) where the type isn't in the library`); }
-  console.log('match a sample (synths)');
-  { const SF = require('../js/synthfit.js'), WTm = require('../js/wavetables.js'), Q = M.newProject(true); Q.chans.forEach(c => { c.fx = []; c.vol = H.tfFaderPos(1); });
-    const render = SF.sfRenderer(wasm, JSON.parse(JSON.stringify(Q)), []), sine = SP.synPatch(SP.SYN_INIT); Object.assign(sine.p, { o1w: 'Saw', flt: 'Off', dri: 0, uni: 1 });
-    const errs = [-17, -5, 0, 7, 19].map(semi => { const f = SF.sfPitch(SF.sfPrep(render(sine, semi, .8, 1))); return f ? Math.abs(1200 * Math.log2(f / (SF.SF_C3 * Math.pow(2, semi / 12)))) : 999; });
-    ok(errs.every(e => e < 15), `pitch is found within 15 cents from G1 to G4 (worst ${Math.max(...errs).toFixed(1)} cents)`);
-    const src = SP.SYN_PRESETS.find(p => p.n === 'Acid Line'), tgt = SP.synPatch(src); Object.assign(tgt.p, { aa: .02, ar: .4 }); const x = render(tgt, 3, .8, 1.6);
-    const starts = SP.SYN_PRESETS.filter(p => p !== src).slice(0, 8).map(p => SP.synPatch(p)); let near = null, done = null, t0 = Date.now();
-    for (const m of SF.sfSteps({ x, route: 'analog', starts, iters: 4 }, render)) { if (m.t === 'near') near = m; if (m.t === 'done') done = m; }
-    const pk = 20 * Math.log10(render(done.syn, 0, .8, 1.6, true));
-    ok(done.d < near.d && done.syn.p.pit === -12 && Math.abs(pk + 8) < 1.5, `an Analog match improves on the nearest preset (${near.d} → ${done.d}), keeps the note's octave (pitch ${done.syn.p.pit}) and sits at ${pk.toFixed(1)} dBFS (${Date.now() - t0} ms)`);
-    const t = WTm.wtFromSample(SF.sfPrep(x), 48000), wr = SF.sfRenderer(wasm, JSON.parse(JSON.stringify(Q)), [['u:t', WTm.tfWtPrepare(t.raw, t.F)]]); let wn = null, wd = null;
-    for (const m of SF.sfSteps({ x, route: 'wt', table: 'u:t', iters: 3 }, wr)) { if (m.t === 'near') wn = m; if (m.t === 'done') wd = m; }
-    ok(wd && wd.d <= wn.d && wd.syn.eng === 'wt' && wd.syn.wt.a === 'u:t' && wd.d < done.d * 1.5, `a Wavetable match from the note itself (${t.F} frames): ${wn.d} → ${wd.d}`); }
   console.log('time stretch');
   { const k = M.ALL_BUILTINS.find(x => x[0] === 'jbreak'), s = M.buildKitSample(k[0], k[1]), pad = { tempo: 170, wp: ST.stretchDefaults() }, dur = s.frames / s.sr, ratio = 170 / 140;
     const env = (r, n) => { const st = Math.floor(r.L.length / n), o = []; for (let i = 0; i < n; i++) { let m = 0; for (let j = 0; j < st; j++) m = Math.max(m, Math.abs(r.L[i * st + j])); o.push(m); } return o; };
