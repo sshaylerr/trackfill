@@ -943,6 +943,12 @@ function appError(msg) { msg = String(msg || 'unknown').slice(0, 160); APPERR.lo
   if (Date.now() - APPERR.said > 60000) { APPERR.said = Date.now(); try { toast('Something went wrong: ' + msg.slice(0, 80) + ' · Engine check has the details'); } catch (e) {} } }
 addEventListener('error', e => { if (e.message) appError(e.message + (e.lineno ? ' (line ' + e.lineno + ')' : '')); });
 addEventListener('unhandledrejection', e => { const r = e.reason; if (r && (r.name === 'AbortError' || r.name === 'NotAllowedError')) return; appError(r && r.message ? r.message : r); });   // a cancelled share or a blocked play is not a fault
+// the last 50 things done, for Engine check's Copy results: what was tapped and where, so a problem can be traced back to the steps before it
+const TRAIL = { log: [], trips: [] };
+function trail(what) { const t = new Date().toTimeString().slice(0, 8); TRAIL.log.push(t + ' ' + String(what).slice(0, 70)); if (TRAIL.log.length > 50) TRAIL.log.shift(); }
+addEventListener('pointerdown', e => { try { const el = e.target && e.target.closest ? e.target.closest('button,.li,.pad,.knob,.fader,.param,canvas,[aria-label]') : null; if (!el) return;
+  const lab = el.classList.contains('pad') ? 'pad ' + el.getAttribute('data-cell') : (el.getAttribute('aria-label') || el.textContent || el.tagName).trim().replace(/\s+/g, ' ').slice(0, 40);
+  trail((UI.sheet ? 'sheet ' + (UI.sheetCur ? UI.sheetCur.title : '') + ' · ' : (UI.view || '') + ' · ') + lab); } catch (err) {} }, true);
 let lastTrip = 0;
 function onEngine(m) {
   if (m.t === 'pos') {
@@ -958,7 +964,7 @@ function onEngine(m) {
     const n = Date.now(), who = m.ch === MASTER ? 'the master output' : chanName(m.ch);
     if (m.ch === MASTER) { T.playing = false; updateTransport(); }
     toast(`Safety mute on ${who}: ${m.why === 1 ? 'it produced invalid audio' : 'levels ran away'}. It has been reset.` + (n - lastTrip < 4000 ? ' Check feedback, resonance and drive.' : ''));
-    lastTrip = n;
+    lastTrip = n; trail('safety mute: ' + who + (m.why === 1 ? ' (invalid audio)' : ' (runaway level)')); TRAIL.trips = TRAIL.trips.concat(new Date().toTimeString().slice(0, 8) + ' ' + who + (m.why === 1 ? ': invalid audio' : ': runaway level') + ' · effects ' + ((P.chans[m.ch] || {}).fx || []).filter(f => f.on).map(f => (FX_DEFS[f.type] || {}).name + (FX_DEFS[f.type] && FX_DEFS[f.type].modes.length > 1 ? ' ' + FX_DEFS[f.type].modes[f.mode || 0].n : '')).join(', ')).slice(-8);
   } else if (m.t === 'err') { ENG.err = m.msg; ENG.errLog = (ENG.errLog || []).concat(m.msg).slice(-5); toast('Audio engine error: ' + m.msg + ' · Engine check has the details'); }
   else if (m.t === 'oom') toast('Out of memory: remove unused sounds or effects, or freeze pads');
 }
@@ -1885,6 +1891,7 @@ async function runChecks() {
   add(!ENG.ready ? 'fail' : cpu > .7 ? 'warn' : 'ok', 'Audio engine', !ENG.ready ? 'Not running, so there’s no sound. Try Restart audio below; if that doesn’t help, reload the page.'
     : cpu > .7 ? 'Working hard: this song is close to what this device can play. If you hear crackles, freeze finished synth pads or remove effects you don’t need.' : 'Running smoothly.',
     ENG.ready ? `load ${Math.round(cpu * 100)}% · ${REP.voices} voices` : (ENG.err || 'starting…'));
+  if (TRAIL.trips.length) add('warn', 'Safety mutes', 'The engine silenced something that went wrong and reset it. The list shows what was on that channel at the time.', TRAIL.trips.join(' | '));
   if (ENG.errLog && ENG.errLog.length || APPERR.log.length) add('fail', 'Recent problems', 'Something went wrong recently. The app kept going, but if anything behaved oddly, this is the likely reason. Copy results shares the details.', [...(ENG.errLog || []), ...APPERR.log].join(' | '));
   if (DEVTEST.res) { const r = DEVTEST.res; add(r.st, 'Device power', r.detail, r.tech); }
   if (ios) { const as = navigator.audioSession; add(as && as.type === 'playback' ? 'ok' : 'warn', 'Silent switch', as && as.type === 'playback' ? 'Sound plays even when the ring/silent switch is set to silent.' : 'If the switch on the side is set to silent, sound may stay muted until you tap a pad.',
@@ -1924,7 +1931,7 @@ function openDiag() {
   openSheet('Engine check', async card => { const box = h('div', 'diag'); box.append(h('p', 'note', 'Checking this device…')); card.append(box);
     const draw = async () => { const rows = await runChecks(); box.innerHTML = ''; const sym = { ok: '✓', warn: '!', fail: '×' };
       for (const r of rows) { const d = h('div', 'drow'); d.innerHTML = `<span class="st ${r.st}">${sym[r.st]}</span><div><b>${esc(r.name)}</b><p>${esc(r.detail)}</p><span>${esc(r.tech)}</span></div>`; box.append(d); }
-      const text = rows.map(r => `${sym[r.st]} ${r.name}: ${r.detail}${r.tech ? ' [' + r.tech + ']' : ''}`).join('\n'), ta = h('textarea', 'textin'); ta.value = text; ta.readOnly = true; ta.style.height = '90px'; ta.style.paddingBlock = '8px'; ta.style.fontSize = '11px';
+      const text = rows.map(r => `${sym[r.st]} ${r.name}: ${r.detail}${r.tech ? ' [' + r.tech + ']' : ''}`).join('\n') + (TRAIL.log.length ? '\n\nLast actions:\n' + TRAIL.log.join('\n') : ''), ta = h('textarea', 'textin'); ta.value = text; ta.readOnly = true; ta.style.height = '90px'; ta.style.paddingBlock = '8px'; ta.style.fontSize = '11px';
       const tst = btn(DEVTEST.running ? 'Testing…' : DEVTEST.res ? 'Test this device again' : 'Test this device', async () => { if (DEVTEST.running) return; if (T.playing) stop(); tst.textContent = 'Testing… (a few seconds)'; tst.disabled = true; await deviceTest(); if (box.isConnected) draw(); }, 'btn on'); tst.style.width = '100%';
       const cp = btn('Copy results', () => { const f = () => { ta.select(); toast('Selected. Use Copy from the menu.'); }; try { navigator.clipboard.writeText(text).then(() => toast('Copied'), f); } catch (e) { f(); } }, 'btn'); cp.style.width = '100%';
       const rs = btn('Restart audio', () => { closeSheet(); restartAudio(true); }, 'btn'); rs.style.width = '100%';

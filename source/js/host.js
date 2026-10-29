@@ -377,10 +377,10 @@ class TFHost {
       case 'hit': this.hit(m); break;
       case 'arp': this.arpStart(m); break;
       case 'arpStop': this.arps.delete(m.tag); break;
-      case 'synp': { const pad = P.pads[m.pad], p = TFSYN_ID[m.id]; if (pad && pad.syn && p) { pad.syn.p[m.id] = m.v; this.ex.tf_syn_param(m.pad, p.i, tfSynNorm(p, m.v)); } break; }
+      case 'synp': { if (!Number.isFinite(m.v)) break; const pad = P.pads[m.pad], p = TFSYN_ID[m.id]; if (pad && pad.syn && p) { pad.syn.p[m.id] = m.v; this.ex.tf_syn_param(m.pad, p.i, tfSynNorm(p, m.v)); } break; }
       case 'rel': this.ex.tf_voice_release(m.tag, m.rel); for (const e of this.heap.a) if (e.k === 5 && e.tag === m.tag) e.dead = 1; break;
       case 'live': if (m.on) this.live.add(m.key); else this.live.delete(m.key); break;
-      case 'param': tfSetBase(P, m.key, m.v); this.applyKey(m.key, m.v); break;
+      case 'param': if (!Number.isFinite(m.v)) break; tfSetBase(P, m.key, m.v); this.applyKey(m.key, m.v); break;
       case 'preview': this.preview(m.key); break;
       case 'panic': this.panic(); break;
       case 'scope': this.setScope(m); break;

@@ -22,7 +22,8 @@ function wtSpectrum(frame) { const re = Float64Array.from(frame), im = new Float
 /* ---------- preparation: band-limited levels + fundamentals ---------- */
 // raw: Float32Array(F × 2048). opts.noLow removes harmonics 1..n (editor tool); the result is normalized to a peak of 1.
 function tfWtPrepare(raw, F) {
-  F = Math.max(1, Math.min(WT_MAXF, F | 0)); const lv = [], fund = new Float32Array(F * 2), specs = [];
+  F = Math.max(1, Math.min(WT_MAXF, F | 0)); for (let i = 0; i < raw.length; i++) if (!(Math.abs(raw[i]) < 1e6)) raw[i] = 0;   // a damaged file's NaN or infinity would spoil the whole table
+  const lv = [], fund = new Float32Array(F * 2), specs = [];
   for (let f = 0; f < F; f++) { const s = wtSpectrum(raw.subarray(f * WT_N, (f + 1) * WT_N)); s.re[0] = 0; s.im[0] = 0; specs.push(s);
     // x(p) = Σ (2/N)(re cos − im sin): the fundamental as a·sin + b·cos
     fund[f * 2] = -2 * s.im[1] / WT_N; fund[f * 2 + 1] = 2 * s.re[1] / WT_N; }

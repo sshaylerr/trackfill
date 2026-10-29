@@ -42,3 +42,9 @@ Also review by hand whatever changed since the last pass:
 - UI names are generic, never brand or product names.
 
 Devices (no real older iPhone or Android to hand yet): the support check at startup and Engine check's "Test this device" are the field tools; ask testers to copy Engine check results.
+
+## Bug hunting (every safety pass)
+- `node tests/fuzz.cjs 120` — engine stress test: random edits while the song plays; knob ends favoured. Fails on invalid audio, a safety mute, silence, a stalled song or runaway memory, and prints the shortest recipe.
+- `node tools/audit/session.cjs 400` — a working session in a real browser (pads, buttons, knobs, timeline, d-pad, undo, menus, background). Prints the seed to replay.
+- Both run in short form on every deploy.
+- From a user: ask for Engine check → Copy results. It now carries Safety mutes (channel and the effects on it) and the last 50 actions.

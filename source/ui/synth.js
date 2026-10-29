@@ -515,7 +515,7 @@ function openTablePicker(pi, o) {
     const mine = [...SAMPLES.values()].filter(x => x.wt).sort((a, b) => (b.added || 0) - (a.added || 0));
     if (mine.length) { st.append(h('div', 'sec', 'Yours')); l = h('div', 'g2'); for (const x of mine) l.append(btn(esc(x.name), () => { closeSheet(); setTable(pi, o, x.id); }, 'btn' + (cur === x.id ? ' on' : ''))); st.append(l); }
     st.append(h('div', 'sec', 'Make a table')); l = h('div', 'g2');
-    l.append(btn('Import wavetable file…', () => { closeSheet(); pickTableFile(pi, o); }), btn('From a sound…', () => { closeSheet(); openTableFromSound(pi, o); })); st.append(l);
+    l.append(btn('Import wavetables… <span class="lsub">one or many WAVs, or a zip</span>', () => { closeSheet(); pickTableFile(pi, o); }), btn('From a sound…', () => { closeSheet(); openTableFromSound(pi, o); })); st.append(l);
     st.append(h('div', 'sec', 'This table')); l = h('div', 'g2');
     const noF = (S.p[fid] ?? 'Keep') === 'Remove';
     l.append(btn(noF ? 'Fundamental: removed' : 'Fundamental: kept', () => { pushUndo('pad:' + pi); synSet(pi, fid, noF ? 'Keep' : 'Remove'); closeSheet(); renderView(); }, 'btn' + (noF ? ' on' : '')));
@@ -524,14 +524,21 @@ function openTablePicker(pi, o) {
     st.append(l); });
 }
 function tableRaw(key) { if (!key) return null; if (key.startsWith('w:')) return tfWtFactoryRaw(key.slice(2)); const s = SAMPLES.get(key); if (!s || !s.wt) return null; const raw = new Float32Array(s.data.length); for (let i = 0; i < raw.length; i++) raw[i] = s.data[i] / 32767; return { raw, F: s.wt }; }
+// wavetable WAVs, one or many at once (or zip files of them): each becomes one of your tables; the first one goes on this oscillator
 function pickTableFile(pi, o) {
-  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.wav,audio/wav,audio/x-wav';
-  inp.onchange = async () => { const f = inp.files && inp.files[0]; if (!f) return; const r = wtParseWav(await f.arrayBuffer()); if (!r) { toast('That file is not a WAV this can read'); return; }
-    const mono = r.data, name = f.name.replace(/\.[^.]+$/, '').slice(0, 20);
-    const finish = size => { const t = wtFromFrames(mono, size); if (!t) { toast('Too short for that frame size'); return; } const id = saveUserTable(name, t.raw, t.F); setTable(pi, o, id); toast(`Imported "${name}": ${t.F} frames`); };
-    if (r.frameSize) return finish(r.frameSize);
-    if (mono.length % 2048 === 0) return finish(2048);
-    openSheet('Frame size for ' + name, card => { const g2 = h('div', 'g2'); for (const n of [256, 512, 1024, 2048, 4096]) g2.append(btn(n + ' samples', () => { closeSheet(); finish(n); })); card.append(g2, h('p', 'note', 'Most files use 2048.')); }); };
+  const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.wav,.wave,audio/wav,audio/x-wav,.zip,application/zip'; inp.hidden = true; document.body.append(inp);
+  inp.onchange = async () => { const picked = [...(inp.files || [])]; inp.remove(); if (!picked.length) return;
+    const files = (await expandAudio(picked)).filter(f => /\.wave?$/i.test(f.name)); if (!files.length) { toast('No wavetable WAVs found'); return; }
+    const got = [], unknown = [], bad = [];
+    for (const f of files) { const r = wtParseWav(await f.arrayBuffer()), name = tfName(f.name.replace(/\.[^.]+$/, ''), 20);
+      if (!r) { bad.push(name); continue; } const size = r.frameSize || (r.data.length % 2048 === 0 ? 2048 : 0); (size ? got : unknown).push({ name, mono: r.data, size }); }
+    const finish = list => { let first = null, n = 0; for (const x of list) { const t = wtFromFrames(x.mono, x.size); if (!t) { bad.push(x.name); continue; } const id = saveUserTable(x.name, t.raw, t.F); first = first || id; n++; }
+      if (first) setTable(pi, o, first);
+      toast(n === 1 && !bad.length ? `Imported "${list.find(x => x).name}"` : `Imported ${n} table${n === 1 ? '' : 's'}${bad.length ? ` · couldn't read ${bad.length}` : ''}`); };
+    if (!unknown.length) return finish(got);
+    openSheet(unknown.length === 1 ? 'Frame size for ' + unknown[0].name : `Frame size for ${unknown.length} files`, card => { const g2 = h('div', 'g2');
+      for (const n of [256, 512, 1024, 2048, 4096]) g2.append(btn(n + ' samples', () => { closeSheet(); finish(got.concat(unknown.map(x => Object.assign(x, { size: n })))); }));
+      card.append(g2, h('p', 'note', unknown.length === 1 ? 'Most files use 2048.' : 'These files don\'t say their frame size. Most use 2048.')); }); };
   inp.click(); }
 function openTableFromSound(pi, o) {
   openSheet('Make a table from a sound', card => { const l = h('div', 'list'), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt && !s.drum && !s.ins).sort((a, b) => (b.added || 0) - (a.added || 0));
