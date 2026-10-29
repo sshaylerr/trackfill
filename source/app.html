@@ -177,6 +177,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .nf{outline:2px solid var(--accent)!important;outline-offset:-2px}
 .ne{outline:2px solid var(--play)!important;outline-offset:-2px;background-color:rgba(83,209,141,.08)}
 .typeready{outline:2px solid var(--accent)!important;outline-offset:-2px;border-radius:4px}
+ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;line-height:1.4;color:var(--fg)} ul.log li::marker{color:var(--accent)} .newTag{color:var(--accent);font-weight:700}
 #numEntry{position:fixed;inset:0;z-index:90;pointer-events:none;background:rgba(0,0,0,.35);display:flex;justify-content:center;align-items:flex-start;padding:calc(env(safe-area-inset-top) + 64px) 16px 0}
 .numbox{pointer-events:auto;width:100%;max-width:340px;background:var(--raised);border:1px solid #000;border-radius:6px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
 .numlab{font-size:12px;letter-spacing:.06em;text-transform:uppercase;opacity:.7;margin-bottom:6px}
@@ -806,7 +807,7 @@ function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 
 // the song's key, for effects that play in it (the Resonator): sent whenever it changes
 let keySent = ''; function syncKey(force) { if (!P || !P.key) return; const iv = scaleOf(P.key.scale)[1], sig = P.key.root + ':' + iv.join(','); if (sig === keySent && !force) return; keySent = sig; send({ t: 'key', root: P.key.root, iv }); }
 function saveNow() { clearTimeout(saveTimer); if (P) projSave(); }
-function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex }); }
+function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -1855,6 +1856,7 @@ function openMenu() {
     const th = THEMES.find(x => x.id === UI.theme) || THEMES[0];
     row('Appearance…', `${th.name} · ${{ dark: 'dark', tint: 'tinted', bright: 'colour' }[UI.padStyle || 'dark']} pads`, () => { closeSheet(); openAppearance(); });
     row('D-pad side', UI.mirror ? 'right' : 'left', () => { UI.mirror = !UI.mirror; $('#panel').classList.toggle('mirror', UI.mirror); savePrefs(); closeSheet(); openMenu(); });
+    row('What’s new…', `updated ${fmtDay(CHANGES[0][0])}` + (UI.seenLog !== CHANGES[0][0] ? ' · <b class="newTag">new</b>' : ''), () => { closeSheet(); openChanges(); });
     row('Haptics', UI.haptics ? 'on' : 'off', () => { UI.haptics = !UI.haptics; savePrefs(); haptic(); closeSheet(); openMenu(); toast(UI.haptics ? 'Haptics on (iPhone needs iOS 18)' : 'Haptics off'); });
     sec('Help');
     row('About…', 'licences, your data', () => { closeSheet(); openAbout(); });
@@ -1924,6 +1926,20 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
     DEVTEST.res = { st, detail, tech: `demo ${(d * 100).toFixed(1)}% of real time · ${speed.toFixed(2)}× the reference laptop · busy song ≈ ${Math.round(busy * 100)}%${song != null ? ' · this song ' + (song * 100).toFixed(1) + '%' : ''}` };
   } catch (e) { DEVTEST.res = { st: 'warn', detail: 'The test couldn’t finish. Try again, or restart audio first.', tech: e.message }; }
   DEVTEST.running = false; }
+// What's new: newest first, in plain words. Add an entry with every update that people would notice.
+const CHANGES = [
+  ['2026-10-29', ['What’s new: this page, under Settings.', 'Drum & bass presets, first batch on trial: 18 reeses, growls, pads, plucks, leads and stabs (look for the “DnB ·” groups).', 'Presets can bring their own effects, with their settings. Loading another preset replaces them, but never effects you added or changed.', 'Fix: Frequency shift with high feedback could run away and trip the safety mute.']],
+  ['2026-10-28', ['Import several wavetables at once: pick many WAVs or a zip.', 'New app icon (remove the app from your Home Screen and add it again to see it).', 'Sound pickers accept every common audio file and zip files.', 'Match a sample removed from the synth.', 'Engine check now lists safety mutes (with the effects on that channel) and your last 50 actions in Copy results.', 'A damaged wavetable file can no longer break a synth.']],
+  ['2026-10-27', ['New effects: Distortion (six flavours), Inflate, Resonator, Pitch (Shift, Robot, Octaves), Frequency shift, Ring mod, Imager and De-esser, each with its own display.', 'Filters in motion modes get a drawn LFO that can sync to the song.', 'Step FX follows the song and stops with it; tape stop speed is adjustable.', 'Menus regrouped, with a Back key in nested menus and Appearance on its own page.', 'Timeline: Follow key; touching the timeline while it plays pauses following.', 'Swing on a 1/8, 1/16 or 1/32 grid, for the song or per pad.', 'Engine check and the device check explain things in plain words, with a device power test.', 'Sub oscillator can stay in the same octave.', 'Hold a value (tempo, swing, volume, pitch…) to type it.', 'Pads, notes, playhead and meters light up when you hear them, not before.']],
+  ['2026-10-25', ['Drums rebuilt: 115 types across Modern and four classic machines.', 'Analyzer rebuilt: loudness, spectrum, spectrogram, waveform and stereo.', 'Monitoring: crossfeed, virtual speakers and EarPods correction.', 'FX synth rebuilt around one sweep: risers, downlifters, impacts, lasers and sirens.', 'Projects, more export formats and stems, sample edits and a tempo lane.']],
+  ['2026-10-24', ['Synth start phase per oscillator.', 'Chord pads keep a fixed voicing by default.', 'Messages show bottom-left; the screen dims when sound is asleep.', 'Fix: a stuck touch on iPhone could stop taps working.']],
+  ['2026-10-23', ['Instrument engine: 26 instruments (pianos, orchestral hits, strings, choirs, keys, basses).', 'Sub synth engine with 808 drop and click.', 'New effects: Step FX, LFO Tool, Vinyl and Autopan; Grin build-up effect.', 'Quantize, faster Edit sheet, box select and pinch zoom on the timeline.']],
+];
+const fmtDay = d => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+function openChanges() {
+  UI.seenLog = CHANGES[0][0]; savePrefs();
+  openSheet('What’s new', card => { const st = h('div', 'stack'); card.append(st);
+    for (const [d, items] of CHANGES) { st.append(h('div', 'sec', fmtDay(d))); const ul = h('ul', 'log'); for (const t of items) ul.append(h('li', '', esc(t))); st.append(ul); } }); }
 function openAbout() { openSheet('About', card => { const st = h('div', 'stack'); card.append(st);
   st.append(h('div', 'sec', 'Your work'), h('p', 'note', 'Everything stays on this device. Trackfill never sends your work or anything about you anywhere: no accounts, no tracking, no ads. Back up from Projects.'));
   st.append(h('div', 'sec', 'Built with'), h('p', 'note', 'MP3 encoding: lamejs (LGPL-3.0), unmodified · Time stretch: Signalsmith Stretch (MIT) · Font: Figtree (SIL Open Font License) · Sampled instruments: VCSL and VSCO 2 Community Edition (CC0) · Source and licences: github.com/sshaylerr/trackfill')); }); }
@@ -2361,7 +2377,7 @@ async function boot() {
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (SNAPS.some(x => x.t === pr.snap)) UI.tl.snap = pr.snap; UI.tl.velOpen = pr.velOpen !== false;
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark';
-    UI.follow = pr.follow !== false;
+    UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null;
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: pr.mon.phones === 'Apple EarPods' ? 'Wired earbuds' : TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();

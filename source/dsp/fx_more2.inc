@@ -72,7 +72,7 @@ static void fx_fshift(Fx* f, float* L, float* R, i32 n) {
       float I = in, Q = in; for (i32 k = 0; k < 4; k++) { I = ap2(&t->a[c][k], HA[k] * HA[k], I); Q = ap2(&t->b[c][k], HB_[k] * HB_[k], Q); }
       const float Id = t->d1[c]; t->d1[c] = I;   // one sample later, the two paths are 90° apart
       const float y = Id * cs + Q * sn;
-      t->fb[c] = y; x[i] += (y - x[i]) * mix; } }
+      t->fb[c] = fsat(y); x[i] += (y - x[i]) * mix; } }   // the feedback is saturated: where the 90° pair drifts (very low and very high), the loop could otherwise grow
   f->vis[0] = hz;
 }
 
