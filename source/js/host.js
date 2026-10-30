@@ -507,7 +507,8 @@ class TFHost {
     if (pad0 && pad0.choke) this.P.pads.forEach((q, qi) => { if (qi !== pi && q && q.choke === pad0.choke) this.ex.tf_ch_release(qi, 0.004); });   // choke group: a closed hat cuts the open one
     if (pad0 && pad0.src === 'synth' && pad0.syn) { this.ex.tf_syn_note(pi, off, semi + (pad0.pitch || 0) + (pad0.fine || 0) / 100, vel, gateSec, tag, chordN); return; }
     const pad = pad0; if (!pad || !pad.sample) return;
-    const st = pad.wm && pad.wm !== 'Repitch' && pad.stx ? this.sm.get(pad.stx) : null, e = st || this.sm.get(pad.sample); if (!e) return;   // stretched: the render already has tempo and pitch baked in
+    let nvE = null; if (pad.nv && !(pad.chop && pad.chop.on)) { const r = Math.round(semi), k = pad.nv[r]; if (k) { nvE = this.sm.get(k); if (nvE) semi -= r; } }   // a layered drum rendered for this note (its body keeps its length)
+    const st = pad.wm && pad.wm !== 'Repitch' && pad.stx ? this.sm.get(pad.stx) : null, e = nvE || st || this.sm.get(pad.sample); if (!e) return;   // stretched: the render already has tempo and pitch baked in
     const ex = this.ex, ch = pad.chop, chopped = ch && ch.on && ch.pts.length, loop = pad.mode === 'loop' && !chopped, gate = pad.mode === 'gate' || loop ? gateSec : -1; let start = pad.start, end = pad.end, vm = pad.voice || 'poly';
     if (chopped) {   // chopped: the note number picks a slice; choke cuts the slice before it
       const n = ch.pts.length, k = Math.max(0, Math.min(n - 1, Math.round(semi) || 0)); start = ch.pts[k]; end = k + 1 < n ? ch.pts[k + 1] : pad.end; semi = 0;

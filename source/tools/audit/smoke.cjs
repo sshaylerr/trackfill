@@ -37,6 +37,12 @@ const crawl = async () => {
   const samplePad = P.pads.findIndex(p => p.src !== 'synth' && p.src !== 'drum' && p.sample); UI.pad = samplePad; setView('sound');
   for (let k = 0; k < SND_PAGES.length; k++) await at('sound ' + SND_PAGES[k], () => { UI.snd = k; renderView(); });
   const drumPad = P.pads.findIndex(p => p.src === 'drum'); if (drumPad >= 0) { UI.pad = drumPad; await at('drum page', () => { UI.snd = 0; renderView(); }); }
+  {   // a layered drum (Make from a sample): its body knobs, then its layer knobs
+    const lp = drumPad >= 0 ? drumPad : 0, wasPad = JSON.parse(JSON.stringify(P.pads[lp])), ly = new Float32Array(9600).map((_, i) => Math.sin(i * .05) * Math.exp(-i / 2000));
+    const enc = dvLyEncode(ly), id = drumAddUser('kick', 'Layered test', { tL: 1, lyL: 1 }, 'kick', { bc: { t: [0, .05, .2], f: [200, 70, 50], a: [0, -2, -30], p0: 0 }, fs: 52, ly: enc.d, lyS: enc.s, x0: .006, x1: .01, n: 9600 });
+    P.pads[lp].src = 'drum'; P.pads[lp].drum = drumDefault('kick', id, 1); refreshDrum(lp, true); UI.pad = lp;
+    await at('layered drum, body', () => { UI.drumLy = -1; renderView(); }); await at('layered drum, layer', () => { UI.drumLy = lp; renderView(); });
+    UI.drumLy = -1; Object.assign(P.pads[lp], wasPad); drumRemoveUser('kick', id); if (P.pads[lp].drum) refreshDrum(lp, true); }
   UI.snd = 0; const sp = 9; UI.pad = sp; applySynthPreset(sp, SYN_INIT);
   for (const E of SYN_ENGINES) { setEngine(sp, E.id); synEngPages(sp);
     for (let g = 0; g < SYN_PAGES.length; g++) for (const [tid] of SYN_PAGES[g].tabs || [[null]]) await at(`synth ${E.id} ${SYN_PAGES[g].n}${tid ? '/' + tid : ''}`, () => { SYN_ST.pg = g; if (tid) SYN_ST.tab[SYN_PAGES[g].n] = tid; setView('sound'); renderView(); }, false); }

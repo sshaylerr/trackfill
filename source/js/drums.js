@@ -4,7 +4,7 @@
    so tones, partials, noise colour and lengths match the real thing; the six knobs are moves around that point
    (centre = the type exactly). Every change renders the hit again (a few milliseconds), so playback is as light as any sample. */
 const DRUM_SR = 48000;
-const DVD = () => typeof dvRender === 'function' ? { dvRender, dvFull } : require('./drumvoice.js');
+const DVD = () => typeof dvRender === 'function' ? { dvRender, dvFull, dvLyDecode } : require('./drumvoice.js');
 const DRP = () => typeof DRUM_PRESETS !== 'undefined' ? DRUM_PRESETS : require('./drumpresets.js').DRUM_PRESETS;
 // machines: Modern (today's packs) and four classic boxes, by sound rather than by name
 const DRUM_MACHINES = ['Modern', 'Boom', 'Punch', 'Digital', 'Mini', 'Yours'];
@@ -37,11 +37,17 @@ const DRUM_KIND_MOD = { kick: 'kick', '808': 'kick', snare: 'snare', clap: 'clap
 const dvHash = v => { let h = 2166136261; const s = JSON.stringify(Object.keys(v).sort().map(k => [k, v[k]])); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 const dvClean = v => { if (!v || typeof v !== 'object') return null; const o = {}; for (const k in v) if (typeof v[k] === 'number' && isFinite(v[k])) o[k] = v[k]; return Object.keys(o).length ? o : null; };
 // register a type of yours; returns its id ('Yours <hash>', the same id wherever the same voice turns up)
-function drumAddUser(mod, name, v, kind) { v = dvClean(v); if (!v || !DRUM_MODS[mod]) return null; kind = DRUM_PEAK[kind] ? kind : 'perc';
-  const id = 'Yours ' + dvHash(v), T = DRUM_MODS[mod].types; if (!T[id]) T[id] = { m: 'Yours', n: String(name || 'Mine').replace(/[<>"`\u0000-\u001f\u007f]/g, '').slice(0, 24) || 'Mine', v, kind }; return id; }
+// a layered drum (Make from a sample) carries x: its body curves and the layer, checked here since it comes from saved files
+const dvCleanX = x => { if (!x || typeof x !== 'object' || !x.bc || typeof x.ly !== 'string' || !/^[A-Za-z0-9+/=]*$/.test(x.ly) || x.ly.length > 1.2e6) return null;
+  const arr = a => Array.isArray(a) && a.length >= 2 && a.length <= 2000 && a.every(q => typeof q === 'number' && isFinite(q)) ? a.slice() : null, t = arr(x.bc.t), f = arr(x.bc.f), a = arr(x.bc.a);
+  if (!t || !f || !a || f.length !== t.length || a.length !== t.length || f.some(q => q <= 0)) return null; const num = (q, d) => typeof q === 'number' && isFinite(q) ? q : d;
+  return { bc: { t, f, a, p0: num(x.bc.p0, 0) }, fs: Math.max(0, num(x.fs, 0)), ly: x.ly, lyS: Math.max(1e-6, num(x.lyS, 1)), x0: Math.max(0, num(x.x0, 0)), x1: Math.max(0, num(x.x1, 0)), n: num(x.n, 0) }; };
+const dvHashX = x => x ? dvHash({ t: x.bc.t.length, f: x.bc.f.join(','), a: x.bc.a.join(','), l: x.ly.length + x.ly.slice(0, 200) + x.ly.slice(-200) }) : '';
+function drumAddUser(mod, name, v, kind, x) { v = dvClean(v); x = x ? dvCleanX(x) : null; if (!v || !DRUM_MODS[mod]) return null; kind = DRUM_PEAK[kind] ? kind : 'perc';
+  const id = 'Yours ' + dvHash(v) + (x ? dvHashX(x) : ''), T = DRUM_MODS[mod].types; if (!T[id]) { T[id] = { m: 'Yours', n: String(name || 'Mine').replace(/[<>"`\u0000-\u001f\u007f]/g, '').slice(0, 24) || 'Mine', v, kind }; if (x) T[id].x = x; } return id; }
 function drumRemoveUser(mod, id) { const T = DRUM_MODS[mod] && DRUM_MODS[mod].types[id]; if (T && T.m === 'Yours') delete DRUM_MODS[mod].types[id]; }
 // a drum on a type of yours carries the voice itself, so the project opens anywhere
-function drumTag(d) { const T = DRUM_MODS[d.mod] && DRUM_MODS[d.mod].types[d.type]; if (T && T.m === 'Yours') d.uv = { n: T.n, v: T.v, kind: T.kind }; else delete d.uv; return d; }
+function drumTag(d) { const T = DRUM_MODS[d.mod] && DRUM_MODS[d.mod].types[d.type]; if (T && T.m === 'Yours') { d.uv = { n: T.n, v: T.v, kind: T.kind }; if (T.x) d.uv.x = T.x; } else delete d.uv; return d; }
 const drumKind = d => { const t = DRUM_MODS[d.mod] && DRUM_MODS[d.mod].types[d.type]; return t ? t.kind : 'perc'; };
 const DRUM_KEYLOCK = ['Free', 'Root', 'Fifth'];
 const drumTypeName = (mod, type) => { const t = DRUM_MODS[mod] && DRUM_MODS[mod].types[type]; return t ? t.n : type; };
@@ -57,11 +63,16 @@ function drumDefault(mod, type, seed) {
 // a machine: its first type for this module (knobs back to centre, locked ones kept)
 function drumSetMachine(d, mc) { const ts = drumTypesFor(d.mod, mc); if (!ts.length) return d; d.mach = mc; d.type = ts[0]; d.vj = 0;
   DRUM_MODS[d.mod].knobs.forEach(([id]) => { if (!d.locks.includes(id)) d.k[id] = knobDef(d.mod, id); }); return drumTag(d); }
+// a layered drum's layer settings (pitch in semitones, start 0..1 of 50 ms, length 0..1 of the layer, polarity)
+const LY_DEF = { pit: 0, st: 0, len: 1, inv: false, kt: false };
+function drumLy(d) { const L = d && d.ly && typeof d.ly === 'object' ? d.ly : {}, n = (x, lo, hi, df) => typeof x === 'number' && isFinite(x) ? Math.max(lo, Math.min(hi, x)) : df;
+  return { pit: n(L.pit, -24, 24, 0), st: n(L.st, 0, 1, 0), len: n(L.len, .01, 1, 1), inv: !!L.inv, kt: !!L.kt }; }
 function drumNormalize(d) {
-  if (!d || typeof d !== 'object' || !DRUM_MODS[d.mod]) return null; if (d.uv && typeof d.uv === 'object') { const id = drumAddUser(d.mod, d.uv.n, d.uv.v, d.uv.kind); if (id) d = Object.assign({}, d, { type: id }); }
+  if (!d || typeof d !== 'object' || !DRUM_MODS[d.mod]) return null; if (d.uv && typeof d.uv === 'object') { const id = drumAddUser(d.mod, d.uv.n, d.uv.v, d.uv.kind, d.uv.x); if (id) d = Object.assign({}, d, { type: id }); }
   const M = DRUM_MODS[d.mod], o = drumDefault(d.mod, M.types[d.type] ? d.type : null, d.seed);
   for (const [id] of M.knobs) if (typeof (d.k && d.k[id]) === 'number' && M.types[d.type]) o.k[id] = Math.max(0, Math.min(1, d.k[id]));   // knobs only carry over within a known type
   o.key = DRUM_KEYLOCK.includes(d.key) ? d.key : 'Free'; o.vj = Math.max(0, Math.min(1, +d.vj || 0)); o.locks = Array.isArray(d.locks) ? d.locks.filter(x => M.knobs.some(k => k[0] === x)) : []; o.kit = !!d.kit;
+  if (M.types[o.type] && M.types[o.type].x && d.ly) o.ly = drumLy(d);
   o.slots = Array.isArray(d.slots) ? d.slots.slice(0, 4).map(s => s && drumNormalize(Object.assign({}, s, { slots: [] }))).filter(Boolean) : []; return o;
 }
 function drumRng(seed) { let s = (seed * 2654435761) >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
@@ -91,6 +102,17 @@ function drumVoice(d, opts = {}) {
   if (d.vj > 0) { const r = drumRng(d.seed * 31 + 7), j = (a) => Math.pow(2, (r() - .5) * 2 * a * d.vj);
     for (const n of DECAYS) v[n] *= j(.5); for (const n of ['a2', 'a3', 'a4', 'nL', 'mL', 'cL', 'nT']) v[n] *= j(.6); for (const n of ['nHp', 'nLp', 'nBp', 'mBp', 'mHp', 'cF']) v[n] *= j(.35); v.sw *= j(.4); v.drv = dClamp(v.drv + (r() - .5) * .2 * d.vj); }
   const drive = () => { v.drv = dClamp(v.drv + u('drive') * .55); };
+  if (T.x) {   // layered: the body follows its measured curves, the layer is the sample's own attack and texture
+    const has = id => DRUM_MODS[d.mod].knobs.some(q => q[0] === id), uu = (...ids) => { for (const id of ids) if (has(id)) return u(id); return 0; };
+    v.bcT += uu('tune', 'pitch') * 12; v.bcP *= Math.pow(2, uu('punch', 'bend') * 1.2); const c = uu('click', 'snap', 'wires'); v.lyL *= c < 0 ? 1 + c : Math.pow(2, c);
+    const dc = uu('decay'); v.bcD *= Math.pow(2, dc * 1.2); if (dc < 0) v.lyLen = Math.min(v.lyLen, T.x.n / DRUM_SR * Math.pow(2, dc * 2.5));
+    const tn = uu('tone'); if (tn > 0) v.lyHp = 40 * Math.pow(2, tn * 5.5); else if (tn < 0) v.lyLp = 20000 * Math.pow(2, tn * 4.5);
+    if (has('drive')) drive();
+    const L = drumLy(d); v.lyP = L.pit; v.lySt = L.st * .05; v.lyInv = L.inv ? 1 : 0; v.lyLen = Math.min(v.lyLen, Math.max(.005, L.len * T.x.n / DRUM_SR));
+    if (d.vj > 0) { const r = drumRng(d.seed * 31 + 7); v.bcD *= Math.pow(2, (r() - .5) * .6 * d.vj); v.lyL *= Math.pow(2, (r() - .5) * .8 * d.vj); v.bcP *= Math.pow(2, (r() - .5) * .5 * d.vj); }
+    if (DRUM_MODS[d.mod].tuned && d.key !== 'Free' && opts.key) { const hz = layeredHz(T.x, v); v.bcT += 12 * Math.log2(keySnap(hz, d.key, opts.key) / hz); }
+    if (opts.semi) { v.bcT += opts.semi; if (L.kt) v.lyP += opts.semi; }   // a note played on it: the body keeps its length and follows; the layer only with Keytrack on
+    return v; }
   switch (d.mod) {
     case 'kick': v.f0 *= Math.pow(2, u('tune') * 12 / 12); v.sw *= Math.pow(2, u('punch')); v.swT *= Math.pow(2, -u('punch') * .5);
       lvl(v, ['cL'], u('click'), 2, .6); lvl(v, ['nL'], u('click'), 1.5, .2); sc(v, ['tD', 'tH', 'd2', 'nD'], Math.pow(2, u('decay') * 1.6));
@@ -108,10 +130,14 @@ function drumVoice(d, opts = {}) {
   return v;
 }
 // the main pitch a drum sounds at, for the Tune readout (tone layer; metal for hats)
-function drumHz(d, opts = {}) { const v = drumVoice(d, opts); return v.tL > 0 ? v.f0 : v.mL > 0 ? v.mF : 0; }
+function layeredPitch(x, v, t) { const T = x.bc.t, F = x.bc.f, K = T.length, fe = x.fs || F[K - 1]; let j = 0; while (j < K - 2 && T[j + 1] <= t) j++;
+  const u = Math.max(0, Math.min(1, (t - T[j]) / (T[j + 1] - T[j]))), f = t >= T[K - 1] ? F[K - 1] : F[j] * Math.pow(F[j + 1] / F[j], u); return fe * Math.pow(f / fe, v.bcP) * Math.pow(2, v.bcT / 12); }
+const layeredHz = (x, v) => (x.fs || x.bc.f[x.bc.f.length - 1]) * Math.pow(2, v.bcT / 12);   // a layered drum's pitch: where its body settles
+function drumHz(d, opts = {}) { const v = drumVoice(d, opts), T = DRUM_MODS[d.mod].types[d.type]; if (T && T.x) return layeredHz(T.x, v); return v.tL > 0 ? v.f0 : v.mL > 0 ? v.mF : 0; }
 function drumRender(d, opts = {}) {
   const v = drumVoice(d, opts), k = drumEffective(d, opts.kit), w = d.mod === 'hats' ? (k.width ?? .35) : d.mod === 'clap' ? .25 : 0, rnd = drumRng(d.seed || 1);
-  const out = DVD().dvRender(v, { sr: DRUM_SR, seed: d.seed || 1, width: w }); let L, R; if (out.L) { L = out.L; R = out.R; } else { L = out; R = Float32Array.from(out); }
+  const T = DRUM_MODS[d.mod].types[d.type], X = T && T.x ? Object.assign({}, T.x, { ly: DVD().dvLyDecode(T.x.ly, T.x.lyS) }) : null;
+  const out = DVD().dvRender(v, { sr: DRUM_SR, seed: d.seed || 1, width: w, x: X }); let L, R; if (out.L) { L = out.L; R = out.R; } else { L = out; R = Float32Array.from(out); }
   const room = opts.kit && d.kit ? opts.kit.room : (d.mod === 'clap' ? k.room : 0);
   if (room > .01) { const pad = Math.round(DRUM_SR * (.15 + room * .6)), L2 = new Float32Array(L.length + pad), R2 = new Float32Array(R.length + pad); L2.set(L); R2.set(R); L = L2; R = R2; roomize(L, R, room, rnd); }
   // trim the silent tail and set the peak for its kind (DRUM_PEAK), so a fresh kit is already roughly balanced
@@ -172,6 +198,6 @@ function drumKitPiece(vibe, role, seed) {
 function drumKit(vibe, seed = 1) { const V = DRUM_VIBES.find(v => v[0] === vibe) || DRUM_VIBES[0];
   return { kit: { vibe: V[0], tune: V[12], len: V[13], bright: V[14], drive: V[15], room: V[16], seed }, pieces: KIT_ROLES.map((R, i) => ({ role: R[0], d: drumKitPiece(V[0], i, seed) })) }; }
 function drumKey(d, kit, key) { const k = drumEffective(d, kit), tuned = DRUM_MODS[d.mod].tuned && d.key !== 'Free';
-  return 'd:' + d.mod + ':' + d.type + ':' + d.seed + (d.vj ? 'v' + Math.round(d.vj * 100) : '') + ':' + Object.values(k).map(v => Math.round(v * 1000)).join(',') + (tuned && key ? ':' + key.root + d.key : '') + (kit && d.kit ? ':r' + Math.round(kit.room * 100) : ''); }
-if (typeof module !== 'undefined') module.exports = { DRUM_SR, DRUM_PEAK, drumKind, DRUM_MODS, DRUM_KEYLOCK, DRUM_MACHINES, DRUM_MACH_N, DRUM_MACH_SUB, drumTypesFor, drumMachinesFor, drumTypeName, drumHz, drumVoice, drumSetMachine, DRUM_VIBES, KIT_ROLES,
+  return 'd:' + d.mod + ':' + d.type + ':' + d.seed + (d.vj ? 'v' + Math.round(d.vj * 100) : '') + ':' + Object.values(k).map(v => Math.round(v * 1000)).join(',') + (tuned && key ? ':' + key.root + d.key : '') + (kit && d.kit ? ':r' + Math.round(kit.room * 100) : '') + (d.ly ? ':l' + (L => [L.pit * 100, L.st * 1000, L.len * 1000].map(Math.round).join(',') + (L.inv ? 'i' : '') + (L.kt ? 'k' : ''))(drumLy(d)) : ''); }
+if (typeof module !== 'undefined') module.exports = { drumLy, LY_DEF, layeredPitch, DRUM_SR, DRUM_PEAK, drumKind, DRUM_MODS, DRUM_KEYLOCK, DRUM_MACHINES, DRUM_MACH_N, DRUM_MACH_SUB, drumTypesFor, drumMachinesFor, drumTypeName, drumHz, drumVoice, drumSetMachine, DRUM_VIBES, KIT_ROLES,
   drumDefault, drumNormalize, drumRender, drumVariation, drumKit, drumKitPiece, drumKey, drumEffective, keySnap, machOf, knobDef, DRUM_KIND_MOD, drumAddUser, drumRemoveUser, drumTag, dvHash };

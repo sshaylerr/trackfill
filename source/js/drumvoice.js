@@ -25,6 +25,11 @@ const DV_PARAMS = [
   ['drv', 0, 1, 'lin', 0], ['bits', 0, 16, 'lin', 0], ['srr', 0, 48000, 'lin', 0],
   // gate: everything holds until gC, then fades with time constant gF (kicks that stop dead; 0 = no gate)
   ['gC', 0, 2, 'lin', 0], ['gF', .002, .3, 'log', .03],
+  // layered (Make from a sample): a sine body on measured pitch and level curves, and the sample's own attack and texture on top (opts.x carries both).
+  // lyL layer level (0 = none), lyHp / lyLp its filters, lyLen how long it plays; bcT body tune (semitones), bcP sweep depth (power), bcD body length (stretch after its peak)
+  ['lyL', 0, 2, 'lin', 0], ['lyHp', 0, 4000, 'lin', 0], ['lyLp', 500, 20000, 'log', 20000], ['lyLen', .005, 4, 'log', 4], ['bcT', -24, 24, 'lin', 0], ['bcP', .25, 4, 'log', 1], ['bcD', .25, 4, 'log', 1],
+  // the layer's own controls, as on a kick synth's click section: pitch (semitones, played faster or slower), start (seconds skipped), polarity
+  ['lyP', -24, 24, 'lin', 0], ['lySt', 0, .1, 'lin', 0], ['lyInv', 0, 1, 'lin', 0],
   // cymbal: a bank of inharmonic partials spread from bLo to bHi (log), decaying faster as they get higher; shimmer is per-partial beating
   ['bL', 0, 1, 'lin', 0], ['bLo', 200, 8000, 'log', 1500], ['bHi', 2000, 18000, 'log', 12000], ['bD', .02, 6, 'log', .8], ['bS', 0, 2, 'lin', .6], ['bT', -12, 6, 'lin', -3], ['bA', .0001, .02, 'log', .0005], ['bSd', 1, 40, 'lin', 7]];
 const DV_IDX = Object.fromEntries(DV_PARAMS.map((p, i) => [p[0], i]));
@@ -54,14 +59,48 @@ function dvLength(v) { const tone = v.tL > 0 ? v.tH + v.tD * 7.6 : 0, part = Mat
   const met = Math.max(bank, v.mL > 0 ? v.mD * 7.6 : 0), nz = v.nL > 0 ? Math.max(v.nH + v.nD * 7.6, v.nT > 0 ? v.nTD * 7.6 : 0) + (v.nB - 1) * v.nBg : 0;
   const len = Math.max(.03, tone, part, met, nz, v.cL > 0 ? v.cD * 7.6 : 0) + .01; return Math.min(4, v.gC > 0 ? Math.min(len, v.gC + v.gF * 7.6) : len); }
 
+/* ---------- layered drums ---------- */
+// x carries the body curves in bc (times in seconds, pitch in Hz, level in dB, start phase), the layer in ly (48 kHz) and, in x0 to x1, where the body fades in
+// (before that the layer is the whole sample)
+function dvBodyEnd(v, X) { const T = X.bc.t, A = X.bc.a; let ip = 0; for (let k = 1; k < A.length; k++) if (A[k] > A[ip]) ip = k; return { tp: T[ip], end: T[ip] + (T[T.length - 1] - T[ip]) * v.bcD }; }
+function dvLayeredLength(v, X) { const b = dvBodyEnd(v, X), ly = X.ly ? Math.min(v.lyLen, (X.ly.length / 48000 - v.lySt) / Math.pow(2, ((v.tL > 0 ? 0 : v.bcT) + v.lyP) / 12)) : 0; return Math.min(4, Math.max(.03, v.tL > 0 ? b.end : 0, v.lyL > 0 ? ly : 0) + .005); }
+function dvBody(out, n, sr, X, v) {
+  if (!(v.tL > 0)) return; const T = X.bc.t, F = X.bc.f, A = X.bc.a, K = T.length, fe = X.fs || F[K - 1], R = Math.pow(2, v.bcT / 12), P = v.bcP, D = v.bcD, { tp } = dvBodyEnd(v, X);
+  // with the layer's lows filtered away the body comes in from the start instead (otherwise the attack would lose its low end)
+  const hpw = v.lyL > 0 ? Math.max(0, 1 - v.lyHp / 150) : 0, x0 = (X.x0 || 0) * hpw, x1 = Math.max(x0 + 1e-4, x0 + (X.x1 || 0) - (X.x0 || 0)); let ph = (X.bc.p0 || 0) / (2 * Math.PI), j = 0, ja = 0, f = F[0], g = 0;
+  for (let i = 0; i < n; i++) { const t = i / sr;
+    if ((i & 3) === 0) { while (j < K - 2 && T[j + 1] <= t) j++; const u = Math.max(0, Math.min(1, (t - T[j]) / (T[j + 1] - T[j]))); f = t >= T[K - 1] ? F[K - 1] : F[j] * Math.pow(F[j + 1] / F[j], u); f = fe * Math.pow(f / fe, P) * R;
+      const ta = t <= tp ? t : tp + (t - tp) / D; while (ja < K - 2 && T[ja + 1] <= ta) ja++; const ua = Math.max(0, Math.min(1, (ta - T[ja]) / (T[ja + 1] - T[ja])));
+      const a = ta >= T[K - 1] ? A[K - 1] - (ta - T[K - 1]) * 600 : A[ja] + (A[ja + 1] - A[ja]) * ua, w = t < x0 ? 0 : t >= x1 ? 1 : .5 - .5 * Math.cos(Math.PI * (t - x0) / (x1 - x0)); g = Math.pow(10, a / 20) * w * v.tL; }
+    out[i] += Math.sin(2 * Math.PI * ph) * g; ph += Math.min(f, sr * .45) / sr; ph -= Math.floor(ph); } }
+function dvLayerMix(L, R, n, sr, X, v) {
+  const ly = X.ly; if (!ly || !(v.lyL > 0)) return; const rate = Math.pow(2, ((v.tL > 0 ? 0 : v.bcT) + v.lyP) / 12), s0 = Math.min(ly.length - 2, Math.round(v.lySt * sr)), sg = v.lyInv > .5 ? -1 : 1,
+    m = Math.min(n, Math.floor((ly.length - 1 - s0) / rate), Math.round(v.lyLen * sr)), fl = Math.min(.02, v.lyLen * .5) * sr, e0 = m - fl;
+  const hp = v.lyHp > 20 ? dvBiq('hp', v.lyHp, .7, sr) : null, hp2 = v.lyHp > 20 ? dvBiq('hp', v.lyHp, .7, sr) : null, lp = v.lyLp < 19000 ? dvBiq('lp', v.lyLp, .7, sr) : null;
+  const fi = s0 > 0 ? Math.round(sr * .0005) : 0;   // a started-late layer fades in over half a millisecond (no click from cutting into it)
+  for (let i = 0; i < m; i++) { let y; if (rate === 1) y = ly[s0 + i]; else { const p = s0 + i * rate, k = p | 0; y = ly[k] + (ly[k + 1] - ly[k]) * (p - k); }   // pitched: played faster or slower
+    if (i < fi) y *= i / fi; y *= sg;
+    if (hp) y = hp2(hp(y)); if (lp) y = lp(y); const g = i > e0 ? .5 + .5 * Math.cos(Math.PI * (i - e0) / fl) : 1; y *= g * v.lyL; L[i] += y; if (R) R[i] += y; } }
+// the layer travels as base-64 16-bit audio with its own scale
+function dvLyEncode(x) { let pk = 1e-9; for (const v of x) pk = Math.max(pk, Math.abs(v)); const b = new Uint8Array(x.length * 2);
+  for (let i = 0; i < x.length; i++) { const q = Math.max(-32767, Math.min(32767, Math.round(x[i] / pk * 32767))); b[i * 2] = q & 255; b[i * 2 + 1] = (q >> 8) & 255; }
+  let s = ''; for (let i = 0; i < b.length; i += 8192) s += String.fromCharCode.apply(null, b.subarray(i, i + 8192)); return { d: typeof btoa === 'function' ? btoa(s) : Buffer.from(s, 'binary').toString('base64'), s: pk }; }
+const DV_LYC = new Map();
+function dvLyDecode(d, sc) { const key = d.length + ':' + d.slice(0, 64) + d.slice(-64) + sc; if (DV_LYC.has(key)) return DV_LYC.get(key);
+  const s = typeof atob === 'function' ? atob(d) : Buffer.from(d, 'base64').toString('binary'), n = s.length >> 1, x = new Float32Array(n), k = sc / 32767;
+  for (let i = 0; i < n; i++) { let q = s.charCodeAt(i * 2) | (s.charCodeAt(i * 2 + 1) << 8); if (q >= 32768) q -= 65536; x[i] = q * k; }
+  if (DV_LYC.size > 24) DV_LYC.delete(DV_LYC.keys().next().value); DV_LYC.set(key, x); return x; }
+
 // render one hit: Float32Array (mono), or { L, R } when opts.width > 0 (noise and metal decorrelated between the sides)
 function dvRender(p, opts = {}) {
-  const v = dvFull(p), sr = opts.sr || 48000, n = Math.round(Math.min(opts.maxLen || 4, dvLength(v)) * sr), L = new Float32Array(n), st = opts.width > 0, R = st ? new Float32Array(n) : null;
+  const v = dvFull(p), sr = opts.sr || 48000, n = Math.round(Math.min(opts.maxLen || 4, opts.x && opts.x.bc ? dvLayeredLength(v, opts.x) : dvLength(v)) * sr), L = new Float32Array(n), st = opts.width > 0, R = st ? new Float32Array(n) : null;
   const rnd = dvRng(opts.seed || 1), rnd2 = dvRng((opts.seed || 1) * 7 + 3), w = opts.width || 0;
   // envelopes and sweeps run as per-sample multipliers; pitch and filter coefficients update every few samples (inaudible, much cheaper)
   const decay = (tau) => Math.exp(-1 / (Math.max(1e-5, tau) * sr)), tH = Math.round(v.tH * sr), tAn = Math.max(1, v.tA * sr);
+  const X = opts.x && opts.x.bc ? opts.x : null;
+  if (X) { dvBody(L, n, sr, X, v); if (st) R.set(L); dvLayerMix(L, R, n, sr, X, v); }
   // tone
-  if (v.tL > 0) { const parts = [[1, 1, v.tD], [v.r2, v.a2, v.d2], [v.r3, v.a3, v.d3], [v.r4, v.a4, v.d4]].filter(q => q[1] > 0), K = parts.length, ph = new Float64Array(K), e = parts.map(q => q[1]), m = parts.map(q => decay(q[2])), r = parts.map(q => q[0]);
+  if (v.tL > 0 && !X) { const parts = [[1, 1, v.tD], [v.r2, v.a2, v.d2], [v.r3, v.a3, v.d3], [v.r4, v.a4, v.d4]].filter(q => q[1] > 0), K = parts.length, ph = new Float64Array(K), e = parts.map(q => q[1]), m = parts.map(q => decay(q[2])), r = parts.map(q => q[0]);
     const tg = 1 + v.td * 9, tn = Math.tanh(tg), aSw = decay(v.swT), aDr = decay(Math.max(.01, v.tD)), shape = v.shape; let sw = 1, dx = 1, f = v.f0;
     for (let i = 0; i < n; i++) { if ((i & 3) === 0) f = v.f0 * Math.pow(2, (v.sw * sw + v.dr * (1 - dx)) / 12); sw *= aSw; dx *= aDr;
       let y = 0; for (let k = 0; k < K; k++) { const dt = f * r[k] / sr; if (dt < .5) { let q = ph[k] + dt; q -= q >= 1 ? 1 : 0; ph[k] = q; y += e[k] * dvWave(q, dt, shape); } if (i >= tH) e[k] *= m[k]; }
@@ -100,4 +139,4 @@ function dvRender(p, opts = {}) {
     for (const ch of chans) { let next = 0, h = 0; for (let i = 0; i < n; i++) { if (i >= next) { h = ch[i] / pk; if (q) h = Math.round(h * q) / q; next += step; } ch[i] = h * pk; } } }
   return st ? { L, R } : L;
 }
-if (typeof module !== 'undefined') module.exports = { DV_PARAMS, DV_IDX, DV_METAL, dvFull, dvTo01, dvFrom01, dvRender, dvLength };
+if (typeof module !== 'undefined') module.exports = { DV_PARAMS, DV_IDX, DV_METAL, dvFull, dvTo01, dvFrom01, dvRender, dvLength, dvLyEncode, dvLyDecode, dvBody, dvBiq };

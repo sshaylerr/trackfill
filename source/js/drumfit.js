@@ -1,7 +1,7 @@
 'use strict';
 /* Drum fitting, shared by the app (Make from a sample) and the tools (tools/drumref): features of a hit, the distance between
    two hits, and a CMA-ES search over the drum voice's parameters. Generated from tools/drumref/fit.cjs and analyze.cjs. */
-const DVF = () => typeof dvRender === 'function' ? { dvRender, dvFull, dvTo01, dvFrom01 } : require('./drumvoice.js');
+const DVF = () => typeof dvRender === 'function' ? { dvRender, dvFull, dvTo01, dvFrom01, dvBody, dvLyEncode, dvLyDecode } : require('./drumvoice.js');
 const DV = { dvTo01: (k, x) => DVF().dvTo01(k, x), dvFrom01: (k, u) => DVF().dvFrom01(k, u), dvFull: o => DVF().dvFull(o), dvRender: (p, o) => DVF().dvRender(p, o) };
 const SR = 48000;
 /* ---------- maths ---------- */
@@ -207,10 +207,76 @@ function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Ma
 /* The whole job for Make from a sample, as a list of messages: { t: 'near', id, d } for the nearest existing type, then { t: 'step', p, d, n, total }
    as the fit improves, then { t: 'done', p, d }. The app runs it in a worker (or, failing that, a few steps per frame). in: { x, kind, cands: [{ id, v }], iters } */
 function* dfSteps(m) {
+  if (m.layer) { yield { t: 'scan' }; const r = layerFit(m.x); if (r) { yield { t: 'done', p: r.v, x: r.x, d: 0 }; return; } }   // tonal drums, when the body can be read: layered
   const x = prep(m.x), T = Math.min(1.2, dur(x) + .05); let best = null;
   for (const c of m.cands || []) { const d = voiceDist(x, m.kind, c.v, T); if (!best || d < best.d) best = { id: c.id, d, v: c.v }; yield { t: 'scan' }; }
   if (best) yield { t: 'near', id: best.id, d: +best.d.toFixed(3) };
   const g = fitGen(x, m.kind, { start: best ? best.v : null, iters: m.iters || 40, maxT: 1.2 }); let r, last = best ? { p: best.v, d: best.d } : null;
   while (!(r = g.next()).done) { if (!last || r.value.d <= last.d) { last = r.value; yield Object.assign({ t: 'step' }, r.value); } else yield { t: 'tick', n: r.value.n, total: r.value.total }; }
   if (!last || r.value.d <= last.d) last = r.value; yield { t: 'done', p: last.p, d: last.d }; }
-if (typeof module !== 'undefined') module.exports = { SR, prep, specs, dist, dist2, feats, dur, MASK, BASE, BOUNDS, toU, fromU, cmaes, cmaesGen, guess, fit, fitGen, voiceDist, dfSteps, features, mulberry, env, fallTime, spectrum, centroid, flatness, pitchAt, lp4, hp4, db, db20, BANDS };
+/* ---------- layered fit (Make from a sample, tonal drums): the body's pitch and level read straight from the sample, the rest kept as a layer ----------
+   The fundamental is followed by demodulating around a pitch estimate and low-passing the result (its bandwidth a fraction of the pitch, so harmonics stay out);
+   the body is then a sine on those curves, phase-locked where it fades in, and the layer is the sample minus that body: body + layer give the sample back. */
+function bqLP(f, sr) { const w = 2 * Math.PI * Math.min(f, sr * .45) / sr, c = Math.cos(w), al = Math.sin(w) / Math.SQRT2, a0 = 1 + al; return [(1 - c) / 2 / a0, (1 - c) / a0, (1 - c) / 2 / a0, -2 * c / a0, (1 - al) / a0]; }
+function filtfilt(x, f, sr, order = 1) { let y = Float64Array.from(x); const [b0, b1, b2, a1, a2] = bqLP(f, sr);
+  const run = (z, rev) => { let x1 = 0, x2 = 0, y1 = 0, y2 = 0; const n = z.length; for (let k = 0; k < n; k++) { const i = rev ? n - 1 - k : k, xi = z[i], yi = b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = xi; y2 = y1; y1 = yi; z[i] = yi; } };
+  for (let o = 0; o < order; o++) { run(y, false); run(y, true); } return y; }
+function acPitch(x, c, w, lo, hi) { const a = Math.max(0, c - (w >> 1)), Lmax = Math.min(Math.floor(SR / lo), x.length - a - w), Lmin = Math.max(1, Math.floor(SR / hi) - 1); if (w < 8 || Lmax < Lmin + 2) return null;
+  let e0 = 0; for (let i = 0; i < w; i++) e0 += x[a + i] * x[a + i]; if (e0 < 1e-12) return null; const r = new Float64Array(Lmax + 1); let neg = -1;
+  for (let L = 1; L <= Lmax; L++) { let s = 0, e1 = 0; for (let i = 0; i < w; i++) { const q = x[a + i + L]; s += x[a + i] * q; e1 += q * q; } r[L] = s / Math.sqrt(e0 * e1 + 1e-20); if (neg < 0 && r[L] < 0) neg = L; }
+  if (neg < 0) return null; let k = Math.max(neg, Lmin); for (let L = k; L <= Lmax; L++) if (r[L] > r[k]) k = L; if (r[k] < .3 || k < 2 || k >= Lmax) return r[k] >= .3 ? SR / k : null;
+  const d = (r[k - 1] - r[k + 1]) / (2 * (r[k - 1] - 2 * r[k] + r[k + 1]) - 1e-12); return SR / (k + Math.max(-1, Math.min(1, d))); }
+function coarsePitch(x) {   // follow the body's pitch outward from where it is steadiest, each step within reach of the last (no octave jumps)
+  const lo = filtfilt(x, 2500, SR, 2), dur = x.length / SR, w20 = Math.round(SR * .02);
+  let ta = .05, best = -1; for (let t = .03; t < Math.min(.2, dur - .045); t += .005) { const a = Math.round(t * SR); let e0 = 0; for (let i = 0; i < w20; i++) e0 += lo[a + i] * lo[a + i]; if (e0 < 1e-9) continue;
+    const f = acPitch(lo, a + (w20 >> 1), w20, 25, 400); if (!f) continue; const L = Math.round(SR / f); let s = 0, e1 = 0; for (let i = 0; i < w20; i++) { s += lo[a + i] * lo[a + i + L]; e1 += lo[a + i + L] ** 2; } const r = s / Math.sqrt(e0 * e1 + 1e-20) * Math.sqrt(e0); if (r > best) { best = r; ta = t; } }
+  const fa = acPitch(lo, Math.round(ta * SR) + (w20 >> 1), w20, 25, 400) || 60, T = [ta], F = [fa];
+  let fp = fa; for (let t = ta - .0005; t > .0004; t -= t < .03 ? .0005 : .001) { const w = Math.round(Math.max(24, Math.min(SR * .012, 2.5 * SR / fp))), f = acPitch(lo, Math.round(t * SR) + (w >> 1), w, fp * .92, Math.min(4000, fp * 1.45)); if (f) { fp = f; T.unshift(t); F.unshift(f); } }
+  fp = fa; for (let t = ta + .002; t < dur - .02; t += .002) { const w = Math.round(Math.max(24, Math.min(SR * .02, 2.5 * SR / fp))), a = Math.round(t * SR); if (a + w + SR / (fp * .6) >= x.length) break;
+    const f = acPitch(lo, a + (w >> 1), w, fp * .7, fp * 1.08); if (f) { fp = f; T.push(t); F.push(f); } }
+  return { T, F }; }
+const BWS = [12, 20, 35, 60, 100, 170];
+function lpVar(re, im, bwt) {   // zero-phase low-pass whose bandwidth follows bwt, per sample (blended from a few fixed ones)
+  const R = BWS.map(b => filtfilt(re, b, SR)), I = BWS.map(b => filtfilt(im, b, SR)), n = re.length, oR = new Float64Array(n), oI = new Float64Array(n), LB = BWS.map(Math.log);
+  for (let i = 0; i < n; i++) { const lb = Math.log(Math.max(BWS[0], Math.min(BWS[5], bwt[i]))); let k = 0; while (k < 4 && LB[k + 1] < lb) k++; const w = (lb - LB[k]) / (LB[k + 1] - LB[k]); oR[i] = R[k][i] * (1 - w) + R[k + 1][i] * w; oI[i] = I[k][i] * (1 - w) + I[k + 1][i] * w; }
+  return [oR, oI]; }
+function extractFund(x) {
+  const n = x.length, cp = coarsePitch(x); if (cp.T.length < 4) return null; const f = new Float64Array(n); let j = 0;
+  for (let i = 0; i < n; i++) { const t = i / SR; while (j < cp.T.length - 2 && cp.T[j + 1] <= t) j++; const u = Math.max(0, Math.min(1, (t - cp.T[j]) / (cp.T[j + 1] - cp.T[j]))); f[i] = cp.F[j] + (cp.F[j + 1] - cp.F[j]) * u; }
+  const demod = () => { const re = new Float64Array(n), im = new Float64Array(n), th = new Float64Array(n); let p = 0; for (let i = 0; i < n; i++) { p += 2 * Math.PI * f[i] / SR; th[i] = p; re[i] = x[i] * Math.cos(p); im[i] = -x[i] * Math.sin(p); } return { re, im, th }; };
+  const bwt = new Float64Array(n);
+  for (let it = 0; it < 6; it++) { for (let i = 0; i < n; i++) bwt[i] = .3 * f[i]; const { re, im } = demod(), [cr, ci] = lpVar(re, im, bwt), ph = new Float64Array(n);
+    let prev = 0, acc = 0; for (let i = 0; i < n; i++) { const a = Math.atan2(ci[i], cr[i]); let d = a - prev; d -= 2 * Math.PI * Math.round(d / (2 * Math.PI)); acc += d; prev = a; ph[i] = acc; }
+    const df = new Float64Array(n); for (let i = 0; i < n; i++) df[i] = (ph[Math.min(n - 1, i + 1)] - ph[Math.max(0, i - 1)]) / (i > 0 && i < n - 1 ? 2 : 1) * SR / (2 * Math.PI);
+    const [dfs] = lpVar(df, new Float64Array(n), bwt); for (let i = 0; i < n; i++) f[i] = Math.max(20, Math.min(4000, f[i] + Math.max(-.12 * f[i], Math.min(.12 * f[i], dfs[i])))); }
+  for (let i = 0; i < n; i++) bwt[i] = .3 * f[i]; const { re, im, th } = demod(), [cr, ci] = lpVar(re, im, bwt), A = new Float64Array(n), fund = new Float64Array(n);
+  for (let i = 0; i < n; i++) { A[i] = 2 * Math.hypot(cr[i], ci[i]); fund[i] = 2 * (cr[i] * Math.cos(th[i]) - ci[i] * Math.sin(th[i])); }
+  return { f, A, fund }; }
+function layerFit(xIn) {
+  const x = prep(xIn), n = x.length, dur = n / SR, E = extractFund(x); if (!E) return null; const { f, A, fund } = E;
+  // where the body takes over: the first point from which the fundamental explains the sample, with what is left 8 dB down, for 4 ms
+  const win = Math.round(SR * .002), ratio = []; for (let s = 0; s + win <= n; s += win) { let a = 0, b = 0; for (let i = s; i < s + win; i++) { const r = x[i] - fund[i]; a += r * r; b += x[i] * x[i]; } ratio.push(10 * Math.log10(a / (b + 1e-20) + 1e-12)); }
+  let x0 = .006; for (let k = 1; k < ratio.length - 2; k++) if (ratio[k] < -8 && ratio[k + 1] < -8) { x0 = k * win / SR; break; } x0 = Math.max(.002, Math.min(.03, x0));
+  let pkA = 0; for (let i = Math.round(x0 * SR); i < n; i++) pkA = Math.max(pkA, A[i]);
+  // curves on a grid: fine at the start, coarser later; pitch held where the body has faded (its estimate turns to noise)
+  const T = [], Fv = [], Av = []; let lastF = null;
+  for (let t = 0; t < dur; t += t < .03 ? .001 : t < .1 ? .0025 : t < .3 ? .005 : .01) { const i = Math.min(n - 1, Math.round(t * SR)), h = Math.max(1, Math.round(SR * (t < .03 ? .0005 : .002)));
+    let fs = 0, as = 0, c = 0; for (let q = Math.max(0, i - h); q <= Math.min(n - 1, i + h); q++) { fs += Math.log(f[q]); as += A[q]; c++; }
+    const a = as / c, ff = Math.exp(fs / c), ok = a > pkA * .1 || t < x0 + .01; if (ok) lastF = ff; T.push(+t.toFixed(4)); Fv.push(+(ok || lastF == null ? ff : lastF).toFixed(2)); Av.push(+(20 * Math.log10(a + 1e-6)).toFixed(2)); }
+  T.push(+dur.toFixed(4)); Fv.push(Fv[Fv.length - 1]); Av.push(Av[Av.length - 1]);
+  // where the body settles: the median pitch while it is within 12 dB of its peak, after the peak (Tune reads this, and Punch bends around it)
+  let ip = 0; for (let k = 1; k < Av.length; k++) if (T[k] >= x0 && Av[k] > Av[ip]) ip = k; const set = []; for (let k = ip; k < Av.length; k++) if (Av[k] > Av[ip] - 12) set.push(Fv[k]); set.sort((a, b) => a - b);
+  const fsHz = set.length ? set[set.length >> 1] : Fv[Fv.length - 1];
+  const X = { bc: { t: T, f: Fv, a: Av, p0: 0 }, fs: +fsHz.toFixed(2), x0, x1: x0 + Math.max(.003, 1.5 / Fv[Math.min(Fv.length - 1, Math.round(x0 * 1000))]) };
+  // phase-lock the body to the sample where it fades in (least squares on sine and cosine renders)
+  const V = DV.dvFull({ tL: 1, lyL: 1 }), b0 = new Float32Array(n), b1 = new Float32Array(n); DVF().dvBody(b0, n, SR, X, V); X.bc.p0 = Math.PI / 2; DVF().dvBody(b1, n, SR, X, V);
+  let s00 = 0, s11 = 0, s01 = 0, sx0 = 0, sx1 = 0; for (let i = Math.round(X.x0 * SR), e = Math.min(n, i + Math.round(SR * .03)); i < e; i++) { s00 += b0[i] * b0[i]; s11 += b1[i] * b1[i]; s01 += b0[i] * b1[i]; sx0 += x[i] * b0[i]; sx1 += x[i] * b1[i]; }
+  const det = s00 * s11 - s01 * s01, al = det > 1e-12 ? (sx0 * s11 - sx1 * s01) / det : 1, be = det > 1e-12 ? (sx1 * s00 - sx0 * s01) / det : 0; X.bc.p0 = +Math.atan2(be, al).toFixed(4);
+  const body = new Float32Array(n); DVF().dvBody(body, n, SR, X, V); const ly = new Float32Array(n); for (let i = 0; i < n; i++) ly[i] = x[i] - body[i];
+  const enc = DVF().dvLyEncode(ly); X.ly = enc.d; X.lyS = +enc.s.toPrecision(6); X.n = n;
+  let er = 0, ex = 0; for (let i = Math.round((X.x1 + .005) * SR); i < n; i++) { er += ly[i] * ly[i]; ex += x[i] * x[i]; }
+  const quality = 10 * Math.log10(er / (ex + 1e-20) + 1e-12);
+  if (quality > -6) {   // the body can't be read as one tone (two kicks stacked, a sub under a punch): keep the sample whole as the layer, with no body
+    const whole = DVF().dvLyEncode(x); Object.assign(X, { ly: whole.d, lyS: +whole.s.toPrecision(6), x0: 0, x1: 0 }); return { v: { tL: 0, lyL: 1 }, x: X, quality }; }
+  return { v: { tL: 1, lyL: 1 }, x: X, quality }; }
+if (typeof module !== 'undefined') module.exports = { layerFit, extractFund, SR, prep, specs, dist, dist2, feats, dur, MASK, BASE, BOUNDS, toU, fromU, cmaes, cmaesGen, guess, fit, fitGen, voiceDist, dfSteps, features, mulberry, env, fallTime, spectrum, centroid, flatness, pitchAt, lp4, hp4, db, db20, BANDS };

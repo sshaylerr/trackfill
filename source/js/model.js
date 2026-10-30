@@ -545,6 +545,7 @@ function normalize(p) {
     d.name = tfName(d.name, 24); d.tempo = +d.tempo > 0 ? Math.min(300, Math.max(20, +d.tempo)) : 0;
     d.kx = d.kx ? HMN().normalizeKx(d.kx) : null;
     d.bend = d.bend == null ? .5 : clamp01(+d.bend); d.bendR = [1, 2, 3, 5, 7, 12, 24].includes(+d.bendR) ? +d.bendR : 2;
+    delete d.nv;   // per-note renders of a layered drum: remade on load
     d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.drum = d.drum ? DRN().drumNormalize(d.drum) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : d.src === 'drum' && d.drum ? 'drum' : 'sample';
     d.choke = Math.max(0, Math.min(4, d.choke | 0));
     d.gain = Math.max(-24, Math.min(24, +d.gain || 0)); d.norm = !!d.norm; d.ng = Math.max(0, Math.min(16, +d.ng || 1)); d.fin = Math.max(0, Math.min(10, +d.fin || 0)); d.fout = Math.max(0, Math.min(10, +d.fout || 0));   // non-destructive edits
