@@ -501,7 +501,7 @@ static void fx_limit(Fx* f, float* L, float* R, i32 n) {
 }
 
 /* ================= Multiband: three bands (Linkwitz-Riley 24 dB), Classic and OTT ================= */
-struct MbSt { BQ2 lp1[2], hp1[2], lp2[2], hp2[2], ap; float env[3], lastF[2], g[3]; i32 init; };
+struct MbSt { BQ2 lp1[2], hp1[2], lp2[2], hp2[2], ap; float env[3], lastF[2], g[3], up[3]; i32 init; };
 static void mbXover(MbSt* m, float f1, float f2) {
   if (m->lastF[0] == f1 && m->lastF[1] == f2) return; m->lastF[0] = f1; m->lastF[1] = f2;
   for (i32 k = 0; k < 2; k++) { bq2Set(&m->lp1[k], BQ_LP, f1, 0.7071f, 0); bq2Set(&m->hp1[k], BQ_HP, f1, 0.7071f, 0); bq2Set(&m->lp2[k], BQ_LP, f2, 0.7071f, 0); bq2Set(&m->hp2[k], BQ_HP, f2, 0.7071f, 0); }
@@ -536,6 +536,8 @@ static void fx_mband(Fx* f, float* L, float* R, i32 n) {
       float ld = lin2db(m->env[b] + 1e-9f), gd = 0;
       if (ld > thrA) gd = slA * (ld - thrA);                                   // downward above the top threshold
       else if (ld < thrB) gd = minf(slB * (thrB - ld), 30.f) * clampf((ld + 80.f) * 0.05f, 0.f, 1.f);   // upward below the bottom one, fading out from -60 to -80 dB: never lifts the noise floor or true silence
+      // upward gain rises only at the release speed and falls at once: a note starting out of silence is never caught mid-lift (it used to jump up to +12 dB for a block)
+      if (gd > 0.f) { const float ru = 1.f - fexp(-(float)nn / (rel * SR)); gd = m->up[b] + (gd - m->up[b]) * ru; } m->up[b] = maxf(gd, 0.f);
       f->vis[b] = gd;
       float g1 = db2lin(gd) * gb[b] * outg, g0 = m->init ? m->g[b] : g1, dg = (g1 - g0) / nn; m->g[b] = g1;
       float* bl = bd[b][0]; float* br = bd[b][1];

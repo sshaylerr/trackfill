@@ -20,9 +20,15 @@ const PHRASES = {
     seq.forEach((p, i) => o.push(n(b * BAR + i * 48, 40, p, i % 2 ? .65 : .85))); }); return o; },
   Leads: () => [n(0, 144, 24), n(144, 48, 20), n(192, 96, 19), n(288, 96, 17), n(BAR, 288, 15), n(BAR + 288, 96, 17),
     n(2 * BAR, 96, 24), n(2 * BAR + 96, 96, 25), n(2 * BAR + 192, 96, 24), n(2 * BAR + 288, 96, 20), n(3 * BAR, 192, 19), n(3 * BAR + 192, 180, 17)],
+  // a rolling 1/8 drop line: root on the beat, octave pops and passing notes on the offbeats, a fill at the end of bar 4
+  Drop: () => { const o = [], roots = [-7, -7, -11, -9];
+    roots.forEach((r, b) => { const t0 = b * BAR, pat = b === 3 ? [[0, r, 44], [48, r, 20], [96, r + 12, 20], [144, r, 20], [192, r + 3, 20], [240, r + 5, 20], [288, r + 7, 20], [336, r + 12, 20]]
+        : [[0, r, 44], [48, r, 20], [144, r + 12, 20], [192, r, 44], [240, r, 20], [288, r + 3, 20], [336, r + 12, 20]];
+      for (const [t, p, len] of pat) o.push(n(t0 + t, len, p, t % 96 ? .75 : .9)); }); return o; },
   Stabs: () => PROG.flatMap((c, b) => [0, 144, 288, 336].flatMap((t, i) => i === 3 && b % 2 === 0 ? [] : CH[c].map(p => n(b * BAR + t, 40, p + (c === 'Fm' || c === 'Eb' ? 0 : 0), .8)))),
 };
-const kindOf = pr => pr.g.split('·').pop().trim();
+const kindOf = pr => /^DnB drops/.test(pr.g) ? 'Drop' : pr.g.split('·').pop().trim();
+const PACK = process.env.PACK === 'drops' ? SP.DNB_DROPS : SP.DNB_PACK;
 function drums() { const k = [], s = [], h = []; for (let b = 2; b < 4; b++) { const t = b * BAR; k.push(n(t, 24, 0, .95), n(t + 240, 24, 0, .85)); s.push(n(t + B, 24, 0, .9), n(t + 3 * B, 24, 0, .9));
   for (let i = 0; i < 8; i++) h.push(n(t + i * 48, 12, 0, i % 2 ? .45 : .7)); } return [k, s, h]; }
 function project(pr, withDrums = true) {
@@ -65,10 +71,10 @@ async function heldLevel(pr, gan) {
 async function fitLevel(pr) { let g = pr.p.gan || 0, m; for (let k = 0; k < 4; k++) { m = await heldLevel(pr, g); const d = Math.min(-18 - m.st, -6 - m.pk); if (Math.abs(d) < .3) break; g = Math.max(-24, Math.min(6, g + d)); } return { gan: Math.round(g * 2) / 2, ...m }; }
 module.exports = { project, render, analyse, PHRASES, fitLevel };
 if (require.main === module) (async () => {
-  if (process.argv[2] === '--levels') { const o = {}; for (const pr of SP.DNB_PACK) { const r = await fitLevel(Object.assign({}, pr, { p: Object.assign({}, pr.p, { gan: 0 }) })); o[(pr.eng || 'analog') + ':' + pr.n] = r.gan; console.log(pr.n.padEnd(17), 'Level', r.gan, ' peak', r.pk.toFixed(1), ' loud', r.st.toFixed(1)); }
+  if (process.argv[2] === '--levels') { const o = {}; for (const pr of PACK) { const r = await fitLevel(Object.assign({}, pr, { p: Object.assign({}, pr.p, { gan: 0 }) })); o[(pr.eng || 'analog') + ':' + pr.n] = r.gan; console.log(pr.n.padEnd(17), 'Level', r.gan, ' peak', r.pk.toFixed(1), ' loud', r.st.toFixed(1)); }
     console.log(JSON.stringify(o)); return; }
   const out = process.argv[2] || '/tmp/tf-presets', only = process.argv[3]; fs.mkdirSync(out, { recursive: true }); const man = [];
-  for (const pr of SP.DNB_PACK.filter(p => !only || p.n.toLowerCase().includes(only.toLowerCase()))) {
+  for (const pr of PACK.filter(p => !only || p.n.toLowerCase().includes(only.toLowerCase()))) {
     const solo = await render(pr, false), a = analyse(solo.L, solo.R), mix = await render(pr, true), f = slug(pr.n);
     // make the mix sit near -14 LUFS-ish without touching the preset: just a clean gain to a -1 dB peak at most
     let pk = 0; for (let i = 0; i < mix.L.length; i++) pk = Math.max(pk, Math.abs(mix.L[i]), Math.abs(mix.R[i])); const g = Math.min(4, Math.pow(10, -1 / 20) / Math.max(pk, 1e-6));
