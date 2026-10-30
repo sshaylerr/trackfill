@@ -27,14 +27,20 @@ const PHRASES = {
       const pat = last ? [[0, r, 92], [96, r, 44], [144, r + 12, 44], [192, r + 3, 44], [240, r + 5, 44], [288, r + 7, 44], [336, r + 12, 44]]
         : [[0, r, 92], [96, r, 44], [144, r + 12, 44], [192, r, 92], [288, r, 44], [336, r + 12, 44]];
       for (const [t, p, len] of pat) o.push(n(t0 + t, len, p, t % 96 ? .78 : .92)); }); return o; },
+  // batch 3: Eighths = every 1/8 played, nearly full length (a small gap so each note restarts); Held = one note a bar, the preset makes the rhythm
+  Eighths: () => { const o = [], roots = [-7, -7, -4, -5];
+    roots.forEach((r, b) => { const pat = b === 3 ? [0, 0, 12, 0, 3, 5, 7, 12] : [0, 0, 12, 0, 0, 0, 12, 0];
+      pat.forEach((iv, k) => o.push(n(b * BAR + k * 48, 46, r + iv, k % 2 ? .8 : .92))); }); return o; },
+  Held: () => [n(0, BAR - 4, -7, .9), n(BAR, BAR - 4, -7, .9), n(2 * BAR, BAR - 4, -4, .9), n(3 * BAR, BAR / 2 - 4, -5, .9), n(3 * BAR + BAR / 2, BAR / 2 - 4, -2, .9)],
   Hold: () => { const o = [], roots = [-7, -7, -4, -5];
     roots.forEach((r, b) => { const t0 = b * BAR, pat = b === 3 ? [[0, r, 180], [192, r + 3, 92], [288, r + 5, 92]] : [[0, r, 180], [192, r, 88], [288, r + (b % 2 ? 3 : 0), 92]];
       for (const [t, p, len] of pat) o.push(n(t0 + t, len, p, .9)); }); return o; },
   Stabs: () => PROG.flatMap((c, b) => [0, 144, 288, 336].flatMap((t, i) => i === 3 && b % 2 === 0 ? [] : CH[c].map(p => n(b * BAR + t, 40, p + (c === 'Fm' || c === 'Eb' ? 0 : 0), .8)))),
 };
 const HOLD = new Set(['UK Horn', 'Rave Hoover Bass']);
-const kindOf = pr => /^DnB drops/.test(pr.g) ? (HOLD.has(pr.n) ? 'Hold' : 'Roll') : pr.g.split('·').pop().trim();
-const PACK = process.env.PACK === 'drops' ? SP.DNB_DROPS : SP.DNB_PACK;
+const HELD3 = new Set(['Eighth Chopper', 'Triplet Roll', 'Sixteenth Stutter', 'Classic Wobble', 'Scream Roller', 'Big Little']);
+const kindOf = pr => SP.DNB_DROPS3.includes(pr) ? (HELD3.has(pr.n) ? 'Held' : 'Eighths') : /^DnB drops/.test(pr.g) ? (HOLD.has(pr.n) ? 'Hold' : 'Roll') : pr.g.split('·').pop().trim();
+const PACK = process.env.PACK === 'drops3' ? SP.DNB_DROPS3 : process.env.PACK === 'drops' ? SP.DNB_DROPS : SP.DNB_PACK;
 function drums() { const k = [], s = [], h = []; for (let b = 2; b < 4; b++) { const t = b * BAR; k.push(n(t, 24, 0, .95), n(t + 240, 24, 0, .85)); s.push(n(t + B, 24, 0, .9), n(t + 3 * B, 24, 0, .9));
   for (let i = 0; i < 8; i++) h.push(n(t + i * 48, 12, 0, i % 2 ? .45 : .7)); } return [k, s, h]; }
 function project(pr, withDrums = true) {

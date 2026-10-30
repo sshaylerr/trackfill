@@ -375,14 +375,66 @@ const DNB_DROPS = [
     mods: [synMod('Velocity', 'fen', .2), synMod('Macro 1', 'cut', .3), synMod('Macro 2', 'res', .25)],
     fx: [FXS('Distortion', 'Overdrive', { Drive: .3, Tone: .6, 'Low cut': .45, Output: .76 }), SQUASH(.45), WIDE_TOP] },
 ];
-for (const pr of [...DNB_PACK, ...DNB_DROPS]) { const e = pr.eng || 'analog'; if (e === 'analog') delete pr.eng;
+/* ----- Drum & bass drop basses (batch 3, on trial): shaped with drawn LFOs. Two kinds:
+   per-note (an LFO in One-shot mode draws each note's pluck, so a line of 1/8s bounces), and held (a looping LFO synced to the song
+   chops one held note into 1/8s, triplets or 1/16s). Underneath: the clean sine of the drop basses above, untouched by the movement,
+   because the shapes move the oscillators' levels and the filter, not the amp. ----- */
+const PLUCK = (t, c = -.65) => [{ x: 0, y: 1, c }, { x: t, y: 0, c: 0 }, { x: .99, y: 0, c: 0 }];   // up at the note, down by t of the cycle
+const DROP = (t, c = -.7) => [{ x: 0, y: 1, c }, { x: t, y: .5, c: 0 }, { x: .99, y: .5, c: 0 }];   // for pitch: from above, settling on zero
+const CHOPS = (hs, dec = .7, c = -.5) => hs.flatMap((h, i) => [{ x: i / hs.length, y: h, c }, { x: (i + dec) / hs.length, y: 0, c: 0 }]);   // one hit per step
+const HIT_AT = (hits, dec = .2, c = -.5) => hits.flatMap(([x, h]) => [{ x, y: h, c }, { x: x + dec, y: 0, c: 0 }]);
+const EIGHTH_ATK = { o2w: 'Square', o2o: 0, o2l: 0, '3a': .0005, '3d': .04, '3s': 0, '3r': .02 };
+const BODY = { o1o: -1, sbl: .85, spl: .05, flt: 'Ladder', res: .2, drv: .25, key: .3, aa: .001, ad: 1, as: 1, ar: .03 };
+const DNB_DROPS3 = [
+  // ----- per note: play a line of 1/8s -----
+  { n: 'Saw Bite', g: 'DnB drops', voice: 'mono', glide: 0, p: { ...BODY, ...EIGHTH_ATK, cut: 600, l1d: '1/8', l1m: 'One-shot' },
+    lfo: [PLUCK(.85)], mods: [synMod('LFO 1', 'cut', .2), ...KICK_IN, synMod('Macro 1', 'cut', .25), synMod('Macro 2', 'res', .3)],
+    fx: [BASS_SAT(.35), SQUASH(.4), FXS('Chorus', 'Wide', { Mode: '1', Mix: .25 }), MONO_LOW] },
+  { n: 'Fifth Thump', g: 'DnB drops', voice: 'mono', glide: 0, p: { ...BODY, o1w: 'Square', o2w: 'Saw', o2o: -1, o2s: 7, o2l: .35, cut: 500, l1d: '1/8', l1m: 'One-shot' },
+    lfo: [PLUCK(.6)], mods: [synMod('LFO 1', 'cut', .2), synMod('Macro 1', 'cut', .25), synMod('Macro 2', 'o2l', .3)],
+    fx: [FXS('Saturation', 'Tape', { Drive: .45, Tone: .6 }), MONO_LOW] },
+  { n: 'Sync Zap', g: 'DnB drops', eng: 'wt', voice: 'mono', glide: 0, wt: { a: 'w:Basic Shapes', b: 'w:Basic Shapes' },
+    p: { ...BODY, wap: .66, wao: -1, wal: .8, waw: 'Sync', wax: .3, cut: 2500, l1d: '1/8', l1m: 'One-shot' },
+    lfo: [PLUCK(.5)], mods: [synMod('LFO 1', 'wax', .35), synMod('LFO 1', 'cut', .1), synMod('Macro 1', 'wax', .3), synMod('Macro 2', 'cut', .25)],
+    fx: [BASS_SAT(.3), SQUASH(.4), MONO_LOW] },
+  { n: 'Pitch Stab Bass', g: 'DnB drops', voice: 'mono', glide: 0, p: { ...BODY, o3w: 'Square', o3o: -1, o3l: .4, cut: 700, l1d: '1/8', l1m: 'One-shot', l2d: '1/16', l2m: 'One-shot' },
+    lfo: [PLUCK(.7), DROP(.9)], mods: [synMod('LFO 1', 'cut', .2), synMod('LFO 2', 'pit', .1), synMod('Macro 1', 'cut', .25), synMod('Macro 2', 'pit', .05, 0, 'LFO 2')],
+    fx: [FXS('Chorus', 'Classic', { Rate: .5, Depth: .4, Mix: .3 }), BASS_SAT(.3), MONO_LOW] },
+  { n: 'Fold Pluck', g: 'DnB drops', eng: 'fm', voice: 'mono', glide: 0,
+    p: { alg: 'Two pairs', f1m: 'Fold', f1t: .25, f1c: 0, f1s: 1, f1r: .04, f2c: 0, f2l: .25, f2s: 1, f2r: .04, sbl: .85, spl: .05, flt: 'Off', aa: .001, ad: 2, as: 1, ar: .03, l1d: '1/8', l1m: 'One-shot' },
+    lfo: [PLUCK(.6)], mods: [synMod('LFO 1', 'f1t', .25), synMod('Macro 1', 'f1t', .3), synMod('Macro 2', 'f2l', .3)],
+    fx: [BASS_SAT(.25), SQUASH(.4), MONO_LOW] },
+  { n: 'Vowel Bite', g: 'DnB drops', voice: 'mono', glide: 0, p: { ...BODY, o2w: 'Square', o2o: -1, o2f: -6, o2l: .5, flt: 'Formant', cut: 1000, res: .3, key: 0, shp: .5, l1d: '1/8', l1m: 'One-shot' },
+    lfo: [[{ x: 0, y: .15, c: .4 }, { x: .7, y: .8, c: 0 }, { x: .99, y: .8, c: 0 }]], mods: [synMod('LFO 1', 'shp', .2), synMod('Macro 1', 'cut', .2), synMod('Macro 2', 'shp', .2, 0, 'LFO 1')],
+    fx: [BASS_SAT(.3), SQUASH(.4), MONO_LOW] },
+  // ----- held: hold a note, the LFO plays the rhythm -----
+  { n: 'Eighth Chopper', g: 'DnB drops', voice: 'mono', glide: .02, p: { ...BODY, o1l: .4, o2o: -1, o2f: 10, o2l: .25, cut: 900, l1d: '1 bar' },
+    lfo: [CHOPS([1, .55, .8, .55, 1, .55, .8, .6], .7)], mods: [synMod('LFO 1', 'o1l', .4), synMod('LFO 1', 'o2l', .25), synMod('LFO 1', 'cut', .18), synMod('Macro 1', 'cut', .25)],
+    fx: [BASS_SAT(.35), SQUASH(.45), MONO_LOW] },
+  { n: 'Triplet Roll', g: 'DnB drops', voice: 'mono', glide: .02, p: { ...BODY, o1w: 'Square', o1l: .4, o2o: -1, o2l: .3, cut: 800, l1d: '1/4' },
+    lfo: [CHOPS([1, .65, .85], .75)], mods: [synMod('LFO 1', 'o1l', .4), synMod('LFO 1', 'o2l', .3), synMod('LFO 1', 'cut', .18), synMod('Macro 1', 'cut', .25)],
+    fx: [FXS('Saturation', 'Tape', { Drive: .45, Tone: .6 }), SQUASH(.35), MONO_LOW] },
+  { n: 'Sixteenth Stutter', g: 'DnB drops', voice: 'mono', glide: .02, p: { ...BODY, o1l: .4, o2w: 'Pulse', o2p: .3, o2o: -1, o2l: .3, cut: 1000, l1d: '1 bar' },
+    lfo: [CHOPS([1, .35, .6, .35, .9, .35, .6, .35, 1, .35, .6, .35, .9, .5, .75, .6], .6)], mods: [synMod('LFO 1', 'o1l', .4), synMod('LFO 1', 'o2l', .3), synMod('LFO 1', 'cut', .22), synMod('Macro 1', 'cut', .25)],
+    fx: [FXS('Distortion', 'Distortion', { Drive: .3, Tone: .65, Hardness: .5, 'Low cut': .45, Output: .78 }), SQUASH(.5), MONO_LOW] },
+  { n: 'Classic Wobble', g: 'DnB drops', voice: 'mono', glide: .02, p: { ...BODY, o2w: 'Square', o2o: -1, o2l: .5, cut: 500, res: .35, drv: .35, l1d: '1/4' },
+    lfo: [LFO_SHAPES.Triangle], mods: [synMod('LFO 1', 'cut', .28), synMod('LFO 1', 'drv', .2), synMod('Macro 1', 'l1d', .1), synMod('Macro 2', 'res', .25)],
+    fx: [BASS_SAT(.45), SQUASH(.4), MONO_LOW] },
+  { n: 'Scream Roller', g: 'DnB drops', voice: 'mono', glide: .02, p: { ...BODY, o2w: 'Pulse', o2p: .35, o2o: -1, o2l: .5, flt: 'Screamer', cut: 900, res: .5, drv: .35, shp: .1, l1d: '1/16' },
+    lfo: [LFO_SHAPES.Triangle], mods: [synMod('LFO 1', 'cut', .15), synMod('Macro 1', 'cut', .25), synMod('Macro 2', 'res', .2)],
+    fx: [BASS_SAT(.3), SQUASH(.45), MONO_LOW] },
+  { n: 'Big Little', g: 'DnB drops', voice: 'mono', glide: .02, p: { ...BODY, o1l: .4, o2w: 'Square', o2o: -1, o2l: .3, cut: 800, l1d: '1/2' },
+    lfo: [HIT_AT([[0, 1], [.375, .55], [.75, .55]], .22)], mods: [synMod('LFO 1', 'o1l', .4), synMod('LFO 1', 'o2l', .3), synMod('LFO 1', 'cut', .2), synMod('Macro 1', 'cut', .25)],
+    fx: [BASS_SAT(.35), SQUASH(.4), MONO_LOW] },
+];
+for (const pr of [...DNB_PACK, ...DNB_DROPS, ...DNB_DROPS3]) { const e = pr.eng || 'analog'; if (e === 'analog') delete pr.eng;
   (e === 'fm' ? FM_PRESETS : e === 'wt' ? WT_PRESETS : SYN_PRESETS).push(e === 'fm' ? Object.assign(pr, { p: Object.assign({ flt: 'Off', aa: .001, ad: 2, as: 1, vel: .4 }, pr.p) }) : e === 'wt' ? Object.assign(pr, { p: Object.assign({ flt: 'Off' }, pr.p) }) : pr); }
 // output level per preset (dB), measured so every preset plays at about the same loudness
 // preset levels (dB on Level), measured by tests/levels.cjs: a held C3 at velocity 0.8 reaches about -18 LUFS (loudest 400 ms) and peaks
 // no higher than -6 dBFS; plucks and hits top out at +6. FX-engine sweeps are only held under the peak limit. Keyed engine:name.
 const SYN_LEVELS = {"analog:Ladder Bass":-6.5,"analog:Sub":-8.5,"analog:Reese":-4,"analog:Acid Line":-15.3,"analog:Chorus Bass":-6.5,"analog:Hoover Bass":-6.5,"analog:Wobble":-3.5,"analog:Rubber":-3.5,"analog:Sync Lead":-8,"analog:Supersaw":-9,"analog:Brass Lead":-6,"analog:80s Solo Lead":-8,"analog:Chip Square":-8.5,"analog:Trance Lead":-12.5,"analog:G-Funk Whistle":-9,"analog:Chorus Strings":-10,"analog:Warm Pad":-6.5,"analog:Dark Pad":-4.5,"analog:Sweep Pad":-7.5,"analog:Trance Pad":-10,"analog:Ambient Drift":-9,"analog:Pluck":6,"analog:Poly Stab":6,"analog:Brass Stab":0.5,"analog:80s Poly Keys":-1.5,"analog:Rave Stab":5.5,"analog:House Chord":2.5,"analog:Noise Sweep":-4,"analog:Laser Zap":3,"fm:E. Piano":-4,"fm:Glass Keys":-5,"fm:Clav":4,"fm:Drawbar Organ":-6.5,"fm:FM Pluck":5.5,"fm:Bells":-2.5,"fm:Marimba":5,"fm:Kalimba":3.5,"fm:Metallic Pluck":5,"fm:Lately Bass":-5,"fm:Folded Bass":-4,"fm:FM Sub":-7,"fm:Ring Bass":-1.5,"fm:Neuro Growl":-4.5,"fm:Reese FM":-2,"fm:Jump Up Wobble":-7.5,"fm:Foghorn":-2.5,"fm:Donk":5,"fm:Tech Stab":5.5,"fm:Ring Lead":-2.5,"fm:Digital Brass":-8,"fm:Chip Lead":-5.5,"fm:Filter-FM Snarl":-3.5,"fm:Glass Pad":-7.5,"fm:Breath Pad":-5.5,"fm:Dark Drone":-7.5,"fm:FM Kick":5.5,"fm:FM Snare":2.5,"fm:Metal Hit":4.5,"fm:FM Laser":3,"wt:Neuro Growl":-3.5,"wt:Riddim Wub":-7.5,"wt:Reese Table":-3.5,"wt:Hollow Bass":-2,"wt:Talking Bass":-3.5,"wt:Future Lead":-10,"wt:Digital Lead":-2.5,"wt:Sync Sweep":-5,"wt:Evolving Pad":-7,"wt:Vocal Pad":-5.5,"wt:Glass Pad":-7.5,"wt:Dark Drone":2,"wt:Future Bass Chords":-5,"wt:Wavetable Pluck":6,"wt:Bell Pluck":1.5,"wt:Riser Sweep":-7.5,"wt:Laser":5.5,"gr:Vox Cloud":-10.5,"gr:Frozen Piano":-4,"gr:Break Shimmer":1,"gr:Granular Pad":-0.5,"gr:Reverse Swell":3.5,"gr:Glitch Stutter":-2,"gr:Time Stretch":-10.5,"sub:Liquid Sine":-3,"sub:Clean DnB Sub":-3,"sub:Warm Sub":-3.5,"sub:Growl Sub":-6.5,"sub:Sub Layer":-3.5,"sub:808 Long":1.5,"sub:808 Punch":1,"sub:Trap Slide":0.5,"sub:Distorted 808":-1,"ins:House Piano":6,"ins:Grand Piano":6,"ins:Tine EP":2,"ins:Rave Organ":-4.5,"ins:Orch Hit":-2.5,"ins:Orch Hit Minor":-2.5,"ins:Orch Hit Major":-3,"ins:String Stab":1.5,"ins:Brass Stab":2,"ins:Choir Hit":-1.5,"ins:Timpani":1.6,"ins:Impact":1.7,"ins:Cymbal Swell":6,"ins:Strings":-2,"ins:Choir Aah":-1.5,"ins:String Machine":-2,"ins:Glass Pad":-4.5,"ins:Harp":5,"ins:Harp Gliss":-3,"ins:Vibes":1.5,"ins:Flute":-3.5,"ins:Synth Brass":-4.5,"ins:Finger Bass":4,"ins:Pick Bass":6,"ins:Muted Bass":6,"sfx:White Riser":0.5,"sfx:Pitch Riser":0,"sfx:Laser Riser":1,"sfx:Wobble Build":-1,"sfx:Stutter Build":0,"sfx:Small Riser":-1,"sfx:Downlifter":-0.1,"sfx:Pitch Drop":1,"sfx:Sub Drop":-2,"sfx:Boom":-3,"sfx:Impact":-2.5,"sfx:Crack":-0.9,"sfx:Splash":0.6,"sfx:Big Hit":-5.5,"sfx:Washout":-0.5,"sfx:White Out":-8,"sfx:Reverse Swell":-1.5,"sfx:Laser":0,"sfx:Zap":5.5,"sfx:Woop":3,"sfx:Woop Build":1,"sfx:Pew":2.5,"sfx:Siren":-0.5,"sfx:Dub Siren":-5,"sfx:Alarm":-0.5,"sfx:Wobble FX":-4,"sfx:Wind":0,"sfx:Drone Swell":-1.5};
 // the Drum & bass pack, measured the same way but through each preset's own effects: node tools/presets/preview.cjs --levels (and PACK=drops)
-Object.assign(SYN_LEVELS, {"analog:Wide Reese":-3,"analog:Rolling Reese":-3.5,"analog:Neuro Reese":-2,"wt:Talking Growl":-4.5,"analog:Jump Wub":-7.5,"analog:Euphoric Pad":1,"wt:Dark Atmos":6,"wt:Liquid Choir":-6.5,"analog:Liquid Pluck":6,"fm:Glass Pluck":5.5,"analog:Rave Pluck":2.5,"analog:Rave Hoover":-15.5,"analog:Anthem Saw Lead":-12.5,"analog:Anthem Stab":6,"fm:Jump Organ":0.5,"fm:Neuro Stab":6}, {"analog:Classic 8th":-3.5,"analog:Pulse 8th":-4,"analog:Bright 8th":-5.5,"analog:Screamer 8th":-5.5,"wt:Phase Saw 8th":-4,"wt:Bit Saw 8th":-5.5,"fm:UK Horn":-7.5,"fm:UK Roller":-5.5,"analog:Rave Hoover Bass":-4,"analog:Screamer Bass":-1.5});
+Object.assign(SYN_LEVELS, {"analog:Wide Reese":-3,"analog:Rolling Reese":-3.5,"analog:Neuro Reese":-2,"wt:Talking Growl":-4.5,"analog:Jump Wub":-7.5,"analog:Euphoric Pad":1,"wt:Dark Atmos":6,"wt:Liquid Choir":-6.5,"analog:Liquid Pluck":6,"fm:Glass Pluck":5.5,"analog:Rave Pluck":2.5,"analog:Rave Hoover":-15.5,"analog:Anthem Saw Lead":-12.5,"analog:Anthem Stab":6,"fm:Jump Organ":0.5,"fm:Neuro Stab":6}, {"analog:Classic 8th":-3.5,"analog:Pulse 8th":-4,"analog:Bright 8th":-5.5,"analog:Screamer 8th":-5.5,"wt:Phase Saw 8th":-4,"wt:Bit Saw 8th":-5.5,"fm:UK Horn":-7.5,"fm:UK Roller":-5.5,"analog:Rave Hoover Bass":-4,"analog:Screamer Bass":-1.5}, {"analog:Saw Bite":-2.5,"analog:Fifth Thump":-5,"wt:Sync Zap":-5,"analog:Pitch Stab Bass":-4.5,"fm:Fold Pluck":-6,"analog:Vowel Bite":-8,"analog:Eighth Chopper":-6,"analog:Triplet Roll":-6,"analog:Sixteenth Stutter":-2,"analog:Classic Wobble":-5,"analog:Scream Roller":-3.5,"analog:Big Little":-6});
 const SYN_INIT = { n: 'Init', g: 'Init', p: {}, mods: [] };
 // a new patch from a preset: physical values, routes, drawn LFOs (missing ones get a sine), macros
 function synPatch(pr) {
@@ -405,4 +457,4 @@ function normalizeSyn(s) {
   o.lfo = [0, 1, 2, 3].map(k => Array.isArray(s.lfo && s.lfo[k]) && s.lfo[k].length ? s.lfo[k].slice(0, 32).map(q => ({ x: Math.max(0, Math.min(1, +q.x || 0)), y: Math.max(0, Math.min(1, +q.y || 0)), c: Math.max(-.97, Math.min(.97, +q.c || 0)) })) : LFO_SHAPES.Sine.map(q => Object.assign({}, q)));
   return o;
 }
-if (typeof module !== 'undefined') module.exports = { DNB_DROPS, DNB_PACK, SFX_PRESETS, SYN_FX_INIT, IN_PRESETS, SYN_IN_INIT, SU_PRESETS, SYN_SU_INIT, GR_PRESETS, SYN_GR_INIT, WT_PRESETS, SYN_WT_INIT, FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };
+if (typeof module !== 'undefined') module.exports = { DNB_DROPS3, DNB_DROPS, DNB_PACK, SFX_PRESETS, SYN_FX_INIT, IN_PRESETS, SYN_IN_INIT, SU_PRESETS, SYN_SU_INIT, GR_PRESETS, SYN_GR_INIT, WT_PRESETS, SYN_WT_INIT, FM_PRESETS, SYN_FM_INIT, SYN_PRESETS, SYN_INIT, SYN_SRC, LFO_SHAPES, synPatch, normalizeSyn };
