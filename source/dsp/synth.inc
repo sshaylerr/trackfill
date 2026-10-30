@@ -114,8 +114,14 @@ EX i32 tf_syn_note(i32 pad, i32 delay, float semi, float vel, float gate, i32 ta
   // start phases: each oscillator's own setting, scattered per note (and per unison voice) by Random
   const float rph = P->p[SP_RPH]; auto st = [&](float base) { float x = base + (rph > 0.f ? rph * (frnd(&svRng) + 1.f) * 0.5f : 0.f); return x - floorf_(x); };
   const i32 PHO[3] = { SP_O1H, SP_O2H, SP_O3H }, PHW[2] = { SP_WA9, SP_WB9 }, PHF[4] = { SP_F1H, SP_F2H, SP_F3H, SP_F4H };
-  for (i32 o = 0; o < 3; o++) { for (i32 u = 0; u < MAXUNI; u++) v->ph[o][u] = st(P->p[PHO[o]]); v->dr[o] = v->drT[o] = 0.f; }
-  for (i32 o = 0; o < 2; o++) for (i32 u = 0; u < MAXUNI; u++) v->wph[o][u] = st(P->p[PHW[o]]);
+  // unison voices start at fixed offsets (every note starts the same), chosen so the stack sums like independent voices through the low harmonics:
+  // all in phase they add up to a burst on each note; evenly spread they cancel the fundamental
+  static const float UPH[8][7] = { { 0 }, { 0 }, { 0, 0.008f }, { 0, 0.5715f, 0.8571f }, { 0, 0.7692f, 0.9230f, 0.3076f }, { 0, 0.5541f, 0.3344f, 0.3304f, 0.4388f },
+    { 0, 0.1751f, 0.4117f, 0.4709f, 0.1777f, 0.0586f }, { 0, 0.5706f, 0.8060f, 0.6183f, 0.9046f, 0.6195f, 0.1435f } };
+  const i32 nU = (i32)spPhys(SP_UNI, P->p[SP_UNI]); const float* uph = UPH[nU < 1 ? 1 : nU > 7 ? 7 : nU];
+  auto us = [&](i32 u) { return uph[u]; };
+  for (i32 o = 0; o < 3; o++) { for (i32 u = 0; u < MAXUNI; u++) { float x = st(P->p[PHO[o]]) + us(u); v->ph[o][u] = x - floorf_(x); } v->dr[o] = v->drT[o] = 0.f; }
+  for (i32 o = 0; o < 2; o++) for (i32 u = 0; u < MAXUNI; u++) { float x = st(P->p[PHW[o]]) + us(u); v->wph[o][u] = x - floorf_(x); }
   for (i32 k = 0; k < 4; k++) for (i32 u = 0; u < MAXUNI; u++) v->fph[k][u] = st(P->p[PHF[k]]);
   { const i32 so = disc(P->p[SP_SBO], 3); v->sph = st(P->p[SP_O1H] * (so == 2 ? 0.25f : so == 1 ? 0.5f : 1.f)); }   // the sub runs 0, 1 or 2 octaves under osc 1: the same share of its phase keeps them lined up
   for (i32 k = 0; k < 4; k++) { v->lph[k] = P->p[SP_L1P + k * 6]; v->ldone[k] = 0; }
@@ -149,6 +155,35 @@ static inline float oscWave(i32 w, float ph, float dt, float pw) {
     case 3: pw = 0.5f; /* fall through */
     default: { float y = ph < pw ? 1.f : -1.f; y += blep(ph, dt); float t2 = ph - pw; if (t2 < 0) t2 += 1.f; y -= blep(t2, dt); return y; }
   }
+}
+
+/* ---------- band-limited saw and triangle tables: one per half-octave, each holding the harmonics that stay below SR − 20 kHz (anything above
+   Nyquist folds back above 20 kHz, out of hearing). Square and pulse are two saws a width apart, which also leaves them without DC. ---------- */
+enum { BLL = 2048, BLN = 21 };
+static float* blTab[2][BLN]; static i32 blReady = 0; static float blTop0 = 0.f, blSR = 0.f;
+static void blInit() {
+  if (blSR != SR) { blSR = SR; blTop0 = (1.f - 20000.f / SR) / 1023.f; }
+  if (blReady) return;
+  for (i32 w = 0; w < 2; w++) for (i32 b = 0; b < BLN; b++) { blTab[w][b] = (float*)tf_malloc((BLL + 1) * 4); if (!blTab[w][b]) return; }
+  blReady = 1;
+  i32 H[BLN]; for (i32 b = 0; b < BLN; b++) { double h = 1023.0; for (i32 k = 0; k < b; k++) h *= 0.70710678; H[b] = (i32)h < 1 ? 1 : (i32)h; }
+  for (i32 i = 0; i < BLL; i++) { const double x = 6.283185307179586 * i / BLL; double c1, s1; { float cf, sf; sf = fsin((float)x); cf = fsin((float)x + 1.5707963f); s1 = sf; c1 = cf; const double nr = 1.0 / __builtin_sqrt(s1 * s1 + c1 * c1); s1 *= nr; c1 *= nr; }
+    double sk = 0, ck = 1, saw = 0, tri = 0; i32 b = BLN - 1;
+    for (i32 k = 1; k <= 1023; k++) { const double ns = sk * c1 + ck * s1, nc = ck * c1 - sk * s1; sk = ns; ck = nc;
+      saw -= sk / k; if (k & 1) tri -= ck / ((double)k * k);
+      while (b >= 0 && H[b] == k) { blTab[0][b][i] = (float)(saw * 0.63661977); blTab[1][b][i] = (float)(tri * 0.81056947); b--; } }
+    while (b >= 0) { blTab[0][b][i] = (float)(saw * 0.63661977); blTab[1][b][i] = (float)(tri * 0.81056947); b--; } }
+  for (i32 w = 0; w < 2; w++) for (i32 b = 0; b < BLN; b++) blTab[w][b][BLL] = blTab[w][b][0];
+}
+static inline i32 blBand(float inc) {   // the smallest band whose top reaches inc (2·log2 from the float's bits)
+  float r = inc / blTop0; if (r <= 1.f) return 0; union { float f; u32 u; } q; q.f = r; const i32 e = (i32)((q.u >> 23) & 255) - 127; q.u = (q.u & 0x7fffff) | 0x3f800000u;
+  const i32 b = 2 * e + (q.f == 1.f ? 0 : q.f <= 1.41421356f ? 1 : 2); return b < BLN ? b : BLN - 1; }
+static inline float blRead(const float* t, float ph) { const float p = ph * BLL; const i32 i = (i32)p; const float f = p - i; return t[i] + (t[i + 1] - t[i]) * f; }
+static inline const float* blFor(i32 w, float dt) { return blReady && w >= 1 ? blTab[w == 1][blBand(dt)] : 0; }   // once per block per oscillator
+static inline float oscBL(i32 w, float ph, const float* t, float pw) {
+  if (!t) return w == 0 ? fsin(6.28318531f * ph) : oscWave(w, ph, 0.01f, pw);
+  if (w <= 2) return blRead(t, ph);
+  if (w == 3) pw = 0.5f; float q = ph - pw; if (q < 0.f) q += 1.f; return blRead(t, q) - blRead(t, ph);
 }
 
 /* ---------- FM operator waves: tables (1024 points), band-limited ones mip-mapped by octave ---------- */
@@ -236,9 +271,28 @@ static void envStep(SVoice* v, i32 e, const float* m, float dt, i32 base) {
 /* ---------- per-voice filter ---------- */
 // ladder resonance: knob → feedback (4 rings on its own); a curve so the knob's middle sounds like the middle
 #define LADDER_K(r) (3.8f * __builtin_sqrtf(r) * __builtin_sqrtf(__builtin_sqrtf(r)))   // 3.8 · r^0.75
+static float fltGa = 0.f, fltGb = 0.f;   // per block: the second notch, and the phaser's lower and upper stages
+static inline float svfStep(float x, float g, float k, float* s1, float* s2, float* bp) {   // one state-variable step: returns low-pass, band-pass through bp
+  const float a1 = 1.f / (1.f + g * (g + k)), a2 = g * a1, a3 = g * a2, v3 = x - *s2, v1 = a1 * *s1 + a2 * v3, v2 = *s2 + a2 * *s1 + a3 * v3; *s1 = 2.f * v1 - *s1; *s2 = 2.f * v2 - *s2; *bp = v1; return v2; }
+static inline float morph3(float lp, float bp, float hp, float shp) { return shp < 0.5f ? lp + (bp - lp) * shp * 2.f : bp + (hp - bp) * (shp - 0.5f) * 2.f; }
 static inline float flt1(SVoice* v, i32 c, i32 type, float x, float g, float res, float shp, float dg, float fc) {
   float* z = v->fz[c];
+  if (type == 1 || type >= 5) { if (dg > 1.01f) x = fsat(x * dg); }   // clean, formant, comb, notch, phaser: drive is a soft clip before the filter (none at 0)
   switch (type) {
+    case 7: { // Clean 24: two state-variable stages (Butterworth at no resonance, the peak on the second); Shape morphs low-pass → band-pass → high-pass
+      const float k2 = 0.765f - 0.755f * __builtin_sqrtf(res) * __builtin_sqrtf(__builtin_sqrtf(res)); float b1, b2;
+      const float l1 = svfStep(x, g, 1.848f, &z[0], &z[1], &b1), y1 = morph3(l1, b1 * 1.848f, x - 1.848f * b1 - l1, shp);
+      const float l2 = svfStep(y1, g, k2, &z[2], &z[3], &b2); return morph3(l2, b2 * 0.765f, y1 - k2 * b2 - l2, shp); }
+    case 8: { // Notch: two notches, Shape pulls them apart (up to an octave either side), Resonance narrows them
+      const float k = 1.6f * (1.f - 0.9f * res); float b1, b2;
+      const float g1 = shp > 0.001f ? fltGa : g, g2 = shp > 0.001f ? fltGb : g;
+      const float l1 = svfStep(x, g1, k, &z[0], &z[1], &b1), y1 = x - k * b1;
+      svfStep(y1, g2, k, &z[2], &z[3], &b2); return y1 - k * b2; (void)l1; }
+    case 9: { // Phaser: two all-pass stages either side of the cutoff mixed with the dry signal: a peak at the cutoff with a notch each side; Resonance feeds back, Shape spreads them
+      const float in = x + fsat(v->fhp[c]) * res * 0.9f; float b, y = in;
+      svfStep(y, fltGa, 1.2f, &z[0], &z[1], &b); y -= 2.4f * b;
+      svfStep(y, fltGb, 1.2f, &z[2], &z[3], &b); y -= 2.4f * b;
+      v->fhp[c] = y; return (x + y) * 0.5f; }
     case 1: { // Clean: 12 dB state-variable, Shape morphs low-pass → band-pass → high-pass
       float k = 2.f - 1.96f * res, a1 = 1.f / (1.f + g * (g + k)), a2 = g * a1, a3 = g * a2;
       float v3 = x - z[1], v1 = a1 * z[0] + a2 * v3, v2 = z[1] + a2 * z[0] + a3 * v3; z[0] = 2.f * v1 - z[0]; z[1] = 2.f * v2 - z[1];
@@ -251,16 +305,16 @@ static inline float flt1(SVoice* v, i32 c, i32 type, float x, float g, float res
       for (i32 i = 0; i < 4; i++) { const float vv = (u - z[i]) * G; y[i] = vv + z[i]; z[i] = y[i] + vv; u = y[i]; }
       return (y[3] + (y[1] - y[3]) * shp) * (1.f + k * 0.35f); }
     case 3: { // Diode (303-like); Shape: squelch
-      float gg = g / (1.f + g), kq = res * minf(4.2f, 3.9f + 2.f * gg) * (type == 3 ? 0.9f : 1.f), fbs = z[3];
+      float gg = g / (1.f + g), kq = res * minf(4.2f, 3.9f + 2.f * gg) * (type == 3 ? 2.7f : 1.12f), fbs = z[3];
       if (type == 3) { v->fhp[c] += (fbs - v->fhp[c]) * (0.01f + 0.2f * shp); fbs -= v->fhp[c]; }
       float in = fsat(x * dg - kq * fbs);
       // one saturator at the input (where the feedback meets the signal) keeps the character at a fraction of the cost of saturating every stage
-      if (type == 3) { z[0] += gg * (in - z[0] + 0.4f * z[1]); z[1] += gg * (z[0] - z[1] + 0.4f * z[2]); z[2] += gg * (z[1] - z[2] + 0.4f * z[3]); z[3] += gg * (z[2] - z[3]); z[0] = fsat(z[0]); return (0.65f * z[2] + 0.55f * z[3]) * (1.f + kq * 0.2f); }
+      if (type == 3) { z[0] += gg * (in - 1.4f * z[0] + 0.4f * z[1]); z[1] += gg * (z[0] - 1.4f * z[1] + 0.4f * z[2]); z[2] += gg * (z[1] - 1.4f * z[2] + 0.4f * z[3]); z[3] += gg * (z[2] - z[3]); z[0] = fsat(z[0]);   /* each stage loads the next (a coupled ladder, unity gain at DC) */ return (0.65f * z[2] + 0.55f * z[3]) * (1.6f + kq * 0.2f); }
       z[0] += gg * (in - z[0]); z[1] += gg * (z[0] - z[1]); z[2] += gg * (z[1] - z[2]); z[3] += gg * (z[2] - z[3]);
       return (z[3] + (z[1] - z[3]) * shp) * (1.f + kq * 0.2f); }
     case 4: { // Screamer (MS-20-like): resonance through a clipper; Shape: low-pass ↔ high-pass
-      float k = 2.f - 1.9f * res, a1 = 1.f / (1.f + g * (g + k)), a2 = g * a1, a3 = g * a2, in = x * dg;
-      float v3 = in - z[1], v1 = a1 * z[0] + a2 * v3, v2 = z[1] + a2 * z[0] + a3 * v3; z[0] = 1.3f * fsat((2.f * v1 - z[0]) / 1.3f); z[1] = 2.f * v2 - z[1];
+      float k = 2.f - 1.99f * __builtin_sqrtf(res) * __builtin_sqrtf(__builtin_sqrtf(res)), a1 = 1.f / (1.f + g * (g + k)), a2 = g * a1, a3 = g * a2, in = dg > 1.01f ? fsat(x * dg) : x;
+      float v3 = in - z[1], v1 = a1 * z[0] + a2 * v3, v2 = z[1] + a2 * z[0] + a3 * v3; z[0] = 3.5f * fsat((2.f * v1 - z[0]) * 0.2857f); z[1] = 2.f * v2 - z[1];
       float lp = v2, hp = in - k * v1 - lp; return (lp + (hp - lp) * shp) * 0.8f; }
     case 5: { // Formant: three vowel resonances; Shape picks the vowel (a e i o u), cutoff shifts them
       static const float FT[5][3] = { { 800, 1150, 2900 }, { 350, 2000, 2800 }, { 270, 2140, 2950 }, { 450, 800, 2830 }, { 325, 700, 2700 } };
@@ -268,7 +322,7 @@ static inline float flt1(SVoice* v, i32 c, i32 type, float x, float g, float res
       for (i32 k2 = 0; k2 < 3; k2++) { float fq = clampf((FT[vi][k2] + (FT[vi + 1][k2] - FT[vi][k2]) * vf) * sh, 40.f, 0.42f * SR), gk = ftan(3.14159265f * fq / SR), kk = 1.f / Q;
         float a1 = 1.f / (1.f + gk * (gk + kk)), a2 = gk * a1, a3 = gk * a2, *s = k2 == 0 ? &z[0] : k2 == 1 ? &v->fs1[c] : &v->fs2[c], *s2 = k2 == 0 ? &z[1] : k2 == 1 ? &z[2] : &z[3];
         float v3 = x - *s2, v1 = a1 * *s + a2 * v3, v2 = *s2 + a2 * *s + a3 * v3; *s = 2.f * v1 - *s; *s2 = 2.f * v2 - *s2; y += v1 * (k2 == 0 ? 1.f : k2 == 1 ? .5f : .25f); }
-      return y * 1.6f; }
+      return y * 0.95f * 1.7320508f / __builtin_sqrtf(Q); }   // a resonance's peak grows with Q: only by its square root here, so sharp vowels don't jump out
     case 6: { // Comb: tuned to the cutoff, Resonance = feedback (Shape flips it negative for hollow tones)
       float dl = clampf(SR / fc, 2.f, (float)(CMB - 4)), rp = (float)v->cw - dl; if (rp < 0) rp += CMB; i32 i0 = (i32)rp; float fr = rp - i0; i32 i1 = (i0 + 1) & (CMB - 1); i0 &= CMB - 1;
       float d = v->cmb[c][i0] + (v->cmb[c][i1] - v->cmb[c][i0]) * fr, fbk = res * 0.97f * (shp > 0.5f ? -1.f : 1.f);
@@ -309,7 +363,8 @@ static void renderSynth(i32 n) {
       v->lv[k] = x; float sm = m[b + 4]; v->ls[k] = sm > 0.001f ? v->ls[k] + (x - v->ls[k]) * (1.f - fexp(-dt / (0.0005f + sm * sm * 0.5f))) : x; }
     if (disc(m[SP_O3X], 2)) { v->ph[2][0] += spPhys(SP_O3R, m[SP_O3R]) * dt; v->ph[2][0] -= floorf_(v->ph[2][0]); o3 = oscWave(disc(m[SP_O3W], 5), v->ph[2][0], 0.001f, m[SP_O3P] * .9f + .05f); }
     // envelopes
-    envStep(v, 0, m, dt, SP_AA); if ((P->srcUsed & 2u) || fabsf_(m[SP_FEN] - 0.5f) > 0.001f) envStep(v, 1, m, dt, SP_2A); if (P->srcUsed & 4u) envStep(v, 2, m, dt, SP_3A);
+    float eK[4]; { const float dq = (float)(n - v->dly) / SR * 0.25f; for (i32 k = 0; k < 4; k++) { envStep(v, 0, m, dq, SP_AA); eK[k] = v->ev[0]; } }   // the amp envelope in quarter blocks (fast attacks stay fast)
+    if ((P->srcUsed & 2u) || fabsf_(m[SP_FEN] - 0.5f) > 0.001f) envStep(v, 1, m, dt, SP_2A); if (P->srcUsed & 4u) envStep(v, 2, m, dt, SP_3A);
     if (v->st[0] == 5 && v->ev[0] <= 0.f && !v->xhit) { v->on = 0; continue; }   // (a ringing hit keeps an FX voice alive)
     // modulation: base parameters plus every route (curve, via), clamped to range
     if (P->nr) for (i32 i = 0; i < NSP; i++) m[i] = P->p[i]; else __builtin_memcpy(m, P->p, sizeof(float) * NSP);
@@ -325,6 +380,7 @@ static void renderSynth(i32 n) {
     const float f0 = 130.8128f * fexp((v->semi + chBendS[v->pad] + v->dr[0] * drift * 0.12f) * 0.0577622650f);
     // oscillators
     i32 W[3]; float inc[3], lvl[3], pw[3]; i32 nOn = 0;
+    blInit();
     for (i32 o = 0; o < 3; o++) { i32 b = o == 0 ? SP_O1W : o == 1 ? SP_O2W : SP_O3W; W[o] = disc(m[b], 5);
       float semis = spPhys(b + 1, m[b + 1]) * 12.f + spPhys(b + 2, m[b + 2]) + spPhys(b + 3, m[b + 3]) * 0.01f + v->dr[o] * drift * 0.1f;
       inc[o] = clampf(f0 * fexp(semis * 0.0577622650f) / SR, 0.f, 0.45f); lvl[o] = m[b + 4]; pw[o] = spPhys(b + 5, m[b + 5]);
@@ -450,14 +506,18 @@ static void renderSynth(i32 n) {
     float dm[MAXUNI], panL[MAXUNI], panR[MAXUNI];
     for (i32 u = 0; u < U; u++) { float x = U > 1 ? (2.f * u / (U - 1) - 1.f) : 0.f; dm[u] = fexp(x * det * det * 0.6f * 0.0577622650f * (1.f + 0.4f * fabsf_(x)));   // JP-style: outer voices spread further
       float pn = x * spr; panL[u] = sqrtf_(0.5f * (1.f - pn)) * 1.41421356f * ug; panR[u] = sqrtf_(0.5f * (1.f + pn)) * 1.41421356f * ug; }
+    const float* bt[MAXUNI][3]; if (nOn) for (i32 u = 0; u < U; u++) for (i32 o = 0; o < 3; o++) bt[u][o] = blFor(W[o], inc[o] * dm[u]);
     const i32 stereo = (spr > 0.001f && !isSU && !isIN && !isX) || isGR || (isSU && suW) || (isIN && iW) || isX;
     // filter
-    const i32 ftype = isX ? 0 : disc(m[SP_FLT], 7);   // the FX engine has its own filters
+    const i32 ftype = isX ? 0 : disc(m[SP_FLT], 10);   // the FX engine has its own filters
     float fc = spPhys(SP_CUT, m[SP_CUT]) * fexp((m[SP_KEY] * v->semi / 12.f + linmap(m[SP_FEN], -1, 1) * 5.f * v->ev[1]) * 0.693147181f);
     fc = clampf(fc, 20.f, 0.42f * SR);
     const i32 fOpen = ftype == 1 && fc >= 18000.f && m[SP_RES] < 0.05f && m[SP_DRV] < 0.001f;   // a clean filter wide open does nothing you can hear: skipped
     if (fOpen && v->fz[0][0] != 0.f) zero(v->fz, sizeof(v->fz)); const float fg = ftan(3.14159265f * fc / SR), res = m[SP_RES], shp = m[SP_SHP], fdg = isX ? 1.f : 1.f + m[SP_DRV] * m[SP_DRV] * 15.f, fmk = 1.f / (1.f + m[SP_DRV] * 1.5f);
+    const float fmkT = 1.f / (1.f + m[SP_DRV] * 1.5f * (ftype == 2 ? 2.2f : ftype == 3 ? 1.8f : ftype == 5 ? 0.4f : 1.f));   // each model's own loudness as it is driven
     if (ftype == 6 && v->cw < 0) v->cw = 0;
+    if (ftype == 8 && shp > 0.001f) { const float r = fexp(shp * 0.69314718f); fltGa = ftan(3.14159265f * minf(fc / r, 0.45f * SR) / SR); fltGb = ftan(3.14159265f * minf(fc * r, 0.45f * SR) / SR); }
+    if (ftype == 9) { const float r = fexp((0.35f + shp * 1.2f) * 0.69314718f); fltGa = ftan(3.14159265f * minf(fc / r, 0.45f * SR) / SR); fltGb = ftan(3.14159265f * minf(fc * r, 0.45f * SR) / SR); }
     const float fbk = isX ? 0.f : m[SP_FBK] * 0.9f;
     // sub split (key-tracked LR4 high-pass on the engine) and the sub's matching all-pass
     const float spl = m[SP_SPL]; const i32 splitOn = !isX && spl > 0.001f && (spPhys(SP_SPN, m[SP_SPN]) >= 96.f || 48.f + v->semi < spPhys(SP_SPN, m[SP_SPN]));
@@ -473,11 +533,14 @@ static void renderSynth(i32 n) {
       bodyInc = f0 * (disc(m[SP_NZO], 3) == 0 ? 1.f : disc(m[SP_NZO], 3) == 1 ? 0.5f : 0.25f) / SR; }
     // amp
     const float velA = 1.f - m[SP_VEL] + m[SP_VEL] * v->vel, gain = spPhys(SP_GAN, m[SP_GAN]) * velA * 0.5f;
-    const float a0 = v->ampPrev, a1 = v->ev[0] * v->ev[0] * gain; v->ampPrev = a1; const float da = (a1 - a0) / n;
     const i32 chans = stereo ? 2 : 1;
     const i32 i0 = v->dly; v->dly = 0;
+    float ampS[MAXN]; { float a = v->ampPrev; i32 p = i0;
+      for (i32 k = 0; k < 4; k++) { const i32 q = i0 + (n - i0) * (k + 1) / 4; const float b = eK[k] * eK[k] * gain, d = q > p ? (b - a) / (q - p) : 0.f;
+        for (i32 j = p; j < q; j++) ampS[j] = a + d * (j - p + 1); a = b; p = q; }
+      v->ampPrev = a; }
     for (i32 i = i0; i < n; i++) {
-      float amp = a0 + da * (i + 1), sL = 0, sR = 0, suLow = 0;
+      float amp = ampS[i], sL = 0, sR = 0, suLow = 0;
       if (isSU) {   // the fundamental (pure, mono, exactly its level); harmonics and shape added exactly; drive adds only what it creates, high-passed at the crossover
         const float* sn = fmTab[0][0], ph = v->suph, s1 = fmLook(sn, ph); float hx[2] = { 0, 0 };
         for (i32 k = 2; k <= hN; k++) { if (hA[k] == 0.f) continue; float q = ph * k; q -= floorf_(q); hx[0] += hA[k] * fmLook(sn, q);
@@ -569,22 +632,22 @@ static void renderSynth(i32 n) {
       else if (nOn) for (i32 u = 0; u < U; u++) {
         float x = 0;
         // osc 2 first (it can modulate osc 1)
-        float o2 = 0, ph1 = v->ph[0][u], i1 = inc[0] * dm[u], i2 = inc[1] * dm[u];
-        if (lvl[1] > 0.0005f || fm > 0.0005f || sync) { float p2 = v->ph[1][u]; o2 = oscWave(W[1], p2, i2, pw[1]); p2 += i2;
+        float o2 = 0, ph1 = v->ph[0][u], i1 = inc[0] * dm[u], i2 = inc[1] * dm[u]; const float* const* tb = bt[u];
+        if (lvl[1] > 0.0005f || fm > 0.0005f || sync) { float p2 = v->ph[1][u]; o2 = oscBL(W[1], p2, tb[1], pw[1]); p2 += i2;
           if (sync) { float pp = ph1 + i1; if (pp >= 1.f) p2 = (pp - 1.f) / i1 * i2; }   // hard sync: restart with osc 1
           v->ph[1][u] = p2 - floorf_(p2); }
         if (lvl[0] > 0.0005f) { float pm = ph1; if (fm > 0.0005f) { pm += fm * fm * 1.5f * o2; pm -= floorf_(pm); }
-          x += oscWave(W[0], pm, i1, pw[0]) * lvl[0]; }
+          x += oscBL(W[0], pm, tb[0], pw[0]) * lvl[0]; }
         ph1 += i1; v->ph[0][u] = ph1 - floorf_(ph1);
         x += o2 * lvl[1];
-        if (lvl[2] > 0.0005f) { float p3 = v->ph[2][u], i3 = inc[2] * dm[u]; x += oscWave(W[2], p3, i3, pw[2]) * lvl[2]; p3 += i3; v->ph[2][u] = p3 - floorf_(p3); }
+        if (lvl[2] > 0.0005f) { float p3 = v->ph[2][u], i3 = inc[2] * dm[u]; x += oscBL(W[2], p3, tb[2], pw[2]) * lvl[2]; p3 += i3; v->ph[2][u] = p3 - floorf_(p3); }
         sL += x * panL[u]; sR += x * panR[u];
       }
       float io[2] = { stereo ? sL : (sL + sR) * 0.5f, sR };
       for (i32 c = 0; c < chans; c++) { float x = io[c] + fbk * fsat(v->fb[c] * 1.5f);
         if (splitOn) { float* h1 = v->hp1[c]; float y = hb[0] * x + h1[0]; h1[0] = hb[1] * x - hb[3] * y + h1[1]; h1[1] = hb[2] * x - hb[4] * y;
           float* h2 = v->hp2[c]; float y2 = hb[0] * y + h2[0]; h2[0] = hb[1] * y - hb[3] * y2 + h2[1]; h2[1] = hb[2] * y - hb[4] * y2; x = y2; }
-        if (ftype > 0 && !fOpen) x = flt1(v, c, ftype, x, fg, res, shp, fdg, fc) * fmk; else if (fdg > 1.01f) x = fsat(x * fdg) * fmk;
+        if (ftype > 0 && !fOpen) x = flt1(v, c, ftype, x, fg, res, shp, fdg, fc) * fmkT; else if (fdg > 1.01f) x = fsat(x * fdg) * fmk;
         v->fb[c] = x; io[c] = x; }
       if (ftype == 6) v->cw = (v->cw + 1) & (CMB - 1);
       if (!stereo) io[1] = io[0];

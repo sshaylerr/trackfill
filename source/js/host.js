@@ -55,7 +55,7 @@ const TFSYN = (() => {
     ['spl', 'Split', 'lin', 0, 1, 0, 'sb'], ['spn', 'Split below', 'int', 24, 96, 96, 'sb']);
   L.push(['nzn', 'Noise', 'lin', 0, 1, .7, 'nz'], ['nzt', 'Tone', 'lin', 0, 1, .6, 'nz'], ['nzb', 'Body', 'lin', 0, 1, .5, 'nz'], ['nzd', 'Drive', 'lin', 0, 1, .4, 'nz'],
     ['nzh', 'High-pass', 'exp', 100, 12000, 1500, 'nz'], ['nzl', 'Level', 'lin', 0, 1, 0, 'nz'], ['nzo', 'Body oct', 'opt', ['0', '−1 oct', '−2 oct'], 0, '−1 oct', 'nz'], ['nzk', 'Track', 'opt', ['Off', 'On'], 0, 'Off', 'nz']);
-  L.push(['flt', 'Filter', 'opt', ['Off', 'Clean', 'Ladder', 'Diode', 'Screamer', 'Formant', 'Comb'], 0, 'Ladder', 'fl'], ['cut', 'Cutoff', 'exp', 20, 20000, 6000, 'fl'], ['res', 'Resonance', 'lin', 0, 1, .15, 'fl'],
+  L.push(['flt', 'Filter', 'opt', ['Off', 'Clean', 'Ladder', 'Diode', 'Screamer', 'Formant', 'Comb', 'Clean 24', 'Notch', 'Phaser'], 0, 'Ladder', 'fl'], ['cut', 'Cutoff', 'exp', 20, 20000, 6000, 'fl'], ['res', 'Resonance', 'lin', 0, 1, .15, 'fl'],
     ['drv', 'Drive', 'lin', 0, 1, 0, 'fl'], ['fen', 'Env 2', 'bip', -1, 1, 0, 'fl'], ['key', 'Key track', 'lin', 0, 1, .3, 'fl'], ['shp', 'Shape', 'lin', 0, 1, 0, 'fl']);
   for (const [e, n, dA, dD, dS, dR] of [['a', 'Amp', .002, .4, 1, .25], ['2', 'Env 2', .002, .35, 0, .3], ['3', 'Env 3', .002, .5, 0, .5]])
     L.push([e + 'a', 'Attack', 'exp', .0005, 10, dA, 'e' + e], [e + 'd', 'Decay', 'exp', .005, 10, dD, 'e' + e], [e + 's', 'Sustain', 'lin', 0, 1, dS, 'e' + e], [e + 'r', 'Release', 'exp', .005, 15, dR, 'e' + e],

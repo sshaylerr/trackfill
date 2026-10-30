@@ -76,6 +76,8 @@ function run(recipe, verbose, spy) {
         for (let i = 0; i < 128; i++) { const a = L[i], c = R[i]; if (!(a === a) || !(c === c) || Math.abs(a) > 1.0001 || Math.abs(c) > 1.0001) return { k, why: `bad sample ${a} / ${c}` }; pk = Math.max(pk, Math.abs(a), Math.abs(c)); }
         if (lastKick > host.now - 128 && lastKick <= host.now) { peakSinceKick = 0; checkAt = lastKick + 0.06 * 48000; }
         peakSinceKick = Math.max(peakSinceKick, pk);
+        // a master chain can be set to boost far past full scale (+24 dB in, +24 out): the guard muting that is it working, not a fault
+        if (masterFx) for (let i = trips.length - 1; i >= 0; i--) if (trips[i].ch === 82 && trips[i].why === 2) trips.splice(i, 1);
         if (trips.length) return { k, why: `safety mute on channel ${trips[0].ch} (${trips[0].why === 1 ? 'invalid audio' : 'runaway level'})` };
         if (checkAt > 0 && host.now >= checkAt) { if (peakSinceKick < 1e-3 && !trips.length && !masterFx) return { k, why: 'silent: the kick played and nothing came out' }; checkAt = -1; } }
       if (host.playing && host.now - Math.max(lastKick, playAt) > 48000 * 2.6) { if (spy) spy(host); return { k, why: 'the song stopped playing notes' }; }   // the kick is on every beat: 2.6 s without one (slowest tempo 60) means the song stopped scheduling

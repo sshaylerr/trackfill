@@ -309,6 +309,11 @@ function drawSynDisp() {
       switch (t) {
         case 'Off': return 0;
         case 'Clean': { const k = 2 - 1.96 * res, den = Math.hypot(1 - w * w, k * w), lp = 1 / den, bp = k * w / den, hp = w * w / den, m = shp < .5 ? lp + (bp - lp) * shp * 2 : bp + (hp - bp) * (shp - .5) * 2; return 20 * Math.log10(m + 1e-6); }
+        case 'Clean 24': { const st = k => { const den = Math.hypot(1 - w * w, k * w); return [1 / den, k * w / den, w * w / den]; }, a = st(1.848), b = st(.765 - .755 * Math.pow(res, .75)), mo = q => shp < .5 ? q[0] + (q[1] - q[0]) * shp * 2 : q[1] + (q[2] - q[1]) * (shp - .5) * 2;
+          b[1] *= .765 / (.765 - .755 * Math.pow(res, .75)); return 20 * Math.log10(mo(a) * mo(b) + 1e-6); }
+        case 'Notch': { const k = 1.6 * (1 - .9 * res), r = Math.pow(2, shp), n = q => Math.abs(1 - q * q) / Math.hypot(1 - q * q, k * q); return 20 * Math.log10(n(f / (fc / r)) * n(f / (fc * r)) + 1e-6); }
+        case 'Phaser': { const r = Math.pow(2, .35 + shp * 1.2), ph = q => -2 * Math.atan2(1.2 * q, 1 - q * q), p = ph(f / (fc / r)) + ph(f / (fc * r)), fb = res * .9;
+          const re = Math.cos(p), im = Math.sin(p), dr = 1 - fb * re, di = -fb * im, yr = (re * dr + im * di) / (dr * dr + di * di), yi = (im * dr - re * di) / (dr * dr + di * di); return 20 * Math.log10(Math.hypot(1 + yr, yi) * .5 + 1e-6); }
         case 'Formant': { const V = [[800, 1150, 2900], [350, 2000, 2800], [270, 2140, 2950], [450, 800, 2830], [325, 700, 2700]], vv = shp * 3.999, vi = Math.floor(vv), vf = vv - vi; let m = 0;
           for (let k = 0; k < 3; k++) { const q = (V[vi][k] + (V[vi + 1][k] - V[vi][k]) * vf) * fc / 1000, Q = 3 + res * 15, r = f / q; m += [1, .5, .25][k] / Math.hypot(1, Q * (r - 1 / r)); } return 20 * Math.log10(m + 1e-6); }
         case 'Comb': { const d = 1 / fc, fb = res * .97 * (shp > .5 ? -1 : 1); return 20 * Math.log10(Math.abs(1 + Math.cos(2 * Math.PI * f * d)) * .5 / Math.abs(1 - fb * Math.cos(2 * Math.PI * f * d)) + 1e-6) * .5; }
@@ -316,7 +321,9 @@ function drawSynDisp() {
           const hp = t === 'Screamer' && shp > .5 ? w * w / Math.sqrt(1 + w * w * w * w) : 1; return 20 * Math.log10(lp * bump * (t === 'Screamer' && shp > .5 ? hp / Math.max(lp, 1e-6) * lp : 1) + 1e-6); } } };
     line(x => Math.max(2, Math.min(H - 2, yv(mag(20 * Math.pow(1000, x))))));
     if (t !== 'Off') { g.fillStyle = COL.accent; g.fillRect(fx(fc) - 1, 0, 2, H); }
-    txt(t === 'Off' ? 'Filter off · drive still works' : `${t} · ${hzStr(fc)} · resonance ${Math.round(res * 100)}%`, 8, 12); return;
+    const sw = t === 'Clean' || t === 'Clean 24' ? (shp < .2 ? 'low-pass' : shp < .4 ? 'low/band' : shp < .6 ? 'band-pass' : shp < .8 ? 'band/high' : 'high-pass') : t === 'Ladder' ? (shp < .5 ? '24 dB' : '12 dB') : t === 'Screamer' ? (shp < .5 ? 'low-pass' : 'high-pass')
+      : t === 'Formant' ? 'vowel ' + 'AEIOU'[Math.min(4, Math.round(shp * 4))] : t === 'Comb' ? (shp > .5 ? 'hollow' : 'tuned') : t === 'Notch' ? (shp < .01 ? 'one notch' : `±${shp.toFixed(1)} oct`) : t === 'Phaser' ? `spread ${Math.round(shp * 100)}%` : `squelch ${Math.round(shp * 100)}%`;
+    txt(t === 'Off' ? 'Filter off · drive still works' : `${t} · ${hzStr(fc)} · res ${Math.round(res * 100)}% · ${sw}`, 8, 12); return;
   }
   if (/^e[a23]$/.test(tab)) {   // the envelope with its curves
     const e = tab === 'ea' ? 'a' : tab[1], A = v(e + 'a'), D = v(e + 'd'), Sus = v(e + 's'), R = v(e + 'r'), ca = v(e + 'c') * .85, ck = v(e + 'k') * .85, hold = Math.max(.15, (A + D) * .35), tot = A + D + hold + R;
