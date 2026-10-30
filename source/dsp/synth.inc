@@ -234,6 +234,8 @@ static void envStep(SVoice* v, i32 e, const float* m, float dt, i32 base) {
 }
 
 /* ---------- per-voice filter ---------- */
+// ladder resonance: knob → feedback (4 rings on its own); a curve so the knob's middle sounds like the middle
+#define LADDER_K(r) (3.8f * __builtin_sqrtf(r) * __builtin_sqrtf(__builtin_sqrtf(r)))   // 3.8 · r^0.75
 static inline float flt1(SVoice* v, i32 c, i32 type, float x, float g, float res, float shp, float dg, float fc) {
   float* z = v->fz[c];
   switch (type) {
@@ -241,7 +243,14 @@ static inline float flt1(SVoice* v, i32 c, i32 type, float x, float g, float res
       float k = 2.f - 1.96f * res, a1 = 1.f / (1.f + g * (g + k)), a2 = g * a1, a3 = g * a2;
       float v3 = x - z[1], v1 = a1 * z[0] + a2 * v3, v2 = z[1] + a2 * z[0] + a3 * v3; z[0] = 2.f * v1 - z[0]; z[1] = 2.f * v2 - z[1];
       float lp = v2, bp = v1, hp = x - k * bp - lp; return shp < 0.5f ? lp + (bp * 2.f - lp) * shp * 2.f : bp * 2.f * (1.f - (shp - .5f) * 2.f) + hp * (shp - .5f) * 2.f; }
-    case 2: case 3: { // Ladder (Moog-like) and Diode (303-like); Shape: ladder 24→12 dB, diode squelch
+    case 2: { // Ladder (Moog-like), solved without a one-sample delay in its feedback (so resonance rings as a real ladder's does); Shape: 24→12 dB
+      const float G = g / (1.f + g), B = 1.f / (1.f + g), G2 = G * G, G4 = G2 * G2, k = LADDER_K(res);
+      const float Sg = B * (G2 * G * z[0] + G2 * z[1] + G * z[2] + z[3]);
+      const float y4 = (G4 * x * dg + Sg) / (1.f + k * G4);
+      float u = fsat(x * dg + 1e-18f - k * y4), y[4];   // one saturator where the feedback meets the input: the ladder's character, cheaply
+      for (i32 i = 0; i < 4; i++) { const float vv = (u - z[i]) * G; y[i] = vv + z[i]; z[i] = y[i] + vv; u = y[i]; }
+      return (y[3] + (y[1] - y[3]) * shp) * (1.f + k * 0.35f); }
+    case 3: { // Diode (303-like); Shape: squelch
       float gg = g / (1.f + g), kq = res * minf(4.2f, 3.9f + 2.f * gg) * (type == 3 ? 0.9f : 1.f), fbs = z[3];
       if (type == 3) { v->fhp[c] += (fbs - v->fhp[c]) * (0.01f + 0.2f * shp); fbs -= v->fhp[c]; }
       float in = fsat(x * dg - kq * fbs);
@@ -335,7 +344,8 @@ static void renderSynth(i32 n) {
     // Wavetable engine: per-block setup for oscillators A and B
     const i32 isWT = disc(m[SP_ENG], NENG) == 2; i32 wOn = 0, wW[2], wLen[2], wF[2]; const float* wT0[2]; const float* wT1[2]; const float* wFd0[2]; const float* wFd1[2]; float wFr[2], wInc[2], wLvl[2], wAmt[2]; i32 wNoF[2];
     if (isWT) { fmInit(); nOn = 1;
-      for (i32 o = 0; o < 2; o++) { const i32 b = SP_WAP + o * WSTRIDE, id = P->wt[o]; wLvl[o] = m[b + 4]; if (!id || wLvl[o] < 0.0005f) continue; const WTab* T = &wtab[id];
+      for (i32 o = 0; o < 2; o++) { const i32 b = SP_WAP + o * WSTRIDE, id = P->wt[o]; wLvl[o] = m[b + 4]; const i32 bo = SP_WAP + (1 - o) * WSTRIDE, xmod = disc(m[bo + 5], NWARP) >= 6 && m[bo + 6] > 0.0005f;   // the other oscillator takes this one for FM, AM or Ring: run it even when it's silent
+        if (!id || (wLvl[o] < 0.0005f && !xmod)) continue; const WTab* T = &wtab[id];
         float semis = spPhys(b + 1, m[b + 1]) * 12.f + spPhys(b + 2, m[b + 2]) + spPhys(b + 3, m[b + 3]) * 0.01f + v->dr[o] * drift * 0.1f, hz = f0 * fexp(semis * 0.0577622650f);
         wInc[o] = clampf(hz / SR, 0.f, 0.45f); i32 l = 0; const float H = 0.45f * SR / maxf(hz, 1.f); while (l < WTLV - 1 && (512 >> l) > H) l++;
         const float fi = clampf(m[b], 0.f, 1.f) * (T->F - 1); i32 i0 = (i32)fi; if (i0 > T->F - 2) i0 = T->F > 1 ? T->F - 2 : 0; wFr[o] = T->F > 1 ? fi - i0 : 0.f; const i32 i1 = T->F > 1 ? i0 + 1 : 0;
@@ -522,7 +532,7 @@ static void renderSynth(i32 n) {
       else if (isWT) for (i32 u = 0; u < U; u++) {   // B first (A can take it for FM/AM/Ring), then A; B's cross-modulation uses A's last sample
         float x = 0;
         for (i32 oo = 1; oo >= 0; oo--) { if (!((wOn >> oo) & 1)) { v->wlast[oo][u] = 0.f; continue; } const i32 o = oo, w = wW[o]; float& ph = v->wph[o][u]; const float other = v->wlast[1 - o][u], a = wAmt[o];
-          float p = ph; if (w >= 1 && w <= 5) p = wtWarp(w, a, p); else if (w == 6) { p += other * a * 1.5f; p -= floorf_(p); }
+          float p = ph; if (w >= 1 && w <= 5) p = wtWarp(w, a, p); else if (w == 6) { p += other * a * a * 6.4f; p -= floorf_(p); }   /* FM: depth grows with the square of the knob, up to an index of about 40 (as Vital's) */
           float y = wtRead(wT0[o], wLen[o], p); if (wFr[o] > 0.f) y += (wtRead(wT1[o], wLen[o], p) - y) * wFr[o];
           if (wNoF[o]) { const float* sn = fmTab[0][0]; float q = p + 0.25f; q -= floorf_(q); const float s1 = fmLook(sn, p), c1 = fmLook(sn, q);
             const float fa = wFd0[o][0] + (wFd1[o][0] - wFd0[o][0]) * wFr[o], fb = wFd0[o][1] + (wFd1[o][1] - wFd0[o][1]) * wFr[o]; y -= fa * s1 + fb * c1; }
