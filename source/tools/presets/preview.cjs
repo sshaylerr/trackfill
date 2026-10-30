@@ -32,7 +32,7 @@ const PHRASES = {
       for (const [t, p, len] of pat) o.push(n(t0 + t, len, p, .9)); }); return o; },
   Stabs: () => PROG.flatMap((c, b) => [0, 144, 288, 336].flatMap((t, i) => i === 3 && b % 2 === 0 ? [] : CH[c].map(p => n(b * BAR + t, 40, p + (c === 'Fm' || c === 'Eb' ? 0 : 0), .8)))),
 };
-const HOLD = new Set(['Festival Reese', 'Rave Hoover Bass', 'Wobble Drop', 'Rave Horn', 'Siren Wub', 'Talk Bass', 'Chew Growl', 'Heavy Snarl', 'Step Square']);
+const HOLD = new Set(['UK Horn', 'Rave Hoover Bass']);
 const kindOf = pr => /^DnB drops/.test(pr.g) ? (HOLD.has(pr.n) ? 'Hold' : 'Roll') : pr.g.split('·').pop().trim();
 const PACK = process.env.PACK === 'drops' ? SP.DNB_DROPS : SP.DNB_PACK;
 function drums() { const k = [], s = [], h = []; for (let b = 2; b < 4; b++) { const t = b * BAR; k.push(n(t, 24, 0, .95), n(t + 240, 24, 0, .85)); s.push(n(t + B, 24, 0, .9), n(t + 3 * B, 24, 0, .9));
