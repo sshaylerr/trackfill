@@ -104,7 +104,7 @@ function drumVoice(d, opts = {}) {
   const drive = () => { v.drv = dClamp(v.drv + u('drive') * .55); };
   if (T.x) {   // layered: the body follows its measured curves, the layer is the sample's own attack and texture
     const has = id => DRUM_MODS[d.mod].knobs.some(q => q[0] === id), uu = (...ids) => { for (const id of ids) if (has(id)) return u(id); return 0; };
-    v.bcT += uu('tune', 'pitch') * 12; v.bcP *= Math.pow(2, uu('punch', 'bend') * 1.2); const c = uu('click', 'snap', 'wires'); v.lyL *= c < 0 ? 1 + c : Math.pow(2, c);
+    v.bcT += uu('tune', 'pitch') * 12; if (has('body')) { const b = u('body'); v.tL *= b < 0 ? Math.max(1e-4, 1 + b) : Math.pow(2, b * 1.2); } v.bcP *= Math.pow(2, uu('punch', 'bend') * 1.2); const c = uu('click', 'snap', 'wires'); v.lyL *= c < 0 ? 1 + c : Math.pow(2, c);
     const dc = uu('decay'); v.bcD *= Math.pow(2, dc * 1.2); if (dc < 0) v.lyLen = Math.min(v.lyLen, T.x.n / DRUM_SR * Math.pow(2, dc * 2.5));
     const tn = uu('tone'); if (tn > 0) v.lyHp = 40 * Math.pow(2, tn * 5.5); else if (tn < 0) v.lyLp = 20000 * Math.pow(2, tn * 4.5);
     if (has('drive')) drive();

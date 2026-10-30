@@ -184,7 +184,7 @@ function runFit(pi, x, name, kind) {
   // the original, level-matched to how the drum will sit, for A/B
   const g = Math.pow(10, DRUM_PEAK[pk] / 20) / x.reduce((m, v) => Math.max(m, Math.abs(v)), 1e-9), orig = 'f:orig'; SAMPLES.set(orig, { id: orig, name, sr: 48000, ch: 2, frames: x.length, data: interleave([x.map(v => v * g), x.map(v => v * g)], x.length) }); ENG.sent.delete(orig);
   let best = null, temp = null, kept = false, lastSet = 0, pend = null; const st = { txt: 'Listening…', pct: 0 };
-  const layered = kind === 'kick' || kind === '808' || kind === 'tom';   // tonal drums: a body read from the sample, its attack and texture layered on top
+  const layered = kind === 'kick' || kind === '808' || kind === 'tom' || kind === 'snare';   // tonal drums: a body read from the sample, its attack and texture layered on top
   const setVoice = (p, final, lx) => { const id = drumAddUser(mod, name, p, pk, lx); if (!id) return; if (temp && temp !== id && !DRUM_MODS[mod].types[temp].lib && temp !== was.type) drumRemoveUser(mod, temp); temp = id;
     const nd = drumDefault(mod, id, was.mod === mod ? was.seed : 1); nd.kit = false; pad.src = 'drum'; pad.drum = nd; if (!wasName || DRUM_TYPE_NAMES.has(wasName) || final) pad.name = name.slice(0, 12); refreshDrum(pi, true); lastSet = performance.now(); };
   const view = {}, msg = { x, kind, cands, iters: 40, layer: layered }; const w = fitWorker() || null, job = w || fitInline(msg, m => onMsg(m));

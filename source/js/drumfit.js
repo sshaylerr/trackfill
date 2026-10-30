@@ -207,7 +207,7 @@ function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Ma
 /* The whole job for Make from a sample, as a list of messages: { t: 'near', id, d } for the nearest existing type, then { t: 'step', p, d, n, total }
    as the fit improves, then { t: 'done', p, d }. The app runs it in a worker (or, failing that, a few steps per frame). in: { x, kind, cands: [{ id, v }], iters } */
 function* dfSteps(m) {
-  if (m.layer) { yield { t: 'scan' }; const r = layerFit(m.x); if (r) { yield { t: 'done', p: r.v, x: r.x, d: 0 }; return; } }   // tonal drums, when the body can be read: layered
+  if (m.layer) { yield { t: 'scan' }; const r = layerFit(m.x, m.kind); if (r) { yield { t: 'done', p: r.v, x: r.x, d: 0 }; return; } }   // tonal drums, when the body can be read: layered
   const x = prep(m.x), T = Math.min(1.2, dur(x) + .05); let best = null;
   for (const c of m.cands || []) { const d = voiceDist(x, m.kind, c.v, T); if (!best || d < best.d) best = { id: c.id, d, v: c.v }; yield { t: 'scan' }; }
   if (best) yield { t: 'near', id: best.id, d: +best.d.toFixed(3) };
@@ -226,11 +226,13 @@ function acPitch(x, c, w, lo, hi) { const a = Math.max(0, c - (w >> 1)), Lmax = 
   for (let L = 1; L <= Lmax; L++) { let s = 0, e1 = 0; for (let i = 0; i < w; i++) { const q = x[a + i + L]; s += x[a + i] * q; e1 += q * q; } r[L] = s / Math.sqrt(e0 * e1 + 1e-20); if (neg < 0 && r[L] < 0) neg = L; }
   if (neg < 0) return null; let k = Math.max(neg, Lmin); for (let L = k; L <= Lmax; L++) if (r[L] > r[k]) k = L; if (r[k] < .3 || k < 2 || k >= Lmax) return r[k] >= .3 ? SR / k : null;
   const d = (r[k - 1] - r[k + 1]) / (2 * (r[k - 1] - 2 * r[k] + r[k + 1]) - 1e-12); return SR / (k + Math.max(-1, Math.min(1, d))); }
-function coarsePitch(x) {   // follow the body's pitch outward from where it is steadiest, each step within reach of the last (no octave jumps)
-  const lo = filtfilt(x, 2500, SR, 2), dur = x.length / SR, w20 = Math.round(SR * .02);
-  let ta = .05, best = -1; for (let t = .03; t < Math.min(.2, dur - .045); t += .005) { const a = Math.round(t * SR); let e0 = 0; for (let i = 0; i < w20; i++) e0 += lo[a + i] * lo[a + i]; if (e0 < 1e-9) continue;
-    const f = acPitch(lo, a + (w20 >> 1), w20, 25, 400); if (!f) continue; const L = Math.round(SR / f); let s = 0, e1 = 0; for (let i = 0; i < w20; i++) { s += lo[a + i] * lo[a + i + L]; e1 += lo[a + i + L] ** 2; } const r = s / Math.sqrt(e0 * e1 + 1e-20) * Math.sqrt(e0); if (r > best) { best = r; ta = t; } }
-  const fa = acPitch(lo, Math.round(ta * SR) + (w20 >> 1), w20, 25, 400) || 60, T = [ta], F = [fa];
+// where each kind's body lives: the low-pass that keeps it (and keeps out snare wires), its pitch range, and when it is steadiest
+const LCFG = { kick: { lp: 2500, lo: 25, hi: 400, a0: .03, a1: .2 }, '808': { lp: 2500, lo: 25, hi: 400, a0: .03, a1: .2 }, tom: { lp: 1500, lo: 50, hi: 600, a0: .01, a1: .15 }, snare: { lp: 1000, lo: 100, hi: 700, a0: .004, a1: .08 } };
+function coarsePitch(x, C) {   // follow the body's pitch outward from where it is steadiest, each step within reach of the last (no octave jumps)
+  const lo = filtfilt(x, C.lp, SR, 2), dur = x.length / SR, w20 = Math.round(SR * .02);
+  let ta = C.a0 + .02, best = -1; for (let t = C.a0; t < Math.min(C.a1, dur - .045); t += .0025) { const a = Math.round(t * SR); let e0 = 0; for (let i = 0; i < w20; i++) e0 += lo[a + i] * lo[a + i]; if (e0 < 1e-9) continue;
+    const f = acPitch(lo, a + (w20 >> 1), w20, C.lo, C.hi); if (!f) continue; const L = Math.round(SR / f); let s = 0, e1 = 0; for (let i = 0; i < w20; i++) { s += lo[a + i] * lo[a + i + L]; e1 += lo[a + i + L] ** 2; } const r = s / Math.sqrt(e0 * e1 + 1e-20) * Math.sqrt(e0); if (r > best) { best = r; ta = t; } }
+  const fa = acPitch(lo, Math.round(ta * SR) + (w20 >> 1), w20, C.lo, C.hi) || (C.lo + C.hi) / 4, T = [ta], F = [fa];
   let fp = fa; for (let t = ta - .0005; t > .0004; t -= t < .03 ? .0005 : .001) { const w = Math.round(Math.max(24, Math.min(SR * .012, 2.5 * SR / fp))), f = acPitch(lo, Math.round(t * SR) + (w >> 1), w, fp * .92, Math.min(4000, fp * 1.45)); if (f) { fp = f; T.unshift(t); F.unshift(f); } }
   fp = fa; for (let t = ta + .002; t < dur - .02; t += .002) { const w = Math.round(Math.max(24, Math.min(SR * .02, 2.5 * SR / fp))), a = Math.round(t * SR); if (a + w + SR / (fp * .6) >= x.length) break;
     const f = acPitch(lo, a + (w >> 1), w, fp * .7, fp * 1.08); if (f) { fp = f; T.push(t); F.push(f); } }
@@ -240,8 +242,8 @@ function lpVar(re, im, bwt) {   // zero-phase low-pass whose bandwidth follows b
   const R = BWS.map(b => filtfilt(re, b, SR)), I = BWS.map(b => filtfilt(im, b, SR)), n = re.length, oR = new Float64Array(n), oI = new Float64Array(n), LB = BWS.map(Math.log);
   for (let i = 0; i < n; i++) { const lb = Math.log(Math.max(BWS[0], Math.min(BWS[5], bwt[i]))); let k = 0; while (k < 4 && LB[k + 1] < lb) k++; const w = (lb - LB[k]) / (LB[k + 1] - LB[k]); oR[i] = R[k][i] * (1 - w) + R[k + 1][i] * w; oI[i] = I[k][i] * (1 - w) + I[k + 1][i] * w; }
   return [oR, oI]; }
-function extractFund(x) {
-  const n = x.length, cp = coarsePitch(x); if (cp.T.length < 4) return null; const f = new Float64Array(n); let j = 0;
+function extractFund(x, C = LCFG.kick) {
+  const n = x.length, cp = coarsePitch(x, C); if (cp.T.length < 4) return null; const f = new Float64Array(n); let j = 0;
   for (let i = 0; i < n; i++) { const t = i / SR; while (j < cp.T.length - 2 && cp.T[j + 1] <= t) j++; const u = Math.max(0, Math.min(1, (t - cp.T[j]) / (cp.T[j + 1] - cp.T[j]))); f[i] = cp.F[j] + (cp.F[j + 1] - cp.F[j]) * u; }
   const demod = () => { const re = new Float64Array(n), im = new Float64Array(n), th = new Float64Array(n); let p = 0; for (let i = 0; i < n; i++) { p += 2 * Math.PI * f[i] / SR; th[i] = p; re[i] = x[i] * Math.cos(p); im[i] = -x[i] * Math.sin(p); } return { re, im, th }; };
   const bwt = new Float64Array(n);
@@ -252,10 +254,10 @@ function extractFund(x) {
   for (let i = 0; i < n; i++) bwt[i] = .3 * f[i]; const { re, im, th } = demod(), [cr, ci] = lpVar(re, im, bwt), A = new Float64Array(n), fund = new Float64Array(n);
   for (let i = 0; i < n; i++) { A[i] = 2 * Math.hypot(cr[i], ci[i]); fund[i] = 2 * (cr[i] * Math.cos(th[i]) - ci[i] * Math.sin(th[i])); }
   return { f, A, fund }; }
-function layerFit(xIn) {
-  const x = prep(xIn), n = x.length, dur = n / SR, E = extractFund(x); if (!E) return null; const { f, A, fund } = E;
+function layerFit(xIn, kind = 'kick') {
+  const C = LCFG[kind] || LCFG.kick, x = prep(xIn), n = x.length, dur = n / SR, E = extractFund(x, C); if (!E) return null; const { f, A, fund } = E, xl = filtfilt(x, C.lp, SR, 2);   // judged on the body's band only (a snare's wires are the layer's job)
   // where the body takes over: the first point from which the fundamental explains the sample, with what is left 8 dB down, for 4 ms
-  const win = Math.round(SR * .002), ratio = []; for (let s = 0; s + win <= n; s += win) { let a = 0, b = 0; for (let i = s; i < s + win; i++) { const r = x[i] - fund[i]; a += r * r; b += x[i] * x[i]; } ratio.push(10 * Math.log10(a / (b + 1e-20) + 1e-12)); }
+  const win = Math.round(SR * .002), ratio = []; for (let s = 0; s + win <= n; s += win) { let a = 0, b = 0; for (let i = s; i < s + win; i++) { const r = xl[i] - fund[i]; a += r * r; b += xl[i] * xl[i]; } ratio.push(10 * Math.log10(a / (b + 1e-20) + 1e-12)); }
   let x0 = .006; for (let k = 1; k < ratio.length - 2; k++) if (ratio[k] < -8 && ratio[k + 1] < -8) { x0 = k * win / SR; break; } x0 = Math.max(.002, Math.min(.03, x0));
   let pkA = 0; for (let i = Math.round(x0 * SR); i < n; i++) pkA = Math.max(pkA, A[i]);
   // curves on a grid: fine at the start, coarser later; pitch held where the body has faded (its estimate turns to noise)
@@ -274,9 +276,9 @@ function layerFit(xIn) {
   const det = s00 * s11 - s01 * s01, al = det > 1e-12 ? (sx0 * s11 - sx1 * s01) / det : 1, be = det > 1e-12 ? (sx1 * s00 - sx0 * s01) / det : 0; X.bc.p0 = +Math.atan2(be, al).toFixed(4);
   const body = new Float32Array(n); DVF().dvBody(body, n, SR, X, V); const ly = new Float32Array(n); for (let i = 0; i < n; i++) ly[i] = x[i] - body[i];
   const enc = DVF().dvLyEncode(ly); X.ly = enc.d; X.lyS = +enc.s.toPrecision(6); X.n = n;
-  let er = 0, ex = 0; for (let i = Math.round((X.x1 + .005) * SR); i < n; i++) { er += ly[i] * ly[i]; ex += x[i] * x[i]; }
+  const lyl = filtfilt(ly, C.lp, SR, 2); let er = 0, ex = 0; for (let i = Math.round((X.x1 + .005) * SR); i < n; i++) { er += lyl[i] * lyl[i]; ex += xl[i] * xl[i]; }
   const quality = 10 * Math.log10(er / (ex + 1e-20) + 1e-12);
-  if (quality > -6) {   // the body can't be read as one tone (two kicks stacked, a sub under a punch): keep the sample whole as the layer, with no body
+  if (quality > -6) {   // the body can't be read as one tone (two kicks stacked, a sub under a punch, a snare with no clear head): keep the sample whole as the layer, with no body
     const whole = DVF().dvLyEncode(x); Object.assign(X, { ly: whole.d, lyS: +whole.s.toPrecision(6), x0: 0, x1: 0 }); return { v: { tL: 0, lyL: 1 }, x: X, quality }; }
   return { v: { tL: 1, lyL: 1 }, x: X, quality }; }
 if (typeof module !== 'undefined') module.exports = { layerFit, extractFund, SR, prep, specs, dist, dist2, feats, dur, MASK, BASE, BOUNDS, toU, fromU, cmaes, cmaesGen, guess, fit, fitGen, voiceDist, dfSteps, features, mulberry, env, fallTime, spectrum, centroid, flatness, pitchAt, lp4, hp4, db, db20, BANDS };
