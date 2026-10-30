@@ -327,7 +327,7 @@ class TFHeap {
 
 class TFHost {
   constructor(ex, sr, post) {
-    this.ex = ex; this.sr = sr; this.post = post || null; ex.tf_init(sr);
+    this.ex = ex; this.sr = sr; this.post = post || null; ex.tf_init(sr); if (ex.tf_warm) ex.tf_warm();
     this.P = null; this.sm = new Map();
     this.fxT = []; for (let c = 0; c < TF.NCH; c++) this.fxT.push([-1, -1, -1, -1, -1, -1, -1, -1]);
     this.duck = []; this.playing = false; this.loop = 'scene'; this.heap = new TFHeap(); this.fpend = new Map(); this.marks = []; this.arps = new Map(); this.arpOut = []; this.now = 0;
@@ -779,4 +779,15 @@ async function tfRenderOffline(module, P, samples, opts) {
   }
   return { L, R, sr, busy: busy / 1000 / (N / sr) };   // busy: the share of real time the engine needed
 }
-if (typeof module !== 'undefined') module.exports = { TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+/* Warm the engine's code before the first note: a throwaway instance of the same compiled module plays a sample voice and a note on each
+   synth engine into nowhere. Browsers compile (or interpret) WebAssembly lazily, so without this the first hits after starting the audio
+   ran on slow, not-yet-optimised code and came out different. The compiled code is shared with the real engine, which is then started fresh. */
+function tfWarmEngine(module, sr) {
+  const ex = new WebAssembly.Instance(module, {}).exports; ex.tf_init(sr); if (ex.tf_warm) ex.tf_warm();
+  const N = 4800, ptr = ex.tf_malloc(N * 4); if (!ptr) return; const d = new Int16Array(ex.memory.buffer, ptr, N * 2); let s = 1; for (let i = 0; i < N * 2; i++) { s = (s * 16807) % 2147483647; d[i] = (s & 2047) - 1024; }
+  const sid = ex.tf_sample_add(ptr, N, 2, sr), P = TFSYN_ID, set = (pad, id, v) => { const q = P[id]; if (q) ex.tf_syn_param(pad, q.i, tfSynNorm(q, v)); };
+  for (const [k, eng] of [[0, 'Analog'], [1, 'FM'], [2, 'Sub'], [3, 'Analog']]) { ex.tf_syn_on(k, 1); set(k, 'eng', eng); set(k, 'o1l', .8); set(k, 'f1l', .8); set(k, 'f2l', .5); set(k, 'flt', ['Ladder', 'Clean', 'Diode', 'Clean 24'][k]); set(k, 'uni', 3); }
+  for (let r = 0; r < 3; r++) { if (sid > 0) for (let c = 4; c < 8; c++) ex.tf_voice_start(c, sid, 0, 1 + c * .1, 0, 1, 0, .8, .0005, .05, -1, 1, 0);
+    for (let k = 0; k < 4; k++) ex.tf_syn_note(k, 0, 0, .8, .3, 2 + k, 0); for (let b = 0; b < 100; b++) ex.tf_render(128); }
+}
+if (typeof module !== 'undefined') module.exports = { tfWarmEngine, TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

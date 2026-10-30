@@ -698,3 +698,6 @@ static void xVerbRun(i32 pi, Patch* P, i32 n) {
   if (pk < 1e-6f && in < 1e-7f) { X->quiet += n; if (X->quiet > (i32)(SR * 0.25f)) X->live = 0; } else X->quiet = 0;
   if (!(X->lp[0] == X->lp[0])) { zero(X, sizeof(XVerb)); }   // never let a broken tail keep running
 }
+
+// the oscillator tables, built when the engine starts rather than on its first note (building them mid-note dropped the first hit after every audio restart)
+EX void tf_warm() { fmInit(); blInit(); }

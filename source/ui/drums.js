@@ -66,6 +66,7 @@ function renderDrumPage(w, pi, head, pages) {
   for (let i = 0; i < 4; i++) { const s = d.slots[i]; row.append(btn(s ? 'ABCD'[i] : '·', () => { if (s) drumSwapSlot(pi, i); }, 'key sm slotKey' + (s ? '' : ' empty'))); }
   dev.append(row);
   const disp = h('div', 'scr disp'), cv = h('canvas'); disp.append(cv); drumCv = cv; dev.append(disp);
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); audition(pi); });   // tap the drum's picture to hear it, as on the sample page
   const g = h('div', 'kgrid synGrid'), T = M.types[d.type], lyView = !!(T && T.x) && UI.drumLy === pi;
   if (lyView) {   // a layered drum's layer, laid out like a kick synth's click section: level, pitch, start, length, filter, polarity
     const has = id => M.knobs.some(q => q[0] === id), lv = ['click', 'snap', 'wires'].find(has), tn = has('tone') ? 'tone' : null;
