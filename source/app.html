@@ -776,6 +776,9 @@ async function openProjects() {
     for (const m of list) l.append(projRow(m, () => m.id === PROJ.id ? (closeSheet(), projActions(m)) : (closeSheet(), projOpen(m.id)), m.id === PROJ.id)); st.append(l);
     st.append(h('p', 'note', 'Tap a project to open it; tap the open one for rename, copy, snapshots and more. Everything saves as you work.'));
     st.append(h('div', 'sec', 'Backup')); const b = h('div', 'g2'); b.append(btn('Back up everything', backupAll), btn('Restore a backup', () => $('#fileProj').click())); st.append(b);
+    const abl = { off: 'Auto backup: off', day: 'Auto backup: daily', week: 'Auto backup: weekly' }, ab = h('div', 'g2');
+    ab.append(btn(abl[AB.every], () => { AB.every = AB.every === 'off' ? 'day' : AB.every === 'day' ? 'week' : 'off'; abStore(); closeSheet(); openProjects(); }, 'btn' + (AB.every !== 'off' ? ' on' : '')));
+    st.append(ab, h('p', 'note', (AB.every === 'off' ? 'Off: back up by hand. ' : 'When something changed, a backup is made in the background while nothing plays, then offered to save with one tap. ') + (AB.last ? 'Last backup ' + ago(AB.last) + '.' : 'No backup yet.')));
     if (est && est.usage != null) st.append(h('p', 'note', `Using ${(est.usage / 1048576).toFixed(est.usage > 1e8 ? 0 : 1)} MB of storage on this device.`)); }); }
 function openNewFrom(tpl) { openSheet('New project', card => { const st = h('div', 'stack'); card.append(st); const l = h('div', 'list');
     const add = (n, sub, f) => { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(n)}</b><span>${esc(sub)}</span></div>`; li.onclick = () => { closeSheet(); f(); }; l.append(li); };
@@ -798,15 +801,52 @@ async function openSnapshots(id) { const sn = await DB.get('projects', 'snap:' +
     st.append(h('p', 'note', 'The version you opened, each of the last 5 times. Opening one makes it a new project, so nothing is lost.')); const l = h('div', 'list');
     list.forEach(x => { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${new Date(x.at).toLocaleString()}</b><span>${esc(projSub(Object.assign(projMeta(x.data), { modified: x.at })))}</span></div>`;
       li.onclick = () => { closeSheet(); projNew(migrate(JSON.parse(JSON.stringify(x.data))), (x.data.name || 'Project') + ' (snapshot)'); }; l.append(li); }); st.append(l); }); }
-async function backupAll() { await projSave(); const projects = [], samples = {};
-  for (const m of await DB.all('pmeta')) { const r = await DB.get('projects', m.id); if (r) projects.push({ meta: m, data: r.data }); }
-  for (const [id, s] of SAMPLES) if (!s.builtin && !s.drum && !id.startsWith('b:') && !id.startsWith('d:') && !id.startsWith('i:') && !id.startsWith('w:')) samples[id] = { name: s.name, sr: s.sr, ch: s.ch, frz: !!s.frz, data: i16ToB64(s.data) };
-  await saveFile('trackfill-backup-' + new Date().toISOString().slice(0, 10) + '.trackfill.json', JSON.stringify({ format: 'trackfill-all', version: PROJECT_VERSION, saved: new Date().toISOString(), projects, samples })); }
+/* ---------- backups: every project and template, your sounds, your drums and synth presets, in one file ----------
+   Built in a worker straight from the device's storage (the app keeps playing smoothly while a big backup comes together); without workers, on the page. */
+const AB_WORKER = `const b64 = a => { const u = new Uint8Array(a.buffer, a.byteOffset, a.byteLength); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+onmessage = async e => { try {
+  const db = await new Promise((res, rej) => { const r = indexedDB.open('trackfill'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  const q = (st, f) => new Promise((res, rej) => { const x = f(db.transaction(st).objectStore(st)); x.onsuccess = () => res(x.result); x.onerror = () => rej(x.error); });
+  const projects = []; for (const m of (await q('pmeta', o => o.getAll())) || []) { const r = await q('projects', o => o.get(m.id)); if (r) projects.push({ meta: m, data: r.data }); }
+  const samples = {}; for (const k of (await q('samples', o => o.getAllKeys())) || []) { if (!/^u:/.test(String(k))) continue; const s = await q('samples', o => o.get(k)); if (s && s.data instanceof Int16Array) samples[k] = { name: s.name, sr: s.sr, ch: s.ch, frz: !!s.frz, data: b64(s.data) }; }
+  const extra = { userDrums: (await q('kv', o => o.get('userDrums'))) || [], synPresets: (await q('kv', o => o.get('synPresets'))) || [] };
+  const blob = new Blob([JSON.stringify(Object.assign({ format: 'trackfill-all', version: e.data.version, saved: new Date().toISOString(), projects, samples }, extra))], { type: 'application/json' });
+  db.close(); postMessage({ ok: true, blob, n: projects.length }); } catch (err) { postMessage({ ok: false, msg: String(err && err.message || err) }); } };`;
+function buildBackup() { return new Promise(async res => {
+  const onPage = async () => { const projects = [], samples = {};
+    for (const m of await DB.all('pmeta')) { const r = await DB.get('projects', m.id); if (r) projects.push({ meta: m, data: r.data }); }
+    for (const [id, s] of SAMPLES) if (id.startsWith('u:') && s.data instanceof Int16Array) samples[id] = { name: s.name, sr: s.sr, ch: s.ch, frz: !!s.frz, data: i16ToB64(s.data) };
+    const extra = { userDrums: (await DB.get('kv', 'userDrums')) || [], synPresets: (await DB.get('kv', 'synPresets')) || [] };
+    res({ blob: new Blob([JSON.stringify(Object.assign({ format: 'trackfill-all', version: PROJECT_VERSION, saved: new Date().toISOString(), projects, samples }, extra))], { type: 'application/json' }), n: projects.length }); };
+  if (!DB.db || typeof Worker === 'undefined') return onPage();
+  let w = null; try { w = new Worker(URL.createObjectURL(new Blob([AB_WORKER], { type: 'text/javascript' }))); } catch (e) { return onPage(); }
+  const t = setTimeout(() => { w.terminate(); onPage(); }, 60000);
+  w.onmessage = e => { clearTimeout(t); w.terminate(); if (e.data && e.data.ok) res({ blob: e.data.blob, n: e.data.n }); else onPage(); };
+  w.onerror = () => { clearTimeout(t); w.terminate(); onPage(); }; w.postMessage({ version: PROJECT_VERSION }); }); }
+const backupName = () => 'trackfill-backup-' + new Date().toISOString().slice(0, 10) + '.trackfill.json';
+async function backupAll() { await projSave(); toast('Preparing the backup…'); const b = await buildBackup(); if (await saveFile(backupName(), b.blob) !== false) abDone(); }
+
+/* ---------- auto backup (optional): once a day or once a week, if anything changed, a backup is made in the background while nothing
+   plays, then offered with one tap (an iPhone only lets a page save a file when you tap). Off by default. ---------- */
+const AB = { every: 'off', last: 0, changed: 0, ready: null, busy: false, offered: 0 };
+async function abLoad() { const r = await DB.get('kv', 'autoBackup'); if (r && typeof r === 'object') { AB.every = ['off', 'day', 'week'].includes(r.every) ? r.every : 'off'; AB.last = +r.last || 0; AB.changed = +r.changed || 0; } }
+const abStore = () => DB.put('kv', 'autoBackup', { every: AB.every, last: AB.last, changed: AB.changed });
+function abTouched() { const n = Date.now(); if (n - AB.changed > 60000) { AB.changed = n; abStore(); } AB.ready = null; }   // something was saved (written at most once a minute)
+function abDone() { AB.last = Date.now(); AB.ready = null; abStore(); }
+const abDue = () => AB.every !== 'off' && AB.changed > AB.last && Date.now() - AB.last >= (AB.every === 'day' ? 20 * 36e5 : 6.5 * 864e5);
+async function abTick() { if (!abDue() || AB.busy || T.playing || UI.sheet || document.visibilityState !== 'visible' || Date.now() - AB.offered < 3 * 36e5) return;
+  AB.busy = true; try { await projSave(); const b = AB.ready || await buildBackup(); AB.ready = b;
+    if (T.playing || UI.sheet) return;   // started playing or opened something meanwhile: offered at the next quiet moment
+    AB.offered = Date.now(); openSheet('Backup ready', card => { const st = h('div', 'stack'); card.append(st);
+      st.append(h('p', 'note', `Your ${b.n} project${b.n === 1 ? '' : 's'}, sounds, drums and presets, ready to keep somewhere safe (Files or iCloud Drive).` + (AB.last ? ' Last backup ' + ago(AB.last) + '.' : '')));
+      const g = h('div', 'g2'); g.append(btn('Later', () => closeSheet()), btn('Save backup', async () => { closeSheet(); if (await saveFile(backupName(), b.blob) !== false) abDone(); }, 'btn hot')); st.append(g); });
+  } finally { AB.busy = false; } }
+
 let saveTimer = 0;
 function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); syncKey(); }
 // the song's key, for effects that play in it (the Resonator): sent whenever it changes
 let keySent = ''; function syncKey(force) { if (!P || !P.key) return; const iv = scaleOf(P.key.scale)[1], sig = P.key.root + ':' + iv.join(','); if (sig === keySent && !force) return; keySent = sig; send({ t: 'key', root: P.key.root, iv }); }
-function saveNow() { clearTimeout(saveTimer); if (P) projSave(); }
+function saveNow() { clearTimeout(saveTimer); if (P) { projSave(); abTouched(); } }
 function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
@@ -1930,7 +1970,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
   DEVTEST.running = false; }
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 const CHANGES = [
-  ['2026-10-30', ['Fix: one fault while drawing could stop every meter, playhead and scope in the app until a restart. The display now carries on, and Engine check records what went wrong.', 'Snares too: Make from a sample reads the head tone from your snare and layers its wires and crack on top (Body and Wires set the balance).', 'Make from a sample, rebuilt for kicks, 808s and toms: the body is a synthesized sine whose pitch and level are read straight from your sample, with the sample’s own attack and texture layered on top. As made, it sounds like your sample; every knob still works.', 'Layered drums get a Layer page (Knobs: Body / Layer): level, pitch, start, length, filter and Keytrack, like the click section of a kick synth. Polarity is under More.', 'Played on notes, a layered drum keeps its length: the body follows the note, and the layer follows only with Keytrack on.']],
+  ['2026-10-30', ['Auto backup (optional, under Projects): daily or weekly, if anything changed, a backup is made in the background while nothing plays, then offered to save with one tap.', 'Backups now also carry your drums (including ones made from samples) and your synth presets.', 'Fix: one fault while drawing could stop every meter, playhead and scope in the app until a restart. The display now carries on, and Engine check records what went wrong.', 'Snares too: Make from a sample reads the head tone from your snare and layers its wires and crack on top (Body and Wires set the balance).', 'Make from a sample, rebuilt for kicks, 808s and toms: the body is a synthesized sine whose pitch and level are read straight from your sample, with the sample’s own attack and texture layered on top. As made, it sounds like your sample; every knob still works.', 'Layered drums get a Layer page (Knobs: Body / Layer): level, pitch, start, length, filter and Keytrack, like the click section of a kick synth. Polarity is under More.', 'Played on notes, a layered drum keeps its length: the body follows the note, and the layer follows only with Keytrack on.']],
   ['2026-10-29', ['New synth filters: Clean 24 (steeper, with the same low/band/high Shape), Notch (Shape pulls two notches apart) and Phaser (a peak at the cutoff with a notch each side).', 'Cleaner high notes: the analog oscillators no longer fold back harsh tones on high notes (now as clean as the big desktop synths). Pulse waves no longer carry a DC offset.', 'Diode filter fixed (it could pile up a DC offset and clip on bright settings) and it resonates properly now; Screamer screams harder; Formant no longer clips at high resonance.', 'Drive now works on Clean, Formant, Comb and the new filters, and every filter keeps about the same loudness as you drive it.', 'Fast attacks are really fast now (the shortest was smeared to about 3 ms).', 'Unison voices start spread out instead of all in step, so a stack no longer bursts on each note. Unison presets re-levelled to match.', 'Ladder filter rebuilt: resonance now rings the way a real ladder does (it barely did before), so resonant Ladder sounds are brighter and more alive. Levels re-set so presets stay as loud as before.', 'Wavetable: a silent oscillator can now FM, AM or ring-modulate the other one, and FM goes much deeper (the knob works on a curve).', 'Drum & bass drop basses, third batch on trial: twelve shaped by drawn LFOs, some plucked per note and some that turn one held note into 1/8s, triplets or 1/16s (in the “DnB drops” group).', 'Drum & bass drop basses on trial: ten sounds for rolling 1/8 lines, each a filtered saw over a clean sine with a fast square attack (look for the “DnB drops” group in Analog, FM and Wavetable).', 'From your first-batch notes: Metal Growl and Neuro Screech removed, Jump Wub less distorted.', 'Fix: the Squash mode of Multiband could jump up to 12 dB on the first note after silence.', 'What’s new: this page, under Settings.', 'Drum & bass presets, first batch on trial: 18 reeses, growls, pads, plucks, leads and stabs (look for the “DnB ·” groups).', 'Presets can bring their own effects, with their settings. Loading another preset replaces them, but never effects you added or changed.', 'Fix: Frequency shift with high feedback could run away and trip the safety mute.']],
   ['2026-10-28', ['Import several wavetables at once: pick many WAVs or a zip.', 'New app icon (remove the app from your Home Screen and add it again to see it).', 'Sound pickers accept every common audio file and zip files.', 'Match a sample removed from the synth.', 'Engine check now lists safety mutes (with the effects on that channel) and your last 50 actions in Copy results.', 'A damaged wavetable file can no longer break a synth.']],
   ['2026-10-27', ['New effects: Distortion (six flavours), Inflate, Resonator, Pitch (Shift, Robot, Octaves), Frequency shift, Ring mod, Imager and De-esser, each with its own display.', 'Filters in motion modes get a drawn LFO that can sync to the song.', 'Step FX follows the song and stops with it; tape stop speed is adjustable.', 'Menus regrouped, with a Back key in nested menus and Appearance on its own page.', 'Timeline: Follow key; touching the timeline while it plays pauses following.', 'Swing on a 1/8, 1/16 or 1/32 grid, for the song or per pad.', 'Engine check and the device check explain things in plain words, with a device power test.', 'Sub oscillator can stay in the same octave.', 'Hold a value (tempo, swing, volume, pitch…) to type it.', 'Pads, notes, playhead and meters light up when you hear them, not before.']],
@@ -2049,6 +2089,9 @@ $('#fileProj').addEventListener('change', async e => { const f = e.target.files 
     if (d.format === 'trackfill-all' && Array.isArray(d.projects)) {   // a full backup: every song and template comes back as its own entry; nothing here is replaced
       for (const [id, sm] of Object.entries(d.samples || {})) { const rec = sampleFromFile(id, sm); if (rec) { SAMPLES.set(id, rec); DB.put('samples', id, rec); } }
       let n = 0; for (const x of d.projects) { if (!x || !x.data) continue; await projCreate(migrate(x.data), x.meta && x.meta.kind === 'template' ? 'template' : 'project'); n++; }
+      if (Array.isArray(d.userDrums)) { let k = 0; for (const u of d.userDrums.slice(0, 500)) { if (!u || typeof u !== 'object') continue; const id = drumAddUser(u.mod, u.n, u.v, u.kind, u.x); if (id && !DRUM_MODS[u.mod].types[id].lib) { DRUM_MODS[u.mod].types[id].lib = true; k++; } } if (k) userDrumsSave(); }
+      if (Array.isArray(d.synPresets) && typeof USER_PRESETS !== 'undefined') { const have = new Set(USER_PRESETS.map(x => JSON.stringify(x.syn))); let k = 0;
+        for (const x of d.synPresets.slice(0, 1000)) if (x && x.n && x.syn && typeof x.syn === 'object' && !have.has(JSON.stringify(x.syn))) { USER_PRESETS.push(Object.assign({}, x, { n: tfName(x.n, 30), syn: normalizeSyn(x.syn) })); have.add(JSON.stringify(x.syn)); k++; } if (k) saveUserPresets(); }
       closeSheet(); toast(`Restored ${n} project${n === 1 ? '' : 's'} and templates`); return; }
     if (d.format !== 'trackfill' || !d.project) throw new Error('not a Trackfill backup');
     for (const [id, sm] of Object.entries(d.samples || {})) { const rec = sampleFromFile(id, sm); if (rec) { SAMPLES.set(id, rec); DB.put('samples', id, rec); ENG.sent.delete(id); } }
@@ -2387,6 +2430,7 @@ async function boot() {
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: pr.mon.phones === 'Apple EarPods' ? 'Wired earbuds' : TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
+  await abLoad(); setTimeout(abTick, 15000); setInterval(abTick, 5 * 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(abTick, 4000); });
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
   // Safari clears a website's storage after a week unused, but never an app on the Home Screen: say so (at most once a week) when that applies
   else if (location.protocol === 'https:' && !(navigator.standalone || matchMedia('(display-mode: standalone)').matches) && /iPhone|iPad|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document) {
