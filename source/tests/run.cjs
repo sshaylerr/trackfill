@@ -46,16 +46,14 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     host.msg({ t: 'play', scene: 0, loop: 'scene' }); const L = new Float32Array(128), R = new Float32Array(128); for (let i = 0; i < 1500; i++) host.render(128, L, R);
     const at = []; for (const r of reps) (r.fl || []).forEach((v, i) => at.push(r.end - r.fa[i])); const spb = 60 / 137 * 48000;
     const err = Math.max(...at.map((s, k) => Math.abs(s - (at[0] + k * spb)))); ok(at.length >= 9 && err <= 1, `${at.length} pad flashes, each stamped within ${err.toFixed(2)} samples of its note`); }
-  console.log('soft start');
-  { // the first sound after the audio wakes fades in over 30 ms (no pop on a cold start); later sounds and offline renders are untouched
+  console.log('first sound');
+  { // the first sound after the audio wakes (or from a fresh engine) plays exactly as every later one: no fade-in softening its attack
     const mk = () => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, () => {}), Q = M.newProject(true); Q.pads[0].sample = 'b:kick';
       Q.scenes[0].notes = { 0: [{ t: 0, len: 24, p: 0, v: 1 }] }; const s = kit.get('b:kick'); host.msg({ t: 'project', P: Q }); host.msg({ t: 'sample', key: s.id, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr }); return host; };
-    const run = (host, soft) => { if (!soft) host.soft = false; host.msg({ t: 'play', scene: 0, loop: 'scene' }); const L = new Float32Array(128), R = new Float32Array(128), out = [];
-      for (let i = 0; i < 40; i++) { host.render(128, L, R); out.push(...L); } return out; };
-    const a = run(mk(), true), b = run(mk(), false), f = b.findIndex(v => Math.abs(v) > 1e-4), pk = (x, i, j) => Math.max(...x.slice(i, j).map(Math.abs));
-    ok(f > 0 && pk(a, f, f + 240) < pk(b, f, f + 240) * .2 && Math.abs(pk(a, f + 1600, f + 3000) - pk(b, f + 1600, f + 3000)) < 1e-6, `first sound after waking fades in (first 5 ms at ${(pk(a, f, f + 240) / Math.max(1e-9, pk(b, f, f + 240)) * 100).toFixed(0)}%), then plays exactly as before`);
-    const h2 = mk(); run(h2, true); h2.msg({ t: 'stop' }); { const L = new Float32Array(128), R = new Float32Array(128); for (let i = 0; i < 1500; i++) h2.render(128, L, R); }   // let the first one ring out
-    const c = run(h2, true), fc = c.findIndex(v => Math.abs(v) > 1e-4); ok(fc >= 0 && pk(c, fc, fc + 240) > pk(b, f, f + 240) * .9, 'only the first sound fades: the next play starts at full level'); }
+    const run = host => { host.msg({ t: 'soft' }); host.msg({ t: 'play', scene: 0, loop: 'scene' }); const L = new Float32Array(128), R = new Float32Array(128), out = []; for (let i = 0; i < 40; i++) { host.render(128, L, R); out.push(...L); } return out; };
+    const h = mk(), a = run(h); h.msg({ t: 'stop' }); { const L = new Float32Array(128), R = new Float32Array(128); for (let i = 0; i < 1500; i++) h.render(128, L, R); }
+    const b = run(h); let d = 0, pk = 0; for (let i = 0; i < a.length; i++) { d = Math.max(d, Math.abs(a[i] - b[i])); pk = Math.max(pk, Math.abs(b[i])); }
+    ok(pk > .01 && d < pk * 1e-3, `the first hit after waking is the same as the next one (difference ${(20 * Math.log10(d / pk + 1e-12)).toFixed(0)} dB)`); }
   console.log('sounds sent in pieces');
   { const n = 300001 * 2, d = new Int16Array(n).map((_, i) => Math.round(Math.sin(i * .013) * 12000 + Math.sin(i * .0007) * 6000));
     const play = chunked => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.newProject(true); Q.chans.forEach(c => { c.fx = []; c.vol = H.tfFaderPos(1); });

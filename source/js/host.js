@@ -332,7 +332,6 @@ class TFHost {
     this.fxT = []; for (let c = 0; c < TF.NCH; c++) this.fxT.push([-1, -1, -1, -1, -1, -1, -1, -1]);
     this.duck = []; this.playing = false; this.loop = 'scene'; this.heap = new TFHeap(); this.fpend = new Map(); this.marks = []; this.arps = new Map(); this.arpOut = []; this.now = 0;
     this.ah = null; this.pending = null; this.LA = Math.round(0.02 * sr);
-    this.soft = !!post; this.fade = null;   // soft start: the first sound after the audio wakes (or a fresh engine) fades in over 30 ms, so a cold start can't pop
     this.live = new Set(); this.autoOn = new Set(); this.fresh = new Map(); this.pos = null; this.idx = [];
     this.click = { on: false, vol: .5 }; this.idleSent = false;   // the click is live-only: offline renders never turn it on
     this.flashes = []; this.flashT = []; this.cpuMs = 0; this.cpuBlocks = 0; this.lastReport = 0; this.tap = -1; this.buf = null;
@@ -371,7 +370,7 @@ class TFHost {
       case 'click': this.click = { on: !!m.on, vol: Math.max(0, Math.min(1, +m.vol || 0)) }; if (m.on) this.makeClicks(); break;
       case 'stop': this.stop(false); break;
       case 'key': this.key = { root: +m.root || 0, iv: Array.isArray(m.iv) && m.iv.length ? m.iv.map(Number) : [0, 2, 3, 5, 7, 8, 10] }; if (P) P.chans.forEach((C, c) => (C.fx || []).forEach((f, s) => { if (f && f.type === 25) this.resoKey(c, s); })); break;
-      case 'soft': this.soft = true; break;
+      case 'soft': break;   // (there used to be a fade-in on the first sound after waking: it softened that hit, so it's gone)
       case 'pending': this.pending = m.scene; break;
       case 'loop': this.loop = m.v; break;
       case 'hit': this.hit(m); break;
@@ -526,7 +525,6 @@ class TFHost {
     if (loop && vi >= 0) ex.tf_voice_loop(vi, Math.max(start, Math.min(end, pad.loopS == null ? start : pad.loopS)), pad.xf == null ? 0.08 : pad.xf, gate, pad.rel);
   }
   hit(m) {
-    if (this.soft) { this.soft = false; this.fade = { at: this.now, n: Math.round(.03 * this.sr) }; }
     if (m.notes) {   // a chord: notes may be strummed (ms after now); a release before a late note starts cancels it
       const n = m.notes.length;
       for (const x of m.notes) { if (!(x.ms > 0)) this.voice(m.pad, 0, x.semi, x.vel, 3600, m.tag || 0, n);
@@ -597,7 +595,6 @@ class TFHost {
     if (loop) this.loop = loop;
     this.playing = true; this.pending = null;
     const t = this.now + this.LA + Math.round(Math.max(0, Math.min(400, lead)) * this.sr / 1000), tps = this.P.bpm * TF.PPQ / (60 * this.sr), bars = Math.max(0, Math.min(2, count | 0));
-    if (this.soft) { this.soft = false; this.fade = { at: t, n: Math.round(.03 * this.sr) }; }
     if (bars) { this.makeClicks(); this.clicks(t, 0, bars * TF.BAR, tps); }   // count-in: clicks only, then the scene starts
     const len = this.P.scenes[scene] ? this.P.scenes[scene].bars * TF.BAR : TF.BAR;
     this.ah = { scene, rep: 0, tick: Math.max(0, Math.min(len - 1, +from || 0)), t: t + Math.round(bars * TF.BAR / tps), started: false };   // from: the timeline's start point
@@ -733,7 +730,6 @@ class TFHost {
       ex.tf_render(m); this.views(); if (this.scope) this.scopeFeed(m); if (this.visFx) this.waveFeed(m);
       const vL = this.vL, vR = this.vR;
       for (let i = 0; i < m; i++) { L[off + i] = vL[i]; R[off + i] = vR[i]; }
-      const F = this.fade; if (F) { if (this.now >= F.at + F.n) this.fade = null; else for (let i = 0; i < m; i++) { const k = this.now + i - F.at; if (k < F.n) { const g = k <= 0 ? (k < 0 ? 1 : 0) : Math.sin(k / F.n * Math.PI / 2) ** 2; L[off + i] *= g; R[off + i] *= g; } } }
       this.now = end; off += m;
     }
     const tr = ex.tf_trip();
