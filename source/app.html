@@ -1407,6 +1407,11 @@ const tlStep = () => UI.tl.snap || 6;
 const nudgeStep = () => UI.fine === 2 ? 0.001 / spt() : UI.fine === 1 ? 6 : tlStep();
 const gTop = () => RULER_H + STRIP_H + 8, gBot = () => TL.H - 10;
 const v2y = v => gBot() - (gBot() - gTop()) * v, y2v = y => clamp((gBot() - y) / (gBot() - gTop()), 0, 1);
+// automation values that a drag sticks to and a step stops on: the control's default, the middle and the bottom
+const homeVals = key => { const m = keyMeta(key), h = [0, .5]; if (m.def != null && !h.includes(m.def)) h.push(m.def); return h; };
+let homeHit = null;
+function homeY(y) { const v = y2v(y), h = homeVals(UI.tl.lane).find(q => Math.abs(v2y(q) - y) < 10); if (h == null) { homeHit = null; return Math.round(v * 1000) / 1000; } if (homeHit !== h) { homeHit = h; haptic(); } return h; }
+function homeStep(v, nv) { for (const h of homeVals(UI.tl.lane)) if ((v < h && nv > h) || (v > h && nv < h)) return h; return nv; }
 function lanePts(create) { const sc = P.scenes[UI.scene], k = UI.tl.lane; if (!sc.auto[k]) { if (!create) return null; sc.auto[k] = []; } return sc.auto[k]; }
 function cleanLane() { const sc = P.scenes[UI.scene]; if (sc.auto[UI.tl.lane] && !sc.auto[UI.tl.lane].length) delete sc.auto[UI.tl.lane]; }
 function tlClamp() { const tl = UI.tl; if (!tl.zoom) tl.zoom = (TL.W - LABEL_W) / (Math.min(P.scenes[UI.scene].bars, 4) * BAR);
@@ -1544,6 +1549,8 @@ function drawAutoLane(g) {
   if (tgt < G0) for (const n of sc.notes[tgt] || []) { const x1 = t2x(n.t), x2 = t2x(n.t + n.len); g.fillStyle = PAD_COLORS[P.pads[tgt].color]; g.globalAlpha = .7; g.fillRect(x1, RULER_H + 8, Math.max(3, x2 - x1 - 1), STRIP_H - 14); g.globalAlpha = 1; }
   const y0 = gTop(), y1 = gBot();
   for (const v of [0, .25, .5, .75, 1]) { g.fillStyle = v === .5 ? COL.dim : COL.line; g.fillRect(LABEL_W, Math.round(v2y(v)), W, 1); }
+  if (meta.def != null && ![0, .5, 1].includes(meta.def)) { g.setLineDash([2, 4]); g.strokeStyle = COL.dim; g.lineWidth = 1; g.beginPath(); g.moveTo(LABEL_W, Math.round(v2y(meta.def)) + .5); g.lineTo(W, Math.round(v2y(meta.def)) + .5); g.stroke(); g.setLineDash([]); }   // the default, which points stick to
+  { const dr = TL.drag; if (dr && dr.kind === 'pt' && dr.moved && homeHit != null) { g.globalAlpha = .6; g.fillStyle = COL.accent; g.fillRect(LABEL_W, Math.round(v2y(homeHit)), W, 1); g.globalAlpha = 1; } }
   g.save(); g.beginPath(); g.rect(LABEL_W, RULER_H, W - LABEL_W, H - RULER_H); g.clip();
   if (!pts.length) { g.setLineDash([5, 4]); g.strokeStyle = COL.mute; g.lineWidth = 1.5; g.beginPath(); g.moveTo(LABEL_W, v2y(base ?? 0)); g.lineTo(W, v2y(base ?? 0)); g.stroke(); g.setLineDash([]);
     g.fillStyle = COL.mute; g.font = '500 12px ' + FONT_UI; g.textBaseline = 'middle'; g.fillText('Tap to add points, or use Draw and Shapes', LABEL_W + 12, (y0 + y1) / 2 - 14); }
@@ -1647,7 +1654,7 @@ function bindTL(cv) {
     }
     if (x < LABEL_W) { TL.drag = Object.assign(base, { kind: 'pan' }); return; }
     const pts = lanePts(false) || []; let hi = -1, best = 20; pts.forEach((p, i) => { const d = Math.hypot(t2x(p.t) - x, v2y(p.v) - y); if (d < best) { best = d; hi = i; } });
-    if (hi >= 0) { tl.selPt = hi; TL.drag = Object.assign(base, { kind: 'pt', i: hi, pushed: false }); drawTL(); updatePanel(); return; }
+    if (hi >= 0) { tl.selPt = hi; homeHit = pts[hi] ? pts[hi].v : null; TL.drag = Object.assign(base, { kind: 'pt', i: hi, pushed: false }); drawTL(); updatePanel(); return; }
     if (tl.draw) { pushUndo('scene:' + UI.scene); TL.drag = Object.assign(base, { kind: 'draw', pushed: true, pts: [{ t: clamp(x2t(x), 0, tlLen()), v: y2v(y) }] }); return; }
     if (pts.length > 1) { const t = x2t(x); let si = -1; for (let i = 0; i < pts.length - 1; i++) if (t > pts[i].t && t < pts[i + 1].t) si = i;
       if (si >= 0 && Math.abs(v2y(valueAt(pts, t)) - y) < 22 && Math.abs(pts[si + 1].v - pts[si].v) > .02) { pushUndo('scene:' + UI.scene); const a = pts[si], b = pts[si + 1]; TL.drag = Object.assign(base, { kind: 'bend', pushed: true, si, xf: clamp((t - a.t) / (b.t - a.t), .06, .94) }); return; } }
@@ -1679,10 +1686,10 @@ function bindTL(cv) {
       else { const st = tl.snap || 1, dl = snapT(d.t0 + d.len0 + dt) - (d.t0 + d.len0); for (const it of d.items) it.q.n.len = clamp(fixT(it.len + dl), st, len - it.q.n.t); }
       drawTL(); updatePanel(); return; }
     if (d.kind === 'pt') { if (!d.pushed) { pushUndo('scene:' + UI.scene); d.pushed = true; } const pts = lanePts(true), p = pts[d.i], lo = d.i > 0 ? pts[d.i - 1].t + .01 : 0, hi2 = d.i < pts.length - 1 ? pts[d.i + 1].t - .01 : len;
-      p.t = clamp(snapT(x2t(x)), lo, hi2); p.v = Math.round(y2v(y) * 1000) / 1000; drawTL(); updatePanel(); return; }
+      p.t = clamp(snapT(x2t(x)), lo, hi2); p.v = homeY(y); drawTL(); updatePanel(); return; }
     if (d.kind === 'bend') { const pts = lanePts(true), a = pts[d.si], b = pts[d.si + 1], mf = clamp((y2v(y) - a.v) / (b.v - a.v), .002, .998);
       let lo = -.97, hi = .97; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (curveFrac(d.xf, m) > mf) lo = m; else hi = m; }
-      a.c = Math.round((lo + hi) / 2 * 1000) / 1000; if (Math.abs(a.c) < .015) a.c = 0; drawTL(); updatePanel(); return; }
+      a.c = Math.round((lo + hi) / 2 * 1000) / 1000; const st = Math.abs(a.c) < .05; if (st) a.c = 0; if (st && !d.straight) haptic(); d.straight = st; drawTL(); updatePanel(); return; }
     if (d.kind === 'draw') { const t = clamp(x2t(x), 0, len), last = d.pts[d.pts.length - 1]; if (Math.abs(t2x(t) - t2x(last.t)) >= 3) d.pts.push({ t, v: y2v(y) }); drawTL(); }
   });
   const up = e => {
@@ -1703,7 +1710,7 @@ function bindTL(cv) {
     if (d.kind === 'empty' && !d.moved) {
       if (tl.lane === 'notes' && selItems().length) { clearSel(); drawTL(); updatePanel(); TL.lastTap = { t: now, o: null }; return; }   // first tap only deselects
       if (tl.lane === 'notes') { const r = y2row(y); if (r >= 0 && r <= maxRow()) { const t = gridQ(x2t(x), tl.snap, 'floor'); if (t < tlLen()) addNoteAt(t, r); } }
-      else { const t = clamp(snapT(x2t(x)), 0, tlLen()); pushUndo('scene:' + UI.scene); const pts = lanePts(true); pts.push({ t, v: Math.round(y2v(y) * 1000) / 1000, c: 0 }); pts.sort((a, b) => a.t - b.t); tl.selPt = pts.findIndex(p => p.t === t); afterEdit(); }
+      else { const t = clamp(snapT(x2t(x)), 0, tlLen()); pushUndo('scene:' + UI.scene); const pts = lanePts(true); pts.push({ t, v: homeY(y), c: 0 }); pts.sort((a, b) => a.t - b.t); tl.selPt = pts.findIndex(p => p.t === t); afterEdit(); }
       TL.lastTap = { t: now, o: null }; return; }
     if ((d.kind === 'move' || d.kind === 'resize') && !d.moved) {
       if (TL.lastTap.o === d.hit.n && now - TL.lastTap.t < 350) { deleteSel(); TL.lastTap = { t: 0, o: null }; return; }   // double tap deletes the selection
@@ -1979,6 +1986,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
+  ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.']],
   ['2026-10-30', ['Instruments reworked: natural ring-out for keys, harp, vibes and basses; longer, smoother loops for pads, organ, flute and brass.', 'Removed Glass Pad, Orch Hits and Timpani Roll (projects switch to similar sounds).', 'Make from a sample, rebuilt for kicks, 808s, toms and snares: a synth body with your sample layered on top.', 'Layer page for layered drums: level, pitch, start, length, filter, Keytrack.', 'Tap the drum’s picture to hear it.', 'Auto backup (optional, under Projects), now including drums and synth presets.', 'Wavetable: tap a table to step through, hold for the menu.', 'Fix: first hit after sound starts could sound different.', 'Fix: meters and playheads could freeze until restart.', 'Fix: instruments were silent in exports.']],
   ['2026-10-29', ['New filters: Clean 24, Notch and Phaser.', 'Cleaner analog oscillators on high notes.', 'Ladder and Diode filters rebuilt; Drive works on every filter.', 'Faster attacks; unison stacks no longer burst on each note.', 'Wavetable: oscillator FM, AM and ring mod, with deeper FM.', 'Drum & bass presets: reeses, growls, pads, plucks, leads, stabs and drop basses.', 'Presets can bring their own effects.', 'What’s new, under Settings.', 'Fix: Multiband Squash level jump; Frequency shift runaway.']],
   ['2026-10-28', ['Import many wavetables at once.', 'New app icon.', 'Sound pickers accept all common audio files and zips.', 'Engine check lists safety mutes and recent actions.', 'Fix: a damaged wavetable could break a synth.']],
@@ -2323,8 +2331,8 @@ const autoCtl = {
       syncScene(UI.scene); markDirty(); }
     else tl.cursor.t = fixT(clamp((UI.fine ? tl.cursor.t : Math.round(tl.cursor.t / st) * st) + d * st, 0, len)); tlEnsure(); },
   vt(d, sh) { const tl = UI.tl, p = this.pts()[tl.selPt];
-    if (tl.selPt >= 0 && p) { if (NAV.selUndo < 0) undoGroup('a', 'scene:' + UI.scene); p.v = clamp(Math.round((p.v + d * (UI.fine ? .002 : sh ? .1 : .02)) * 1000) / 1000, 0, 1); tl.cursor.v = p.v; syncScene(UI.scene); markDirty(); }
-    else tl.cursor.v = clamp(Math.round((tl.cursor.v + d * (UI.fine ? .005 : sh ? .1 : .02)) * 1000) / 1000, 0, 1); drawTL(); },
+    if (tl.selPt >= 0 && p) { if (NAV.selUndo < 0) undoGroup('a', 'scene:' + UI.scene); p.v = homeStep(p.v, clamp(Math.round((p.v + d * (UI.fine ? .002 : sh ? .1 : .02)) * 1000) / 1000, 0, 1)); tl.cursor.v = p.v; syncScene(UI.scene); markDirty(); }
+    else tl.cursor.v = homeStep(tl.cursor.v, clamp(Math.round((tl.cursor.v + d * (UI.fine ? .005 : sh ? .1 : .02)) * 1000) / 1000, 0, 1)); drawTL(); },
   ok() { const tl = UI.tl; if (tl.selPt >= 0) { tl.selPt = -1; NAV.selUndo = -1; afterEdit(); return; }
     const i = this.near(); if (i >= 0) { selStart(); tl.selPt = i; tl.cursor.v = this.pts()[i].v; drawTL(); return; }
     pushUndo('scene:' + UI.scene); NAV.selUndo = UNDO.length - 1; const pts = lanePts(true), t = clamp(tl.cursor.t, 0, tlLen()); pts.push({ t, v: tl.cursor.v, c: 0 }); pts.sort((a, b) => a.t - b.t); tl.selPt = pts.findIndex(p => p.t === t); afterEdit(); },
