@@ -54,6 +54,12 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const h = mk(), a = run(h); h.msg({ t: 'stop' }); { const L = new Float32Array(128), R = new Float32Array(128); for (let i = 0; i < 1500; i++) h.render(128, L, R); }
     const b = run(h); let d = 0, pk = 0; for (let i = 0; i < a.length; i++) { d = Math.max(d, Math.abs(a[i] - b[i])); pk = Math.max(pk, Math.abs(b[i])); }
     ok(pk > .01 && d < pk * 1e-3, `the first hit after waking is the same as the next one (difference ${(20 * Math.log10(d / pk + 1e-12)).toFixed(0)} dB)`); }
+  console.log('instruments offline');
+  { // an instrument pad renders in exports, freezes and stems (its zones go to the offline engine with its sound)
+    const I = require('../js/instruments.js'), SPI = require('../js/synthpresets.js'), Q = M.newProject(true); Q.chans.forEach(c => c.fx = []); const pad = Q.pads[20];
+    Object.assign(pad, { src: 'synth', syn: SPI.synPatch(SPI.IN_PRESETS[1]), mode: 'gate', voice: 'poly', sample: null }); for (const k in Q.scenes[0].notes) Q.scenes[0].notes[k] = []; Q.scenes[0].bars = 1; Q.scenes[0].notes[20] = [{ t: 0, len: 200, p: 0, v: .8 }];
+    const s = I.insSample(pad.syn.ins), r = await H.tfRenderOffline(wasm, Q, new Map([[s.id, s]]), { order: [{ scene: 0, reps: 1 }], tail: 0, zones: new Map([[s.id, I.insZones(s.id)]]) }); let pk = 0; for (const v of r.L) pk = Math.max(pk, Math.abs(v));
+    ok(pk > .01, `an instrument pad sounds in an offline render (peak ${pk.toFixed(2)})`); }
   console.log('sounds sent in pieces');
   { const n = 300001 * 2, d = new Int16Array(n).map((_, i) => Math.round(Math.sin(i * .013) * 12000 + Math.sin(i * .0007) * 6000));
     const play = chunked => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.newProject(true); Q.chans.forEach(c => { c.fx = []; c.vol = H.tfFaderPos(1); });

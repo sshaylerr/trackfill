@@ -754,6 +754,7 @@ class TFHost {
 async function tfRenderOffline(module, P, samples, opts) {
   const sr = opts.sr || 48000, inst = new WebAssembly.Instance(module, {}), host = new TFHost(inst.exports, sr, null);
   host.msg({ t: 'project', P: JSON.parse(JSON.stringify(P)) });
+  if (opts.zones) for (const [key, z] of opts.zones) host.msg({ t: 'ins', key, zones: z });   // instruments: their zones, before their sounds (a pad picks both up when the sound lands)
   for (const [key, s] of samples) host.msg({ t: 'sample', key, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr });
   if (opts.tables) for (const [key, t] of opts.tables) host.msg({ t: 'wtable', key, F: t.F, lv: t.lv, fund: t.fund });
   host.tap = opts.tap == null ? -1 : opts.tap;
