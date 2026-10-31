@@ -197,11 +197,10 @@ const DECAY = (d, r = .4) => ({ ad: d, as: 0, ar: r }), ONE = { ad: 10, as: 1, a
 const IN_PRESETS = [
   inPreset('house', 'House Piano', 'Keys', Object.assign(DECAY(3.5, .35), { ivt: .45 })), inPreset('grand', 'Grand Piano', 'Keys', Object.assign(DECAY(7, .7), { ivt: .3 })),
   inPreset('tine', 'Tine EP', 'Keys', Object.assign(DECAY(5, .45), { ivt: .25, iwd: .25 })), inPreset('organ', 'Rave Organ', 'Keys', { ar: .08 }),
-  inPreset('orch', 'Orch Hit', 'Hits', ONE), inPreset('orchmin', 'Orch Hit Minor', 'Hits', ONE), inPreset('orchmaj', 'Orch Hit Major', 'Hits', ONE),
   inPreset('strstab', 'String Stab', 'Hits', ONE), inPreset('brassstab', 'Brass Stab', 'Hits', ONE), inPreset('choirhit', 'Choir Hit', 'Hits', ONE),
-  inPreset('timpani', 'Timpani', 'Hits', ONE), inPreset('timproll', 'Timpani Roll', 'Hits', ONE), inPreset('impact', 'Impact', 'Hits', ONE), inPreset('swell', 'Cymbal Swell', 'Hits', ONE),
+  inPreset('timpani', 'Timpani', 'Hits', ONE), inPreset('impact', 'Impact', 'Hits', ONE), inPreset('swell', 'Cymbal Swell', 'Hits', ONE),
   inPreset('strings', 'Strings', 'Pads', { aa: .25, ar: .7, iwd: .35 }), inPreset('choir', 'Choir Aah', 'Pads', { aa: .35, ar: .9, iwd: .3 }),
-  inPreset('strmach', 'String Machine', 'Pads', { aa: .18, ar: .8, iwd: .5 }), inPreset('glass', 'Glass Pad', 'Pads', { aa: .45, ar: 1.4, iwd: .3 }),
+  inPreset('strmach', 'String Machine', 'Pads', { aa: .18, ar: .8, iwd: .5 }),
   inPreset('harp', 'Harp', 'Melodic', DECAY(4, .6)), inPreset('harpgl', 'Harp Gliss', 'Melodic', ONE), inPreset('vibes', 'Vibes', 'Melodic', Object.assign(DECAY(4.5, .8), { ivt: .35 })),
   inPreset('flute', 'Flute', 'Melodic', { aa: .03, ar: .25 }), inPreset('synbrass', 'Synth Brass', 'Melodic', { aa: .015, ar: .3, iwd: .3 }),
   inPreset('bassf', 'Finger Bass', 'Bass', DECAY(2.5, .08), { voice: 'mono' }), inPreset('bassp', 'Pick Bass', 'Bass', DECAY(2.5, .08), { voice: 'mono' }), inPreset('bassm', 'Muted Bass', 'Bass', ONE, { voice: 'mono' }),
@@ -456,6 +455,7 @@ function normalizeSyn(s) {
   if (o.p.rph == null && o.p.ret === 'Off') o.p.rph = 1;   // the old Retrig switch: Off meant every note started anywhere
   delete o.p.ret;
   if (o.eng === 'ins' || s.ins) o.ins = typeof s.ins === 'string' && /^i:[a-z0-9]+$/.test(s.ins) ? s.ins : 'i:house';
+  if (o.ins) o.ins = ({ 'i:orch': 'i:brassstab', 'i:orchmin': 'i:brassstab', 'i:orchmaj': 'i:brassstab', 'i:glass': 'i:strmach', 'i:timproll': 'i:timpani' })[o.ins] || o.ins;   // retired instruments
   if (o.eng === 'gr' || s.gr) o.gr = { src: typeof (s.gr && s.gr.src) === 'string' ? s.gr.src : null };
   if (o.eng === 'wt' || s.wt) o.wt = { a: typeof (s.wt && s.wt.a) === 'string' ? s.wt.a : 'w:Basic Shapes', b: typeof (s.wt && s.wt.b) === 'string' ? s.wt.b : 'w:Basic Shapes' };
   o.lfo = [0, 1, 2, 3].map(k => Array.isArray(s.lfo && s.lfo[k]) && s.lfo[k].length ? s.lfo[k].slice(0, 32).map(q => ({ x: Math.max(0, Math.min(1, +q.x || 0)), y: Math.max(0, Math.min(1, +q.y || 0)), c: Math.max(-.97, Math.min(.97, +q.c || 0)) })) : LFO_SHAPES.Sine.map(q => Object.assign({}, q)));

@@ -98,6 +98,24 @@ function makeLoop(x, sr, f0, at, len, xf = .05, flatten = false) {
   return { y, ls, le };
 }
 
+/* A longer loop chosen by search: start and length (whole pitch periods) where the waveform, the level and the brightness on both
+   sides match best, then a long equal-power crossfade, so a held note doesn't pulse or flutter at the loop rate. */
+function findLoop(x, sr, f0, at, minL, maxL, xf = .25) {
+  const P = f0 > 0 ? sr / f0 : 0, W = Math.round(Math.max(P * 4, sr * .03)), step = P ? Math.max(1, Math.round(P)) : Math.round(sr * .004);
+  const env = (c, w) => { let e = 0, d = 0, prev = 0; for (let i = c - w; i < c + w; i++) { const v = x[i] || 0; e += v * v; d += (v - prev) * (v - prev); prev = v; } return [Math.sqrt(e / (2 * w)) + 1e-9, Math.sqrt(d / (2 * w)) + 1e-9]; };
+  const corr = (a, b) => { let c = 0, e1 = 0, e2 = 0; for (let i = -W; i < W; i++) { const u = x[a + i] || 0, v = x[b + i] || 0; c += u * v; e1 += u * u; e2 += v * v; } return c / Math.sqrt(e1 * e2 + 1e-12); };
+  let best = null; const s0 = Math.round(at * sr), s1 = Math.min(x.length - Math.round(minL * sr) - W - 2, s0 + Math.round(sr * .3));
+  for (let ls = s0; ls <= Math.max(s0, s1); ls += Math.round(sr * .01)) { const [ra, ba] = env(ls, W);
+    for (let L = Math.round(minL * sr / step) * step; L <= maxL * sr && ls + L + W < x.length; L += step) { const le = ls + L, [rb, bb] = env(le, W);
+      const sc = corr(ls, le) - 2 * Math.abs(Math.log(rb / ra)) - Math.abs(Math.log((bb / rb) / (ba / ra)));   // waveform, then level, then brightness
+      if (!best || sc > best.sc) best = { sc, ls, L }; } }
+  if (!best) return null;
+  let { ls, L } = best, bL = L, bc = -2; for (let d = -Math.round(step / 2); d <= Math.round(step / 2); d++) { const c = corr(ls, ls + L + d); if (c > bc) { bc = c; bL = L + d; } } L = bL;
+  const le = ls + L, X = Math.min(Math.round(L * .4), Math.round(xf * sr), ls - 1), y = Float32Array.from(x.subarray(0, le));
+  for (let i = 0; i < X; i++) { const w = i / X, j = le - X + i; y[j] = y[j] * Math.cos(w * Math.PI / 2) + x[ls - X + i] * Math.sin(w * Math.PI / 2); }
+  return { y, ls, le, score: best.sc };
+}
+
 /* ---------- IMA ADPCM (4 bits a sample), one continuous stream per instrument ---------- */
 const STEP = [7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796, 876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767];
 const IDX = [-1, -1, -1, -1, 2, 4, 6, 8];
@@ -112,4 +130,4 @@ function adpcmEncode(x) {   // x: float -1..1 → Buffer of nibbles (two per byt
 function adpcmDecode(buf, n) { const y = new Int16Array(n); let pred = 0, idx = 0; for (let i = 0; i < n; i++) { const code = i & 1 ? buf[i >> 1] >> 4 : buf[i >> 1] & 15, step = STEP[idx];
     let dq = step >> 3; if (code & 4) dq += step; if (code & 2) dq += step >> 1; if (code & 1) dq += step >> 2; pred += code & 8 ? -dq : dq; pred = Math.max(-32768, Math.min(32767, pred)); idx = Math.max(0, Math.min(88, idx + IDX[code & 7])); y[i] = pred; } return y; }
 
-module.exports = { SRC, list, fetch, readWav, writeWav, noteOf, hz, resample, biquad, compress, peak, scale, mix, reverse, trimStart, fadeOut, fadeIn, detectPitch, makeLoop, adpcmEncode, adpcmDecode };
+module.exports = { findLoop, SRC, list, fetch, readWav, writeWav, noteOf, hz, resample, biquad, compress, peak, scale, mix, reverse, trimStart, fadeOut, fadeIn, detectPitch, makeLoop, adpcmEncode, adpcmDecode };

@@ -543,13 +543,13 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       ok(Math.abs(12 * Math.log2(fa / 130.81)) < .5 && Math.abs(12 * Math.log2(fb / fa) - 7) < .3, `zones play in tune: C3 at ${fa.toFixed(1)} Hz, a fifth up at ×${(fb / fa).toFixed(3)} (between zones)`); }
     { const st = mk(Object.assign({}, P_('strings'), { p: Object.assign({}, P_('strings').p, { iwd: 0 }) })); st.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); st.run(375); const late = st.run(375 * 2).e / (375 * 2);
       const hp = mk(Object.assign({}, P_('house'), { p: Object.assign({}, P_('house').p, { as: 1 }) })); hp.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); hp.run(375 * 2); const pLate = hp.run(375).e / 375;
-      const oh = mk(P_('orch')); oh.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); oh.run(375 * 2); const v = oh.ex.tf_voices();
-      ok(late > 1e-4 && pLate > 1e-4 && v === 0, `loops hold a held note (strings ${(10 * Math.log10(late)).toFixed(0)} dB after 3 s, house piano with sustain ${(10 * Math.log10(pLate)).toFixed(0)} dB after 2 s); one-shots end on their own (orch hit voices after 2 s: ${v})`); }
+      const oh = mk(P_('brassstab')); oh.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); oh.run(375 * 2); const v = oh.ex.tf_voices();
+      ok(late > 1e-4 && pLate > 1e-4 && v === 0, `loops hold a held note (strings ${(10 * Math.log10(late)).toFixed(0)} dB after 3 s, house piano with sustain ${(10 * Math.log10(pLate)).toFixed(0)} dB after 2 s); one-shots end on their own (brass stab voices after 2 s: ${v})`); }
     { const soft = mk(P_('grand')), loud = mk(P_('grand')); soft.host.msg({ t: 'hit', pad: 20, semi: 0, vel: .3, tag: 1 }); loud.host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 });
       const bright = x => { let d = 0, e = 0; for (let i = 1; i < x.length; i++) { d += (x[i] - x[i - 1]) ** 2; e += x[i] * x[i]; } return d / e; }, bs = bright(soft.run(100).x), bl = bright(loud.run(100).x);
       ok(bl > bs * 1.3, `velocity picks the layer and the tone: a hard grand note is brighter (×${(bl / bs).toFixed(2)})`); }
     { const n = Object.keys(require('../js/instdata.js').INST_DATA).length, kb = Object.values(require('../js/instdata.js').INST_DATA).reduce((a, d) => a + d.d.length, 0) / 1024;
-      ok(n >= 26 && kb < 3000, `${n} instruments ship in ${(kb / 1024).toFixed(2)} MB`); }
+      ok(n >= 21 && kb < 3000, `${n} instruments ship in ${(kb / 1024).toFixed(2)} MB`); }
   }
   console.log('drum synth');
   { let bad = 0, n = 0, lv = [], longest = 0; for (const mod in DR.DRUM_MODS) for (const type in DR.DRUM_MODS[mod].types) { const d = DR.drumDefault(mod, type, 3), r = DR.drumRender(d, { key: { root: 0 } }); n++;
