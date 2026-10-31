@@ -11,7 +11,8 @@ function psStart(el, e, vertical = 'gate') { if (e.pointerType !== 'touch') retu
 // returns 'scroll' (the page has it), 'ctl' (the control has it) or 'wait' (not moved far enough to tell)
 function psMove(g, e) { if (!g) return 'ctl';
   if (!g.mode) { const dx = e.clientX - g.x, dy = e.clientY - g.y; if (Math.hypot(dx, dy) < PS_SLOP) return 'wait';
-    g.mode = Math.abs(dy) > Math.abs(dx) * 1.2 && (g.vertical === 'always' || performance.now() - g.t < PS_REST) ? 'scroll' : 'ctl'; }
+    const room = dy > 0 ? g.sc.scrollTop > 0 : g.sc.scrollTop < g.sc.scrollHeight - g.sc.clientHeight - 1;   // a page already at that end can't scroll: the control keeps the touch
+    g.mode = room && Math.abs(dy) > Math.abs(dx) * 1.2 && (g.vertical === 'always' || performance.now() - g.t < PS_REST) ? 'scroll' : 'ctl'; }
   if (g.mode === 'scroll') { const t = performance.now(); g.sc.scrollTop = g.top - (e.clientY - g.y); g.hist.push([t, e.clientY]); while (g.hist.length > 2 && t - g.hist[0][0] > 90) g.hist.shift(); }
   return g.mode; }
 // the finger lifts: a scroll glides on at the finger's speed and slows the way the phone's own lists do

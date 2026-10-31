@@ -22,7 +22,7 @@ function synCells(tab) {
   return SYN_CELLS[tab] || []; }
 const SYN_CELLS = {
   o1: ['o1w', 'o1o', 'o1s', 'o1f', 'o1l', 'o1p', 'dri'], ph: ['o1h', 'o2h', 'o3h', 'rph'], wp: ['wa9', 'wb9', 'rph'], fp: ['f1h', 'f2h', 'f3h', 'f4h', 'rph'], o2: ['o2w', 'o2o', 'o2s', 'o2f', 'o2l', 'o2p', 'o2y', 'o2m'], o3: ['o3w', 'o3o', 'o3s', 'o3f', 'o3l', 'o3p', 'o3x', 'o3r'],
-  vo: ['uni', 'det', 'spr', 'pit', '#bendr', 'gan', '#glide', '#poly'], sb: ['sbl', 'sbo', 'sbw', 'spl', 'spn'], nz: ['nzn', 'nzt', 'nzb', 'nzd', 'nzh', 'nzl', 'nzo', 'nzk'],
+  vo: ['uni', 'det', 'spr', 'pit', '#bendr', 'gan', '#glide', '#poly'], sb: ['sbl', 'sbo', 'sbw', 'spl', 'spn', 'sbf', 'nzf'], nz: ['nzn', 'nzt', 'nzb', 'nzd', 'nzh', 'nzl', 'nzo', 'nzk'],
   fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp', 'fbk'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'vel', '#voice'], e2: ['2a', '2d', '2s', '2r', '2c', '2k'], e3: ['3a', '3d', '3s', '3r', '3c', '3k'],
   mc: ['m1', 'm2', 'm3', 'm4'],
   xs: ['xsm', 'xs@', 'xdi', 'xsc', 'xlv', 'xpl', 'xtt'], xn: ['xnl', 'xnf', 'xbf', 'xbt', 'xbq', 'xnc'], xo: ['xol', 'xwv', 'xpf', 'xpt', 'xmo', 'xmr', 'xma', 'xru'], xh: ['xhl', 'xht', 'xhn', 'xhd', 'xhw'], xz: ['xsz', 'xsp', 'xdr', 'xgr', 'pit', 'gan', 'vel', '#poly'],
@@ -33,7 +33,7 @@ for (let k = 1; k <= 4; k++) SYN_CELLS['l' + k] = ['l' + k + 'y', 'l' + k + '@',
 const SRC_COL = i => i <= 2 ? '#7fd49a' : i <= 6 ? '#ff7ac8' : i <= 11 || i === 16 ? '#e6c162' : 'var(--accent)';
 const SYN_ST = { pg: 0, tab: {}, snap: 0, opv: 0 };
 // pages whose controls don't fill two rows of four are laid out by hand
-const SYN_ROWS = { xs: [['xsm', 'xs@', 'xdi', 'xsc'], ['xlv', 'xpl', 'xtt']], xn: [['xnl', 'xnf', 'xbf', 'xbt'], ['xbq', 'xnc']], xh: [['xhl', 'xht', 'xhn', 'xhd'], ['xhw']], s8: [['spa', 'spt', 'spc', '#glide'], ['ckl', 'ckt', '#bendr']], sv: [['pit', 'gan', 'vel', '#poly'], ['#voice', '#follow']], sb: [['sbl', 'sbo', 'sbw'], ['spl', 'spn']], g2: [['gmo', 'gsh', 'grv'], ['gtl', 'gkt']] };
+const SYN_ROWS = { xs: [['xsm', 'xs@', 'xdi', 'xsc'], ['xlv', 'xpl', 'xtt']], xn: [['xnl', 'xnf', 'xbf', 'xbt'], ['xbq', 'xnc']], xh: [['xhl', 'xht', 'xhn', 'xhd'], ['xhw']], s8: [['spa', 'spt', 'spc', '#glide'], ['ckl', 'ckt', '#bendr']], sv: [['pit', 'gan', 'vel', '#poly'], ['#voice', '#follow']], sb: [['sbl', 'sbo', 'sbw', 'sbf'], ['spl', 'spn', 'nzf']], g2: [['gmo', 'gsh', 'grv'], ['gtl', 'gkt']] };
 function synRows(tab) { if (SYN_ROWS[tab]) return SYN_ROWS[tab]; const l = /^l(\d)$/.exec(tab); if (l) { const k = 'l' + l[1]; return [[k + 'y', k + '@', k + 'm', k + 'p'], [k + 'o', '#shape', '#snap']]; }
   const c = synCells(tab), pad4 = r => r.concat(['', '', '', '']).slice(0, 4); return [pad4(c.slice(0, 4)), pad4(c.slice(4, 8))]; }
 // synth controls offered as automation lanes (the timeline): macros first, then the ones most often moved in a track

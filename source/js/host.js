@@ -105,6 +105,7 @@ const TFSYN = (() => {
   L.push(['o1h', 'Osc 1 phase', 'lin', 0, 360, 0, 'ph'], ['o2h', 'Osc 2 phase', 'lin', 0, 360, 0, 'ph'], ['o3h', 'Osc 3 phase', 'lin', 0, 360, 0, 'ph'], ['rph', 'Random', 'lin', 0, 1, 0, 'ph'],
     ['wa9', 'Osc A phase', 'lin', 0, 360, 0, 'ph'], ['wb9', 'Osc B phase', 'lin', 0, 360, 0, 'ph'], ['f1h', 'Op 1 phase', 'lin', 0, 360, 0, 'ph'], ['f2h', 'Op 2 phase', 'lin', 0, 360, 0, 'ph'],
     ['f3h', 'Op 3 phase', 'lin', 0, 360, 0, 'ph'], ['f4h', 'Op 4 phase', 'lin', 0, 360, 0, 'ph']);
+  L.push(['sbf', 'Sub → filter', 'opt', ['Off', 'On'], 0, 'Off', 'sb'], ['nzf', 'Noise → filter', 'opt', ['Off', 'On'], 0, 'Off', 'nz']);   // route the sub and the noise through the filter
   return L.map(([id, l, k, a, b, d, tab], i) => ({ i, id, l, k, a, b, d, tab }));
 })();
 const TFSYN_ID = Object.fromEntries(TFSYN.map(p => [p.id, p]));

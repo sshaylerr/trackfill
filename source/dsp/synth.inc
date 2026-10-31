@@ -525,6 +525,7 @@ static void renderSynth(i32 n) {
     if (splitOn) { float sfc = clampf(f0 * (0.6f + spl * 2.4f), 30.f, 300.f), w = ftan(3.14159265f * sfc / SR), w2 = w * w, k = 1.41421356f, a0 = 1.f / (1.f + k * w + w2);
       hb[0] = a0; hb[1] = -2.f * a0; hb[2] = a0; hb[3] = 2.f * (w2 - 1.f) * a0; hb[4] = (1.f - k * w + w2) * a0; apc = (w - 1.f) / (w + 1.f); }
     // sub oscillator
+    const i32 sbF = disc(m[SP_SBF], 2), nzF = disc(m[SP_NZF], 2);   // sub and noise through the filter (else they join after it)
     const float subL = isX ? 0.f : m[SP_SBL]; const i32 subW = disc(m[SP_SBW], 3); const i32 subO = disc(m[SP_SBO], 3); const float subInc = f0 * (subO == 2 ? 0.25f : subO == 1 ? 0.5f : 1.f) / SR;   // 0, −1 or −2 octaves under osc 1
     // noise crunch
     const float nzL = isX ? 0.f : m[SP_NZL]; float nzA = 0, nzB = 0, nzDrive = 0, nzMk = 0, nzTone = 0, nzhg = 0, bodyInc = 0;
@@ -643,23 +644,26 @@ static void renderSynth(i32 n) {
         if (lvl[2] > 0.0005f) { float p3 = v->ph[2][u], i3 = inc[2] * dm[u]; x += oscBL(W[2], p3, tb[2], pw[2]) * lvl[2]; p3 += i3; v->ph[2][u] = p3 - floorf_(p3); }
         sL += x * panL[u]; sR += x * panR[u];
       }
+      float sbV = 0.f, nzV = 0.f;
+      if (subL > 0.0005f) { float s = subW == 0 ? fsin(6.28318531f * v->sph) : subW == 1 ? (v->sph < 0.5f ? 4.f * v->sph - 1.f : 3.f - 4.f * v->sph) : (v->sph < 0.5f ? 1.f : -1.f) + blep(v->sph, subInc) - blep(v->sph < 0.5f ? v->sph + 0.5f : v->sph - 0.5f, subInc);
+        v->sph += subInc; v->sph -= floorf_(v->sph);
+        if (splitOn) { float y = apc * s + v->ap[0]; v->ap[0] = s - apc * y; float y2 = apc * y + v->ap[1]; v->ap[1] = y - apc * y2; s = y2; }   // matches the high-pass's phase
+        sbV = s * subL * 0.7f; }
+      if (nzL > 0.0005f) { float w = frnd(&svRng); v->nzlp += (w - v->nzlp) * nzTone; v->bph += bodyInc; v->bph -= floorf_(v->bph);
+        float b = fsin(6.28318531f * v->bph), y = adaaClip((v->nzlp * nzA * 0.8f + b * nzB) * nzDrive * 0.5f, &v->nzx1) * nzMk;
+        float k = 1.41421356f, a1n = 1.f / (1.f + nzhg * (nzhg + k)), a2n = nzhg * a1n, a3n = nzhg * a2n, v3 = y - v->nzhp[1], v1 = a1n * v->nzhp[0] + a2n * v3, v2 = v->nzhp[1] + a2n * v->nzhp[0] + a3n * v3;
+        v->nzhp[0] = 2.f * v1 - v->nzhp[0]; v->nzhp[1] = 2.f * v2 - v->nzhp[1]; nzV = (y - k * v1 - v2) * nzL; }
       float io[2] = { stereo ? sL : (sL + sR) * 0.5f, sR };
+      const float pre = (sbF ? sbV : 0.f) + (nzF ? nzV : 0.f);   // sub and noise routed into the filter join after the split
       for (i32 c = 0; c < chans; c++) { float x = io[c] + fbk * fsat(v->fb[c] * 1.5f);
         if (splitOn) { float* h1 = v->hp1[c]; float y = hb[0] * x + h1[0]; h1[0] = hb[1] * x - hb[3] * y + h1[1]; h1[1] = hb[2] * x - hb[4] * y;
           float* h2 = v->hp2[c]; float y2 = hb[0] * y + h2[0]; h2[0] = hb[1] * y - hb[3] * y2 + h2[1]; h2[1] = hb[2] * y - hb[4] * y2; x = y2; }
+        x += pre;
         if (ftype > 0 && !fOpen) x = flt1(v, c, ftype, x, fg, res, shp, fdg, fc) * fmkT; else if (fdg > 1.01f) x = fsat(x * fdg) * fmk;
         v->fb[c] = x; io[c] = x; }
       if (ftype == 6) v->cw = (v->cw + 1) & (CMB - 1);
       if (!stereo) io[1] = io[0];
-      float extra = suLow;
-      if (subL > 0.0005f) { float s = subW == 0 ? fsin(6.28318531f * v->sph) : subW == 1 ? (v->sph < 0.5f ? 4.f * v->sph - 1.f : 3.f - 4.f * v->sph) : (v->sph < 0.5f ? 1.f : -1.f) + blep(v->sph, subInc) - blep(v->sph < 0.5f ? v->sph + 0.5f : v->sph - 0.5f, subInc);
-        v->sph += subInc; v->sph -= floorf_(v->sph);
-        if (splitOn) { float y = apc * s + v->ap[0]; v->ap[0] = s - apc * y; float y2 = apc * y + v->ap[1]; v->ap[1] = y - apc * y2; s = y2; }   // matches the high-pass's phase
-        extra += s * subL * 0.7f; }
-      if (nzL > 0.0005f) { float w = frnd(&svRng); v->nzlp += (w - v->nzlp) * nzTone; v->bph += bodyInc; v->bph -= floorf_(v->bph);
-        float b = fsin(6.28318531f * v->bph), y = adaaClip((v->nzlp * nzA * 0.8f + b * nzB) * nzDrive * 0.5f, &v->nzx1) * nzMk;
-        float k = 1.41421356f, a1n = 1.f / (1.f + nzhg * (nzhg + k)), a2n = nzhg * a1n, a3n = nzhg * a2n, v3 = y - v->nzhp[1], v1 = a1n * v->nzhp[0] + a2n * v3, v2 = v->nzhp[1] + a2n * v->nzhp[0] + a3n * v3;
-        v->nzhp[0] = 2.f * v1 - v->nzhp[0]; v->nzhp[1] = 2.f * v2 - v->nzhp[1]; extra += (y - k * v1 - v2) * nzL; }
+      float extra = suLow + (sbF ? 0.f : sbV) + (nzF ? 0.f : nzV);
       L[i] += (io[0] + extra) * amp; R[i] += (io[1] + extra) * amp;
       if (isX) { float h0 = 0.f, h1 = 0.f;
         if (v->xhit) { const float t = v->xht, e = fexp(-t / xHtau) * minf(1.f, t * (xHt == 2 ? 300.f : 3000.f));
