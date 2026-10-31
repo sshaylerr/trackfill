@@ -17,11 +17,12 @@ const clone = o => JSON.parse(JSON.stringify(o));
 function makeRecipe(seed, n) {
   let s = seed >>> 0 || 1; const r = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296), ri = (a, b) => a + Math.floor(r() * (b - a + 1)), pick = a => a[Math.floor(r() * a.length)];
   const out = [];
+  const loud = (t, mo, i) => { const q = (M.FX_DEFS[t].modes[mo] || M.FX_DEFS[t].modes[0]).params[i]; return !!q && /^(Output|Drive|Makeup|Gain|Low gain|Mid gain|High gain)$/.test(q.n); };   // level knobs stop short of the top: three stacked at +24 dB is a deliberate wall of sound, not a fault
   const SYN = H.TFSYN || [], edge = () => { const q = r(); return q < .15 ? 0 : q < .3 ? 1 : q < .38 ? r() * .02 : q < .46 ? 1 - r() * .02 : r(); };   // knob ends are where the trouble lives
   for (let k = 0; k < n; k++) { const w = r(), c = r() < .1 ? 82 : ri(1, 81), blocks = ri(1, 120);
     let e;
     if (w < .14) { const i = ri(0, 3); e = { t: 'param', key: `${c}.-1.${i}`, v: c === 82 && i === 0 ? .4 + r() * .6 : r() }; }   // the master fader stays up: turning it down is meant to go quiet
-    else if (w < .26) { const fx = []; for (let q = ri(0, 3); q > 0; q--) { const t = ri(0, M.FX_DEFS.length - 1), mo = ri(0, M.FX_DEFS[t].modes.length - 1); const f = M.newFx(t, null, mo); f.p = f.p.map(v => edge()); f.on = r() > .1; if (t === M.FX_TYPES.STEP) f.steps = Array.from({ length: 16 }, () => ri(0, 6)); fx.push(f); } e = { t: 'fx', c, fx }; }
+    else if (w < .26) { const fx = []; for (let q = ri(0, 3); q > 0; q--) { const t = ri(0, M.FX_DEFS.length - 1), mo = ri(0, M.FX_DEFS[t].modes.length - 1); const f = M.newFx(t, null, mo); f.p = f.p.map((v, i) => loud(t, mo, i) ? edge() * .8 : edge()); f.on = r() > .1; if (t === M.FX_TYPES.STEP) f.steps = Array.from({ length: 16 }, () => ri(0, 6)); fx.push(f); } e = { t: 'fx', c, fx }; }
     else if (w < .34) e = { t: 'fxparam', c, s: ri(0, 2), i: ri(0, 11), v: edge() };
     else if (w < .46) { const pi = ri(1, 63), kind = r(); e = { t: 'pad', i: pi, set: kind < .5 ? { sample: pick(KEYS), src: 'sample', pitch: ri(-12, 12), mode: pick(['one', 'gate', 'loop']), start: r() * .3, end: .7 + r() * .3, rel: r() }
       : kind < .85 ? { src: 'synth', preset: ri(0, PRESETS.length - 1), voice: pick(['poly', 'mono', 'legato']), glide: r() * .2 } : { sample: null, src: 'sample' } }; }
