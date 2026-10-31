@@ -212,7 +212,10 @@ function openSynthSource(pi) {
       btn(`Synth <span class="lsub">${pad.syn ? (TF_ENGS[pad.syn.eng] || 'Analog') + ' · ' + esc(pad.syn.name || 'Init') : 'Analog · Init'}</span>`, () => { closeSheet(); if (pad.src === 'synth' && pad.syn) return; if (pad.syn) { pushUndo('pad:' + pi); pad.src = 'synth'; pad.mode = 'gate'; syncPad(pi); markDirty(); renderAll(); } else applySynthPreset(pi, SYN_INIT); }, 'btn' + (pad.src === 'synth' ? ' on' : '')));
     st.append(btn(`Drum <span class="lsub">${pad.drum ? esc(DRUM_MODS[pad.drum.mod].n + ' · ' + drumTypeName(pad.drum.mod, pad.drum.type)) : 'Kick, snare, clap, hats, perc · or a whole kit'}</span>`, () => { closeSheet(); if (pad.src === 'drum') return;
       if (pad.drum) { pushUndo('pad:' + pi); pad.src = 'drum'; pad.mode = 'one'; refreshDrum(pi); renderAll(); } else { makeDrumPad(pi, 'kick', 'DnB Punch'); UI.snd = 0; renderAll(); } }, 'btn' + (pad.src === 'drum' ? ' on' : '')));
-    st.append(''); card.append(st); });
+    st.append(h('div', 'sec', 'Clear')); const cl = h('div', 'g3'); const b = Math.floor(pi / 16);
+    cl.append(confirmBtn('Pad', 'Again', () => { closeSheet(); clearPad(pi); }), confirmBtn('Bank ' + BANKS[b], 'Again', () => { closeSheet(); clearPads(Array.from({ length: 16 }, (_, k) => b * 16 + k), 'Bank ' + BANKS[b]); }),
+      confirmBtn('All pads', 'Again', () => { closeSheet(); clearPads(Array.from({ length: 64 }, (_, k) => k), 'All pads'); }));
+    st.append(cl); card.append(st); });
 }
 /* ----- presets: factory ones per engine, plus your own (kept on this device for every project) ----- */
 let USER_PRESETS = [];
