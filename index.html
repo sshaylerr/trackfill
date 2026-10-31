@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-5se/atsZYlXSYQgTdDT3/aUa4ERr98s+erOLdq957A4=' 'sha256-yBq+q3S0chmwb1/1HzId0ExN78arDTzqe0Cq4r1tWbA=' 'sha256-QdUTcrtcPyrLPSP+9bveWDEwf4ZBse/3HIItVOVyRLI=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-5se/atsZYlXSYQgTdDT3/aUa4ERr98s+erOLdq957A4=' 'sha256-yBq+q3S0chmwb1/1HzId0ExN78arDTzqe0Cq4r1tWbA=' 'sha256-Et8rQpZ/D8zWQ1bcWrVyfBY+5xETlBTjVK/WUXQw9W0=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -3763,7 +3763,7 @@ async function openProjects() {
     if (est && est.usage != null) st.append(h('p', 'note', `Using ${(est.usage / 1048576).toFixed(est.usage > 1e8 ? 0 : 1)} MB of storage on this device.`)); }); }
 function openNewFrom(tpl) { openSheet('New project', card => { const st = h('div', 'stack'); card.append(st); const l = h('div', 'list');
     const add = (n, sub, f) => { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(n)}</b><span>${esc(sub)}</span></div>`; li.onclick = () => { closeSheet(); f(); }; l.append(li); };
-    add('Empty', 'Built-in kit on bank A, nothing else', () => projNew(newProject(), 'New project')); add('Liquid jungle kit', 'Chopped break, keys and the jungle kit', () => { const p = jungleProject(); projNew(p, 'Jungle ' + new Date().toLocaleDateString()); });
+    add('Blank', 'No sounds, no notes', () => projNew(newProject(true), 'New project')); add('Empty', 'Built-in kit on bank A, nothing else', () => projNew(newProject(), 'New project')); add('Liquid jungle kit', 'Chopped break, keys and the jungle kit', () => { const p = jungleProject(); projNew(p, 'Jungle ' + new Date().toLocaleDateString()); });
     add('Demo song', 'A finished example to pull apart', () => projNew(demoProject()));
     st.append(h('div', 'sec', 'Start from')); st.append(l);
     if (tpl.length) { st.append(h('div', 'sec', 'Your templates')); const t = h('div', 'list');
@@ -4518,7 +4518,13 @@ const nudgeStep = () => UI.fine === 2 ? 0.001 / spt() : UI.fine === 1 ? 6 : tlSt
 const gTop = () => RULER_H + STRIP_H + 8, gBot = () => TL.H - 10;
 const v2y = v => gBot() - (gBot() - gTop()) * v, y2v = y => clamp((gBot() - y) / (gBot() - gTop()), 0, 1);
 // automation values that a drag sticks to and a step stops on: the control's default, the middle and the bottom
-const homeVals = key => { const m = keyMeta(key), h = [0, .5]; if (m.def != null && !h.includes(m.def)) h.push(m.def); return h; };
+// the neighbours in song order (sections with notes), and where this lane's control is as the previous one ends and the next one starts
+function sideVals(key) { const n = P.scenes.length, si = UI.scene, has = j => tfHasNotes(P.scenes[j]); let pv = null, nx = null;
+  for (let k = 1; k <= n && pv == null; k++) { const j = (si - k + n) % n; if (has(j)) pv = j; }
+  for (let k = 1; k <= n && nx == null; k++) { const j = (si + k) % n; if (has(j)) nx = j; }
+  const at = (j, end) => { if (j == null) return null; const pts = P.scenes[j].auto && P.scenes[j].auto[key]; return pts && pts.length ? pts[end ? pts.length - 1 : 0].v : tfBase(P, key); };
+  return { prev: at(pv, true), next: at(nx, false) }; }
+const homeVals = key => { const m = keyMeta(key), h = [0, .5], sv = sideVals(key); for (const v of [m.def, sv.prev, sv.next]) if (v != null && !h.includes(v)) h.push(v); return h; };
 let homeHit = null;
 function homeY(y) { const v = y2v(y), h = homeVals(UI.tl.lane).find(q => Math.abs(v2y(q) - y) < 10); if (h == null) { homeHit = null; return Math.round(v * 1000) / 1000; } if (homeHit !== h) { homeHit = h; haptic(); } return h; }
 function homeStep(v, nv) { for (const h of homeVals(UI.tl.lane)) if ((v < h && nv > h) || (v > h && nv < h)) return h; return nv; }
@@ -4660,6 +4666,9 @@ function drawAutoLane(g) {
   const y0 = gTop(), y1 = gBot();
   for (const v of [0, .25, .5, .75, 1]) { g.fillStyle = v === .5 ? COL.dim : COL.line; g.fillRect(LABEL_W, Math.round(v2y(v)), W, 1); }
   if (meta.def != null && ![0, .5, 1].includes(meta.def)) { g.setLineDash([2, 4]); g.strokeStyle = COL.dim; g.lineWidth = 1; g.beginPath(); g.moveTo(LABEL_W, Math.round(v2y(meta.def)) + .5); g.lineTo(W, Math.round(v2y(meta.def)) + .5); g.stroke(); g.setLineDash([]); }   // the default, which points stick to
+  { const sv = sideVals(tl.lane), ghost = (t, v, lbl, al) => { if (v == null) return; const x = t2x(t), y = v2y(v); g.setLineDash([2, 2]); g.strokeStyle = COL.mute; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, 5.5, 0, 7); g.stroke(); g.setLineDash([]);
+      g.fillStyle = COL.mute; g.font = '500 9.5px ' + FONT_LCD; g.textBaseline = 'middle'; g.textAlign = al; g.fillText(lbl, x + (al === 'left' ? 9 : -9), y - 10); g.textAlign = 'left'; };
+    ghost(0, sv.prev, 'prev', 'left'); ghost(tlLen(), sv.next, 'next', 'right'); }   // where the sections either side leave and pick up this control: points stick to these values
   { const dr = TL.drag; if (dr && dr.kind === 'pt' && dr.moved && homeHit != null) { g.globalAlpha = .6; g.fillStyle = COL.accent; g.fillRect(LABEL_W, Math.round(v2y(homeHit)), W, 1); g.globalAlpha = 1; } }
   g.save(); g.beginPath(); g.rect(LABEL_W, RULER_H, W - LABEL_W, H - RULER_H); g.clip();
   if (!pts.length) { g.setLineDash([5, 4]); g.strokeStyle = COL.mute; g.lineWidth = 1.5; g.beginPath(); g.moveTo(LABEL_W, v2y(base ?? 0)); g.lineTo(W, v2y(base ?? 0)); g.stroke(); g.setLineDash([]);
@@ -7164,6 +7173,7 @@ function swapPads(a, b) {
   for (const C of P.chans) for (const f of C.fx || []) if (f.trig) f.trig = f.trig.map(m);
   syncProject(); markDirty(); renderAll(); toast(`Swapped ${padLabel(a)} and ${padLabel(b)}`);
 }
+function clearPads(list, what) { pushUndo('all'); for (const pi of list) { if (P.pads[pi].frz) unfreeze(pi); P.pads[pi] = defaultPad(pi); P.chans[pi] = defaultChan(pi); syncPad(pi); syncChan(pi); } markDirty(); renderAll(); toast(`${what} cleared (notes are kept)`); }
 function clearPad(pi) { pushUndo('all'); if (P.pads[pi].frz) unfreeze(pi); P.pads[pi] = defaultPad(pi); P.chans[pi] = defaultChan(pi); syncPad(pi); syncChan(pi); markDirty(); renderAll(); toast(`${padLabel(pi)} cleared (its notes are kept)`); }
 
 /* ----- scenes ----- */
@@ -7349,7 +7359,8 @@ function openEdit() {
               key(S === a && a > 0 ? 'Start: from bar 1' : 'Start at bar ' + (EDR.from + 1), () => { tl.start = S === a || a === 0 ? null : { scene: UI.scene, t: a }; toast(tl.start ? `Plays from bar ${EDR.from + 1}` : 'Plays from the start'); }, true, { stay: 1, w: 2 })]; })()); }
       if (tab === 'Pad') { const pi = UI.view === 'mix' ? UI.mixSel : UI.pad;
         grid(key('Copy', () => copyPad(pi)), key('Paste', () => pastePad(pi), clipIs('pad')), key('Duplicate', () => duplicatePad(pi), hasSound(P.pads[pi]), { cls: 'hot' }), confirmBtn('Clear', 'Again', () => { closeSheet(); clearPad(pi); }),
-          key('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap a pad to swap with ${padLabel(pi)}`); }, true, { w: 2 })); }
+          key('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap a pad to swap with ${padLabel(pi)}`); }, true, { w: 2 }),
+          confirmBtn('Clear bank', 'Again', () => { closeSheet(); const b = Math.floor(pi / 16); clearPads(Array.from({ length: 16 }, (_, k) => b * 16 + k), 'Bank ' + BANKS[b]); }), confirmBtn('Clear all', 'Again', () => { closeSheet(); clearPads(Array.from({ length: 64 }, (_, k) => k), 'All pads'); })); }
       if (tab === 'Channel') { const c = UI.mixSel;
         grid(key('Copy', () => copyChan(c)), key('Paste', () => pasteChan(c), clipIs('chan')), key('Copy FX', () => copyChain(c), P.chans[c].fx.length > 0), key('Paste FX', () => pasteChain(c), clipIs('chain'))); }
       if (tab === 'Effect') { const c = UI.fxCh, s = UI.fxSlot, f = P.chans[c].fx[s];
@@ -8618,7 +8629,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.']],
+  ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Edit › Pad: Clear bank and Clear all.']],
   ['2026-10-30', ['Instruments reworked: natural ring-out for keys, harp, vibes and basses; longer, smoother loops for pads, organ, flute and brass.', 'Removed Glass Pad, Orch Hits and Timpani Roll (projects switch to similar sounds).', 'Make from a sample, rebuilt for kicks, 808s, toms and snares: a synth body with your sample layered on top.', 'Layer page for layered drums: level, pitch, start, length, filter, Keytrack.', 'Tap the drum’s picture to hear it.', 'Auto backup (optional, under Projects), now including drums and synth presets.', 'Wavetable: tap a table to step through, hold for the menu.', 'Fix: first hit after sound starts could sound different.', 'Fix: meters and playheads could freeze until restart.', 'Fix: instruments were silent in exports.']],
   ['2026-10-29', ['New filters: Clean 24, Notch and Phaser.', 'Cleaner analog oscillators on high notes.', 'Ladder and Diode filters rebuilt; Drive works on every filter.', 'Faster attacks; unison stacks no longer burst on each note.', 'Wavetable: oscillator FM, AM and ring mod, with deeper FM.', 'Drum & bass presets: reeses, growls, pads, plucks, leads, stabs and drop basses.', 'Presets can bring their own effects.', 'What’s new, under Settings.', 'Fix: Multiband Squash level jump; Frequency shift runaway.']],
   ['2026-10-28', ['Import many wavetables at once.', 'New app icon.', 'Sound pickers accept all common audio files and zips.', 'Engine check lists safety mutes and recent actions.', 'Fix: a damaged wavetable could break a synth.']],

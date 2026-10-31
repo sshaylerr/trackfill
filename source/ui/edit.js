@@ -31,6 +31,7 @@ function swapPads(a, b) {
   for (const C of P.chans) for (const f of C.fx || []) if (f.trig) f.trig = f.trig.map(m);
   syncProject(); markDirty(); renderAll(); toast(`Swapped ${padLabel(a)} and ${padLabel(b)}`);
 }
+function clearPads(list, what) { pushUndo('all'); for (const pi of list) { if (P.pads[pi].frz) unfreeze(pi); P.pads[pi] = defaultPad(pi); P.chans[pi] = defaultChan(pi); syncPad(pi); syncChan(pi); } markDirty(); renderAll(); toast(`${what} cleared (notes are kept)`); }
 function clearPad(pi) { pushUndo('all'); if (P.pads[pi].frz) unfreeze(pi); P.pads[pi] = defaultPad(pi); P.chans[pi] = defaultChan(pi); syncPad(pi); syncChan(pi); markDirty(); renderAll(); toast(`${padLabel(pi)} cleared (its notes are kept)`); }
 
 /* ----- scenes ----- */
@@ -216,7 +217,8 @@ function openEdit() {
               key(S === a && a > 0 ? 'Start: from bar 1' : 'Start at bar ' + (EDR.from + 1), () => { tl.start = S === a || a === 0 ? null : { scene: UI.scene, t: a }; toast(tl.start ? `Plays from bar ${EDR.from + 1}` : 'Plays from the start'); }, true, { stay: 1, w: 2 })]; })()); }
       if (tab === 'Pad') { const pi = UI.view === 'mix' ? UI.mixSel : UI.pad;
         grid(key('Copy', () => copyPad(pi)), key('Paste', () => pastePad(pi), clipIs('pad')), key('Duplicate', () => duplicatePad(pi), hasSound(P.pads[pi]), { cls: 'hot' }), confirmBtn('Clear', 'Again', () => { closeSheet(); clearPad(pi); }),
-          key('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap a pad to swap with ${padLabel(pi)}`); }, true, { w: 2 })); }
+          key('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap a pad to swap with ${padLabel(pi)}`); }, true, { w: 2 }),
+          confirmBtn('Clear bank', 'Again', () => { closeSheet(); const b = Math.floor(pi / 16); clearPads(Array.from({ length: 16 }, (_, k) => b * 16 + k), 'Bank ' + BANKS[b]); }), confirmBtn('Clear all', 'Again', () => { closeSheet(); clearPads(Array.from({ length: 64 }, (_, k) => k), 'All pads'); })); }
       if (tab === 'Channel') { const c = UI.mixSel;
         grid(key('Copy', () => copyChan(c)), key('Paste', () => pasteChan(c), clipIs('chan')), key('Copy FX', () => copyChain(c), P.chans[c].fx.length > 0), key('Paste FX', () => pasteChain(c), clipIs('chain'))); }
       if (tab === 'Effect') { const c = UI.fxCh, s = UI.fxSlot, f = P.chans[c].fx[s];
