@@ -35,7 +35,7 @@ const TF_ENGS = { analog: 'Analog', fm: 'FM', wt: 'Wavetable', gr: 'Granular', s
 const TF_WARPS = ['Off', 'Sync', 'Bend', 'PWM', 'Mirror', 'Quantize', 'FM', 'AM', 'Ring'];   // FM, AM and Ring take the other oscillator
 const TF_OPMODES = ['FM', 'Ring', 'Filter', 'Filter FM', 'Fold'];
 const TF_FMWAVES = ['Sine', 'Digital', 'Triangle', 'Saw', 'Square', 'Sine 1+2', 'Sine 1+3', 'Saw 3', 'Square 3', 'Noise'];
-// headphone corrections for monitoring: the average of the published measurements (AutoEq, MIT licence), smoothed and refitted (tools/monitor)
+// headphone corrections for monitoring: the average of the published measurements (AutoEq, MIT licence), smoothed and refitted (tools/monitor/phones.cjs)
 const TF_PHONES = { 'Wired earbuds': { pre: -6.4, bands: [['LSC', 122, 6.4, .63], ['PK', 5915, -4.8, 1.09], ['PK', 2086, -3, 1.09], ['PK', 4057, 2.9, 1.46], ['PK', 3048, -1.8, 1.61], ['PK', 572, 1.9, .59], ['PK', 4178, 1, 1.95]] } };
 function tfBiquad(t, f, g, q, sr) { const A = Math.pow(10, g / 40), w = 2 * Math.PI * f / sr, c = Math.cos(w), s = Math.sin(w), al = s / (2 * q); let b0, b1, b2, a0, a1, a2;
   if (t === 'PK') { b0 = 1 + al * A; b1 = -2 * c; b2 = 1 - al * A; a0 = 1 + al / A; a1 = -2 * c; a2 = 1 - al / A; }

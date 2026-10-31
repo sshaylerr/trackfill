@@ -19,14 +19,5 @@ Skipped for now: hardware/MIDI (and Bluetooth MIDI), erase-while-recording, velo
 - Vocoder effect (user: maybe later; carrier synth + voice/mic modulator). Also discussed: mic vocal tracks with pitch correction, a vowel/syllable Voice engine; realistic lyric singing ruled out.
 - Cloud storage, final optimization pass, vocal tracks, wavetable harmonics editor, granular live capture, oversampling, custom FM algorithms, final menus/look tweaks.
 
-## Vital reference tooling (tools/vital, needs `pip install vita`)
-- ref.py renders a .vital preset with Vital's own engine; bake.py folds macro routes; bakeosc.py captures each oscillator's table from Vital;
-  convert.cjs translates to a Trackfill Wavetable patch; ours.cjs renders it; compare.py compares bands over time and draws side-by-side spectrograms.
-- fitfilter.py / fitfm2.py: the measurements behind the filter and FM mappings (Vital analog 12 dB ≈ our Clean with res ≈ √res; Vital FM index ≈ 40·amount²).
-- State (29 Oct): Pulse, Foghorn, Keyboard Wobbler close; Fibonacci +8 dB at 100–300 Hz; Reaction Reese +5 dB at 100 Hz–1 kHz; Peak Point's driven band-pass keeps far more sub in Vital.
-- Presets from commercial packs: compare only, never ship.
-- Engine audit against Vital done 29 Oct (tools/vital/audit: alias.py, fresp.py/newf.py filters, envt.py envelopes, uni.py, drv.py drive levels). Results: band-limited
-  oscillator tables (aliasing equal to Vital's), diode ladder fixed (was unstable at DC) and matched to Vital's diode, Screamer resonance raised, Formant normalised,
-  per-model drive compensation, amp envelope in quarter blocks, unison start phases (fixed table UPH), new filters Clean 24 / Notch / Phaser.
-- Open from the audit: our decay curve default (-0.5) is a little faster than Vital's (-2 power ≈ our -0.3); FM unison voices still start in phase; FM operator tables top out at 256 harmonics.
-- Check (user, 29 Oct): drums made from a sample felt closer to the original around F1 than at C3. C3 plays the rendered drum unchanged and a synthetic kick fits at the right pitch, so find out which sample and how it was played.
+## Reference-synth tooling
+- Kept in notes/private/ (not published): measurements against a reference soft synth, the preset converter and the engine audit.

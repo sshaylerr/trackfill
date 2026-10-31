@@ -1,8 +1,8 @@
-// EarPods correction from the four AutoEq measurements (MIT, github.com/jaakkopasanen/AutoEq): average their EQ curves in dB, smooth to 1/3 octave,
-// limit boosts, then fit a few peaking/shelving biquads to that consensus. node tools/monitor/earpods.cjs path/to/AutoEq/results
+// A headphone correction from the published AutoEq measurements (MIT, github.com/jaakkopasanen/AutoEq): average every measurement of one model in dB,
+// smooth to 1/3 octave, limit boosts, then fit a few peaking/shelving biquads to that consensus. node tools/monitor/phones.cjs path/to/AutoEq/results "<model folder>"
 'use strict';
 const fs = require('fs'), path = require('path'), SR = 48000;
-const root = process.argv[2], files = []; for (const src of fs.readdirSync(root)) { const d = path.join(root, src); for (const rig of fs.readdirSync(d)) { const f = path.join(d, rig, 'Apple EarPods', 'Apple EarPods ParametricEQ.txt'); if (fs.existsSync(f)) files.push(f); } }
+const root = process.argv[2], model = process.argv[3], files = []; for (const src of fs.readdirSync(root)) { const d = path.join(root, src); for (const rig of fs.readdirSync(d)) { const f = path.join(d, rig, model, model + ' ParametricEQ.txt'); if (fs.existsSync(f)) files.push(f); } }
 const parse = f => fs.readFileSync(f, 'utf8').split('\n').map(l => /Filter \d+: ON (\w+) Fc ([\d.]+) Hz Gain ([-\d.]+) dB Q ([\d.]+)/.exec(l)).filter(Boolean).map(m => ({ t: m[1], f: +m[2], g: +m[3], q: +m[4] }));
 function coef({ t, f, g, q }) { const A = Math.pow(10, g / 40), w = 2 * Math.PI * f / SR, c = Math.cos(w), s = Math.sin(w), al = s / (2 * q); let b0, b1, b2, a0, a1, a2;
   if (t === 'PK') { b0 = 1 + al * A; b1 = -2 * c; b2 = 1 - al * A; a0 = 1 + al / A; a1 = -2 * c; a2 = 1 - al / A; }

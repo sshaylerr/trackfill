@@ -1,4 +1,4 @@
-/* ---------- chop page: an MPC-style slice editor ----------
+/* ---------- chop page: a classic sampler's slice editor ----------
    A big zoomable waveform with coloured slice regions and numbered markers, an overview strip on top,
    and a strip of slice pads below that light up (with a playhead on the waveform) as slices play.
    D-pad on the waveform: ←→ pick a slice and play it, ↑↓ zoom, hold OK + ←→ move its start, Del removes it. */

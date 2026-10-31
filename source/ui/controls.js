@@ -87,10 +87,15 @@ const paramEl = o => makeCtl(o, 'bar');
 function selEl(label, opts, get, set, o = {}) {
   const el = h('div', 'selr'), sw = h('div', 'sw'), lab = h('div', 'klab'); lab.textContent = label; el.append(sw, lab);
   const upd = () => { if (o.paint) o.paint(sw, get()); else sw.innerHTML = '<span>' + esc(opts[get()]) + '</span>'; }; upd();
-  el.addEventListener('click', () => { if (o.onTap) { o.onTap(); return; } set((get() + 1) % opts.length); upd(); updatePanel(); });
+  // o.onHold: a long press opens more (a menu) instead of stepping; with the d-pad, holding OK does the same
+  let holdT = 0, held = false; if (o.onHold) { const end = () => { clearTimeout(holdT); holdT = 0; };
+    el.addEventListener('pointerdown', () => { held = false; end(); holdT = setTimeout(() => { holdT = 0; held = true; haptic(); o.onHold(); }, 450); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, end); el.addEventListener('contextmenu', e => e.preventDefault()); }
+  el.addEventListener('click', () => { if (held) { held = false; return; } if (o.onTap) { o.onTap(); return; } set((get() + 1) % opts.length); upd(); updatePanel(); });
   const setv = i => { if (i !== get()) { set(i); upd(); } };
   const reg = o.onTap ? { el, label, valText: () => opts[get()], upd, ok: o.onTap }
     : { el, label, valText: () => opts[get()], upd, edit: true, get, setv, begin: () => {}, finish: () => {}, step: dir => setv(clamp(get() + dir, 0, opts.length - 1)) };
+  if (o.onHold && !o.onTap) reg.type = o.onHold;
   UI.regs.push(reg); el._reg = reg; return el;
 }
 const cellBtn = (label, value, fn) => selEl(label, [value], () => 0, () => {}, { onTap: fn });

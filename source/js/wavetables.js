@@ -79,7 +79,7 @@ function tfWtFactoryRaw(name) {
 }
 
 /* ---------- tables from your own sounds ---------- */
-// a wavetable WAV (Serum and others): frames of 2048 by default; a 'clm ' chunk ("<!>2048 ...") says the frame size when present
+// a wavetable WAV (as popular wavetable synths save them): frames of 2048 by default; a 'clm ' chunk ("<!>2048 ...") says the frame size when present
 function wtParseWav(buf) {
   const v = new DataView(buf), tag = o => String.fromCharCode(v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2), v.getUint8(o + 3));
   if (buf.byteLength < 44 || tag(0) !== 'RIFF' || tag(8) !== 'WAVE') return null;

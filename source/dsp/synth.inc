@@ -297,7 +297,7 @@ static inline float flt1(SVoice* v, i32 c, i32 type, float x, float g, float res
       float k = 2.f - 1.96f * res, a1 = 1.f / (1.f + g * (g + k)), a2 = g * a1, a3 = g * a2;
       float v3 = x - z[1], v1 = a1 * z[0] + a2 * v3, v2 = z[1] + a2 * z[0] + a3 * v3; z[0] = 2.f * v1 - z[0]; z[1] = 2.f * v2 - z[1];
       float lp = v2, bp = v1, hp = x - k * bp - lp; return shp < 0.5f ? lp + (bp * 2.f - lp) * shp * 2.f : bp * 2.f * (1.f - (shp - .5f) * 2.f) + hp * (shp - .5f) * 2.f; }
-    case 2: { // Ladder (Moog-like), solved without a one-sample delay in its feedback (so resonance rings as a real ladder's does); Shape: 24→12 dB
+    case 2: { // Ladder (transistor ladder), solved without a one-sample delay in its feedback (so resonance rings as a real ladder's does); Shape: 24→12 dB
       const float G = g / (1.f + g), B = 1.f / (1.f + g), G2 = G * G, G4 = G2 * G2, k = LADDER_K(res);
       const float Sg = B * (G2 * G * z[0] + G2 * z[1] + G * z[2] + z[3]);
       const float y4 = (G4 * x * dg + Sg) / (1.f + k * G4);
@@ -312,7 +312,7 @@ static inline float flt1(SVoice* v, i32 c, i32 type, float x, float g, float res
       if (type == 3) { z[0] += gg * (in - 1.4f * z[0] + 0.4f * z[1]); z[1] += gg * (z[0] - 1.4f * z[1] + 0.4f * z[2]); z[2] += gg * (z[1] - 1.4f * z[2] + 0.4f * z[3]); z[3] += gg * (z[2] - z[3]); z[0] = fsat(z[0]);   /* each stage loads the next (a coupled ladder, unity gain at DC) */ return (0.65f * z[2] + 0.55f * z[3]) * (1.6f + kq * 0.2f); }
       z[0] += gg * (in - z[0]); z[1] += gg * (z[0] - z[1]); z[2] += gg * (z[1] - z[2]); z[3] += gg * (z[2] - z[3]);
       return (z[3] + (z[1] - z[3]) * shp) * (1.f + kq * 0.2f); }
-    case 4: { // Screamer (MS-20-like): resonance through a clipper; Shape: low-pass ↔ high-pass
+    case 4: { // Screamer (a screaming semi-modular filter): resonance through a clipper; Shape: low-pass ↔ high-pass
       float k = 2.f - 1.99f * __builtin_sqrtf(res) * __builtin_sqrtf(__builtin_sqrtf(res)), a1 = 1.f / (1.f + g * (g + k)), a2 = g * a1, a3 = g * a2, in = dg > 1.01f ? fsat(x * dg) : x;
       float v3 = in - z[1], v1 = a1 * z[0] + a2 * v3, v2 = z[1] + a2 * z[0] + a3 * v3; z[0] = 3.5f * fsat((2.f * v1 - z[0]) * 0.2857f); z[1] = 2.f * v2 - z[1];
       float lp = v2, hp = in - k * v1 - lp; return (lp + (hp - lp) * shp) * 0.8f; }
@@ -595,7 +595,7 @@ static void renderSynth(i32 n) {
       else if (isWT) for (i32 u = 0; u < U; u++) {   // B first (A can take it for FM/AM/Ring), then A; B's cross-modulation uses A's last sample
         float x = 0;
         for (i32 oo = 1; oo >= 0; oo--) { if (!((wOn >> oo) & 1)) { v->wlast[oo][u] = 0.f; continue; } const i32 o = oo, w = wW[o]; float& ph = v->wph[o][u]; const float other = v->wlast[1 - o][u], a = wAmt[o];
-          float p = ph; if (w >= 1 && w <= 5) p = wtWarp(w, a, p); else if (w == 6) { p += other * a * a * 6.4f; p -= floorf_(p); }   /* FM: depth grows with the square of the knob, up to an index of about 40 (as Vital's) */
+          float p = ph; if (w >= 1 && w <= 5) p = wtWarp(w, a, p); else if (w == 6) { p += other * a * a * 6.4f; p -= floorf_(p); }   /* FM: depth grows with the square of the knob, up to an index of about 40 (as a popular wavetable synth's) */
           float y = wtRead(wT0[o], wLen[o], p); if (wFr[o] > 0.f) y += (wtRead(wT1[o], wLen[o], p) - y) * wFr[o];
           if (wNoF[o]) { const float* sn = fmTab[0][0]; float q = p + 0.25f; q -= floorf_(q); const float s1 = fmLook(sn, p), c1 = fmLook(sn, q);
             const float fa = wFd0[o][0] + (wFd1[o][0] - wFd0[o][0]) * wFr[o], fb = wFd0[o][1] + (wFd1[o][1] - wFd0[o][1]) * wFr[o]; y -= fa * s1 + fb * c1; }

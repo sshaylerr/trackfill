@@ -135,7 +135,9 @@ function synSpecial(pi, what) {
   if (what === 'shape') return cellBtn('Shape', 'Pick', () => openLfoShapes(pi, +synTab()[1] - 1));
   if (what === 'grsrc') { const S = synOf(pi), k = S.gr && S.gr.src; return cellBtn('Source', k ? soundName(k) : 'Pick a sound', () => openGrainSource(pi)); }
   if (what === 'tableA' || what === 'tableB') { const o = what === 'tableA' ? 'a' : 'b', S = synOf(pi), key = S.wt && S.wt[o];
-    return cellBtn('Table ' + o.toUpperCase(), tableName(key) + ((S.p['w' + o + 'h'] ?? 'Keep') === 'Remove' ? ' −F' : ''), () => openTablePicker(pi, o)); }
+    // tap steps through the tables (factory, then yours), like the Analog wave; a long press (or holding OK) opens the table menu
+    const keys = tableKeysAll(), at = () => Math.max(0, keys.indexOf((synOf(pi).wt || {})[o] || 'w:Basic Shapes')), noF = (S.p['w' + o + 'h'] ?? 'Keep') === 'Remove';
+    return selEl('Table ' + o.toUpperCase(), keys.map(k => tableName(k) + (noF ? ' −F' : '')), at, i => setTableQuiet(pi, o, keys[i]), { onHold: () => openTablePicker(pi, o) }); }
   if (what === 'ins') { const S = synOf(pi); return cellBtn('Instrument', insName(S.ins), () => openInsPicker(pi)); }
   if (what === 'follow') { const f = pad.follow || []; return cellBtn('Follow', f.length ? f.length === 1 ? padLabel(f[0]) + ' ' + (P.pads[f[0]].name || '') : f.length + ' pads' : 'Off', () => openFollow(pi)); }
   if (what === 'opv') return cellBtn('Showing', SYN_ST.opv ? 'Envelope' : 'Tone', () => { SYN_ST.opv = SYN_ST.opv ? 0 : 1; renderView(); });
@@ -515,6 +517,10 @@ function drawWtDisp(g, W, H, v, tab, txt, grid, col, S) {
   txt(`Osc ${o.toUpperCase()} · ${tableName(key)} · frame ${1 + Math.round(pos * (t.F - 1))}/${t.F}` + ((S.p['w' + o + 'h'] ?? 'Keep') === 'Remove' ? ' · no fundamental' : '') + (lv < .001 ? ' · off: raise Level' : ''), 8, 11, lv < .001 ? COL.dim : COL.mute);
 }
 function setTable(pi, o, key) { const S = synOf(pi); pushUndo('pad:' + pi); touchPad(pi); S.wt = Object.assign({ a: 'w:Basic Shapes', b: 'w:Basic Shapes' }, S.wt || {}, { [o]: key }); syncPad(pi); markDirty(); renderView(); audition(pi); }
+const tableKeysAll = () => WT_NAMES.map(n => 'w:' + n).concat([...SAMPLES.values()].filter(x => x.wt).sort((a, b) => (b.added || 0) - (a.added || 0)).map(x => x.id));
+// a table change without redrawing the page (so a tap or the d-pad can keep stepping)
+function setTableQuiet(pi, o, key) { const S = synOf(pi); pushUndo('pad:' + pi); touchPad(pi); S.wt = Object.assign({ a: 'w:Basic Shapes', b: 'w:Basic Shapes' }, S.wt || {}, { [o]: key }); syncPad(pi); markDirty();
+  if (typeof drawSynDisp === 'function') requestAnimationFrame(drawSynDisp); audition(pi); }
 function saveUserTable(name, raw, F) { const id = addUserSample(name, 48000, 1, interleave([raw], raw.length), { wt: F }); return id; }
 function openTablePicker(pi, o) {
   const S = synOf(pi), cur = S.wt && S.wt[o], fid = 'w' + o + 'h';

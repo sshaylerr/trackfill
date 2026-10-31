@@ -1,7 +1,8 @@
 #!/bin/sh
 # Publish Trackfill to GitHub Pages: build, copy the web app to the repository root (what Pages serves)
 # and the source to source/ (so the code is kept safe in version control), then commit and push.
-# The repository is public: the drum-fitting reference data (which names the packs it was measured from) stays on this machine only.
+# The repository is public: anything that names other products, packs or their presets stays on this machine only (the drum-fitting and
+# reference-synth tools, and notes/private).
 set -e
 cd "$(dirname "$0")"
 REPO=${REPO:-/home/claude/trackfill}
@@ -14,7 +15,7 @@ LOGDAY=$(grep -o "^  \['20[0-9-]*'" app.html | head -1 | tr -d " ['")
 [ "$LOGDAY" = "$(TZ=America/Los_Angeles date +%F)" ] || echo "reminder: What's new was last updated $LOGDAY; add an entry to CHANGES in app.html if this update is one people would notice"
 cp dist/web/index.html dist/web/manifest.webmanifest dist/web/sw.js dist/web/icon-*.png "$REPO/"
 mkdir -p "$REPO/source"
-rm -rf "$REPO/source" && mkdir -p "$REPO/source" && tar --exclude=./build --exclude=./dist --exclude=./node_modules --exclude='./tools/drumref/*.json' --exclude='./tools/drumref/*.log' --exclude=./tools/drumref/presets.cjs -cf - . | tar -xf - -C "$REPO/source"
+rm -rf "$REPO/source" && mkdir -p "$REPO/source" && tar --exclude=./build --exclude=./dist --exclude=./node_modules --exclude='./tools/drumref/*.json' --exclude='./tools/drumref/*.log' --exclude=./tools/drumref --exclude=./tools/vital --exclude=./notes/private -cf - . | tar -xf - -C "$REPO/source"
 cd "$REPO"
 git add -A
 if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi

@@ -1,8 +1,0 @@
-// try overrides on one converted preset and score against the reference: node sweep.cjs ref.wav file.vital '[{"flt":"Ladder"},...]'
-const fs = require('fs'), O = require('./ours.cjs'), C = require('./convert.cjs');
-function load(f) { const b = fs.readFileSync(f), n = (b.length - 44) / 4, x = new Float32Array(n); for (let i = 0; i < n; i++) x[i] = (b.readInt16LE(44 + i * 4) + b.readInt16LE(46 + i * 4)) / 65536; return x; }
-function bands(x) { const N = 4096, E = [25, 100, 300, 1000, 4000, 20000], out = new Float64Array(5); for (let i = 0; i + N < x.length; i += 4096) { const re = new Float64Array(N), im = new Float64Array(N); for (let k = 0; k < N; k++) re[k] = x[i + k] * (.5 - .5 * Math.cos(2 * Math.PI * k / N));
-    require('/home/claude/tf/js/wavetables.js').wtFft(re, im, false); for (let k = 1; k < N / 2; k++) { const f = k * 48000 / N, e = re[k] ** 2 + im[k] ** 2; for (let b = 0; b < 5; b++) if (f >= E[b] && f < E[b + 1]) out[b] += e; } } const t = out.reduce((a, b) => a + b); return Array.from(out, v => 10 * Math.log10(v / t + 1e-12)); }
-(async () => { const ref = bands(load(process.argv[2])), base = C.convert(process.argv[3]);
-  for (const ov of JSON.parse(process.argv[4])) { const r = C.convert(process.argv[3]); Object.assign(r.pr.p, ov); const a = await O.renderHeld(r, 65); const m = new Float32Array(a.L.length); for (let i = 0; i < m.length; i++) m[i] = (a.L[i] + a.R[i]) / 2;
-    const b = bands(m), d = b.map((v, i) => v - ref[i]); console.log(JSON.stringify(ov).padEnd(46), d.map(v => (v >= 0 ? '+' : '') + v.toFixed(1)).join('  '), '  score', d.slice(1, 4).reduce((s, v) => s + Math.abs(v), 0).toFixed(1)); } })();

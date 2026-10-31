@@ -442,7 +442,7 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     { const out = {}; for (const w of H.TF_WARPS) { const s = mk(pt({ wap: .25, waw: w, wax: .7, wbl: .5, wbo: 1, wbp: .66 }, { a: 'w:Basic Shapes', b: 'w:Basic Shapes' })); hit(s); out[w] = s.run(150); }
       const changed = H.TF_WARPS.filter(w => w !== 'Off' && Math.abs(out[w].bright / out.Off.bright - 1) > .02 || Math.abs(out[w].e / out.Off.e - 1) > .02);
       ok(changed.length === H.TF_WARPS.length - 1 && H.TF_WARPS.every(w => !out[w].bad), `every warp changes the sound (${changed.length}/${H.TF_WARPS.length - 1})`); }
-    { // a wavetable WAV with a Serum-style frame-size chunk, and a table made from a plain sound
+    { // a wavetable WAV with a 'clm ' frame-size chunk, and a table made from a plain sound
       const F = 8, N = 256, n = F * N, b = new ArrayBuffer(44 + 16 + n * 4), v = new DataView(b), ws = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
       ws(0, 'RIFF'); v.setUint32(4, b.byteLength - 8, true); ws(8, 'WAVE'); ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 3, true); v.setUint16(22, 1, true); v.setUint32(24, 48000, true); v.setUint32(28, 192000, true); v.setUint16(32, 4, true); v.setUint16(34, 32, true);
       ws(36, 'clm '); v.setUint32(40, 8, true); ws(44, '<!>256  '); ws(52, 'data'); v.setUint32(56, n * 4, true); for (let i = 0; i < n; i++) v.setFloat32(60 + i * 4, Math.sin(2 * Math.PI * (i % N) / N * (1 + Math.floor(i / N))), true);

@@ -38,7 +38,7 @@ static inline float gcomp(float ldb, float thr, float ratio, float knee) {
   if (knee > 0.f && 2.f * fabsf_(o) <= knee) return sl * (o + knee * 0.5f) * (o + knee * 0.5f) / (2.f * knee);
   return o > 0.f ? sl * o : 0.f;
 }
-// Opto (LA-2A-like): params Peak reduction, Gain, Mode (comp/limit), Emphasis, Mix, Tube
+// Opto (an optical-cell leveller): params Peak reduction, Gain, Mode (comp/limit), Emphasis, Mix, Tube
 static void fx_opto(Fx* f, float* L, float* R, i32 n) {
   Comp2St* c = (Comp2St*)f->st; float* s = f->s;
   float thr = -6.f - 42.f * s[0], mk = db2lin(linmap(s[1], 0, 30)), ratio = disc(s[2], 2) ? 14.f : 3.2f, emph = s[3], mix = s[4], tube = s[5];
@@ -60,7 +60,7 @@ static void fx_opto(Fx* f, float* L, float* R, i32 n) {
   for (i32 i = 0; i < n; i++) { float x = L[i]; L[i] = x - c->dc[0] + dcA * c->dcy[0]; c->dc[0] = x; c->dcy[0] = L[i]; x = R[i]; R[i] = x - c->dc[1] + dcA * c->dcy[1]; c->dc[1] = x; c->dcy[1] = R[i]; }
   f->vis[0] = c->env;
 }
-// FET (1176-like): params Input, Output, Attack, Release, Ratio (4/8/12/20/All), Mix. Feedback detection, colour grows with gain reduction.
+// FET (a fast FET limiting amplifier): params Input, Output, Attack, Release, Ratio (4/8/12/20/All), Mix. Feedback detection, colour grows with gain reduction.
 static void fx_fet(Fx* f, float* L, float* R, i32 n) {
   Comp2St* c = (Comp2St*)f->st; float* s = f->s;
   float in = db2lin(linmap(s[0], 0, 36)), out = db2lin(linmap(s[1], -24, 12)), atk = expmap(s[2], 0.00002f, 0.0008f), rel = expmap(s[3], 0.05f, 1.1f), mix = s[5];
@@ -98,22 +98,22 @@ static void fx_vca(Fx* f, float* L, float* R, i32 n, const float* kL, const floa
   f->vis[0] = c->env;
 }
 
-/* ================= EQ: Pultec, API, Console ================= */
+/* ================= EQ: Passive, Punch, Console ================= */
 struct EQ2St { BQ2 q[7]; float og, drive; float dc[2], dcy[2]; };
 static const float PUL_LF[4] = { 20, 30, 60, 100 }, PUL_HF[7] = { 3000, 4000, 5000, 8000, 10000, 12000, 16000 }, PUL_AF[3] = { 5000, 10000, 20000 };
-static const float API_LF[7] = { 30, 40, 50, 100, 200, 300, 400 }, API_MF[7] = { 200, 400, 600, 800, 1500, 3000, 5000 }, API_HF[7] = { 2500, 5000, 7500, 10000, 12500, 15000, 20000 };
+static const float PUNCH_LF[7] = { 30, 40, 50, 100, 200, 300, 400 }, PUNCH_MF[7] = { 200, 400, 600, 800, 1500, 3000, 5000 }, PUNCH_HF[7] = { 2500, 5000, 7500, 10000, 12500, 15000, 20000 };
 static void eq2Coef(Fx* f, EQ2St* e) {
   float* s = f->s; for (i32 b = 0; b < 7; b++) { bq2Set(&e->q[b], BQ_PEAK, 1000.f, 1.f, 0.f); }
-  if (f->mode == 1) {   // Pultec: boost and attenuation shelves at nearly the same corner make the bump-and-dip; broad top bell; top shelf cut
+  if (f->mode == 1) {   // Passive (tube program EQ): boost and attenuation shelves at nearly the same corner make the bump-and-dip; broad top bell; top shelf cut
     float lf = PUL_LF[disc(s[0], 4)];
     bq2Set(&e->q[0], BQ_LS, lf, 0.7f, linmap(s[1], 0, 13.5f)); bq2Set(&e->q[1], BQ_LS, lf, 0.3f, -linmap(s[2], 0, 17.5f));   // same corner, different slopes: boost below, dip just above
     bq2Set(&e->q[2], BQ_PEAK, PUL_HF[disc(s[3], 7)], expmap(1.f - s[5], 0.45f, 2.5f), linmap(s[4], 0, 16));
     bq2Set(&e->q[3], BQ_HS, PUL_AF[disc(s[6], 3)], 0.6f, -linmap(s[7], 0, 16)); e->drive = s[8]; e->og = db2lin(linmap(s[9], -12, 12));
-  } else if (f->mode == 2) {   // API: proportional Q (narrower the harder you push), stepped frequencies, optional shelves and band filter
+  } else if (f->mode == 2) {   // Punch (a classic console EQ): proportional Q (narrower the harder you push), stepped frequencies, optional shelves and band filter
     float gl = linmap(s[1], -12, 12), gm = linmap(s[3], -12, 12), gh = linmap(s[5], -12, 12), pq = 1.f / 12.f;
-    bq2Set(&e->q[0], disc(s[6], 2) ? BQ_LS : BQ_PEAK, API_LF[disc(s[0], 7)], disc(s[6], 2) ? 0.7f : 0.45f + 1.4f * fabsf_(gl) * pq, gl);
-    bq2Set(&e->q[1], BQ_PEAK, API_MF[disc(s[2], 7)], 0.45f + 1.6f * fabsf_(gm) * pq, gm);
-    bq2Set(&e->q[2], disc(s[7], 2) ? BQ_HS : BQ_PEAK, API_HF[disc(s[4], 7)], disc(s[7], 2) ? 0.7f : 0.45f + 1.4f * fabsf_(gh) * pq, gh);
+    bq2Set(&e->q[0], disc(s[6], 2) ? BQ_LS : BQ_PEAK, PUNCH_LF[disc(s[0], 7)], disc(s[6], 2) ? 0.7f : 0.45f + 1.4f * fabsf_(gl) * pq, gl);
+    bq2Set(&e->q[1], BQ_PEAK, PUNCH_MF[disc(s[2], 7)], 0.45f + 1.6f * fabsf_(gm) * pq, gm);
+    bq2Set(&e->q[2], disc(s[7], 2) ? BQ_HS : BQ_PEAK, PUNCH_HF[disc(s[4], 7)], disc(s[7], 2) ? 0.7f : 0.45f + 1.4f * fabsf_(gh) * pq, gh);
     if (disc(s[8], 2)) { bq2Set(&e->q[3], BQ_HP, 50.f, 0.7071f, 0); bq2Set(&e->q[4], BQ_LP, 15000.f, 0.7071f, 0); }
     e->og = db2lin(linmap(s[9], -12, 12)); e->drive = s[10] * 0.7f;
   } else {   // Console: HPF, LF shelf, two mid bells with Q, HF shelf
@@ -181,7 +181,7 @@ static void fx_filt2(Fx* f, float* L, float* R, i32 n) {
       for (i32 i = 0; i < n; i++) { float in = dg > 1.01f ? fsat(x[i] * dg) * mkup * 1.2f : x[i], lp, bp; svf_tick(&t->sv[0], c, in, a1, a2, a3, &lp, &bp); float hp = in - k * bp - lp;
         float y = mo < 0.5f ? lp * (1.f - 2.f * mo) + (lp + hp) * 2.f * mo : (lp + hp) * (2.f - 2.f * mo) + hp * (2.f * mo - 1.f); x[i] += (y - x[i]) * mix; } }
     return; }
-  if (m == 3) {   // Screamer (MS-20-like): 12 dB with the resonance fed back through a clipper; LP or HP
+  if (m == 3) {   // Screamer (a screaming semi-modular filter): 12 dB with the resonance fed back through a clipper; LP or HP
     float a1, a2, a3, k; svf_coef(fc * 0.5f, 0.6f + res * res * 30.f, &a1, &a2, &a3, &k); i32 hpOut = disc(s[3], 2);
     // run at 2x: coefficients for the doubled rate
     float g = ftan(3.14159265f * clampf(fc, 10.f, 0.45f * SR) / (2.f * SR)); k = 1.f / (0.6f + res * res * 30.f); a1 = 1.f / (1.f + g * (g + k)); a2 = g * a1; a3 = g * a2;
@@ -191,7 +191,7 @@ static void fx_filt2(Fx* f, float* L, float* R, i32 n) {
           o[j] = hpOut ? u[j] - k * bp - lp : lp; }
         float y = osDown(&t->os[c], o[0], o[1]) * mkup; x[i] += (y - x[i]) * mix; } }
     return; }
-  // Ladder (Moog-like, four saturating one-poles in a feedback loop) and Diode (303-like: coupled stages, high-passed feedback), both at 2x
+  // Ladder (transistor ladder, four saturating one-poles in a feedback loop) and Diode (a bass-line diode ladder: coupled stages, high-passed feedback), both at 2x
   const float g = 1.f - fexp(-6.28318531f * fc / (2.f * SR)), kq = res * 1.04f * minf(9.5f, 4.1f + 2.f * g + 14.f * g * g) * (m == 2 ? 0.92f : 1.f), hpA = onepole(m == 2 ? expmap(s[3], 40.f, 400.f) : 1.f) * 0.5f;   // diode: Squelch = how much low end the resonance ignores
   i32 typ = m == 1 ? disc(s[3], 4) : 0; float bass = m == 1 ? s[8] : 0.f;
   // resonance makeup: the ladder's feedback costs passband level (1 / (1 + k)); give most of it back so turning up resonance
@@ -386,7 +386,7 @@ static void fx_plate(Fx* f, float* L, float* R, i32 n) {
   }
 }
 
-/* ================= Chorus: Juno, Dimension, Flanger ================= */
+/* ================= Chorus: Classic, Vintage (two-voice ensemble), Wide (four-depth ensemble), Flanger ================= */
 struct Chorus2St { float bL[CLEN], bR[CLEN]; u32 w; float ph, lp[2], fb[2]; };
 static inline float chRead(const float* b, u32 w, float d) { float rp = (float)w - d; if (rp < 0) rp += CLEN; u32 i0 = (u32)rp; float fr = rp - i0; return b[i0 & (CLEN - 1)] + (b[(i0 + 1) & (CLEN - 1)] - b[i0 & (CLEN - 1)]) * fr; }
 static inline float tri(float ph) { return ph < 0.5f ? ph * 4.f - 1.f : 3.f - ph * 4.f; }
@@ -404,8 +404,8 @@ static void fx_chorus2(Fx* f, float* L, float* R, i32 n) {
     return; }
   float rate, dep, base, mix = s[1], lpa = onepole(m == 1 ? 9000.f : 11000.f);
   const float nrm = 1.f / sqrtf_(1.f + mix * mix * (m == 1 ? 1.f : 0.78f));   // the same power balance for the ensemble modes
-  if (m == 1) { i32 md = disc(s[0], 3); const float rt[3] = { 0.513f, 0.863f, 9.75f }, dp[3] = { 1.85f, 1.85f, 0.25f }; rate = rt[md]; dep = dp[md] * ms; base = 3.5f * ms; }   // Juno-60 chorus I, II, I+II
-  else { i32 md = disc(s[0], 4); const float dp[4] = { 0.35f, 0.6f, 0.9f, 1.3f }; rate = md < 3 ? 0.25f : 0.5f; dep = dp[md] * ms; base = 5.f * ms; }                     // Dimension 1-4
+  if (m == 1) { i32 md = disc(s[0], 3); const float rt[3] = { 0.513f, 0.863f, 9.75f }, dp[3] = { 1.85f, 1.85f, 0.25f }; rate = rt[md]; dep = dp[md] * ms; base = 3.5f * ms; }   // the classic poly-synth chorus: I, II, I+II
+  else { i32 md = disc(s[0], 4); const float dp[4] = { 0.35f, 0.6f, 0.9f, 1.3f }; rate = md < 3 ? 0.25f : 0.5f; dep = dp[md] * ms; base = 5.f * ms; }                     // ensemble depths 1-4
   for (i32 i = 0; i < n; i++) { c->ph += rate / SR; if (c->ph >= 1.f) c->ph -= 1.f; float t = tri(c->ph), xl = L[i], xr = R[i], mono = (xl + xr) * 0.5f;
     if (m == 1) {   // one bucket-brigade line, the second output reads it with the opposite LFO
       c->bL[c->w] = mono; float a = op1(&c->lp[0], chRead(c->bL, c->w, base + dep * t), lpa), b = op1(&c->lp[1], chRead(c->bL, c->w, base - dep * t), lpa);
@@ -433,17 +433,17 @@ static void fx_clip2(Fx* f, float* L, float* R, i32 n) {
   f->vis[0] = pin > 1e-6f ? lin2db(pout / pin + 1e-9f) : 0.f;
 }
 
-/* ================= Bitcrush: SP-1200, SP-404 ================= */
+/* ================= Bitcrush: Digital, 12-bit, Lo-fi ================= */
 struct Crush2St { float hL, hR, cnt, comp; SVF sv[2]; u32 rng; float nz, ng; };
 static void fx_crush2(Fx* f, float* L, float* R, i32 n) {
   Crush2St* c = (Crush2St*)f->st; float* s = f->s;
-  if (f->mode == 1) {   // SP-1200: 26.04 kHz with no anti-alias filter, 12-bit, then a 4-pole low-pass. Params Drive, Filter, Resonance, Mix
+  if (f->mode == 1) {   // 12-bit (the classic hip-hop sampler): 26.04 kHz with no anti-alias filter, 12-bit, then a 4-pole low-pass. Params Drive, Filter, Resonance, Mix
     float dg = db2lin(linmap(s[0], 0, 18)), mix = s[3], step = 26040.f / SR, a1, a2, a3, k; svf_coef(expmap(s[1], 500, 18000), 0.6f + s[2] * 4.f, &a1, &a2, &a3, &k);
     for (i32 i = 0; i < n; i++) { c->cnt += step; if (c->cnt >= 1.f) { c->cnt -= floorf_(c->cnt); c->hL = floorf_(clampf(L[i] * dg, -1.f, 1.f) * 2047.f + 0.5f) / 2047.f; c->hR = floorf_(clampf(R[i] * dg, -1.f, 1.f) * 2047.f + 0.5f) / 2047.f; }
       float lp, bp, yl, yr; svf_tick(&c->sv[0], 0, c->hL, a1, a2, a3, &lp, &bp); svf_tick(&c->sv[1], 0, lp, a1, a2, a3, &yl, &bp); svf_tick(&c->sv[0], 1, c->hR, a1, a2, a3, &lp, &bp); svf_tick(&c->sv[1], 1, lp, a1, a2, a3, &yr, &bp);
       L[i] += (yl - L[i]) * mix; R[i] += (yr - R[i]) * mix; }
     return; }
-  // SP-404 lo-fi: Amount (bits and rate), Tone, Noise, Compress, Mix
+  // Lo-fi (a compact sampler's lo-fi effect): Amount (bits and rate), Tone, Noise, Compress, Mix
   float amt = s[0], bits = linmap(amt, 14, 6), steps = fexp(bits * 0.693147181f) * 0.5f, step = expmap(1.f - amt, 6000.f, 44100.f) / SR, mix = s[4], noise = s[2] * s[2] * 0.03f * noiseGate(&c->ng, L, R, n), cmp = s[3];
   float a1, a2, a3, k; svf_coef(expmap(s[1], 800, 16000), 0.707f, &a1, &a2, &a3, &k);
   for (i32 i = 0; i < n; i++) {
@@ -500,7 +500,7 @@ static void fx_limit(Fx* f, float* L, float* R, i32 n) {
   f->vis[0] = lin2db(mn + 1e-9f);
 }
 
-/* ================= Multiband: three bands (Linkwitz-Riley 24 dB), Classic and OTT ================= */
+/* ================= Multiband: three bands (Linkwitz-Riley 24 dB), Classic and Squash ================= */
 struct MbSt { BQ2 lp1[2], hp1[2], lp2[2], hp2[2], ap; float env[3], lastF[2], g[3], up[3]; i32 init; };
 static void mbXover(MbSt* m, float f1, float f2) {
   if (m->lastF[0] == f1 && m->lastF[1] == f2) return; m->lastF[0] = f1; m->lastF[1] = f2;
@@ -510,12 +510,12 @@ static void mbXover(MbSt* m, float f1, float f2) {
   m->ap.a1 = -2.f * fcos(w) / a0; m->ap.a2 = (1.f - al) / a0; m->ap.b0 = m->ap.a2; m->ap.b1 = m->ap.a1; m->ap.b2 = 1.f;
 }
 // Classic params: Low xover, High xover, Threshold, Ratio, Below thr, Below ratio, Attack, Release, Low gain, Mid gain, High gain, Output
-// OTT params:     Low xover, High xover, Depth, Time, Upward, Downward, In gain, Low gain, Mid gain, High gain, Out gain
+// Squash params:     Low xover, High xover, Depth, Time, Upward, Downward, In gain, Low gain, Mid gain, High gain, Out gain
 static void fx_mband(Fx* f, float* L, float* R, i32 n) {
-  MbSt* m = (MbSt*)f->st; float* s = f->s; const i32 ott = f->mode == 1;
+  MbSt* m = (MbSt*)f->st; float* s = f->s; const i32 squash = f->mode == 1;
   float f1 = expmap(s[0], 60, 600), f2 = expmap(s[1], 1000, 10000); mbXover(m, f1, f2 < f1 * 2.f ? f1 * 2.f : f2);
   float thrA, rA, thrB, rB, atk, rel, gb[3], ing = 1.f, outg;
-  if (ott) { float depth = s[2], tm = expmap(s[3], 0.1f, 10.f), up = s[4], dn = s[5];
+  if (squash) { float depth = s[2], tm = expmap(s[3], 0.1f, 10.f), up = s[4], dn = s[5];
     thrA = -24.f; rA = 1.f + 60.f * dn * depth; thrB = -40.f; rB = 1.f + 3.2f * up * depth; atk = 0.003f * tm; rel = 0.12f * tm;
     ing = db2lin(linmap(s[6], -24, 24)); for (i32 b = 0; b < 3; b++) gb[b] = db2lin(linmap(s[7 + b], -24, 24)); outg = db2lin(linmap(s[10], -24, 24)); }
   else { thrA = linmap(s[2], -60, 0); rA = expmap(s[3], 1, 20); thrB = linmap(s[4], -80, -20); rB = expmap(s[5], 1, 4); atk = expmap(s[6], 0.0005f, 0.1f); rel = expmap(s[7], 0.01f, 1.f);
