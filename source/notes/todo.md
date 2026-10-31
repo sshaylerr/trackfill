@@ -7,7 +7,7 @@
 - Synth Match a sample REMOVED Oct 28 (user: buggy, not accurate). Was: (preset browser; Analog from scratch, Wavetable from the note; FM engine later). Built-in presets stay; refine them later.
 - (old) Drum synth reset (user: "we'll start shortly, remind me again later"): rebuild snare/cymbals/machine modes against reference recordings (user to supply 808/909/707/606 one-shots + modern refs). Cymbals for sampled-era machines from CC0 recordings; circuit models for 808-style; per-module starting points per machine; "More like this" varies the model.
 
-# MPC audit — decisions (Oct 2026)
+# Classic-sampler audit — decisions (Oct 2026)
 Done: timeline (velocity lane, triplet/dotted/1/64 grids, per-pad swing and timing, note tools, loop range and start point, MIDI export/import) · projects (autosave, snapshots, templates) · stem export · MP3 + WAV 24/16 with dither, 44.1/48 kHz · sample edits (non-destructive) · tempo automation lane · drum synth from a sample (Yours) · pad touch fixes
 Soon: user sample library (folders, favourites, preview) · audio tracks for vocals and reference tracks
 Later: sampling from mic/line + resampling · multisample instrument from user samples · note repeat · time signatures · more send returns

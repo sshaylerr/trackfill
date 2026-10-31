@@ -15,7 +15,7 @@ LOGDAY=$(grep -o "^  \['20[0-9-]*'" app.html | head -1 | tr -d " ['")
 [ "$LOGDAY" = "$(TZ=America/Los_Angeles date +%F)" ] || echo "reminder: What's new was last updated $LOGDAY; add an entry to CHANGES in app.html if this update is one people would notice"
 cp dist/web/index.html dist/web/manifest.webmanifest dist/web/sw.js dist/web/icon-*.png "$REPO/"
 mkdir -p "$REPO/source"
-rm -rf "$REPO/source" && mkdir -p "$REPO/source" && tar --exclude=./build --exclude=./dist --exclude=./node_modules --exclude='./tools/drumref/*.json' --exclude='./tools/drumref/*.log' --exclude=./tools/drumref --exclude=./tools/vital --exclude=./notes/private -cf - . | tar -xf - -C "$REPO/source"
+rm -rf "$REPO/source" && mkdir -p "$REPO/source" && tar --exclude=./build --exclude=./dist --exclude=./node_modules --exclude='./tools/drumref/*.json' --exclude='./tools/drumref/*.log' --exclude=./tools/drumref --exclude=./tools/refsynth --exclude=./notes/private -cf - . | tar -xf - -C "$REPO/source"
 cd "$REPO"
 git add -A
 if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
