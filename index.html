@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-5se/atsZYlXSYQgTdDT3/aUa4ERr98s+erOLdq957A4=' 'sha256-yBq+q3S0chmwb1/1HzId0ExN78arDTzqe0Cq4r1tWbA=' 'sha256-hfsfLcz2E1j9uy9kWqjBo36Oef8nhTFfY7flntLKteI=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-5se/atsZYlXSYQgTdDT3/aUa4ERr98s+erOLdq957A4=' 'sha256-yBq+q3S0chmwb1/1HzId0ExN78arDTzqe0Cq4r1tWbA=' 'sha256-Ev0Ud4Gevu/TpT3aPEMRmAfkHrFgHVNliBCiWf1QQ1Y=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -4288,7 +4288,7 @@ function renderAll() { renderScenes(); renderView(); updateTransport(); updatePa
 function setView(v) { if (UI.entry) UI.entry.close(); if (UI.sheet && v !== UI.view) closeSheet();   // a menu belongs to the page it was opened on: changing page closes it
   navReset(); UI.view = v; renderView(); savePrefs(); }
 function renderView() {
-  for (const k in HELD) if (k[0] !== 's') padUp(+k);   // strip pads (keys 's…') live in the panel and keep playing
+  for (const k in HELD) if (k[0] !== 's') padUp(k.includes('~') ? k : +k);   // strip pads (keys 's…') live in the panel and keep playing
   if (NAV.mode === 'edit') navEndEdit(true);
   const V = $('#view'); V.innerHTML = ''; UI.regs = []; TL.cv = null; SCOPE.views = SCOPE.views.filter(v => v.cv.closest('#sheet'));
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === (UI.view === 'fx' ? UI.fxBack : UI.view)));
@@ -4445,53 +4445,61 @@ addEventListener('pointerup', padRelease, true); addEventListener('pointercancel
 /* The pad grid listens to touches itself, not each pad: every finger is tracked by its own touch id from the moment it lands,
    and a touch in a gap or just past an edge goes to the nearest pad (gaps were about a tenth of the grid: fast hits there played
    nothing). Raw touch events are also the most direct path WebKit has; the mouse still works through pointer events. */
-function bindPadGrid(grid, sel = '.pad', down = c => padDown(c), up = c => padUp(c), slop = 24) {
+function bindPadGrid(grid, sel = '.pad', down = c => padDown(c), up = (c, k) => padUp(k === undefined ? c : k), slop = 24) {
   let rects = null; const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { rects = null; }) : null; if (ro) ro.observe(grid);
-  const cellAt = (x, y) => { if (!rects) rects = [...grid.querySelectorAll(sel)].map(p => [+p.dataset.cell, p.getBoundingClientRect()]); let best = -1, bd = 1e9;
+  const cellAt = (x, y, sl = slop) => { if (!rects) rects = [...grid.querySelectorAll(sel)].map(p => [+p.dataset.cell, p.getBoundingClientRect()]); let best = -1, bd = 1e9;
     for (const [c, r] of rects) { const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0, dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = c; } }
-    return bd <= slop * slop ? best : -1; };
+    return bd <= sl * sl ? best : -1; };
+  const on = new Map();   // touch id → the pad it is on
+  const press = (id, c) => { let k; on.set(id, c); padPressId(id, () => { k = down(c); }, () => up(c, k)); };
   grid.addEventListener('touchstart', e => { e.preventDefault(); ensureAudio();
-    for (const t of e.changedTouches) { const c = cellAt(t.clientX, t.clientY); if (c < 0) continue; padPressId('t' + t.identifier, () => down(c), () => up(c)); } }, { passive: false });
-  const end = e => { e.preventDefault(); for (const t of e.changedTouches) padReleaseId('t' + t.identifier); };
+    for (const t of e.changedTouches) { const c = cellAt(t.clientX, t.clientY); if (c < 0) continue; press('t' + t.identifier, c); } }, { passive: false });
+  grid.addEventListener('touchmove', e => { e.preventDefault();   // sliding onto another pad lets go of the last one and plays the new one (only once well inside it, so an edge never flickers)
+    for (const t of e.changedTouches) { const id = 't' + t.identifier; if (!on.has(id)) continue; const c = cellAt(t.clientX, t.clientY, 0); if (c < 0 || c === on.get(id)) continue; press(id, c); } }, { passive: false });
+  const end = e => { e.preventDefault(); for (const t of e.changedTouches) { on.delete('t' + t.identifier); padReleaseId('t' + t.identifier); } };
   grid.addEventListener('touchend', end, { passive: false }); grid.addEventListener('touchcancel', end, { passive: false });
-  grid.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') return; const c = cellAt(e.clientX, e.clientY); if (c < 0) return; padPress(e, () => down(c), () => up(c)); });
+  grid.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') return; const c = cellAt(e.clientX, e.clientY); if (c < 0) return; let k; padPress(e, () => { k = down(c); }, () => up(c, k)); });
 }
 function padPressId(id, down, up) { const old = PADPTR.get(id); if (old) { PADPTR.delete(id); old(); } PADPTR.set(id, up); down(); }
 function padReleaseId(id) { const f = PADPTR.get(id); if (f) { PADPTR.delete(id); f(); } }
 const releaseAllPads = () => { for (const f of PADPTR.values()) f(); PADPTR.clear(); };
 addEventListener('blur', releaseAllPads); document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAllPads(); });
 // pads under a finger (or a key) stay pressed down until let go; playback only flashes them
-const PADHELD = new Set();
-function padHeld(cell, on) { if (on) PADHELD.add(cell); else PADHELD.delete(cell); const pd = document.querySelector(`.grid .pad[data-cell="${cell}"]`); if (pd) pd.classList.toggle('held', on); }
-function padDown(cell, hk = cell) {   // hk: the key this press is held under (the panel's pad strip uses its own)
+const PADHELD = new Map();   // pad → fingers on it
+function padHeld(cell, on) { const n = Math.max(0, (PADHELD.get(cell) || 0) + (on ? 1 : -1)); if (n) PADHELD.set(cell, n); else PADHELD.delete(cell); const pd = document.querySelector(`.grid .pad[data-cell="${cell}"]`); if (pd) pd.classList.toggle('held', n > 0); }
+let holdSeq = 0;
+function padDown(cell, hk = cell) {   // hk: the key this press is held under (the panel's pad strip uses its own); returns the key to let go of
+  if (HELD[hk] != null) hk = hk + '~' + (++holdSeq);   // a second finger on a held pad: its own note, let go on its own
   ensureAudio(); let pi, semi = 0, kc = null;
   const chop = padChop();
   const fromStrip = typeof hk === 'string' && hk[0] === 's', flash = fromStrip ? () => {} : c => queueMicrotask(() => flashCell(c)); if (!fromStrip) queueMicrotask(() => padHeld(cell, true));   // the panel's pads light themselves, never the big grid; lighting up waits until every finger's note is sent
-  if (UI.keys) { pi = UI.pad; if (!fromStrip) UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flash(cell); return; } } else { kc = keyCell(cell); if (kc.none) { flash(cell); return; } semi = kc.semi; } }
-  else if (UI.swapFrom != null) { const a = UI.swapFrom; UI.swapFrom = null; pi = UI.bank * 16 + cell; if (a === pi) { refreshPadDots(); toast('Swap cancelled'); } else { swapPads(a, pi); UI.pad = pi; } return; }
+  if (UI.keys) { pi = UI.pad; if (!fromStrip) UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flash(cell); return hk; } } else { kc = keyCell(cell); if (kc.none) { flash(cell); return hk; } semi = kc.semi; } }
+  else if (UI.swapFrom != null) { const a = UI.swapFrom; UI.swapFrom = null; pi = UI.bank * 16 + cell; if (a === pi) { refreshPadDots(); toast('Swap cancelled'); } else { swapPads(a, pi); UI.pad = pi; } return hk; }
   else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; requestAnimationFrame(() => { refreshPadDots(); updatePanel(); }); } }   // screen updates wait until the note is sent
-  const pad = P.pads[pi]; flash(cell); if (!hasSound(pad)) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return; }
+  const pad = P.pads[pi]; flash(cell); if (!hasSound(pad)) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return hk; }
   const tag = tagSeq++; ensureSample(pad.sample); if (UPQ.jobs.length) upFlush(padNeeds(pi));   // still on its way to the engine: send it now, before the note
   if (kc && kc.chord && kxOf(pi).arp) {   // arpeggiator: the engine plays the chord's notes in time; latch keeps it going after you let go
     const kx = kxOf(pi), notes = playChord(pi, kc.chord), lt = KEYS.latch;
-    if (lt) { send({ t: 'arpStop', tag: lt.tag }); KEYS.latch = null; if (kx.latch && lt.pi === pi && lt.cell === cell) { refreshPadDots(); return; } }
+    if (lt) { send({ t: 'arpStop', tag: lt.tag }); KEYS.latch = null; if (kx.latch && lt.pi === pi && lt.cell === cell) { refreshPadDots(); return hk; } }
     send({ t: 'arp', pad: pi, tag, notes: notes.map(x => ({ semi: x.semi, vel: x.vel })), pat: kx.apat, rate: kx.arate, oct: kx.aoct, gate: kx.agate });
-    if (kx.latch) { KEYS.latch = { tag, pi, cell }; refreshPadDots(); } else HELD[hk] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return;
+    if (kx.latch) { KEYS.latch = { tag, pi, cell }; refreshPadDots(); } else HELD[hk] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return hk;
   }
   if (kc && kc.chord) {   // a chord: every note shares one tag, so letting go releases them all (and cancels strummed notes not yet played)
     const notes = playChord(pi, kc.chord); send({ t: 'hit', pad: pi, notes, tag });
     const live = T.playing && T.rec, rec = [], cap = [];
     for (const x of notes) { if (live) { const r = recordNote(pi, x.semi, x.vel, x.ms); if (r) rec.push(r); } else cap.push(capHit(pi, x.semi, x.vel, x.ms)); }
-    HELD[hk] = { tag, rec, cap: live ? [] : cap, pi, start: ctx ? ctx.currentTime : 0, ms: notes.map(x => x.ms) }; return;
+    HELD[hk] = { tag, rec, cap: live ? [] : cap, pi, start: ctx ? ctx.currentTime : 0, ms: notes.map(x => x.ms) }; return hk;
   }
   const vel = kc && kc.vel != null ? kc.vel : .9;
   send({ t: 'hit', pad: pi, semi, vel, tag }); if (chop) { selectSlice(cell); slicePlayed(pi, cell, 0); }
   if (semi && P.pads[pi].src === 'drum' && isLayered(P.pads[pi].drum) && !(P.pads[pi].nv || {})[Math.round(semi)]) drumNotesSoon(pi, semi);   // played live on a note it hasn't been rendered for: ready from the next press
   const rec = (T.playing && T.rec) ? recordNote(pi, semi, vel) : null, cap = rec ? null : capHit(pi, semi, vel);
   HELD[hk] = { tag, rec: rec ? [rec] : [], cap: cap ? [cap] : [], pi, start: ctx ? ctx.currentTime : 0, ms: [0] };
+  return hk;
 }
 function padUp(cell) {
-  if (typeof cell === 'number') padHeld(cell, false); const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
+  const base = typeof cell === 'string' && cell.includes('~') ? cell.split('~')[0] : cell, bc = typeof base === 'string' && base[0] !== 's' ? +base : base;
+  if (typeof bc === 'number') padHeld(bc, false); const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
   if (hd.arp) { send({ t: 'arpStop', tag: hd.tag }); return; }
   if (pad.mode === 'gate' || pad.mode === 'loop' || pad.src === 'synth') { send({ t: 'rel', tag: hd.tag, rel: pad.rel }); const s = UI.tl.snap || 6, held = ((ctx ? ctx.currentTime : 0) - hd.start) / spt();
     const len = k => Math.max(s, Math.round((held - (hd.ms[k] || 0) / 1000 / spt()) / s) * s);
@@ -8631,7 +8639,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.']],
+  ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.']],
   ['2026-10-30', ['Instruments reworked: natural ring-out for keys, harp, vibes and basses; longer, smoother loops for pads, organ, flute and brass.', 'Removed Glass Pad, Orch Hits and Timpani Roll (projects switch to similar sounds).', 'Make from a sample, rebuilt for kicks, 808s, toms and snares: a synth body with your sample layered on top.', 'Layer page for layered drums: level, pitch, start, length, filter, Keytrack.', 'Tap the drum’s picture to hear it.', 'Auto backup (optional, under Projects), now including drums and synth presets.', 'Wavetable: tap a table to step through, hold for the menu.', 'Fix: first hit after sound starts could sound different.', 'Fix: meters and playheads could freeze until restart.', 'Fix: instruments were silent in exports.']],
   ['2026-10-29', ['New filters: Clean 24, Notch and Phaser.', 'Cleaner analog oscillators on high notes.', 'Ladder and Diode filters rebuilt; Drive works on every filter.', 'Faster attacks; unison stacks no longer burst on each note.', 'Wavetable: oscillator FM, AM and ring mod, with deeper FM.', 'Drum & bass presets: reeses, growls, pads, plucks, leads, stabs and drop basses.', 'Presets can bring their own effects.', 'What’s new, under Settings.', 'Fix: Multiband Squash level jump; Frequency shift runaway.']],
   ['2026-10-28', ['Import many wavetables at once.', 'New app icon.', 'Sound pickers accept all common audio files and zips.', 'Engine check lists safety mutes and recent actions.', 'Fix: a damaged wavetable could break a synth.']],
@@ -8884,7 +8892,7 @@ function buildStrip() {
   const g = h('div', 'sgrid'); for (let r = 1; r >= 0; r--) for (let c = 0; c < 8; c++) { const cell = r * 8 + c, d = h('div', 'spk'); d.dataset.cell = cell;
     g.append(d); }
   const spk = c => g.querySelector(`.spk[data-cell="${c}"]`);
-  bindPadGrid(g, '.spk', c => { stripDown(c); const d = spk(c); if (d) d.classList.add('hit'); }, c => { padUp('s' + c); const d = spk(c); if (d) d.classList.remove('hit'); }, 10);   // same touch handling as the big pads
+  bindPadGrid(g, '.spk', c => { const k = stripDown(c); const d = spk(c); if (d) d.classList.add('hit'); return k; }, (c, k) => { padUp(k === undefined ? 's' + c : k); const d = spk(c); if (d) d.classList.remove('hit'); }, 10);   // same touch handling as the big pads
   s.append(g);
   // pitch bend wheel: drag up or down, springs back to the middle when you let go (recorded as automation while recording)
   const bw = h('div', 'sbend'), knob = h('i'); bw.append(knob); let bd = null;
@@ -8895,7 +8903,7 @@ function buildStrip() {
   bw.addEventListener('pointerup', rel); bw.addEventListener('pointercancel', rel); s.append(bw); refreshStrip();
 }
 function withKeys(fn) { const k = UI.keys; UI.keys = true; try { return fn(); } finally { UI.keys = k; } }
-function stripDown(cell) { ensureAudio(); withKeys(() => padDown(cell, 's' + cell)); if (UI.view === 'pads') { refreshPadDots(); if (!UI.keys && Math.floor(UI.pad / 16) === UI.bank) flashCell(UI.pad % 16); } }
+function stripDown(cell) { ensureAudio(); const k = withKeys(() => padDown(cell, 's' + cell)); if (UI.view === 'pads') { refreshPadDots(); if (!UI.keys && Math.floor(UI.pad / 16) === UI.bank) flashCell(UI.pad % 16); } return k; }
 function refreshStrip() {
   const s = $('#pstrip'); if (!s || !UI.strip) return; if (!s.children.length) { buildStrip(); return; }
   const pi = UI.pad, pad = P.pads[pi], chop = withKeys(() => padChop());
