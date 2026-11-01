@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-Faz/vi3NzDZZ1vtUNR+Ef+UlqKT5DfTy/V0DllsHHZA=' 'sha256-7zRCVbNlRZdpMGaB/YGJ4KahtjE5/r9MdmR2TynKHkA=' 'sha256-TZk2DPpiZEpih1Kxz7r9waLjj08TGW/s9UbadoyZASw=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-Faz/vi3NzDZZ1vtUNR+Ef+UlqKT5DfTy/V0DllsHHZA=' 'sha256-7zRCVbNlRZdpMGaB/YGJ4KahtjE5/r9MdmR2TynKHkA=' 'sha256-CDRHjLCWvDCmZKIO3HCqet4kkzUL5M5DLjwx6ovDpHk=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -4790,7 +4790,8 @@ function bindTL(cv) {
     const base = { id: e.pointerId, x0: x, y0: y, x, y, sx0: tl.sx, sy0: tl.sy, by0: tl.by, moved: false };
     if (y < RULER_H) { TL.drag = Object.assign(base, { kind: x < LABEL_W ? 'loopkey' : 'ruler' }); return; }
     if (tl.lane === 'notes' && y >= noteH()) { if (x < LABEL_W || tl.velOpen === false) { TL.drag = Object.assign(base, { kind: 'velhead' }); return; }
-      TL.drag = Object.assign(base, { kind: 'vel', lx: x, ly: y, pushed: false, last: null }); velPaint(TL.drag, x, y, x, y); drawTL(); return; }
+      const grp = selItems().length > 1;   // several notes selected: an up or down drag moves all their velocities together (a sideways one still draws)
+      TL.drag = Object.assign(base, { kind: 'vel', lx: x, ly: y, pushed: false, last: null, grp: grp ? 'wait' : null, v0: grp ? selItems().map(q => [q, q.n.v]) : null }); if (!grp) velPaint(TL.drag, x, y, x, y); drawTL(); return; }
     if (tl.lane === 'notes') {
       if (x < LABEL_W) { TL.drag = Object.assign(base, { kind: 'label' }); return; }
       const hit = hitNote(x, y), SEL = new Set(selItems().map(q => q.n));
@@ -4818,7 +4819,11 @@ function bindTL(cv) {
       if (pz.dy0 > 40) { const f = dy / pz.dy0; if (tl.mode === 'bank') tl.rv = clamp(pz.rv0 / f, 4, 16); else tl.kh = clamp(pz.kh0 * f, 14, 56); }
       const row = (pz.v0 + pz.cy0 - RULER_H) / pz.rh0, v = row * rowH() - (cy - RULER_H); if (tl.mode === 'bank') tl.by = v; else tl.sy = v; drawTL(); return; }
     const d = TL.drag; if (!d || e.pointerId !== d.id) return; const len = tlLen(); d.x = x; d.y = y;
-    if (d.kind === 'vel') { velPaint(d, d.lx, d.ly, x, y); d.lx = x; d.ly = y; drawTL(); return; }
+    if (d.kind === 'vel') {
+      if (d.grp === 'wait') { const dx = x - d.x0, dy = y - d.y0; if (Math.hypot(dx, dy) < 8) return; d.grp = Math.abs(dy) >= Math.abs(dx) ? 'move' : null; if (!d.grp) { d.lx = d.x0; d.ly = d.y0; } }
+      if (d.grp === 'move') { const off = (d.y0 - y) / Math.max(30, VEL_OPEN - 12); if (!d.pushed) { pushUndo('scene:' + UI.scene); d.pushed = true; }
+        for (const [q, v0] of d.v0) { touchPad(q.pi); q.n.v = clamp(Math.round((v0 + off) * 100) / 100, .01, 1); } d.last = d.v0.length ? d.v0[0][0].n.v : null; drawTL(); return; }
+      velPaint(d, d.lx, d.ly, x, y); d.lx = x; d.ly = y; drawTL(); return; }
     if (d.kind === 'ruler') { if (!d.moved && Math.abs(x - d.x0) < 8) return; d.moved = true;   // dragging along the ruler draws the loop range, in beats
       const q = t => clamp(gridQ(x2t(t), BEAT), 0, len), a = q(Math.min(d.x0, x)), b = Math.max(q(Math.max(d.x0, x)), a + BEAT);
       tl.loop = { scene: UI.scene, a: Math.min(a, len - BEAT), b: Math.min(b, len), on: true }; sendRange(); drawTL(); return; }
@@ -4853,7 +4858,7 @@ function bindTL(cv) {
       if ((S && Math.abs(t2x(S.t) - x) < 12) || t <= 0) tl.start = null; else tl.start = { scene: UI.scene, t }; jumpTo(playFrom());
       drawTL(); return; }
     if (d.kind === 'velhead') { if (Math.hypot(x - d.x0, y - d.y0) < 8) { tl.velOpen = tl.velOpen === false; savePrefs(); } drawTL(); return; }
-    if (d.kind === 'vel') { if (d.pushed) afterEdit(); else drawTL(); return; }
+    if (d.kind === 'vel') { if (d.grp === 'wait') velPaint(d, d.x0, d.y0, d.x0, d.y0); if (d.pushed) afterEdit(); else drawTL(); return; }
     if (d.axis === 'v') { const dy = y - d.y0; if (Math.abs(dy) > 40) tlBank(UI.bank + (dy < 0 ? 1 : -1), 'swipe'); else drawTL(); return; }
     if (d.kind === 'label' && !d.moved) { const r = y2row(y); if (r >= 0 && r <= maxRow()) { if (tl.mode === 'bank') { UI.pad = UI.bank * 16 + r; UI.tl.target = null; audition(UI.pad); } else audition(UI.pad, KR.p(r)); } drawTL(); updatePanel(); return; }
     if (d.kind === 'empty' && !d.moved) {
@@ -8668,7 +8673,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.']],
+  ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
   ['2026-10-30', ['Instruments reworked: natural ring-out for keys, harp, vibes and basses; longer, smoother loops for pads, organ, flute and brass.', 'Removed Glass Pad, Orch Hits and Timpani Roll (projects switch to similar sounds).', 'Make from a sample, rebuilt for kicks, 808s, toms and snares: a synth body with your sample layered on top.', 'Layer page for layered drums: level, pitch, start, length, filter, Keytrack.', 'Tap the drum’s picture to hear it.', 'Auto backup (optional, under Projects), now including drums and synth presets.', 'Wavetable: tap a table to step through, hold for the menu.', 'Fix: first hit after sound starts could sound different.', 'Fix: meters and playheads could freeze until restart.', 'Fix: instruments were silent in exports.']],
   ['2026-10-29', ['New filters: Clean 24, Notch and Phaser.', 'Cleaner analog oscillators on high notes.', 'Ladder and Diode filters rebuilt; Drive works on every filter.', 'Faster attacks; unison stacks no longer burst on each note.', 'Wavetable: oscillator FM, AM and ring mod, with deeper FM.', 'Drum & bass presets: reeses, growls, pads, plucks, leads, stabs and drop basses.', 'Presets can bring their own effects.', 'What’s new, under Settings.', 'Fix: Multiband Squash level jump; Frequency shift runaway.']],
