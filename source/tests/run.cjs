@@ -526,6 +526,13 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       const pre = s.run(360).x, at = s.run(30).x, ring = s.run(375).x, pk = x => x.reduce((q, y) => Math.max(q, Math.abs(y)), 0); s.run(375 * 12); const end = s.run(40).x;
       ok(pk(pre) < 1e-4 && pk(at) > .05 && pk(ring) > 1e-3 && pk(end) < 1e-6, `a hit at the end lands on time; its space rings, then stops (${pk(pre).toExponential(0)} / ${pk(at).toFixed(2)} / ${pk(ring).toExponential(0)} / ${pk(end).toExponential(0)})`); }
   }
+  { // switches (wave, filter type) reach the engine at once, as their own names
+    const mk = () => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; });
+      Object.assign(Q.pads[20], { src: 'synth', syn: SP.synPatch(SP.SYN_INIT), mode: 'gate', voice: 'poly', poly: 8 }); host.msg({ t: 'project', P: Q }); host.soft = false; return host; };
+    const play = host => { host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); const L = new Float32Array(128), R = new Float32Array(128), o = []; for (let i = 0; i < 100; i++) { host.render(128, L, R); o.push(...L); } return o; };
+    const a = play(mk()), hb = mk(); hb.msg({ t: 'synp', pad: 20, id: 'o1w', v: 'Square' }); hb.msg({ t: 'synp', pad: 20, id: 'flt', v: 'Off' }); const b = play(hb);
+    let d = 0, e = 0; for (let i = 0; i < a.length; i++) { d += (a[i] - b[i]) ** 2; e += a[i] ** 2; }
+    ok(d / e > .1, `switches reach the engine when changed (wave and filter type changed the sound by ${(10 * Math.log10(d / e)).toFixed(0)} dB)`); }
   console.log('instruments');
   { const IN = require('../js/instruments.js');
     const mk = (pr, pad = {}) => { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; });
