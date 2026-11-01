@@ -80,7 +80,9 @@ EX void tf_syn_route(i32 pad, i32 k, i32 src, i32 dst, float amt, i32 curve, i32
 EX float tf_syn_map(i32 i, float n) { return i >= 0 && i < NSP ? spPhys(i, n) : 0.f; }   // for the tests
 
 /* ---------- voices ---------- */
-static void svRelease(SVoice* v) { if (!v->on || !v->held) return; v->held = 0; for (i32 e = 0; e < 3; e++) { v->st[e] = 3; v->et[e] = 0; v->ef[e] = v->ev[e]; } for (i32 k = 0; k < 4; k++) { v->ost[k] = 3; v->oet[k] = 0; v->oef[k] = v->oev[k]; } }
+// a One-shot envelope ignores the release until its attack and decay are done
+static const i32 envSync[3] = { SP_AY, SP_2Y, SP_3Y }, envMode[3] = { SP_AM, SP_2M, SP_3M };
+static void svRelease(SVoice* v) { if (!v->on || !v->held) return; v->held = 0; const Patch* P = pat[v->pad]; for (i32 e = 0; e < 3; e++) { if (P && v->st[e] < 2 && disc(P->p[envMode[e]], 3) == 2) continue; v->st[e] = 3; v->et[e] = 0; v->ef[e] = v->ev[e]; } for (i32 k = 0; k < 4; k++) { v->ost[k] = 3; v->oet[k] = 0; v->oef[k] = v->oev[k]; } }
 static inline i32 isFxEng(const Patch* P) { return disc(P->p[SP_ENG], NENG) == 6; }
 // the FX engine runs its own amp envelope: a 3 ms fade in, full while it plays, then Tail to fade out
 static void xEnv(float* m) { m[SP_AA] = 0.181f; m[SP_AD] = 0.5f; m[SP_AS] = 1.f; m[SP_AR] = m[SP_XTT]; m[SP_AC] = 0.5f; m[SP_AK] = 0.25f; }
@@ -254,13 +256,21 @@ static inline float wtWarp(i32 w, float a, float p) {
 }
 
 /* ---------- envelopes ---------- */
+// Sync: seconds at 120 BPM → the nearest note value at the song's tempo (matches tfEnvDiv in js/host.js)
+static float envSyncT(float s) { if (s < 0.004f) return s; const float b = s * 2.f; i32 bi = 0; float bd = 1e9f;
+  for (i32 i = 0; i < NENVDIV; i++) { const float r = b / envDivBeats[i], e = r > 1.f ? r : 1.f / r; if (e < bd) { bd = e; bi = i; } } return envDivBeats[bi] * 60.f / BPM; }
 static void envStep(SVoice* v, i32 e, const float* m, float dt, i32 base) {
   float A = spPhys(base, m[base]), D = spPhys(base + 1, m[base + 1]), S = m[base + 2], R = spPhys(base + 3, m[base + 3]);
+  if (disc(m[envSync[e]], 2)) { A = envSyncT(A); D = envSyncT(D); R = envSyncT(R); }
+  const i32 mode = disc(m[envMode[e]], 3);
   float ca = linmap(m[base + 4], -0.85f, 0.85f), ck = linmap(m[base + 5], -0.85f, 0.85f);   // negative = fast start (exponential feel), positive = slow start
   float& x = v->ev[e]; float& t = v->et[e]; i32& st = v->st[e]; t += dt;
   switch (st) {
     case 0: if (t >= A) { st = 1; t -= A; x = 1.f; } else { x = v->ef[e] + (1.f - v->ef[e]) * curve_frac(t / A, ca); break; } /* fall through */
-    case 1: if (t >= D) { st = 2; x = S; } else { x = 1.f + (S - 1.f) * curve_frac(t / D, ck); } break;
+    case 1: if (t >= D) { x = S;
+        if (mode == 1 && v->held) { st = 0; t -= D; if (t > A) t = 0.f; v->ef[e] = S; break; }   // Loop: back to the attack, from where the decay left it
+        if (mode == 2) { st = 3; t = 0.f; v->ef[e] = S; break; }   // One-shot: straight on to the release
+        st = 2; } else { x = 1.f + (S - 1.f) * curve_frac(t / D, ck); } break;
     case 2: x = S; break;
     case 3: x = t >= R ? 0.f : v->ef[e] * (1.f - curve_frac(t / R, ck)); if (t >= R) st = 5; break;
     case 4: x = t >= 0.003f ? 0.f : v->ef[e] * (1.f - t / 0.003f); if (t >= 0.003f) st = 5; break;

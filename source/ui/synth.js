@@ -5,7 +5,7 @@ const SYN_PAGES = [
   { n: 'Osc', tabs: [['o1', 'Osc 1'], ['o2', 'Osc 2'], ['o3', 'Osc 3'], ['ph', 'Phase'], ['vo', 'Voice']] },
   { n: 'Sub·Noise', tabs: [['sb', 'Sub'], ['nz', 'Noise']] },
   { n: 'Filter', tabs: [['fl', 'Filter']] },
-  { n: 'Env', tabs: [['ea', 'Amp'], ['e2', 'Env 2'], ['e3', 'Env 3']] },
+  { n: 'Env', tabs: [['ea', 'Amp'], ['e2', 'Env 2'], ['e3', 'Env 3'], ['em', 'Modes']] },
   { n: 'LFO', tabs: [['l1', 'LFO 1'], ['l2', 'LFO 2'], ['l3', 'LFO 3'], ['l4', 'LFO 4'], ['mc', 'Macros']] },
   { n: 'Mix', tabs: [['mx', 'Channel']] }];
 // FM swaps the Osc page for its own: the algorithm overview, one tab per operator (tone or envelope view), and Voice
@@ -23,7 +23,7 @@ function synCells(tab) {
 const SYN_CELLS = {
   o1: ['o1w', 'o1o', 'o1s', 'o1f', 'o1l', 'o1p', 'dri'], ph: ['o1h', 'o2h', 'o3h', 'rph'], wp: ['wa9', 'wb9', 'rph'], fp: ['f1h', 'f2h', 'f3h', 'f4h', 'rph'], o2: ['o2w', 'o2o', 'o2s', 'o2f', 'o2l', 'o2p', 'o2y', 'o2m'], o3: ['o3w', 'o3o', 'o3s', 'o3f', 'o3l', 'o3p', 'o3x', 'o3r'],
   vo: ['uni', 'det', 'spr', 'pit', '#bendr', 'gan', '#glide', '#poly'], sb: ['sbl', 'sbo', 'sbw', 'spl', 'spn', 'sbf', 'nzf'], nz: ['nzn', 'nzt', 'nzb', 'nzd', 'nzh', 'nzl', 'nzo', 'nzk'],
-  fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp', 'fbk'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'vel', '#voice'], e2: ['2a', '2d', '2s', '2r', '2c', '2k'], e3: ['3a', '3d', '3s', '3r', '3c', '3k'],
+  fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp', 'fbk'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'vel', '#voice'], e2: ['2a', '2d', '2s', '2r', '2c', '2k'], e3: ['3a', '3d', '3s', '3r', '3c', '3k'], em: ['ay', 'am', '2y', '2m', '3y', '3m'],
   mc: ['m1', 'm2', 'm3', 'm4'],
   xs: ['xsm', 'xs@', 'xdi', 'xsc', 'xlv', 'xpl', 'xtt'], xn: ['xnl', 'xnf', 'xbf', 'xbt', 'xbq', 'xnc'], xo: ['xol', 'xwv', 'xpf', 'xpt', 'xmo', 'xmr', 'xma', 'xru'], xh: ['xhl', 'xht', 'xhn', 'xhd', 'xhw'], xz: ['xsz', 'xsp', 'xdr', 'xgr', 'pit', 'gan', 'vel', '#poly'],
   in: ['#ins', 'ioc', 'ise', 'ifi', 'ist', 'ivt', 'ilo', 'iwd'], su: ['sul', 'suo', 'sus', 'sup', 'sxo', 'sdm', 'sdr', 'sto'], sh: ['sh2', 'sh3', 'sh4', 'sh5', 'shm', 'sho', 'sht', 'shw'],
@@ -116,11 +116,11 @@ function synCtl(pi, id) {
   if (/^f\dl$/.test(id) && synTab() === 'fa') p = Object.assign({}, p0, { l: 'Op ' + id[1] });
   const cur = () => S.p[id] ?? p.d;
   if (p.k === 'opt') {
-    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || id === 'xsm' || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); });
+    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || /^[a23]y$/.test(id) || id === 'xsm' || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); });
   } else {
     const intish = p.k === 'int' || /^o\ds$/.test(id) || /^w[ab]s$/.test(id), step = intish ? 1 / (p.b - p.a) : .001;
     el = makeCtl({ label: p.l, min: 0, max: 1, step, coarse: intish ? step : .02, big: intish ? step * 4 : .1, def: tfSynNorm(p, p.d), bipolar: p.k === 'bip' || id === 'gsc' || /^o\d[sf]$/.test(id) || /^w[ab][sf]$/.test(id) || id === 'pit' || id === 'gan',
-      key: 'syn:' + pi + ':' + id, scope: 'pad:' + pi, fmt: n => synFmt(p, tfSynPhys(p, n)),
+      key: 'syn:' + pi + ':' + id, scope: 'pad:' + pi, fmt: n => { const v = tfSynPhys(p, n); if (/^[a23][adr]$/.test(id) && S.p[id[0] + 'y'] === 'Sync') { const k = tfEnvDiv(v); if (k >= 0) return TF_ENV_DIVS[k][0]; } return synFmt(p, v); },
       get: () => tfSynNorm(p, cur()), set: n => { let v = tfSynPhys(p, n); if (intish) v = Math.round(v); synSet(pi, id, v); if (T.playing && T.rec) recAuto(pi + '.-3.' + p.i, tfSynNorm(p, v)); },
       onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); send({ t: 'live', key: pi + '.-3.' + p.i, on: true }); }, onEnd: () => { send({ t: 'live', key: pi + '.-3.' + p.i, on: false }); UI.autoRec = null; } }, 'knob');
   }
@@ -330,6 +330,8 @@ function drawSynDisp() {
       : t === 'Formant' ? 'vowel ' + 'AEIOU'[Math.min(4, Math.round(shp * 4))] : t === 'Comb' ? (shp > .5 ? 'hollow' : 'tuned') : t === 'Notch' ? (shp < .01 ? 'one notch' : `±${shp.toFixed(1)} oct`) : t === 'Phaser' ? `spread ${Math.round(shp * 100)}%` : `squelch ${Math.round(shp * 100)}%`;
     txt(t === 'Off' ? 'Filter off · drive still works' : `${t} · ${hzStr(fc)} · res ${Math.round(res * 100)}% · ${sw}`, 8, 12); return;
   }
+  if (tab === 'em') { grid(); [['a', 'Amp'], ['2', 'Env 2'], ['3', 'Env 3']].forEach(([e, n], i) => { const sy = v(e + 'y') === 'Sync', md = v(e + 'm');
+      txt(`${n} · ${sy ? 'tempo sync' : 'free time'} · ${md === 'Loop' ? 'loops attack–decay while held' : md === 'One-shot' ? 'plays through on any tap' : 'normal'}`, 8, 18 + i * (H - 24) / 3, md !== 'Normal' || sy ? col : COL.mute); }); return; }
   if (/^e[a23]$/.test(tab)) {   // the envelope with its curves
     const e = tab === 'ea' ? 'a' : tab[1], A = v(e + 'a'), D = v(e + 'd'), Sus = v(e + 's'), R = v(e + 'r'), ca = v(e + 'c') * .85, ck = v(e + 'k') * .85, hold = Math.max(.15, (A + D) * .35), tot = A + D + hold + R;
     const X = t => 10 + (W - 20) * t / tot, Y = y => H - 14 - (H - 30) * y; grid(); g.beginPath(); g.moveTo(X(0), Y(0));
@@ -337,7 +339,8 @@ function drawSynDisp() {
     for (let i = 1; i <= 40; i++) g.lineTo(X(A + D * i / 40), Y(1 + (Sus - 1) * tfCurve(i / 40, ck)));
     g.lineTo(X(A + D + hold), Y(Sus)); for (let i = 1; i <= 40; i++) g.lineTo(X(A + D + hold + R * i / 40), Y(Sus * (1 - tfCurve(i / 40, ck))));
     g.strokeStyle = col; g.lineWidth = 2.2; g.stroke(); g.lineTo(X(0), Y(0)); g.globalAlpha = .12; g.fillStyle = col; g.fill(); g.globalAlpha = 1;
-    txt(`${tab === 'ea' ? 'Amp' : 'Env ' + e} · A ${secStr(A)} · D ${secStr(D)} · S ${Math.round(Sus * 100)}% · R ${secStr(R)}`, 8, 12); return;
+    const ts = x => { if (v(e + 'y') === 'Sync') { const k = tfEnvDiv(x); if (k >= 0) return TF_ENV_DIVS[k][0]; } return secStr(x); };
+    txt(`${tab === 'ea' ? 'Amp' : 'Env ' + e} · A ${ts(A)} · D ${ts(D)} · S ${Math.round(Sus * 100)}% · R ${ts(R)}${v(e + 'm') !== 'Normal' ? ' · ' + v(e + 'm') : ''}`, 8, 12); return;
   }
   if (tab === 'mc') { grid(); const routes = (S.mods || []).filter(m => m.s >= 12);
     [1, 2, 3, 4].forEach((k, i) => { const y = 18 + i * (H - 24) / 4, val = v('m' + k), mine = routes.filter(m => m.s === 11 + k);

@@ -29,6 +29,9 @@ function tfPanGains(p) { const th = (Math.max(-1, Math.min(1, p)) + 1) * Math.PI
 const TF_WAVES = ['Sine', 'Triangle', 'Saw', 'Square', 'Pulse'];
 const TF_LFO_DIVS = [['4 bars', 16], ['2 bars', 8], ['1 bar', 4], ['1/2', 2], ['1/2 D', 3], ['1/2 T', 4 / 3], ['1/4', 1], ['1/4 D', 1.5], ['1/4 T', 2 / 3], ['1/8', .5], ['1/8 D', .75], ['1/8 T', 1 / 3], ['1/16', .25], ['1/16 T', 1 / 6], ['1/32', .125]];
 // FM: algorithms as [name, targets of op 2, op 3, op 4 (bit k = feeds op k+1), carriers (bit k = op k+1 is heard)]; ops only feed lower-numbered ones
+// envelope times in Sync: note values in beats (a knob's seconds at 120 BPM pick the nearest one; under 4 ms stays as it is, so snaps stay snappy)
+const TF_ENV_DIVS = [['1/64', .0625], ['1/32 T', 1 / 12], ['1/32', .125], ['1/16 T', 1 / 6], ['1/16', .25], ['1/8 T', 1 / 3], ['1/16 D', .375], ['1/8', .5], ['1/4 T', 2 / 3], ['1/8 D', .75], ['1/4', 1], ['1/2 T', 4 / 3], ['1/4 D', 1.5], ['1/2', 2], ['1/2 D', 3], ['1 bar', 4], ['2 bars', 8], ['4 bars', 16], ['8 bars', 32]];
+function tfEnvDiv(secs) { if (secs < .004) return -1; const b = secs * 2; let bi = 0, bd = 1e9; TF_ENV_DIVS.forEach((d, i) => { const e = Math.abs(Math.log(b / d[1])); if (e < bd) { bd = e; bi = i; } }); return bi; }
 const TF_ALGS = [['Stack', 1, 2, 4, 1], ['Y', 1, 2, 2, 1], ['Fork', 1, 1, 4, 1], ['Two pairs', 1, 0, 4, 5], ['One to three', 0, 0, 7, 7], ['Stack + sine', 0, 2, 4, 3],
   ['Two into one + sine', 0, 2, 2, 3], ['Pair + two', 0, 0, 4, 7], ['Additive', 0, 0, 0, 15], ['Diamond', 1, 1, 6, 1], ['Three into one', 1, 1, 1, 1], ['Chain to two', 0, 3, 4, 3]];
 const TF_ENGS = { analog: 'Analog', fm: 'FM', wt: 'Wavetable', gr: 'Granular', sub: 'Sub', ins: 'Instrument', sfx: 'FX' };
@@ -105,6 +108,7 @@ const TFSYN = (() => {
   L.push(['o1h', 'Osc 1 phase', 'lin', 0, 360, 0, 'ph'], ['o2h', 'Osc 2 phase', 'lin', 0, 360, 0, 'ph'], ['o3h', 'Osc 3 phase', 'lin', 0, 360, 0, 'ph'], ['rph', 'Random', 'lin', 0, 1, 0, 'ph'],
     ['wa9', 'Osc A phase', 'lin', 0, 360, 0, 'ph'], ['wb9', 'Osc B phase', 'lin', 0, 360, 0, 'ph'], ['f1h', 'Op 1 phase', 'lin', 0, 360, 0, 'ph'], ['f2h', 'Op 2 phase', 'lin', 0, 360, 0, 'ph'],
     ['f3h', 'Op 3 phase', 'lin', 0, 360, 0, 'ph'], ['f4h', 'Op 4 phase', 'lin', 0, 360, 0, 'ph']);
+  for (const [e, n] of [['a', 'Amp'], ['2', 'Env 2'], ['3', 'Env 3']]) L.push([e + 'y', n + ' sync', 'opt', ['Free', 'Sync'], 0, 'Free', 'em'], [e + 'm', n + ' mode', 'opt', ['Normal', 'Loop', 'One-shot'], 0, 'Normal', 'em']);   // envelope times in note values; loop attack–decay while held, or play the whole shape on any tap
   L.push(['sbf', 'Sub → filter', 'opt', ['Off', 'On'], 0, 'Off', 'sb'], ['nzf', 'Noise → filter', 'opt', ['Off', 'On'], 0, 'Off', 'nz']);   // route the sub and the noise through the filter
   return L.map(([id, l, k, a, b, d, tab], i) => ({ i, id, l, k, a, b, d, tab }));
 })();
@@ -789,4 +793,4 @@ function tfWarmEngine(module, sr) {
   for (let r = 0; r < 3; r++) { if (sid > 0) for (let c = 4; c < 8; c++) ex.tf_voice_start(c, sid, 0, 1 + c * .1, 0, 1, 0, .8, .0005, .05, -1, 1, 0);
     for (let k = 0; k < 4; k++) ex.tf_syn_note(k, 0, 0, .8, .3, 2 + k, 0); for (let b = 0; b < 100; b++) ex.tf_render(128); }
 }
-if (typeof module !== 'undefined') module.exports = { tfWarmEngine, TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { TF_ENV_DIVS, tfEnvDiv, tfWarmEngine, TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

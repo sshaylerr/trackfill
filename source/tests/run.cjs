@@ -526,6 +526,15 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       const pre = s.run(360).x, at = s.run(30).x, ring = s.run(375).x, pk = x => x.reduce((q, y) => Math.max(q, Math.abs(y)), 0); s.run(375 * 12); const end = s.run(40).x;
       ok(pk(pre) < 1e-4 && pk(at) > .05 && pk(ring) > 1e-3 && pk(end) < 1e-6, `a hit at the end lands on time; its space rings, then stops (${pk(pre).toExponential(0)} / ${pk(at).toFixed(2)} / ${pk(ring).toExponential(0)} / ${pk(end).toExponential(0)})`); }
   }
+  { // envelope modes: Loop keeps a no-sustain envelope going while held; One-shot plays its decay out after a quick tap; Sync follows the tempo
+    const mk = (p, bpm = 120) => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; }); Q.bpm = bpm;
+      const pr = Object.assign({}, SP.SYN_INIT, { p: Object.assign({}, SP.SYN_INIT.p, { aa: .005, ad: .2, as: 0, ar: .02 }, p) });
+      Object.assign(Q.pads[20], { src: 'synth', syn: SP.synPatch(pr), mode: 'gate', voice: 'poly', poly: 8 }); host.msg({ t: 'project', P: Q }); host.soft = false; return host; };
+    const L = new Float32Array(128), R = new Float32Array(128), en = (h, s) => { let e = 0; for (let i = 0; i < s * 375; i++) { h.render(128, L, R); for (let j = 0; j < 128; j++) e += L[j] * L[j]; } return e / (s * 48000); };
+    const n = mk({}), lp = mk({ am: 'Loop' }); for (const h of [n, lp]) h.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); en(n, .8); en(lp, .8); const eN = en(n, .4), eL = en(lp, .4);
+    const os = mk({ am: 'One-shot' }), nr = mk({}); for (const h of [os, nr]) { h.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); en(h, .01); h.msg({ t: 'rel', tag: 1, rel: .02 }); } const eO = en(os, .15), eR = en(nr, .15);
+    const sy = mk({ ay: 'Sync', ad: 1 }), sy2 = mk({ ay: 'Sync', ad: 1 }, 60); for (const h of [sy, sy2]) h.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); en(sy, 1.2); en(sy2, 1.2); const eS = en(sy, .3), eS2 = en(sy2, .3);
+    ok(eL > eN * 100 && eO > eR * 10 && eS2 > eS * 10, `envelope modes: Loop keeps going while held (×${(eL / Math.max(eN, 1e-12)).toExponential(0)}), One-shot plays its decay after a tap (×${(eO / Math.max(eR, 1e-12)).toFixed(0)}), Sync stretches with a slower tempo (×${(eS2 / Math.max(eS, 1e-12)).toFixed(0)})`); }
   { // switches (wave, filter type) reach the engine at once, as their own names
     const mk = () => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; });
       Object.assign(Q.pads[20], { src: 'synth', syn: SP.synPatch(SP.SYN_INIT), mode: 'gate', voice: 'poly', poly: 8 }); host.msg({ t: 'project', P: Q }); host.soft = false; return host; };
