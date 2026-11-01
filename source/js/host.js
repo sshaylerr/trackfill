@@ -613,7 +613,8 @@ class TFHost {
     const base = m.notes.slice().sort((a, b) => a.semi - b.semi), seq = [];
     for (let o = 0; o < Math.max(1, Math.min(3, m.oct | 0)); o++) for (const x of base) seq.push({ semi: x.semi + 12 * o, vel: x.vel });
     let order = seq; if (m.pat === 'down') order = seq.slice().reverse(); else if (m.pat === 'updown') order = seq.concat(seq.slice(1, -1).reverse());
-    this.arps.set(m.tag, { pi: m.pad, seq, order, pat: m.pat, rate: Math.max(6, m.rate | 0), gate: Math.max(.05, Math.min(1, +m.gate || .5)), step: 0, n: base.length, next: this.now, last: -1, rs: (m.tag * 2654435761) >>> 0 });
+    const old = m.keep ? this.arps.get(m.tag) : null;   // notes joining or leaving a running pattern: it keeps its place and timing
+    this.arps.set(m.tag, { pi: m.pad, seq, order, pat: m.pat, rate: Math.max(6, m.rate | 0), gate: Math.max(.05, Math.min(1, +m.gate || .5)), step: old ? old.step : 0, n: base.length, next: old ? old.next : this.now, last: -1, rs: old ? old.rs : (m.tag * 2654435761) >>> 0 });
   }
   runArps(end) {
     for (const [tag, a] of this.arps) {

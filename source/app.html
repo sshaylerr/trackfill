@@ -953,7 +953,7 @@ const AUD = { hiddenAt: 0, dirty: false, restarting: false };
 async function restartAudio(manual) {
   if (AUD.restarting || !ctx) return; if (!manual && Date.now() - (AUD.last || 0) < 20000) return;   // automatic restarts: at most one every 20 s
   AUD.restarting = true; AUD.dirty = false; AUD.last = Date.now();
-  const was = T.playing; if (was) stop(); KEYS.latch = null; for (const k in HELD) delete HELD[k];
+  const was = T.playing; if (was) stop(); KEYS.latch = null; KEYS.arpN = null; for (const k in HELD) delete HELD[k];
   const old = ctx; ctx = null; ENG.node = null; ENG.ready = false; ENG.slept = false; ENG.sent.clear(); UPQ.jobs.length = 0;
   try { old.onstatechange = null; await old.close(); } catch (e) {}
   try { unmuteIOS(); newContext(); if (manual) ctx.resume().catch(() => {}); } catch (e) { AUD.restarting = false; toast('Sound could not restart: ' + (e.message || e)); return; }
@@ -1057,7 +1057,7 @@ const rangeStr = (a, b) => a % BAR || b % BAR ? `from ${posStr(a).split('.').sli
 // the click: off, only while recording is armed, or always. It plays on the engine's clock, so it is sample-accurate, and never reaches exports.
 function sendClick() { send({ t: 'click', on: UI.click === 'always' || (UI.click === 'rec' && T.rec), vol: UI.clickVol }); $('#bTempo').classList.toggle('clk', UI.click === 'always' || (UI.click === 'rec' && T.rec)); }
 function stop() { T.playing = false; if (T.rec) { T.rec = false; sendClick(); } send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
-function panic(msg) { T.playing = false; send({ t: 'panic' }); KEYS.latch = null; for (const k in HELD) delete HELD[k]; METER.l = METER.r = 0; METER.clip = false; drawMeter(); updateTransport(); updatePlayingSlot(null); toast(msg || 'Panic: all sound stopped and effect tails cleared'); }
+function panic(msg) { T.playing = false; send({ t: 'panic' }); KEYS.latch = null; KEYS.arpN = null; for (const k in HELD) delete HELD[k]; METER.l = METER.r = 0; METER.clip = false; drawMeter(); updateTransport(); updatePlayingSlot(null); toast(msg || 'Panic: all sound stopped and effect tails cleared'); }
 /* The audio clock as heard: the moment leaving the speaker right now, on the context's clock. The output timestamp pairs a moment the
    speaker played with the page's own clock, so it runs smooth and true between audio blocks (the context's clock on the page steps, and on
    some phones lags); without it, the context's clock less its reported latency. Everything that shows sound (playhead, lit notes, pad
@@ -1126,7 +1126,7 @@ function spreadSlices(pi) {
   for (const sc of P.scenes) { const arr = sc.notes[pi]; if (!arr) continue;   // the pattern moves with the slices, so it still sounds the same
     for (const nn of arr) { const j = free[clamp(Math.round(nn.p) || 0, 0, n - 1)]; (sc.notes[j] = sc.notes[j] || []).push(Object.assign({}, nn, { p: 0 })); } delete sc.notes[pi]; }
   for (const C of P.chans) for (const f of C.fx) if (f.type === FX_TYPES.DUCK && f.trig.includes(pi)) for (const j of free) if (!f.trig.includes(j)) f.trig.push(j);
-  syncProject(); markDirty(); UI.keys = false; KEYS.latch = null; renderAll();
+  syncProject(); markDirty(); UI.keys = false; KEYS.latch = null; KEYS.arpN = null; renderAll();
   toast(`${n} slices on ${padLabel(free[0])}–${padLabel(free[n - 1])}`);
 }
 
@@ -1283,12 +1283,12 @@ function refreshPadDots() {
     else { pi = UI.bank * 16 + cell; const p = P.pads[pi]; name = hasSound(p) ? (p.name || (p.src === 'synth' ? 'Synth' : 'Sound')) : 'Empty'; pd.classList.remove('kp');
       pd.classList.toggle('sel', UI.pad === pi); pd.classList.toggle('has', !!(sc.notes[pi] && sc.notes[pi].length)); pd.classList.toggle('frz', !!p.frz); }
     const p = P.pads[pi]; pd.style.setProperty('--pc', chop ? sliceCol(cell) : PAD_COLORS[p.color]); if (chop) pd.classList.toggle('sel', cell === UI.slice); pd.classList.toggle('empty', !hasSound(p) || (chop && cell >= chop.pts.length)); pd.classList.toggle('cursor', UI.panel && UI.keys && cell === UI.keyCell);
-    pd.classList.toggle('klatch', !!(kc && KEYS.latch && KEYS.latch.pi === pi && KEYS.latch.cell === cell)); pd.classList.toggle('kroot', !!(kc && kc.root)); pd.classList.toggle('kout', !!(kc && kc.out)); pd.classList.toggle('kchord', !!(kc && kc.chord)); pd.classList.toggle('kprog', !!(kc && kc.prog)); if (kc && kc.none) pd.classList.add('empty');
+    pd.classList.toggle('klatch', !!(kc && ((KEYS.latch && KEYS.latch.pi === pi && KEYS.latch.cell === cell) || (KEYS.arpN && KEYS.arpN.pi === pi && !KEYS.arpN.held.size && !kc.chord && KEYS.arpN.notes.some(x => x.semi === kc.semi))))); pd.classList.toggle('kroot', !!(kc && kc.root)); pd.classList.toggle('kout', !!(kc && kc.out)); pd.classList.toggle('kchord', !!(kc && kc.chord)); pd.classList.toggle('kprog', !!(kc && kc.prog)); if (kc && kc.none) pd.classList.add('empty');
     const html = `<span class="pn">${chop ? cell + 1 : pn != null ? esc(pn) : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; } });
   const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; }
   if (UI.strip && UI.panel) refreshStrip();
 }
-function stopLatch() { if (KEYS.latch) { send({ t: 'arpStop', tag: KEYS.latch.tag }); KEYS.latch = null; } }
+function stopLatch() { if (KEYS.latch) { send({ t: 'arpStop', tag: KEYS.latch.tag }); KEYS.latch = null; } if (KEYS.arpN) { send({ t: 'arpStop', tag: KEYS.arpN.tag }); KEYS.arpN = null; } }
 // notes the arpeggiator played: recorded as played while recording, otherwise kept for Capture
 function arpPlayed(list) {
   const rec = T.playing && T.rec, touched = new Set();
@@ -1299,7 +1299,7 @@ function arpPlayed(list) {
 }
 function keysStatus(pi) { const kx = kxOf(pi), oc = UI.oct ? ` · Oct ${UI.oct > 0 ? '+' : ''}${UI.oct}` : '';
   if (kx.mode === 'levels') return '16 Levels · ' + (kx.lv === 'tune' ? 'Tune' : 'Velocity') + oc;
-  return (kx.mode === 'chords' ? (kx.prog ? PROGS[kx.prog - 1].n : 'Chords') + (kx.arp ? ' · Arp' : '') + ' · ' : kx.mode === 'scale' ? 'Scale · ' : '') + keyName(padKey(pi)) + oc; }
+  return (kx.mode === 'chords' ? (kx.prog ? PROGS[kx.prog - 1].n : 'Chords') + ' · ' : kx.mode === 'scale' ? 'Scale · ' : '') + (kx.arp ? 'Arp · ' : '') + keyName(padKey(pi)) + oc; }
 // a pad lights for 90 ms; the screen loop turns lights off in one pass per frame (no timer per flash)
 const FLASH = new Map(), PADEL = [];
 const padEl = c => { let el = PADEL[c]; if (!el || !el.isConnected) el = PADEL[c] = document.querySelector(`.grid .pad[data-cell="${c}"]`); return el; };
@@ -1369,8 +1369,17 @@ function padDown(cell, hk = cell) {   // hk: the key this press is held under (t
   else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; requestAnimationFrame(() => { refreshPadDots(); updatePanel(); }); } }   // screen updates wait until the note is sent
   const pad = P.pads[pi]; flash(cell); if (!hasSound(pad)) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return hk; }
   const tag = tagSeq++; ensureSample(pad.sample); if (UPQ.jobs.length) upFlush(padNeeds(pi));   // still on its way to the engine: send it now, before the note
+  if (kc && !kc.chord && !chop && kxOf(pi).arp) {   // arpeggiator on single notes: every note held on this pad joins one pattern (one note just repeats)
+    const kx = kxOf(pi), A = KEYS.arpN, vel = kc.vel != null ? kc.vel : .9, fresh = !A || A.pi !== pi || !A.held.size;
+    if (fresh) { stopLatchedChord(); if (A) { send({ t: 'arpStop', tag: A.tag }); KEYS.arpN = null;
+        if (kx.latch && A.pi === pi && A.notes.length === 1 && A.notes[0].semi === semi) { refreshPadDots(); return hk; } }   // tap the one latched note again: it stops
+      KEYS.arpN = { pi, tag, held: new Map(), notes: [] }; }
+    const B = KEYS.arpN; B.held.set(hk, { semi, vel }); arpNSend(B, !fresh);
+    HELD[hk] = { tag: B.tag, arpN: true, rec: [], cap: [], pi, start: 0, ms: [] }; refreshPadDots(); return hk;
+  }
   if (kc && kc.chord && kxOf(pi).arp) {   // arpeggiator: the engine plays the chord's notes in time; latch keeps it going after you let go
     const kx = kxOf(pi), notes = playChord(pi, kc.chord), lt = KEYS.latch;
+    if (KEYS.arpN && !KEYS.arpN.held.size) { send({ t: 'arpStop', tag: KEYS.arpN.tag }); KEYS.arpN = null; }
     if (lt) { send({ t: 'arpStop', tag: lt.tag }); KEYS.latch = null; if (kx.latch && lt.pi === pi && lt.cell === cell) { refreshPadDots(); return hk; } }
     send({ t: 'arp', pad: pi, tag, notes: notes.map(x => ({ semi: x.semi, vel: x.vel })), pat: kx.apat, rate: kx.arate, oct: kx.aoct, gate: kx.agate });
     if (kx.latch) { KEYS.latch = { tag, pi, cell }; refreshPadDots(); } else HELD[hk] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return hk;
@@ -1388,10 +1397,15 @@ function padDown(cell, hk = cell) {   // hk: the key this press is held under (t
   HELD[hk] = { tag, rec: rec ? [rec] : [], cap: cap ? [cap] : [], pi, start: ctx ? ctx.currentTime : 0, ms: [0] };
   return hk;
 }
+function stopLatchedChord() { if (KEYS.latch) { send({ t: 'arpStop', tag: KEYS.latch.tag }); KEYS.latch = null; } }
+function arpNSend(B, keep) { const kx = kxOf(B.pi), seen = new Set(); B.notes = [...B.held.values()].filter(x => !seen.has(x.semi) && seen.add(x.semi));
+  send({ t: 'arp', pad: B.pi, tag: B.tag, keep, notes: B.notes, pat: kx.apat, rate: kx.arate, oct: kx.aoct, gate: kx.agate }); }
 function padUp(cell) {
   const base = typeof cell === 'string' && cell.includes('~') ? cell.split('~')[0] : cell, bc = typeof base === 'string' && base[0] !== 's' ? +base : base;
   if (typeof bc === 'number') padHeld(bc, false); const hd = HELD[cell]; if (!hd) return; delete HELD[cell]; const pad = P.pads[hd.pi];
   if (hd.arp) { send({ t: 'arpStop', tag: hd.tag }); return; }
+  if (hd.arpN) { const B = KEYS.arpN; if (!B || B.tag !== hd.tag) return; B.held.delete(cell);
+    if (B.held.size) arpNSend(B, true); else if (!kxOf(B.pi).latch) { send({ t: 'arpStop', tag: B.tag }); KEYS.arpN = null; } else refreshPadDots(); return; }
   if (pad.mode === 'gate' || pad.mode === 'loop' || pad.src === 'synth') { send({ t: 'rel', tag: hd.tag, rel: pad.rel }); const s = UI.tl.snap || 6, held = ((ctx ? ctx.currentTime : 0) - hd.start) / spt();
     const len = k => Math.max(s, Math.round((held - (hd.ms[k] || 0) / 1000 / spt()) / s) * s);
     hd.cap.forEach((c, k) => { c.len = len(k); }); hd.rec.forEach((r, k) => { r.n.len = len(k); });
@@ -2004,7 +2018,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.']],
+  ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
   ['2026-10-30', ['Instruments reworked: natural ring-out for keys, harp, vibes and basses; longer, smoother loops for pads, organ, flute and brass.', 'Removed Glass Pad, Orch Hits and Timpani Roll (projects switch to similar sounds).', 'Make from a sample, rebuilt for kicks, 808s, toms and snares: a synth body with your sample layered on top.', 'Layer page for layered drums: level, pitch, start, length, filter, Keytrack.', 'Tap the drum’s picture to hear it.', 'Auto backup (optional, under Projects), now including drums and synth presets.', 'Wavetable: tap a table to step through, hold for the menu.', 'Fix: first hit after sound starts could sound different.', 'Fix: meters and playheads could freeze until restart.', 'Fix: instruments were silent in exports.']],
   ['2026-10-29', ['New filters: Clean 24, Notch and Phaser.', 'Cleaner analog oscillators on high notes.', 'Ladder and Diode filters rebuilt; Drive works on every filter.', 'Faster attacks; unison stacks no longer burst on each note.', 'Wavetable: oscillator FM, AM and ring mod, with deeper FM.', 'Drum & bass presets: reeses, growls, pads, plucks, leads, stabs and drop basses.', 'Presets can bring their own effects.', 'What’s new, under Settings.', 'Fix: Multiband Squash level jump; Frequency shift runaway.']],
   ['2026-10-28', ['Import many wavetables at once.', 'New app icon.', 'Sound pickers accept all common audio files and zips.', 'Engine check lists safety mutes and recent actions.', 'Fix: a damaged wavetable could break a synth.']],
