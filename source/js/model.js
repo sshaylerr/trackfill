@@ -381,7 +381,7 @@ const FX_DEFS = [
     P_('Mix', .3, fPct), P_('Width', 1, fPct), P_('Low cut', .515, v => fHz(expmap(v, 20, 1000)))] },
   { name: 'Ducker', short: 'Duck', key: true, params: [P_('Trigger', 0, null, ['Notes', 'Audio']), P_('Depth', .4, v => '−' + linmap(v, 0, 60).toFixed(1) + ' dB'), P_('Attack', .02, v => fMs(linmap(v, 0, 50))),
     P_('Hold', .08, v => fMs(linmap(v, 0, 500))), P_('Release', .628, v => fMs(expmap(v, 10, 1000))), P_('Curve', .65, v => (v * 2 - 1).toFixed(2)), P_('Lookahead', .25, v => fMs(linmap(v, 0, 20))),
-    P_('Threshold', .6, v => fDb(linmap(v, -60, 0)))] },
+    P_('Threshold', .6, v => fDb(linmap(v, -60, 0))), P_('Band', 0, null, ['Full', 'Lows', 'Highs']), P_('Split', .35, v => fHz(expmap(v, 40, 2000)))] },
   { name: 'Utility', short: 'Util', params: [P_('Gain', .5, v => fDb(linmap(v, -24, 24))), P_('Width', .5, v => fPct(linmap(v, 0, 2))), P_('Pan', .5, fPan)] },
   { name: 'Chorus', short: 'Chorus', params: [P_('Rate', .45, v => expmap(v, .05, 6).toFixed(2) + ' Hz'), P_('Depth', .5, fPct), P_('Delay', .35, v => fMs(linmap(v, 1, 25))), P_('Feedback', 0, v => fPct(linmap(v, 0, .7))), P_('Mix', .5, fPct)] },
   { name: 'Clipper', short: 'Clip', params: [P_('Drive', 0, v => fDb(linmap(v, 0, 24))), P_('Ceiling', 1, v => fDb(linmap(v, -24, 0))), P_('Softness', .2, fPct), P_('Mix', 1, fPct)] },

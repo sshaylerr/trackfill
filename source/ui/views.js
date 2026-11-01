@@ -292,7 +292,7 @@ const FX_LAY = {
   '5:2': [['Size', 'Decay', 'Predelay'], ['Damping', 'Bandwidth', 'Low cut'], ['Mod', 'Width', 'Mix']],
   '5:3': [['Size', 'Decay', 'Predelay', 'Era'], ['Mod depth', 'Mod rate', 'Attack', 'Bass mult'], ['Low cut', 'High cut', 'Mix']],
   '5:4': [['Size', 'Decay', 'Predelay', 'Gravity'], ['Mod depth', 'Mod rate', 'Low cut', 'High cut'], ['Freeze', 'Mix']],
-  '6:0': [['Trigger', '@src', 'Threshold'], ['Depth', 'Curve', 'Lookahead'], ['Attack', 'Hold', 'Release']],
+  '6:0': [['Trigger', '@src', 'Threshold', 'Band'], ['Depth', 'Curve', 'Lookahead', 'Split'], ['Attack', 'Hold', 'Release']],
   '8:0': [['Rate', 'Depth', 'Delay'], ['Feedback', 'Mix']],
   '8:3': [['Rate', 'Depth', 'Manual'], ['Feedback', 'Stereo', 'Mix']],
   '10:2': [['Amount', 'Tone', 'Noise'], ['Compress', 'Mix']],

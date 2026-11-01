@@ -308,7 +308,7 @@ static u32 discMask(i32 t, i32 m) {
     case FX_SAT: return m == 0 ? B0 | B5 : B2 | B7;
     case FX_DELAY: return B0 | B1 | B5;
     case FX_REVERB: return m == 3 ? B4 : m == 4 ? B9 : 0;
-    case FX_DUCK: return B0;
+    case FX_DUCK: return B0 | B8;
     case FX_CHORUS: return m == 1 || m == 2 ? B0 : 0;
     case FX_PHASER: return m == 1 ? B2 : 0;
     case FX_LIMIT: return B3 | B4;
@@ -364,7 +364,7 @@ enum { DLEN = 131072 };   // 2.7 s at 48 kHz: covers 2 s delay time and 1/2 note
 struct DelaySt { float bL[DLEN], bR[DLEN]; u32 w; float d, hpL, hpR, lpL, lpR; };
 enum { RLEN = 8192, PLEN = 16384 };
 struct RevSt { float line[8][RLEN]; float pre[PLEN]; float lp[8]; u32 len[8]; float g[8]; u32 w, pw; float hp; float sizeFor; };
-struct DuckSt { float env, from, lvl; i32 stage; float t; i32 pend[8], npend; };
+struct DuckSt { float env, from, lvl; i32 stage; float t; i32 pend[8], npend; float z[2][8]; };
 enum { CLEN = 4096 };
 struct ChorusSt { float bL[CLEN], bR[CLEN]; u32 w; float ph; };
 struct CrushSt { float hL, hR, cnt; };
@@ -529,8 +529,15 @@ static void fx_reverb(Fx* f, float* L, float* R, i32 n) {
     L[i] = (xl + (wl - xl) * mix) * nrm; R[i] = (xr + (wr - xr) * mix) * nrm;
   }
 }
+// Band: duck only the lows (or only the highs), split at Split by a 24 dB crossover whose two halves add back up flat
+static inline float duckSvf(float x, float* q, float a1, float a2, float a3, i32 hp) { const float v3 = x - q[1], v1 = a1 * q[0] + a2 * v3, v2 = q[1] + a2 * q[0] + a3 * v3; q[0] = 2.f * v1 - q[0]; q[1] = 2.f * v2 - q[1]; return hp ? x - 1.41421356f * v1 - v2 : v2; }
+static inline float duckBand(float x, float* z, float a1, float a2, float a3, i32 band, float g) {
+  const float lo = duckSvf(duckSvf(x, z, a1, a2, a3, 0), z + 2, a1, a2, a3, 0), hi = duckSvf(duckSvf(x, z + 4, a1, a2, a3, 1), z + 6, a1, a2, a3, 1);
+  return band == 1 ? lo * g + hi : lo + hi * g; }
 static void fx_duck(Fx* f, float* L, float* R, i32 n, const float* kL, const float* kR) {
   DuckSt* d = (DuckSt*)f->st; float* s = f->s;
+  const i32 band = disc(s[8], 3); const float bg = ftan(3.14159265f * expmap(s[9], 40.f, 2000.f) / SR), ba1 = 1.f / (1.f + bg * (bg + 1.41421356f)), ba2 = bg * ba1, ba3 = bg * ba2;
+#define DUCK_APPLY(i, g) do { if (!band) { L[i] *= g; R[i] *= g; } else { L[i] = duckBand(L[i], d->z[0], ba1, ba2, ba3, band, g); R[i] = duckBand(R[i], d->z[1], ba1, ba2, ba3, band, g); } } while (0)
   i32 audio = disc(s[0], 2); float floor = db2lin(-linmap(s[1], 0, 60)), atkN = linmap(s[2], 0, 50) * 0.001f * SR;
   float holdN = linmap(s[3], 0, 500) * 0.001f * SR, relN = expmap(s[4], 10, 1000) * 0.001f * SR, curve = linmap(s[5], -1, 1) * 0.97f, thr = linmap(s[7], -60, 0);
   if (audio) {
@@ -540,7 +547,7 @@ static void fx_duck(Fx* f, float* L, float* R, i32 n, const float* kL, const flo
       float x = maxf(fabsf_(kL ? kL[i] : L[i]), fabsf_(kR ? kR[i] : R[i]));
       d->lvl = x > d->lvl ? x + (d->lvl - x) * aA : x + (d->lvl - x) * aR;
       d->env = clampf((lin2db(d->lvl + 1e-9f) - thr) / 6.f, 0.f, 1.f);
-      float g = 1.f - (1.f - floor) * d->env; L[i] *= g; R[i] *= g;
+      float g = 1.f - (1.f - floor) * d->env; DUCK_APPLY(i, g);
     }
     d->npend = 0; f->vis[0] = lin2db(1.f - (1.f - floor) * d->env + 1e-6f);
     return;
@@ -550,9 +557,10 @@ static void fx_duck(Fx* f, float* L, float* R, i32 n, const float* kL, const flo
     if (d->stage == 1) { if (atkN < 1.f) { d->env = 1.f; d->stage = 2; d->t = 0; } else { d->env = d->from + (1.f - d->from) * (d->t / atkN); if (++d->t >= atkN) { d->stage = 2; d->t = 0; } } }
     else if (d->stage == 2) { d->env = 1.f; if (++d->t >= holdN) { d->stage = 3; d->t = 0; } }
     else if (d->stage == 3) { d->env = 1.f - curve_frac(d->t / relN, curve); if (++d->t >= relN) { d->stage = 0; d->env = 0.f; } }
-    float g = 1.f - (1.f - floor) * d->env; L[i] *= g; R[i] *= g;
+    float g = 1.f - (1.f - floor) * d->env; DUCK_APPLY(i, g);
   }
   d->npend = 0; f->vis[0] = lin2db(1.f - (1.f - floor) * d->env + 1e-6f);
+#undef DUCK_APPLY
 }
 // Chorus: two modulated short delays, right channel LFO a quarter cycle behind for width
 static void fx_chorus(Fx* f, float* L, float* R, i32 n) {

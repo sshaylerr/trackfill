@@ -169,6 +169,15 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const a = await run([Object.assign(M.newFx(M.FX_TYPES.DUCK, { 1: 1, 2: .134, 3: .032, 4: .04, 5: .25, 6: .5 }), { trig: [0] })]), b = await run([]);
     const sr = a.sr, k = Math.round(240 / (Q.bpm * 96 / (60 * sr))), c = k + Math.round(.002 * sr), g = stats(a.L, a.R, c, c + 96).rms / Math.max(1e-9, stats(b.L, b.R, c, c + 96).rms);
     ok(g < .01, `a ducker on a bus that was silent before the kick still ducks on time (×${g.toFixed(4)} 2 ms in)`); }
+  { // Band: a ducker set to Lows ducks the low end and leaves the top alone (a held saw under the kick; harmonics measured one by one)
+    const Q = M.demoProject(); Q.chans.forEach((c, i) => { if (i !== 20 && i < 64) c.mute = true; c.fx = []; }); Q.chans[20].mute = false;
+    Object.assign(Q.pads[20], { src: 'synth', syn: SP.synPatch(SP.SYN_INIT), mode: 'gate', voice: 'poly', poly: 8 }); Q.scenes[1].notes[20] = [{ t: 0, len: 380, p: -12, v: 1 }];
+    const run = band => { const R = JSON.parse(JSON.stringify(Q)); if (band != null) R.chans[20].fx = [Object.assign(M.newFx(M.FX_TYPES.DUCK, { 1: 1, 2: .134, 3: .2, 4: .2, 5: .25, 6: .5, 8: band, 9: .77 }), { trig: [0] })]; return H.tfRenderOffline(wasm, R, kit, { order: [{ scene: 1, reps: 1 }] }); };
+    const lo = await run(.5), hi = await run(1), b = await run(null), sr = b.sr, k = Math.round(240 / (Q.bpm * 96 / (60 * sr))), c0 = k + Math.round(.015 * sr), N = Math.round(.05 * sr);
+    const gz = (x, f) => { const w = 2 * Math.cos(2 * Math.PI * f / sr); let s1 = 0, s2 = 0; for (let i = 0; i < N; i++) { const v = (x.L[c0 + i] + x.R[c0 + i]) * .5 * (.5 - .5 * Math.cos(2 * Math.PI * i / N)), s0 = v + w * s1 - s2; s2 = s1; s1 = s0; } return s1 * s1 + s2 * s2 - w * s1 * s2; };
+    const f0 = 130.81, band = (x, h0, h1) => { let e = 0; for (let h = h0; h <= h1; h++) e += gz(x, f0 * h); return e; }, db = (x, y) => 10 * Math.log10(x / y);
+    const L0 = band(b, 1, 2), T0 = band(b, 30, 40), dLl = db(band(lo, 1, 2), L0), dLt = db(band(lo, 30, 40), T0), dHl = db(band(hi, 1, 2), L0), dHt = db(band(hi, 30, 40), T0);
+    ok(dLl < -20 && dLt > -3 && dHt < -20 && dHl > -3, `ducker Band (split 800 Hz): Lows ducks the lows ${dLl.toFixed(0)} dB and leaves the top ${dLt.toFixed(1)} dB; Highs ducks the top ${dHt.toFixed(0)} dB and leaves the lows ${dHl.toFixed(1)} dB`); }
   console.log('safety');
   { const inst = new WebAssembly.Instance(wasm, {}), ex = inst.exports, host = new H.TFHost(ex, 48000, null); const Q = M.demoProject(); host.msg({ t: 'project', P: Q });
     for (const [key, s] of kit) host.msg({ t: 'sample', key, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr });

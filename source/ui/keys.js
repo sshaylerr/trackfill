@@ -21,6 +21,7 @@ function openKeysSheet(pi = UI.pad) {
       body.append(roots);
       const sg = h('div', 'g2'); sg.append(btn('Scale: ' + scaleOf(P.key.scale)[0], () => openScalePicker(pi, true)), btn(kx.scale >= 0 ? 'This pad: ' + scaleOf(kx.scale)[0] : 'This pad: same as project', () => openScalePicker(pi, false), 'btn' + (kx.scale >= 0 ? ' on' : '')));
       body.append(sg);
+      sec('Pitch bend range'); opts(BEND_RANGES.map(r => [r, '±' + r]), pad.bendR || 2, v => { pushUndo('pad:' + pi); pad.bendR = v; syncPad(pi); markDirty(); draw(); }, 'g4');
       if (kx.mode === 'levels') { sec('16 Levels'); opts([['vel', 'Velocity'], ['tune', 'Tune']], kx.lv || 'vel', v => change({ lv: v }), 'g2'); }
       if (kx.mode === 'chords') {
         sec('Progression');

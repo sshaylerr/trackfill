@@ -5,7 +5,7 @@ const SYN_PAGES = [
   { n: 'Osc', tabs: [['o1', 'Osc 1'], ['o2', 'Osc 2'], ['o3', 'Osc 3'], ['ph', 'Phase'], ['vo', 'Voice']] },
   { n: 'Sub·Noise', tabs: [['sb', 'Sub'], ['nz', 'Noise']] },
   { n: 'Filter', tabs: [['fl', 'Filter']] },
-  { n: 'Env', tabs: [['ea', 'Amp'], ['e2', 'Env 2'], ['e3', 'Env 3'], ['em', 'Modes']] },
+  { n: 'Env', tabs: [['ea', 'Amp'], ['e2', 'Env 2'], ['e3', 'Env 3']] },
   { n: 'LFO', tabs: [['l1', 'LFO 1'], ['l2', 'LFO 2'], ['l3', 'LFO 3'], ['l4', 'LFO 4'], ['mc', 'Macros']] },
   { n: 'Mix', tabs: [['mx', 'Channel']] }];
 // FM swaps the Osc page for its own: the algorithm overview, one tab per operator (tone or envelope view), and Voice
@@ -22,18 +22,18 @@ function synCells(tab) {
   return SYN_CELLS[tab] || []; }
 const SYN_CELLS = {
   o1: ['o1w', 'o1o', 'o1s', 'o1f', 'o1l', 'o1p', 'dri'], ph: ['o1h', 'o2h', 'o3h', 'rph'], wp: ['wa9', 'wb9', 'rph'], fp: ['f1h', 'f2h', 'f3h', 'f4h', 'rph'], o2: ['o2w', 'o2o', 'o2s', 'o2f', 'o2l', 'o2p', 'o2y', 'o2m'], o3: ['o3w', 'o3o', 'o3s', 'o3f', 'o3l', 'o3p', 'o3x', 'o3r'],
-  vo: ['uni', 'det', 'spr', 'pit', '#bendr', 'gan', '#glide', '#poly'], sb: ['sbl', 'sbo', 'sbw', 'spl', 'spn', 'sbf', 'nzf'], nz: ['nzn', 'nzt', 'nzb', 'nzd', 'nzh', 'nzl', 'nzo', 'nzk'],
-  fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp', 'fbk'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'vel', '#voice'], e2: ['2a', '2d', '2s', '2r', '2c', '2k'], e3: ['3a', '3d', '3s', '3r', '3c', '3k'], em: ['ay', 'am', '2y', '2m', '3y', '3m'],
+  vo: ['uni', 'det', 'spr', 'pit', 'vel', 'gan', '#glide', '#voices'], sb: ['sbl', 'sbo', 'sbw', 'spl', 'spn', 'sbf', 'nzf'], nz: ['nzn', 'nzt', 'nzb', 'nzd', 'nzh', 'nzl', 'nzo', 'nzk'],
+  fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp', 'fbk'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'ay', 'am'], e2: ['2a', '2d', '2s', '2r', '2c', '2k', '2y', '2m'], e3: ['3a', '3d', '3s', '3r', '3c', '3k', '3y', '3m'],
   mc: ['m1', 'm2', 'm3', 'm4'],
   xs: ['xsm', 'xs@', 'xdi', 'xsc', 'xlv', 'xpl', 'xtt'], xn: ['xnl', 'xnf', 'xbf', 'xbt', 'xbq', 'xnc'], xo: ['xol', 'xwv', 'xpf', 'xpt', 'xmo', 'xmr', 'xma', 'xru'], xh: ['xhl', 'xht', 'xhn', 'xhd', 'xhw'], xz: ['xsz', 'xsp', 'xdr', 'xgr', 'pit', 'gan', 'vel', '#poly'],
   in: ['#ins', 'ioc', 'ise', 'ifi', 'ist', 'ivt', 'ilo', 'iwd'], su: ['sul', 'suo', 'sus', 'sup', 'sxo', 'sdm', 'sdr', 'sto'], sh: ['sh2', 'sh3', 'sh4', 'sh5', 'shm', 'sho', 'sht', 'shw'],
-  s8: ['spa', 'spt', 'spc', '#glide', 'ckl', 'ckt', '#bendr'], sv: ['pit', 'gan', 'vel', '#poly', '#voice', '#follow'], gr: ['#grsrc', 'gpo', 'gsc', 'gsz', 'gde', 'gsp', 'gps', 'gst'], g2: ['gmo', 'gsh', 'grv', 'gtl', 'gkt'], wa: ['#tableA', 'wap', 'wal', 'wao', 'was', 'waf', 'waw', 'wax'], wb: ['#tableB', 'wbp', 'wbl', 'wbo', 'wbs', 'wbf', 'wbw', 'wbx'], fa: ['alg', 'fmd', 'ffb', 'f1l', 'f2l', 'f3l', 'f4l'] };
+  s8: ['spa', 'spt', 'spc', '#glide', 'ckl', 'ckt', '#bendr'], sv: ['pit', 'gan', 'vel', '#voices', '#follow', '#bendr'], gr: ['#grsrc', 'gpo', 'gsc', 'gsz', 'gde', 'gsp', 'gps', 'gst'], g2: ['gmo', 'gsh', 'grv', 'gtl', 'gkt'], wa: ['#tableA', 'wap', 'wal', 'wao', 'was', 'waf', 'waw', 'wax'], wb: ['#tableB', 'wbp', 'wbl', 'wbo', 'wbs', 'wbf', 'wbw', 'wbx'], fa: ['alg', 'fmd', 'ffb', 'f1l', 'f2l', 'f3l', 'f4l'] };
 for (let k = 1; k <= 4; k++) SYN_CELLS['l' + k] = ['l' + k + 'y', 'l' + k + '@', 'l' + k + 'm', 'l' + k + 'o', 'l' + k + 'p', '#shape', '#snap'];
 // colours for modulation sources: envelopes green, LFOs pink, performance sources gold, macros the theme accent
 const SRC_COL = i => i <= 2 ? '#7fd49a' : i <= 6 ? '#ff7ac8' : i <= 11 || i === 16 ? '#e6c162' : 'var(--accent)';
 const SYN_ST = { pg: 0, tab: {}, snap: 0, opv: 0 };
 // pages whose controls don't fill two rows of four are laid out by hand
-const SYN_ROWS = { xs: [['xsm', 'xs@', 'xdi', 'xsc'], ['xlv', 'xpl', 'xtt']], xn: [['xnl', 'xnf', 'xbf', 'xbt'], ['xbq', 'xnc']], xh: [['xhl', 'xht', 'xhn', 'xhd'], ['xhw']], s8: [['spa', 'spt', 'spc', '#glide'], ['ckl', 'ckt', '#bendr']], sv: [['pit', 'gan', 'vel', '#poly'], ['#voice', '#follow']], sb: [['sbl', 'sbo', 'sbw', 'sbf'], ['spl', 'spn', 'nzf']], g2: [['gmo', 'gsh', 'grv'], ['gtl', 'gkt']] };
+const SYN_ROWS = { xs: [['xsm', 'xs@', 'xdi', 'xsc'], ['xlv', 'xpl', 'xtt']], xn: [['xnl', 'xnf', 'xbf', 'xbt'], ['xbq', 'xnc']], xh: [['xhl', 'xht', 'xhn', 'xhd'], ['xhw']], s8: [['spa', 'spt', 'spc', '#glide'], ['ckl', 'ckt', '#bendr']], sv: [['pit', 'gan', 'vel', '#voices'], ['#follow', '#bendr']], sb: [['sbl', 'sbo', 'sbw', 'sbf'], ['spl', 'spn', 'nzf']], g2: [['gmo', 'gsh', 'grv'], ['gtl', 'gkt']] };
 function synRows(tab) { if (SYN_ROWS[tab]) return SYN_ROWS[tab]; const l = /^l(\d)$/.exec(tab); if (l) { const k = 'l' + l[1]; return [[k + 'y', k + '@', k + 'm', k + 'p'], [k + 'o', '#shape', '#snap']]; }
   const c = synCells(tab), pad4 = r => r.concat(['', '', '', '']).slice(0, 4); return [pad4(c.slice(0, 4)), pad4(c.slice(4, 8))]; }
 // synth controls offered as automation lanes (the timeline): macros first, then the ones most often moved in a track
@@ -128,6 +128,11 @@ function synCtl(pi, id) {
 }
 function synSpecial(pi, what) {
   const pad = P.pads[pi], resync = () => { syncPad(pi); markDirty(); };
+  if (what === 'voices') {   // one knob: Legato, Mono, then 2–16 voices at once
+    const nm = v => v < .5 ? 'Legato' : v < 1.5 ? 'Mono' : Math.round(v) + ' voices';
+    return makeCtl({ label: 'Voices', min: 0, max: 16, step: 1, coarse: 1, big: 4, def: 8, fmt: nm, key: pi + ':voices', scope: 'pad:' + pi,
+      get: () => pad.voice === 'legato' ? 0 : pad.voice === 'mono' ? 1 : Math.max(2, pad.poly | 0), onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); },
+      set: v => { v = Math.round(v); touchPad(pi); if (v <= 0) pad.voice = 'legato'; else if (v === 1) pad.voice = 'mono'; else { pad.voice = 'poly'; pad.poly = v; } resync(); } }, 'knob'); }
   if (what === 'voice') return selEl('Voicing', ['Poly', 'Mono', 'Legato'], () => ['poly', 'mono', 'legato'].indexOf(pad.voice), i => { pushUndo('pad:' + pi); pad.voice = ['poly', 'mono', 'legato'][i]; resync(); });
   if (what === 'poly') return padParam(pi, 'poly', { label: 'Voices', min: 1, max: 16, step: 1, coarse: 1, big: 4, def: 8, fmt: v => String(v) });
   if (what === 'glide') return padParam(pi, 'glide', { label: 'Glide', max: 1, step: .001, coarse: .01, big: .1, def: .08, fmt: v => Math.round(v * 1000) + ' ms' });
@@ -330,8 +335,6 @@ function drawSynDisp() {
       : t === 'Formant' ? 'vowel ' + 'AEIOU'[Math.min(4, Math.round(shp * 4))] : t === 'Comb' ? (shp > .5 ? 'hollow' : 'tuned') : t === 'Notch' ? (shp < .01 ? 'one notch' : `±${shp.toFixed(1)} oct`) : t === 'Phaser' ? `spread ${Math.round(shp * 100)}%` : `squelch ${Math.round(shp * 100)}%`;
     txt(t === 'Off' ? 'Filter off · drive still works' : `${t} · ${hzStr(fc)} · res ${Math.round(res * 100)}% · ${sw}`, 8, 12); return;
   }
-  if (tab === 'em') { grid(); [['a', 'Amp'], ['2', 'Env 2'], ['3', 'Env 3']].forEach(([e, n], i) => { const sy = v(e + 'y') === 'Sync', md = v(e + 'm');
-      txt(`${n} · ${sy ? 'tempo sync' : 'free time'} · ${md === 'Loop' ? 'loops attack–decay while held' : md === 'One-shot' ? 'plays through on any tap' : 'normal'}`, 8, 18 + i * (H - 24) / 3, md !== 'Normal' || sy ? col : COL.mute); }); return; }
   if (/^e[a23]$/.test(tab)) {   // the envelope with its curves
     const e = tab === 'ea' ? 'a' : tab[1], A = v(e + 'a'), D = v(e + 'd'), Sus = v(e + 's'), R = v(e + 'r'), ca = v(e + 'c') * .85, ck = v(e + 'k') * .85, hold = Math.max(.15, (A + D) * .35), tot = A + D + hold + R;
     const X = t => 10 + (W - 20) * t / tot, Y = y => H - 14 - (H - 30) * y; grid(); g.beginPath(); g.moveTo(X(0), Y(0));
