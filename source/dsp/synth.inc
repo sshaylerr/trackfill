@@ -387,7 +387,8 @@ static void renderSynth(i32 n) {
     if (v->semi != v->semiT) { float g = P->glide; if (g < 0.001f) v->semi = v->semiT; else { v->semi = v->semiT + (v->semi - v->semiT) * fexp(-dt * 4.f / g); if (fabsf_(v->semi - v->semiT) < 0.002f) v->semi = v->semiT; } }
     const float drift = m[SP_DRI];
     for (i32 o = 0; o < 3; o++) { if ((svAge + vi * 7 + o) % 23 == 0) v->drT[o] = frnd(&svRng); v->dr[o] += (v->drT[o] - v->dr[o]) * 0.02f; }
-    const float f0 = 130.8128f * fexp((v->semi + chBendS[v->pad] + v->dr[0] * drift * 0.12f) * 0.0577622650f);
+    const float pitS = spPhys(SP_PIT, m[SP_PIT]);   // Pitch: the whole voice up or down (and where pitch modulation lands)
+    const float f0 = 130.8128f * fexp((v->semi + pitS + chBendS[v->pad] + v->dr[0] * drift * 0.12f) * 0.0577622650f);
     // oscillators
     i32 W[3]; float inc[3], lvl[3], pw[3]; i32 nOn = 0;
     blInit();
@@ -442,7 +443,7 @@ static void renderSynth(i32 n) {
     if (isSU) { nOn = 0; fmInit();
       float drop = 0; if (m[SP_SPA] > 0.0005f) { const float T = spPhys(SP_SPT, m[SP_SPT]), x = clampf(v->sut / T, 0.f, 1.f); drop = spPhys(SP_SPA, m[SP_SPA]) * (1.f - curve_frac(x, linmap(m[SP_SPC], -0.85f, 0.85f))); }
       v->sut += dt;
-      const float fS = 130.8128f * fexp((v->semi + chBendS[v->pad] + drop + spPhys(SP_SUO, m[SP_SUO]) * 12.f) * 0.0577622650f); suInc = clampf(fS / SR, 0.f, 0.45f); suLvl = m[SP_SUL];
+      const float fS = 130.8128f * fexp((v->semi + pitS + chBendS[v->pad] + drop + spPhys(SP_SUO, m[SP_SUO]) * 12.f) * 0.0577622650f); suInc = clampf(fS / SR, 0.f, 0.45f); suLvl = m[SP_SUL];
       const float sh = m[SP_SUS], amt = m[SP_SHM], oe = linmap(m[SP_SHO], -1.f, 1.f), tilt = linmap(m[SP_SHT], -1.f, 1.f);
       for (i32 k = 2; k <= 13; k++) { float a = 0;
         if (k & 1) { const float tri = ((k >> 1) & 1 ? -1.f : 1.f) / (float)(k * k), sq = 1.f / k; a = sh <= 0.5f ? tri * sh * 2.f : tri * (2.f - sh * 2.f) + sq * (sh * 2.f - 1.f); }
@@ -457,7 +458,7 @@ static void renderSynth(i32 n) {
     const i32 isIN = disc(m[SP_ENG], NENG) == 5; const Samp* IS = 0; const Zone* IZ = 0; float iInc = 0, iInc2 = 0, iG = 0, iLp = 0; i32 iLoop = 0, iW = 0;
     if (isIN) { nOn = 0; if (v->idone) { v->on = 0; continue; }
       if (P->isid && v->izn >= 0 && v->izn < P->inz && samp[P->isid].d) { IS = &samp[P->isid]; IZ = &P->iz[v->izn];
-        const float semis = v->semi + chBendS[v->pad] + spPhys(SP_IOC, m[SP_IOC]) * 12.f + spPhys(SP_ISE, m[SP_ISE]) + spPhys(SP_IFI, m[SP_IFI]) * 0.01f - IZ->root;
+        const float semis = v->semi + pitS + chBendS[v->pad] + spPhys(SP_IOC, m[SP_IOC]) * 12.f + spPhys(SP_ISE, m[SP_ISE]) + spPhys(SP_IFI, m[SP_IFI]) * 0.01f - IZ->root;
         iInc = fexp(semis * 0.0577622650f) * IS->sr / SR; iW = m[SP_IWD] > 0.001f; iInc2 = iInc * fexp(m[SP_IWD] * 0.12f * 0.0577622650f); iInc *= fexp(-m[SP_IWD] * 0.12f * 0.0577622650f);
         iLoop = !disc(m[SP_ILO], 2) && IZ->le > IZ->ls + 8; iG = IZ->g;
         iLp = onepole(minf(0.45f * SR, 20000.f * fexp(-m[SP_IVT] * (1.f - v->vel) * 4.f * 0.693147181f))); } }
@@ -490,7 +491,7 @@ static void renderSynth(i32 n) {
       // size: one thin voice up to four wide detuned ones with a sub an octave under; the noise opens out to full stereo
       const float size = m[SP_XSZ];
       xTL = m[SP_XOL]; xW = disc(m[SP_XWV], 5); xU = 1 + (i32)(size * 3.f + 0.5f); if (xU > 4) xU = 4;
-      const float semis = v->semi + chBendS[v->pad] + linmap(m[SP_XPF], -48.f, 48.f) + (linmap(m[SP_XPT], -48.f, 48.f) - linmap(m[SP_XPF], -48.f, 48.f)) * sw + pOff;
+      const float semis = v->semi + pitS + chBendS[v->pad] + linmap(m[SP_XPF], -48.f, 48.f) + (linmap(m[SP_XPT], -48.f, 48.f) - linmap(m[SP_XPF], -48.f, 48.f)) * sw + pOff;
       xInc = clampf(130.8128f * fexp(semis * 0.0577622650f) / SR, 0.f, 0.45f);
       for (i32 u = 0; u < xU; u++) { const float q = xU > 1 ? 2.f * u / (xU - 1) - 1.f : 0.f; xdm[u] = fexp(q * size * 0.3f * 0.0577622650f); const float pn = q * size;
         xpl[u] = sqrtf_(0.5f * (1.f - pn)) * 1.41421356f / sqrtf_((float)xU) * xTL; xpr[u] = sqrtf_(0.5f * (1.f + pn)) * 1.41421356f / sqrtf_((float)xU) * xTL; }

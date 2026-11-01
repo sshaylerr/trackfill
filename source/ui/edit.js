@@ -148,7 +148,7 @@ const toolChop = () => noteTool((items, sc) => { const g = UI.tl.snap || 24, out
   return { items: out, msg: n ? `Chopped into ${snapName(g)}s` : `Nothing longer than ${snapName(g)}` }; });
 // Transpose: by a note of the key (Keys view of a tuned pad) or a semitone (Bank view, slices), or an octave
 function toolTranspose(dir, oct) { const keys = UI.tl.mode === 'keys', chop = KR.chop(), key = keys && !chop ? padKey(UI.pad) : null, kx = key ? kxOf(UI.pad) : null;
-  const lo = chop ? 0 : -KEY_HI, hi = chop ? chop.pts.length - 1 : KEY_HI;
+  const lo = chop ? 0 : KEY_LO, hi = chop ? chop.pts.length - 1 : KEY_HI;
   const step = p => { if (oct) return p + 12 * dir; if (!key) return p + dir; let q = p + dir; while (q >= lo && q <= hi && !inScale(q, key, kx)) q += dir; return q; };
   noteTool(items => { let out = 0; for (const x of items) { const q = step(x.n.p || 0); if (q < lo || q > hi) { out++; continue; } x.n.p = q; }
     return { msg: (oct ? `Octave ${dir > 0 ? 'up' : 'down'}` : dir > 0 ? 'Up' : 'Down') + (!oct ? (key ? ' a note in the key' : chop ? ' a slice' : ' a semitone') : '') + (out ? ` (${out} at the edge stayed)` : '') }; }); }

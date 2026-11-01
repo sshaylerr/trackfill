@@ -53,7 +53,7 @@ const TFSYN = (() => {
   osc(1, { w: 'Saw', l: .8 }); osc(2, { w: 'Saw', l: 0, f: 7 }); L.push(['o2y', 'Sync', 'opt', ['Off', 'On'], 0, 'Off', 'o2'], ['o2m', 'FM', 'lin', 0, 1, 0, 'o2']);
   osc(3, { w: 'Square', l: 0, o: -1 }); L.push(['o3x', 'Mode', 'opt', ['Audio', 'LFO'], 0, 'Audio', 'o3'], ['o3r', 'LFO rate', 'exp', .05, 20, 2, 'o3']);
   L.push(['dri', 'Drift', 'lin', 0, 1, .15, 'vo'], ['fbk', 'Feedback', 'lin', 0, 1, 0, 'vo'], ['uni', 'Unison', 'int', 1, 7, 1, 'vo'],
-    ['det', 'Detune', 'lin', 0, 1, .25, 'vo'], ['spr', 'Spread', 'lin', 0, 1, .6, 'vo'], ['vel', 'Velocity', 'lin', 0, 1, .5, 'vo'], ['pit', 'Pitch', 'lin', -24, 24, 0, 'vo'], ['gan', 'Level', 'db', -24, 6, 0, 'vo']);
+    ['det', 'Detune', 'lin', 0, 1, .25, 'vo'], ['spr', 'Spread', 'lin', 0, 1, .6, 'vo'], ['vel', 'Velocity', 'lin', 0, 1, .5, 'vo'], ['pit', 'Pitch', 'lin', -36, 36, 0, 'vo'], ['gan', 'Level', 'db', -24, 6, 0, 'vo']);
   L.push(['sbl', 'Sub', 'lin', 0, 1, 0, 'sb'], ['sbo', 'Octave', 'opt', ['0 oct', '−1 oct', '−2 oct'], 0, '−1 oct', 'sb'], ['sbw', 'Wave', 'opt', ['Sine', 'Triangle', 'Square'], 0, 'Sine', 'sb'],
     ['spl', 'Split', 'lin', 0, 1, 0, 'sb'], ['spn', 'Split below', 'int', 24, 96, 96, 'sb']);
   L.push(['nzn', 'Noise', 'lin', 0, 1, .7, 'nz'], ['nzt', 'Tone', 'lin', 0, 1, .6, 'nz'], ['nzb', 'Body', 'lin', 0, 1, .5, 'nz'], ['nzd', 'Drive', 'lin', 0, 1, .4, 'nz'],

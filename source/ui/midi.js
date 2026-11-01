@@ -54,7 +54,7 @@ function midiParse(buf) { const u = new Uint8Array(buf); if (u.length > MIDI_MAX
 function pickMidi() { const inp = h('input'); inp.type = 'file'; inp.accept = '.mid,.midi,audio/midi,audio/x-midi'; inp.hidden = true; document.body.append(inp);
   inp.onchange = async () => { const f = inp.files && inp.files[0]; inp.remove(); if (!f) return; try { openMidiImport(midiParse(await f.arrayBuffer()), tfName(f.name.replace(/\.[^.]+$/, ''), 24)); } catch (e) { toast('Couldn’t read that file: ' + e.message); } }; inp.click(); }
 // fold a key into the range a pad's notes can have (two octaves either side)
-const midiP = k => { let p = k - 60; while (p > KEY_HI) p -= 12; while (p < -KEY_HI) p += 12; return p; };
+const midiP = k => { let p = k - 60; while (p > KEY_HI) p -= 12; while (p < KEY_LO) p += 12; return p; };
 function midiGroups(m) { if (m.tracks.length > 1) return m.tracks.map(tr => { const keys = new Set(tr.notes.map(n => n.key)); return { name: tr.name, notes: tr.notes.map(n => ({ t: n.t, len: n.len, p: keys.size === 1 && (n.key < 48 || n.key > 72) ? 0 : midiP(n.key), v: n.v })) }; });
   const keys = [...new Set(m.tracks[0].notes.map(n => n.key))].sort((a, b) => a - b);   // one track: a pad per note (drum files)
   return keys.map(k => ({ name: m.tracks[0].name || 'Note ' + k, notes: m.tracks[0].notes.filter(n => n.key === k).map(n => ({ t: n.t, len: n.len, p: 0, v: n.v })) })); }

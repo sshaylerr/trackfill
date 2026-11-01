@@ -544,6 +544,11 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const os = mk({ am: 'One-shot' }), nr = mk({}); for (const h of [os, nr]) { h.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); en(h, .01); h.msg({ t: 'rel', tag: 1, rel: .02 }); } const eO = en(os, .15), eR = en(nr, .15);
     const sy = mk({ ay: 'Sync', ad: 1 }), sy2 = mk({ ay: 'Sync', ad: 1 }, 60); for (const h of [sy, sy2]) h.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); en(sy, 1.2); en(sy2, 1.2); const eS = en(sy, .3), eS2 = en(sy2, .3);
     ok(eL > eN * 100 && eO > eR * 10 && eS2 > eS * 10, `envelope modes: Loop keeps going while held (×${(eL / Math.max(eN, 1e-12)).toExponential(0)}), One-shot plays its decay after a tap (×${(eO / Math.max(eR, 1e-12)).toFixed(0)}), Sync stretches with a slower tempo (×${(eS2 / Math.max(eS, 1e-12)).toFixed(0)})`); }
+  { // Pitch (Voice tab) moves the whole voice: +12 is an octave up
+    const f = pit => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; });
+      const pr = Object.assign({}, SP.SYN_INIT, { p: Object.assign({}, SP.SYN_INIT.p, { o1w: 'Sine', flt: 'Off', pit }) }); Object.assign(Q.pads[20], { src: 'synth', syn: SP.synPatch(pr), mode: 'gate', voice: 'poly', poly: 8 });
+      host.msg({ t: 'project', P: Q }); host.soft = false; host.msg({ t: 'hit', pad: 20, semi: 0, vel: 1, tag: 1 }); const L = new Float32Array(128), R = new Float32Array(128); let zc = 0, pv = 0, n = 0; for (let i = 0; i < 600; i++) { host.render(128, L, R); if (i > 100) for (const x of L) { if (pv < 0 && x >= 0) zc++; pv = x; n++; } } return zc / (n / 48000); };
+    const a = f(0), b = f(12), c = f(-24); ok(Math.abs(b / a - 2) < .03 && Math.abs(a / c - 4) < .15, `Pitch moves the voice: 0 → ${a.toFixed(1)} Hz, +12 → ${b.toFixed(1)} Hz, −24 → ${c.toFixed(1)} Hz`); }
   { // switches (wave, filter type) reach the engine at once, as their own names
     const mk = () => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); Q.chans.forEach(c => { c.fx = []; });
       Object.assign(Q.pads[20], { src: 'synth', syn: SP.synPatch(SP.SYN_INIT), mode: 'gate', voice: 'poly', poly: 8 }); host.msg({ t: 'project', P: Q }); host.soft = false; return host; };

@@ -15,7 +15,7 @@ const LFO_SHAPES = {
   Pluck: [{ x: 0, y: 1, c: -.7 }, { x: .6, y: 0, c: 0 }, { x: .99, y: 0, c: 0 }],
   Swell: [{ x: 0, y: 0, c: .6 }, { x: .99, y: 1, c: 0 }],
 };
-const synMod = (s, d, a, c = 0, v) => ({ s: synSrcIdx(s), d, a, c, v: v == null ? undefined : synSrcIdx(v) });
+const synMod = (s, d, a, c = 0, v) => ({ s: synSrcIdx(s), d, a: d === 'pit' ? a * 2 / 3 : a, c, v: v == null ? undefined : synSrcIdx(v) });
 const SYN_VIB = [synMod('LFO 1', 'pit', .006, 0, 'Env 3')];   // delayed vibrato (Env 3 fades it in)
 const SYN_VIBP = { l1y: 'Free', l1r: 5.6, '3a': .7, '3d': .1, '3s': 1, '3r': .5 };
 const SYN_M1 = [synMod('Macro 1', 'cut', .35)];             // Macro 1 opens the filter
