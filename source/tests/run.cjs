@@ -23,6 +23,9 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
   console.log(`    rendered ${secs.toFixed(1)} s in ${ms} ms → ${(ms / (secs * 1000) * 100).toFixed(1)}% of real time on this machine`);
   const b = await H.tfRenderOffline(wasm, P, kit, { order: order(P), tail: 2 });
   ok(hash(a.L) === hash(b.L) && hash(a.R) === hash(b.R), 'renders are deterministic');
+  { const Q = M.newProject(); Q.scenes = Array.from({ length: 30 }, (_, i) => Object.assign(M.emptyScene ? M.emptyScene() : {}, { bars: 4, notes: i === 29 ? { 0: [{ t: 0, len: 24, p: 0, v: .9 }] } : {} }));
+    const back = M.migrate(JSON.parse(JSON.stringify(Q))), big = M.migrate(Object.assign(M.newProject(), { scenes: Array.from({ length: 99 }, () => ({ bars: 4 })) }));
+    ok(back.scenes.length === 30 && back.scenes[29].notes[0].length === 1 && big.scenes.length === M.MAX_SCENES && M.migrate({}).scenes.length === 16, `scenes: a project keeps however many it has (30 → ${back.scenes.length}; at most ${M.MAX_SCENES}; a new one starts with 16)`); }
   console.log('clock');
   { // 300 loops at awkward tempos and both common rates: loop starts stay within a sample of true tempo (loops never round up)
     let worst = 0; for (const [bpm, sr, bars] of [[174, 44100, 1], [140, 48000, 2], [123.4, 44100, 1]]) {

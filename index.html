@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-Z/8hH2MQG7ewrqVc/SGH1AXMalyKEgJaokIWbeVx0Bo=' 'sha256-djKGCaE7fff3F87xR/RvXuV6qoRCKB2C6Lig10IWx+M=' 'sha256-h8MsIiGO3IgeAc34+Gi4ldyuF90G1KwkKA/v5cawf6U=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-OF4Mux8LppG3eFFPGPv1AX8dvR6Fbhu1IJtZdz7mQh0=' 'sha256-djKGCaE7fff3F87xR/RvXuV6qoRCKB2C6Lig10IWx+M=' 'sha256-wedGzeTDRPbo9ga+weyQetCtp96eplPB+/ILsRp4RSs=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -165,6 +165,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .slot .num{font:500 14px/14px var(--font-lcd);flex:none}
 .slot .mini{display:block;width:44px;height:18px;border-radius:2px;margin-top:4px}
 .slot.empty .mini{opacity:.5}
+.slot.add{opacity:.55;display:flex;align-items:center;justify-content:center}
 .slot .lbl{font-size:10.5px;min-width:0;font-weight:500;color:var(--print);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;height:13px;line-height:13px}
 .slot .meta{font:400 9.5px/10px var(--font-lcd);color:var(--dim);white-space:nowrap}
 .slot .led{position:absolute;right:6px;top:7px;width:6px;height:6px;border-radius:50%;background:var(--led-off)}
@@ -375,6 +376,8 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .sname b{font:600 11px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .sname i{display:block;width:70%;height:2px;border-radius:1px;margin-top:1px}
 .ms2{display:flex;gap:2px;width:100%;justify-content:center}
+.refab{width:44px;height:34px;margin:1px auto;border-radius:3px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #050506;font:700 10px var(--font-ui);color:var(--print)}.refab.on{color:var(--accent)}
+.strip.refStrip{margin-left:6px;border-left:1px solid var(--edge)}
 .ms2 button{width:19px;height:19px;border-radius:2px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #050506;font:700 9px var(--font-ui);color:var(--print)}
 .ms2 button.m.on{background:var(--rec);color:#2b0707} .ms2 button.s.on{background:var(--accent);color:var(--accent-ink)}
 .detail{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;align-items:center}
@@ -595,7 +598,8 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 /* Trackfill project model: built-in sounds, effect definitions, project format (v2) and migration.
    Shared by the app and the automated tests. */
 
-const NPADS = 64, NSCENES = 16, NCHANS = 83, G0 = 64, B0 = 72, R0 = 80, MASTER = 82, NSLOTS = 8, MAX_DUCKERS = 8, BAR = 384, BEAT = 96;
+const NPADS = 64, NSCENES = 16, MAX_SCENES = 64,   /* a new project starts with 16 scenes; add or remove them, 1 to 64 */
+  NCHANS = 83, G0 = 64, B0 = 72, R0 = 80, MASTER = 82, NSLOTS = 8, MAX_DUCKERS = 8, BAR = 384, BEAT = 96;
 const BANKS = 'ABCD';
 const PROJECT_VERSION = 3;
 
@@ -1082,6 +1086,10 @@ function rechop(pad, s) { const c = pad.chop; if (!c || !s) return; if (c.by ===
   c.pts = c.by === 'e' ? chopEqual(pad.start, pad.end, c.div) : chopTransients(s, pad.start, pad.end, c.sens); }
 function sliceRange(pad, k) { const p = pad.chop.pts, n = p.length; k = Math.max(0, Math.min(n - 1, k)); return [p[k], k + 1 < n ? p[k + 1] : pad.end]; }
 function emptyScene() { return { name: '', bars: 4, repeat: 1, notes: {}, auto: {} }; }
+// the reference track: only known keys, sane numbers (the file itself is kept on the device under its key)
+function refClean(r) { if (!r || typeof r !== 'object' || typeof r.key !== 'string' || !/^ref:[a-z0-9]{1,24}$/.test(r.key)) return null; const num = (v, a, b, d) => Number.isFinite(+v) ? Math.min(b, Math.max(a, +v)) : d;
+  return { key: r.key, name: tfName(r.name || 'Reference', 40), dur: num(r.dur, 0, 7200, 0), at: num(r.at, -3600, 3600, 0), bpm: num(r.bpm, 0, 300, 0), match: !!r.match, gain: num(r.gain, 0, 1, .85),
+    ab: ['mix', 'ref', 'both'].includes(r.ab) ? r.ab : 'both', lufs: num(r.lufs, -120, 10, -120), peaks: Array.isArray(r.peaks) ? r.peaks.slice(0, 2000).map(x => num(x, 0, 255, 0) | 0) : [] }; }
 function newProject(blank) {
   const p = { v: PROJECT_VERSION, name: 'Untitled', bpm: 96, swing: 0, swq: 24, key: { root: 0, scale: 5 },
     pads: Array.from({ length: NPADS }, (_, i) => defaultPad(i)), chans: Array.from({ length: NCHANS }, (_, c) => defaultChan(c)),
@@ -1159,7 +1167,8 @@ function normalize(p) {
       if (o.type === 21) o.steps = Array.from({ length: 16 }, (_, i) => Math.max(0, Math.min(6, (Array.isArray(f.steps) ? f.steps[i] : 0) | 0)));
       return o; });
     return o; });
-  n.scenes = Array.from({ length: NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.name = tfName(s.name, 14); s.notes = s.notes && typeof s.notes === 'object' ? s.notes : {}; s.auto = s.auto && typeof s.auto === 'object' ? s.auto : {}; return s; });
+  n.scenes = Array.from({ length: Array.isArray(p.scenes) && p.scenes.length ? Math.min(MAX_SCENES, p.scenes.length) : NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.name = tfName(s.name, 14); s.notes = s.notes && typeof s.notes === 'object' ? s.notes : {}; s.auto = s.auto && typeof s.auto === 'object' ? s.auto : {}; return s; });
+  n.ref = refClean(p.ref);
   n.bpm = Math.min(220, Math.max(40, +n.bpm || 96)); n.swing = clamp01(+n.swing || 0); n.swq = [48, 24, 12].includes(+n.swq) ? +n.swq : 24;   // the swing grid: 1/8, 1/16 (the default) or 1/32
   return n;
 }
@@ -1295,7 +1304,7 @@ function stress2V2() {
   for (const s of [0, 1]) { S[s].auto['8.-2.0'] = lane([[0, .35], [4 * BAR, 1], [8 * BAR - 24, .5]]);     S[s].auto['31.-1.3'] = lane([[4 * BAR, 0], [8 * BAR - 24, .45]]); S[s].auto[G.bass + '.-1.0'] = lane([[0, .3], [BAR, .45], [8 * BAR - 24, .45]]); }
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
+if (typeof module !== 'undefined') module.exports = { MAX_SCENES, fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
   buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };
 
 
@@ -3851,7 +3860,7 @@ function reviveRenders(pi) { const pad = P.pads[pi]; if (!pad) return;
   if (pad.stx && !SAMPLES.has(pad.stx)) { pad.stx = null; if (typeof stretchCheck === 'function') stretchCheck(pi); } }
 function scopeSet(sc, v) { const [k, i] = sc.split(':'), n = +i;
   switch (k) { case 'scene': P.scenes[n] = v; syncScene(n); break; case 'pad': P.pads[n] = v; reviveRenders(n); syncPad(n); break; case 'chan': P.chans[n] = v; syncChan(n); break;
-    case 'song': Object.assign(P, v); syncSong(); break; default: P = v; P.pads.forEach((_, j) => reviveRenders(j)); syncProject(); } }
+    case 'song': Object.assign(P, v); syncSong(); break; default: P = v; P.pads.forEach((_, j) => reviveRenders(j)); syncProject(); refLoad(); } }
 function pushUndo(scope = 'all') { UNDO.push({ scope, data: JSON.stringify(scopeGet(scope)) }); if (UNDO.length > 200) UNDO.shift(); REDO.length = 0; ugKey = null; }
 function undoGroup(k, scope) { const n = Date.now(); if (k !== ugKey || n - ugTime > 1500) { pushUndo(scope); ugKey = k; } ugTime = n; }
 function applyHistory(from, to, label) { if (!from.length) { toast('Nothing to ' + label); return; } const e = from.pop();
@@ -3966,10 +3975,10 @@ async function startEngine() {
     if (!node) node = new AudioWorkletNode(c0, 'tf-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { wasm: WASM_BYTES, warm: true } });
     if (ctx !== c0) return;
     const clip = ctx.createWaveShaper(); clip.curve = new Float32Array([-1, 1]); clip.oversample = 'none';   // second hard clip, belt and braces
-    node.connect(clip); clip.connect(ctx.destination);
+    ENG.mixG = ctx.createGain(); node.connect(clip); clip.connect(ENG.mixG); ENG.mixG.connect(ctx.destination);   // mixG: A/B with the reference mutes your mix here
     if (ctx !== c0) return;   // restarted while this one was loading
     node.port.onmessage = e => onEngine(e.data);
-    ENG.node = node; ENG.sent.clear(); UPQ.jobs.length = 0; syncProject(); sendClick();
+    ENG.node = node; ENG.sent.clear(); UPQ.jobs.length = 0; syncProject(); sendClick(); refAttach();
   } catch (e) { if (ctx !== c0) return;   // this one was replaced by a restart while it loaded: not a real failure
     ENG.err = e.message || String(e); ENG.errLog = (ENG.errLog || []).concat('start: ' + ENG.err).slice(-5); console.error(e); toast('The audio engine could not start: ' + ENG.err); }
 }
@@ -4023,7 +4032,7 @@ function play() {
   if (T.playing) { stop(); lastStop = Date.now(); return; }
   if (Date.now() - lastStop < 450 && ctx) { panic(); lastStop = 0; return; }
   if (!ensureAudio()) return;
-  recReset();
+  refUnlock(); recReset();
   const sent = UPQ.jobs.length ? upFlush(T.loop === 'song' ? null : sceneNeeds(UI.scene)) : 0;   // what's about to play is in the engine before it starts
   const count = T.rec ? UI.countIn : 0, lead = Math.max(250 - (performance.now() - (AUD.runAt || 0)), Math.min(400, sent / 50000));   // just woken, or a big sound just sent: a moment more before the first note
   T.playing = true; REP.pos = null; TL.held = false; tlFollowUpd(); sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count, from: playFrom(), lead }); updateTransport();
@@ -4045,7 +4054,7 @@ function loopToggle() { const tl = UI.tl, L = tl.loop;
 const rangeStr = (a, b) => a % BAR || b % BAR ? `from ${posStr(a).split('.').slice(0, a % BEAT ? 3 : 2).join('.')}, ${+((b - a) / BEAT).toFixed(2)} beats` : b - a === BAR ? `bar ${a / BAR + 1}` : `bars ${a / BAR + 1}–${b / BAR}`;
 // the click: off, only while recording is armed, or always. It plays on the engine's clock, so it is sample-accurate, and never reaches exports.
 function sendClick() { send({ t: 'click', on: UI.click === 'always' || (UI.click === 'rec' && T.rec), vol: UI.clickVol }); $('#bTempo').classList.toggle('clk', UI.click === 'always' || (UI.click === 'rec' && T.rec)); }
-function stop() { T.playing = false; if (T.rec) { T.rec = false; sendClick(); } send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
+function stop() { if (REF.el) REF.el.pause(); T.playing = false; if (T.rec) { T.rec = false; sendClick(); } send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
 function panic(msg) { T.playing = false; send({ t: 'panic' }); KEYS.latch = null; KEYS.arpN = null; for (const k in HELD) delete HELD[k]; METER.l = METER.r = 0; METER.clip = false; drawMeter(); updateTransport(); updatePlayingSlot(null); toast(msg || 'Panic: all sound stopped and effect tails cleared'); }
 /* The audio clock as heard: the moment leaving the speaker right now, on the context's clock. The output timestamp pairs a moment the
    speaker played with the page's own clock, so it runs smooth and true between audio blocks (the context's clock on the page steps, and on
@@ -4351,10 +4360,12 @@ function sceneMini(i) {
   img.src = cv.toDataURL(); MINI.set(i, { sig, img }); return img;
 }
 function renderScenes() {
+  if (UI.scene >= P.scenes.length) UI.scene = P.scenes.length - 1;   // (after an undo that removed scenes)
   const S = $('#scenes'), sl = S.scrollLeft; S.innerHTML = '';
   P.scenes.forEach((sc, i) => { const n = noteCount(sc), el = h('button', 'slot' + (i === UI.scene ? ' sel' : '') + (n ? ' filled' : ' empty'));
     el.innerHTML = `<span class="srow"><span class="num">${i + 1}</span><span class="lbl">${esc(sc.name) || (n ? 'Scene' : '—')}</span></span><span class="led"></span><span class="prog"></span>`;
     el.insertBefore(sceneMini(i), el.querySelector('.led')); el.setAttribute('aria-label', `Scene ${i + 1} ${sc.name || ''}`); el.onclick = () => sceneTap(i); S.append(el); });
+  if (P.scenes.length < MAX_SCENES) { const add = h('button', 'slot add'); add.innerHTML = '<span class="srow"><span class="lbl">+ Scene</span></span>'; add.setAttribute('aria-label', 'Add a scene'); add.onclick = () => insertScene(P.scenes.length - 1, false); S.append(add); }   // a new empty scene at the end
   S.scrollLeft = sl; const sel = S.children[UI.scene];
   if (sel) { const l = sel.offsetLeft, r = l + sel.offsetWidth; if (l < S.scrollLeft || r > S.scrollLeft + S.clientWidth) S.scrollLeft = l - S.clientWidth / 2 + sel.offsetWidth / 2; }
 }
@@ -5966,7 +5977,7 @@ function bindWave(cv) { let d = null;
 const MIX_PAGES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'Grp', 'Bus', 'Ret'];
 const STRIP_METERS = [];
 function destName(c) { const d = tfDest(P, c); return d < 0 ? '—' : d === MASTER ? 'Master' : chanName(d); }
-function mixChans(p) { return p < 8 ? [...Array(8)].map((_, i) => p * 8 + i) : p === 8 ? [...Array(8)].map((_, i) => G0 + i) : p === 9 ? [...Array(8)].map((_, i) => B0 + i) : [R0, R0 + 1, MASTER]; }
+function mixChans(p) { return p < 8 ? [...Array(8)].map((_, i) => p * 8 + i) : p === 8 ? [...Array(8)].map((_, i) => G0 + i) : p === 9 ? [...Array(8)].map((_, i) => B0 + i) : [R0, R0 + 1, MASTER, null, REF_CH]; }   // the reference sits beside the master, one gap apart
 const shortDb = v => { const g = tfFaderGain(v); if (g <= .0001) return '-∞'; const d = 20 * Math.log10(g); return (d > .05 ? '+' : '') + d.toFixed(1); };
 function renderMix(V) {
   // the mixer opens on the pad you're working on (whenever that pad changed since the mixer last showed it); otherwise it stays where you left it
@@ -5975,8 +5986,8 @@ function renderMix(V) {
   MIX_PAGES.forEach((l, i) => pages.append(btn(l, () => { UI.mixPage = i; UI.mixSel = mixChans(i)[0]; renderView(); }, 'key' + (UI.mixPage === i ? ' on' : ''))));
   if (!chs.includes(UI.mixSel)) UI.mixSel = chs.includes(UI.pad) ? UI.pad : chs[0];
   const con = h('div', 'scr console' + (UI.mixSlide ? ' slide' + UI.mixSlide : '')); UI.mixSlide = 0; STRIP_METERS.length = 0; bindSwipe(con);
-  for (let k = 0; k < 8; k++) { const c = chs[k]; if (c == null) { con.append(h('div', 'strip empty')); continue; } con.append(stripEl(c)); }
-  w.append(pages, con, detailEl(UI.mixSel)); V.append(w); requestAnimationFrame(() => UI.regs.forEach(f => f.upd && f.upd()));
+  for (let k = 0; k < 8; k++) { const c = chs[k]; if (c == null) { con.append(h('div', 'strip empty')); continue; } con.append(c === REF_CH ? refStripEl() : stripEl(c)); }
+  w.append(pages, con, UI.mixSel === REF_CH ? refDetailEl() : detailEl(UI.mixSel)); V.append(w); requestAnimationFrame(() => UI.regs.forEach(f => f.upd && f.upd()));
 }
 function mixSwipe(dir) { const n = clamp(UI.mixPage + dir, 0, MIX_PAGES.length - 1); if (n === UI.mixPage) return; UI.mixPage = n; UI.mixSel = mixChans(n)[0]; UI.mixSlide = dir > 0 ? 'L' : 'R'; haptic(); renderView(); }
 function bindSwipe(el) { let s = null;
@@ -7223,14 +7234,18 @@ function copyScene(i) { setClip('scene', `Scene ${i + 1}${P.scenes[i].name ? ' �
 function pasteScene(i) { if (!clipIs('scene')) return; pushUndo('scene:' + i); P.scenes[i] = clone(CLIP.data); syncScene(i); markDirty(); renderAll(); toast(`Pasted into scene ${i + 1}`); }
 // scenes move: frozen clips (stored per scene) move with them
 function remapScenes(map) { for (const p of P.pads) if (p.frz) { const f = {}; for (const k in p.frz) { const t = map(+k); if (t != null) f[t] = p.frz[k]; } p.frz = f; } }
+function sceneIdx(map) { const tl = UI.tl; for (const o of [tl.loop, tl.start]) if (o && o.scene != null) { const t = map(o.scene); if (t == null) { if (o === tl.loop) tl.loop = null; else tl.start = null; } else o.scene = t; } }
+// insert a scene after i (a copy of it, or empty); later scenes move along
+function insertScene(i, copy) { if (P.scenes.length >= MAX_SCENES) { toast(`${MAX_SCENES} scenes is the most`); return false; }
+  pushUndo('all'); P.scenes.splice(i + 1, 0, copy ? clone(P.scenes[i]) : Object.assign(emptyScene(), { bars: P.scenes[i] ? P.scenes[i].bars : 4 })); const m = k => k > i ? k + 1 : k; remapScenes(m); sceneIdx(m);
+  syncProject(); markDirty(); selectScene(i + 1); renderAll(); return true; }
+function deleteScene(i) { if (P.scenes.length <= 1) { toast('A project keeps at least one scene'); return; }
+  pushUndo('all'); P.scenes.splice(i, 1); const m = k => k === i ? null : k > i ? k - 1 : k; remapScenes(m); sceneIdx(m); if (T.playing) stop();
+  syncProject(); markDirty(); selectScene(Math.min(i, P.scenes.length - 1)); renderAll(); toast(`Scene ${i + 1} removed; later scenes moved back`); }
 function duplicateScene(i) {
-  const last = NSCENES - 1; if (i >= last) { toast('The last scene has no room after it'); return; }
-  if (noteCount(P.scenes[last])) { toast(`Scene ${NSCENES} isn't empty, so there's no room to insert. Clear it first.`); return; }
-  pushUndo('all'); P.scenes.splice(i + 1, 0, clone(P.scenes[i])); P.scenes.length = NSCENES; remapScenes(k => k > i ? (k + 1 <= last ? k + 1 : null) : k);
-  syncProject(); markDirty(); selectScene(i + 1); renderAll(); toast(`Duplicated into scene ${i + 2}; later scenes moved along`);
-}
+  if (!insertScene(i, true)) return; toast(`Duplicated into scene ${i + 2}; later scenes moved along`); }
 function moveScene(i, d) {
-  const j = i + d; if (j < 0 || j >= NSCENES) return; pushUndo('all'); [P.scenes[i], P.scenes[j]] = [P.scenes[j], P.scenes[i]]; remapScenes(k => k === i ? j : k === j ? i : k);
+  const j = i + d; if (j < 0 || j >= P.scenes.length) return; pushUndo('all'); [P.scenes[i], P.scenes[j]] = [P.scenes[j], P.scenes[i]]; remapScenes(k => k === i ? j : k === j ? i : k);
   syncProject(); markDirty(); selectScene(j); renderAll();
 }
 function clearScene(i) { pushUndo('scene:' + i); P.scenes[i] = Object.assign(emptyScene(), { bars: P.scenes[i].bars }); syncScene(i); markDirty(); renderAll(); toast(`Scene ${i + 1} cleared`); }
@@ -7351,7 +7366,7 @@ function pasteChan(c) { if (!clipIs('chan')) return; pushUndo('chan:' + c); Obje
 function editContext() {
   if (UI.view === 'seq') return 'bars';
   if (UI.view === 'fx') return 'fx';
-  if (UI.view === 'mix') return UI.mixSel < G0 ? 'pad' : 'chan';
+  if (UI.view === 'mix') return UI.mixSel === REF_CH ? 'ref' : UI.mixSel < G0 ? 'pad' : 'chan';
   return 'pad';
 }
 const ED = { tab: {}, qs: 1 };
@@ -7372,7 +7387,7 @@ function edOverview(body, bars) {
 function openEdit() {
   const ctx = editContext(), tl = UI.tl, notes = ctx === 'bars' && tl.lane === 'notes';
   if (ctx === 'bars') { const t = tl.sel ? tl.sel.n.t : tl.cursor.t || 0; EDR.from = clamp(Math.floor(t / BAR), 0, P.scenes[UI.scene].bars - 1); EDR.len = Math.min(EDR.len || 1, P.scenes[UI.scene].bars - EDR.from) || 1; }
-  const tabs = { bars: notes ? ['Notes', 'Tools', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'] }[ctx];
+  const tabs = { bars: notes ? ['Notes', 'Tools', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'], ref: ['Scene'] }[ctx];
   let tab = notes && selItems().length ? 'Notes' : tabs.includes(ED.tab[ctx]) ? ED.tab[ctx] : tabs[0];
   openSheet('Edit', card => {
     const body = h('div', 'edit'), title = card.querySelector('.shTitle span'); card.append(body);
@@ -7408,8 +7423,9 @@ function openEdit() {
         grid(key('Copy', () => copyFx(c, s), !!f), key(f ? 'Replace' : 'Paste', () => pasteFx(c, s, false), clipIs('fx')), key('Insert', () => pasteFx(c, s + 1, true), clipIs('fx') && !!f), key('Duplicate', () => duplicateFx(c, s), !!f, { cls: 'hot' }),
           key('Copy chain', () => copyChain(c), P.chans[c].fx.length > 0, { w: 2 }), key('Paste chain', () => pasteChain(c), clipIs('chain'), { w: 2 })); }
       if (tab === 'Scene') { const i = UI.scene;
-        grid(key('Copy', () => copyScene(i)), key('Paste', () => pasteScene(i), clipIs('scene'), { stay: 1 }), key('Duplicate', () => duplicateScene(i), i < NSCENES - 1, { stay: 1, cls: 'hot' }), confirmBtn('Clear', 'Again', () => { clearScene(i); draw(); }),
-          key('◀ Move', () => moveScene(UI.scene, -1), i > 0, { stay: 1, w: 2 }), key('Move ▶', () => moveScene(UI.scene, 1), i < NSCENES - 1, { stay: 1, w: 2 }), key('Import MIDI…', pickMidi, true, { w: 4 })); }
+        grid(key('Copy', () => copyScene(i)), key('Paste', () => pasteScene(i), clipIs('scene'), { stay: 1 }), key('Duplicate', () => duplicateScene(i), P.scenes.length < MAX_SCENES, { stay: 1, cls: 'hot' }), confirmBtn('Clear', 'Again', () => { clearScene(i); draw(); }),
+          key('◀ Move', () => moveScene(UI.scene, -1), i > 0, { stay: 1, w: 2 }), key('Move ▶', () => moveScene(UI.scene, 1), i < P.scenes.length - 1, { stay: 1, w: 2 }),
+          key('Add after', () => insertScene(i, false), P.scenes.length < MAX_SCENES, { stay: 1, w: 2 }), confirmBtn('Remove', 'Again', () => { deleteScene(i); draw(); }), key('Import MIDI…', pickMidi, true)); }
       if (fi >= 0) { const ks = keys(); let k = ks[Math.min(fi, ks.length - 1)]; if (k && k.disabled) k = ks.find(x => !x.disabled); if (k) setNav(k, true); }   // the d-pad stays where it was
       if (UI.panel) requestAnimationFrame(updatePanel); };
     draw();
@@ -8518,6 +8534,160 @@ function midiImport(m, into) { const sc = P.scenes[UI.scene], groups = midiGroup
   syncScene(UI.scene); clearSel(); markDirty(); renderAll(); toast(`Imported ${placed} note${placed === 1 ? '' : 's'}` + (lost ? `; ${lost} past 16 bars left out` : ''));
 }
 
+/* ---------- Reference track: a finished song to compare against, laid along your song ----------
+   It sits on the song's timeline (the scenes in song order, repeats included). Playing the song plays the reference where it lines up;
+   looping one scene loops the stretch of the reference that lines up with that scene. It never takes a pad and never goes through the
+   master: it has its own level and goes straight to the speaker. A/B: Mix (yours only), Ref (the reference only) or Both.
+   P.ref = { key, name, dur (s), at (song seconds where the reference's start sits; below 0 = it starts before the song), bpm (its tempo, 0 = not set),
+             match (stretch it to the project's tempo, pitch kept), gain (fader 0..1), ab: 'mix' | 'ref' | 'both', lufs, peaks }
+   Playback is an audio element: the file stays compressed (a whole song costs little memory), the browser keeps the pitch when stretching,
+   and it is kept in step with the song's heard position (gently pulled back in when it drifts, moved outright after a jump). */
+const REF = { el: null, src: null, g: null, url: null, key: null, ctx: null, ready: false, last: null, rep: 0, seekAt: 0, unlocked: false };
+const REF_CH = 'ref';   // the mixer's id for the reference strip
+const refRate = () => { const R = P.ref; return R && R.match && R.bpm > 0 ? clamp(P.bpm / R.bpm, .5, 2) : 1; };
+// where the song is, in seconds from its start (the first time a scene comes round; with Song playback, counting its repeats)
+function refSceneSecs(si) { return tfSceneSamples(P, si, 48000) / 48000; }
+function refTickSecs(si, tick) { const sc = P.scenes[si], pts = sc.auto && sc.auto[TF_TEMPO_KEY]; if (!pts || !pts.length) return tick * 60 / (P.bpm * BEAT);
+  let s = 0; for (let t = 0; t < tick; t++) s += Math.min(1, tick - t) * 60 / (tfBpmAt(P, si, t + .5) * BEAT); return s; }
+function refSceneStart(si) { let acc = 0; for (const o of songOrder()) { if (o.scene === si) return acc; acc += refSceneSecs(o.scene) * (o.reps || 1); } return null; }
+function refSongLen() { let acc = 0; for (const o of songOrder()) acc += refSceneSecs(o.scene) * (o.reps || 1); return acc; }
+function refSongSec(pos) {
+  const first = refSceneStart(pos.scene), l = REF.last; if (first == null) { REF.last = null; return null; }
+  if (T.loop === 'song') { if (l && l.scene === pos.scene && pos.tick < l.tick - 1) REF.rep++; else if (!l || l.scene !== pos.scene) REF.rep = 0; } else REF.rep = 0;
+  REF.last = { scene: pos.scene, tick: pos.tick };
+  const reps = (songOrder().find(o => o.scene === pos.scene) || {}).reps || 1;
+  return first + Math.min(REF.rep, reps - 1) * refSceneSecs(pos.scene) + refTickSecs(pos.scene, pos.tick); }
+// the file: kept on this device (not in backups: songs are big); one audio element per sound engine start
+async function refLoad() {
+  const R = P.ref; if (!R) { refDrop(); return; } if (REF.key === R.key && REF.url) { refAttach(); return; }
+  refDrop(); const blob = await DB.get('kv', R.key); if (!blob || P.ref !== R) { if (P.ref === R && !blob) toast('The reference file isn\'t on this device. Import it again.'); return; }
+  REF.url = URL.createObjectURL(blob); REF.key = R.key; refAttach(); }
+function refDrop() { if (REF.el) { try { REF.el.pause(); REF.el.removeAttribute('src'); REF.el.load(); } catch (e) {} } try { if (REF.g) REF.g.disconnect(); } catch (e) {}
+  if (REF.url) URL.revokeObjectURL(REF.url); Object.assign(REF, { el: null, src: null, g: null, url: null, key: null, ctx: null, ready: false, unlocked: false }); }
+function refAttach() {
+  if (!ctx || !P.ref || !REF.url) { refLevels(); return; }
+  if (REF.ctx !== ctx || !REF.el) {
+    if (REF.el) try { REF.el.pause(); } catch (e) {}
+    const el = new Audio(); el.preload = 'auto'; el.preservesPitch = true; el.webkitPreservesPitch = true; el.src = REF.url; REF.ready = false; el.addEventListener('canplay', () => { REF.ready = true; });
+    try { REF.src = ctx.createMediaElementSource(el); REF.g = ctx.createGain(); REF.g.gain.value = 0; REF.src.connect(REF.g); REF.g.connect(ctx.destination); } catch (e) { appError('reference: ' + e.message); return; }
+    REF.el = el; REF.ctx = ctx; REF.unlocked = false; }
+  refLevels(); }
+// iOS lets a page start an audio element only from a tap: the first Play tap starts it (silently) so it can follow the song afterwards
+function refUnlock() { const el = REF.el; if (!el || REF.unlocked) return; REF.unlocked = true; try { const p = el.play(); if (p && p.then) p.then(() => { if (!T.playing) el.pause(); }).catch(() => { REF.unlocked = false; }); } catch (e) {} }
+function refLevels() {
+  const R = P && P.ref, ab = R ? R.ab : 'mix', t = ctx ? ctx.currentTime : 0;
+  if (ENG.mixG) ENG.mixG.gain.setTargetAtTime(R && ab === 'ref' ? 0 : 1, t, .008);
+  if (REF.g) REF.g.gain.setTargetAtTime(R && ab !== 'mix' ? tfFaderGain(R.gain) : 0, t, .008); }
+// every frame: keep the element on the song's heard position
+function refFrame() {
+  const R = P.ref, el = REF.el; if (!R || !el || !REF.ready) return;
+  const pos = T.playing ? heardPos() : null; if (!pos) { if (!el.paused) el.pause(); REF.last = null; return; }
+  const s = refSongSec(pos), rate = refRate(), want = s == null ? -1 : (s - R.at) * rate;
+  if (want < 0 || want >= R.dur - .05) { if (!el.paused) el.pause(); return; }
+  const now = performance.now();
+  if (el.paused) { el.playbackRate = rate; el.currentTime = want; REF.seekAt = now; const p = el.play(); if (p && p.catch) p.catch(() => {}); return; }
+  if (now - REF.seekAt < 350) return;   // settling after a start or a jump
+  const drift = el.currentTime - want;
+  if (Math.abs(drift) > .12) { el.currentTime = want + .02; el.playbackRate = rate; REF.seekAt = now; return; }   // a loop going round, a jump, a long stall
+  const r = rate * (1 - clamp(drift * 1.5, -.03, .03)); if (Math.abs(r - el.playbackRate) > .002) el.playbackRate = r; }
+// import: the file is kept as it came (compressed); decoded once to draw it and measure its loudness
+async function refImport(file) {
+  if (!file) return; let buf; try { buf = await file.arrayBuffer(); } catch (e) { toast('That file couldn\'t be read'); return; }
+  toast('Reading the reference…'); let ab;
+  try { const oc = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(2, 1, 44100); ab = await oc.decodeAudioData(buf.slice(0)); } catch (e) { toast('That file isn\'t audio this browser can play'); return; }
+  const L = ab.getChannelData(0), Rr = ab.numberOfChannels > 1 ? ab.getChannelData(1) : L, N = L.length, cols = 600, peaks = [];
+  for (let c = 0; c < cols; c++) { let m = 0; const a = Math.floor(c * N / cols), b = Math.floor((c + 1) * N / cols); for (let i = a; i < b; i += 4) m = Math.max(m, Math.abs(L[i]), Math.abs(Rr[i])); peaks.push(Math.round(Math.min(1, m) * 255)); }
+  const an = new TFAnalyzer(ab.sampleRate); for (let i = 0; i < N; i += 1024) { const n = Math.min(1024, N - i); an.feed(L.subarray(i, i + n), Rr.subarray(i, i + n), n, 1); }
+  const lufs = +an.integrated().toFixed(1), key = 'ref:' + newId();
+  if (!(await DB.put('kv', key, new Blob([buf], { type: file.type || 'audio/mpeg' })))) return;
+  pushUndo('all'); const old = P.ref;
+  P.ref = { key, name: tfName(String(file.name || 'Reference').replace(/\.[^.]+$/, ''), 40), dur: ab.duration, at: 0, bpm: old ? old.bpm : 0, match: false, gain: old ? old.gain : .85, ab: 'both', lufs, peaks };
+  markDirty(); await refLoad(); refMatchLoud(true); toast(`Reference: ${P.ref.name} · ${lufs > -70 ? lufs + ' LUFS' : 'silent'}`); renderAll(); }
+// files no project uses any more are cleared a while after start (not at once, so Undo can still bring a removed one back)
+async function refCleanup() { if (!DB.ok || !DB.db) return; const keys = await DB.req('kv', 'readonly', s => s.getAllKeys()).catch(() => null); if (!keys) return; const used = new Set(P && P.ref ? [P.ref.key] : []);
+  const metas = (await projList('project').catch(() => [])).concat(await projList('template').catch(() => []));
+  for (const m of metas) { const d = await DB.get('projects', m.id); if (d && d.data && d.data.ref) used.add(d.data.ref.key); }
+  for (const k of keys) if (typeof k === 'string' && k.startsWith('ref:') && !used.has(k)) DB.del('kv', k); }
+function refPick() { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'audio/*,.mp3,.m4a,.aac,.wav,.aif,.aiff,.flac,.ogg'; inp.onchange = () => refImport(inp.files && inp.files[0]); inp.click(); }
+function refRemove() { if (!P.ref) return; pushUndo('all'); P.ref = null; refDrop(); refLevels(); markDirty(); renderAll(); toast('Reference removed (Undo brings it back)'); }
+// level matching: the reference's loudness against your song's, which is rendered offline once (as an export would be)
+async function refMatchLoud(quiet) {
+  const R = P.ref; if (!R || !(R.lufs > -70)) return;
+  if (!quiet) toast('Measuring your song…');
+  let mix = REF.mixLufs; if (!quiet || mix == null) { try { const r = await renderOffline(songOrder(), 0); const an = new TFAnalyzer(r.sr);
+      for (let i = 0; i < r.L.length; i += 1024) { const n = Math.min(1024, r.L.length - i); an.feed(r.L.subarray(i, i + n), r.R.subarray(i, i + n), n, 1); } mix = REF.mixLufs = an.integrated(); } catch (e) { if (!quiet) toast('Couldn\'t measure the song'); return; } }
+  if (!(mix > -70)) { if (!quiet) toast('Your song is silent so far: nothing to match'); return; }
+  const g = Math.pow(10, (mix - R.lufs) / 20), v = tfFaderPos(Math.min(g, tfFaderGain(1))); if (!quiet) pushUndo('all'); R.gain = clamp(v, 0, 1); refLevels(); markDirty();
+  if (!quiet) { toast(`Matched: reference ${(mix - R.lufs > 0 ? '+' : '') + (mix - R.lufs).toFixed(1)} dB (song ${mix.toFixed(1)}, reference ${R.lufs} LUFS)`); renderView(); } }
+
+/* ----- the mixer strip (beside the master) and the reference's page ----- */
+const REF_AB = [['mix', 'Mix'], ['ref', 'Ref'], ['both', 'Both']];
+function refStripEl() {
+  const R = P.ref, el = h('div', 'strip refStrip' + (UI.mixSel === REF_CH ? ' sel' : '') + (R ? '' : ' empty'));
+  const nm = h('button', 'sname'); nm.innerHTML = `<em>REF</em><b>${esc(R ? R.name : 'Reference')}</b><i style="background:var(--accent)"></i>`; nm.onclick = () => { UI.mixSel = REF_CH; renderView(); };
+  const fd = makeCtl({ label: 'Reference level', min: 0, max: 1, step: .0025, coarse: .025, big: .1, def: .85, unity: .85, fmt: shortDb, get: () => R ? R.gain : .85, onSwipe: mixSwipe,
+    set: v => { if (!P.ref) return; P.ref.gain = v; refLevels(); markDirty(); }, onStart: dpad => { if (!dpad && P.ref) pushUndo('all'); }, onTap: () => { if (UI.mixSel !== REF_CH) { UI.mixSel = REF_CH; renderView(); } } }, 'fader');
+  const ab = btn(R ? REF_AB.find(x => x[0] === R.ab)[1] : 'A/B', () => refCycleAB(), 'refab' + (R && R.ab !== 'mix' ? ' on' : '')), ms = h('div', 'ms2'); ms.style.height = '19px';
+  el.append(nm, fd, ab, ms); return el; }   // the A/B key sits where the others' pan knob is, so every strip lines up
+function refCycleAB() { const R = P.ref; if (!R) { refPick(); return; } const i = REF_AB.findIndex(x => x[0] === R.ab); R.ab = REF_AB[(i + 1) % 3][0]; refLevels(); markDirty(); haptic(); toast('Hearing ' + ({ mix: 'your mix', ref: 'the reference', both: 'both' })[R.ab]); renderView(); }
+function refDetailEl() {
+  const R = P.ref, d = h('div', 'detail'), bt = h('div', 'dbtns'), dk = h('div', 'dk');
+  bt.append(btn(R ? 'Place & tempo…' : 'Import a reference…', () => R ? openRefSheet() : refPick(), 'key sm' + (R ? ' on' : '')));
+  bt.append(btn('→ Speaker (not the master)', () => toast('The reference goes straight to the speaker: the master chain never touches it'), 'key sm'));
+  for (const [v, l] of REF_AB) dk.append(cellBtn(l, R && R.ab === v ? 'On' : 'Off', () => { if (!P.ref) { refPick(); return; } P.ref.ab = v; refLevels(); markDirty(); renderView(); }));
+  d.append(bt, dk); return d; }
+// the page: your song's scenes above, the reference below; drag the reference along (it snaps to beats; Fine for free placement)
+function openRefSheet() {
+  const R = P.ref; if (!R) { refPick(); return; }
+  openSheet('Reference · ' + R.name, card => {
+    const st = h('div', 'stack'); card.append(st);
+    const cv = h('canvas', 'refLane'); cv.style.cssText = 'width:100%;height:132px;display:block;border-radius:6px;touch-action:none'; st.append(cv);
+    const info = h('div', 'note'); st.append(info);
+    const view = { s0: 0, s1: 1 }, fit = () => { const rl = R.dur / refRate(), a = Math.min(0, R.at), b = Math.max(refSongLen(), R.at + rl); view.s0 = a - (b - a) * .02; view.s1 = b + (b - a) * .02; };
+    fit();
+    const draw = () => { const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight; if (!W) return; if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+      const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.raised; g.fillRect(0, 0, W, H);
+      const x = s => (s - view.s0) / (view.s1 - view.s0) * W, top = 44;
+      let acc = 0; for (const o of songOrder()) { const L = refSceneSecs(o.scene) * (o.reps || 1), sc = P.scenes[o.scene], x0 = x(acc), x1 = x(acc + L);
+        g.fillStyle = PAD_COLORS[(sc.color ?? o.scene) % 8]; g.globalAlpha = .55; g.fillRect(x0 + 1, 4, Math.max(1, x1 - x0 - 2), top - 10); g.globalAlpha = 1;
+        g.fillStyle = COL.ink; g.font = '600 10px ' + FONT_LCD; g.textBaseline = 'top'; g.save(); g.beginPath(); g.rect(x0, 0, x1 - x0, top); g.clip(); g.fillText(`${o.scene + 1} ${sc.name || ''}${(o.reps || 1) > 1 ? ' ×' + o.reps : ''}`, x0 + 4, 8); g.restore();
+        g.fillStyle = COL.line; g.fillRect(Math.round(x0), 0, 1, H); acc += L; }
+      g.fillStyle = COL.line; g.fillRect(Math.round(x(acc)), 0, 1, H);
+      const rl = R.dur / refRate(), rx0 = x(R.at), rx1 = x(R.at + rl), mid = top + (H - top) / 2, amp = (H - top) / 2 - 4, pk = R.peaks || [];
+      g.fillStyle = COL.accent; for (let i = 0; i < pk.length; i++) { const xa = rx0 + (rx1 - rx0) * i / pk.length, w = Math.max(1, (rx1 - rx0) / pk.length), a = pk[i] / 255 * amp; g.globalAlpha = .85; g.fillRect(xa, mid - a, w, a * 2); } g.globalAlpha = 1;
+      const pos = heardPos(); if (pos) { const s = refSceneStart(pos.scene); if (s != null) { const px = x(s + (T.loop === 'song' ? REF.rep * refSceneSecs(pos.scene) : 0) + refTickSecs(pos.scene, pos.tick)); g.fillStyle = COL.ink; g.fillRect(Math.round(px), 0, 1.5, H); } }
+      info.textContent = `Starts ${R.at >= 0 ? 'at ' + refPosStr(R.at) + ' of your song' : refPosStr(-R.at) + ' before your song'} · ${fmtTime(R.dur)}${R.lufs > -70 ? ' · ' + R.lufs + ' LUFS' : ''}${refRate() !== 1 ? ' · stretched ×' + refRate().toFixed(3) : ''}`; };
+    let dr = null; const snap = s => UI.fine ? s : Math.round(s / (60 / P.bpm)) * (60 / P.bpm);
+    cv.addEventListener('pointerdown', e => { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} dr = { x: e.clientX, at: R.at, pushed: false }; });
+    cv.addEventListener('pointermove', e => { if (!dr) return; const dx = e.clientX - dr.x; if (!dr.pushed) { if (Math.abs(dx) < 4) return; pushUndo('all'); dr.pushed = true; }
+      R.at = snap(dr.at + dx / cv.clientWidth * (view.s1 - view.s0)); draw(); });
+    const up = () => { if (dr && dr.pushed) { markDirty(); fit(); draw(); haptic(); } dr = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    const g1 = h('div', 'g2');
+    g1.append(paramEl({ label: 'Start', min: -600, max: 600, step: .01, coarse: 60 / P.bpm, big: 240 / P.bpm, get: () => R.at, set: v => { R.at = v; markDirty(); draw(); }, onStart: () => pushUndo('all'), def: 0, fmt: v => (v < 0 ? '−' : '') + refPosStr(Math.abs(v)), noFocus: true }),
+      paramEl({ label: 'Its tempo', min: 0, max: 220, step: .1, coarse: 1, big: 10, dragStep: 1, entry: ENTRY.bpm, get: () => R.bpm, set: v => { R.bpm = v < 40 ? 0 : v; markDirty(); fit(); draw(); }, onStart: () => pushUndo('all'), def: 0, fmt: v => v < 40 ? 'Not set' : (+v.toFixed(1)) + ' BPM', noFocus: true }));
+    st.append(g1);
+    const g2 = h('div', 'g2');
+    g2.append(btn(R.match ? 'Stretch: matches your tempo' : 'Stretch: off', () => { if (!(R.bpm > 0)) { toast('Set its tempo first'); return; } pushUndo('all'); R.match = !R.match; markDirty(); closeSheet(); openRefSheet(); }, 'btn' + (R.match ? ' on' : '')),
+      btn('Line up with a scene…', () => openRefAlign(), 'btn'));
+    st.append(g2);
+    const g3 = h('div', 'g3'); for (const [v, l] of REF_AB) g3.append(btn(l, () => { R.ab = v; refLevels(); markDirty(); closeSheet(); openRefSheet(); }, 'btn' + (R.ab === v ? ' on' : ''))); st.append(h('div', 'sec', 'Hear'), g3);
+    const g4 = h('div', 'g3'); g4.append(btn('Match loudness', () => refMatchLoud(false)), btn('Replace…', refPick), confirmBtn('Remove', 'Again', () => { closeSheet(); refRemove(); })); st.append(g4, h('p', 'note', 'Drag the reference along your song (it snaps to beats; Fine places it freely). It plays straight to the speaker, never through the master. The file stays on this device: backups don\'t include it.'));
+    requestAnimationFrame(draw); const iv = setInterval(() => { if (!cv.isConnected) { clearInterval(iv); return; } if (T.playing) draw(); }, 100);
+  }); }
+// line up: a moment in the reference (its drop, say) goes to the start of one of your scenes
+function openRefAlign() { const R = P.ref;
+  openSheet('Line up the reference', card => { const st = h('div', 'stack'); card.append(st);
+    st.append(h('p', 'note', 'Set the moment in the reference (its drop, say), then pick the scene it should land on.'));
+    let mark = REF.mark ?? 0; const g = h('div', 'g2');
+    g.append(paramEl({ label: 'Moment in the reference', min: 0, max: R.dur, step: .01, coarse: 1, big: 10, get: () => mark, set: v => { mark = REF.mark = v; }, def: 0, fmt: fmtTime, noFocus: true }),
+      btn('Use where it is now', () => { const el = REF.el; if (el && !el.paused) { mark = REF.mark = el.currentTime; closeSheet(); openRefAlign(); } else toast('Play the song with the reference first'); }, 'btn'));
+    st.append(g);
+    const l = h('div', 'list'); for (const o of songOrder()) { const sc = P.scenes[o.scene], li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>Scene ${o.scene + 1}${sc.name ? ' · ' + esc(sc.name) : ''}</b><span>starts at ${refPosStr(refSceneStart(o.scene))}</span></div>`;
+      li.onclick = () => { pushUndo('all'); R.at = refSceneStart(o.scene) - mark / refRate(); markDirty(); closeSheet(); toast(`${fmtTime(mark)} of the reference now lands on scene ${o.scene + 1}`); openRefSheet(); }; l.append(li); }
+    st.append(h('div', 'sec', 'Lands on'), l); }); }
+const fmtTime = s => { s = Math.max(0, s); const m = Math.floor(s / 60), r = s - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(1); };
+const refPosStr = s => { const b = s * P.bpm / 60, bar = Math.floor(b / 4); return `bar ${bar + 1}${b % 4 > .01 ? ' beat ' + (+(b % 4 + 1).toFixed(2)) : ''} (${fmtTime(s)})`; };
+
 /* ---------- sheets ---------- */
 // the menu window sits exactly over the view area (and the scene strip above it when that leaves too little room)
 function placeSheet() { const S = $('#sheet'); if (S.hidden) return; const v = $('#view').getBoundingClientRect(), sc = $('#scenes').getBoundingClientRect(), top = v.height < 300 ? sc.top : v.top;
@@ -8545,7 +8715,8 @@ function openSceneSheet(i) {
     const a = h('div', 'g2');
     a.append(btn('Copy, paste, move…', () => { closeSheet(); if (UI.scene !== i) selectScene(i); openEdit(); }));
     a.append(confirmBtn('Clear scene', 'Tap again to clear', () => { pushUndo('scene:' + i); P.scenes[i] = Object.assign(emptyScene(), { bars: sc.bars }); syncScene(i); markDirty(); closeSheet(); }));
-    st.append(a); card.append(st);
+    const b2 = h('div', 'g2'); b2.append(btn('Add a scene after', () => { closeSheet(); insertScene(i, false); }, 'btn' + (P.scenes.length >= MAX_SCENES ? ' dis' : '')), confirmBtn('Remove scene', 'Tap again to remove', () => { closeSheet(); deleteScene(i); }));
+    st.append(a, b2); card.append(st);
   });
 }
 let taps = [];
@@ -8621,7 +8792,7 @@ function openAppearance() {
     for (const [v, l] of [['dark', 'Dark'], ['tint', 'Tinted'], ['bright', 'Colour']]) g.append(btn(l, () => { UI.padStyle = v; applyTheme(); savePrefs(); closeSheet(); openAppearance(); }, 'btn' + ((UI.padStyle || 'dark') === v ? ' on' : '')));
     st.append(g); card.append(st); }, () => {});
 }
-function afterLoad() { UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
+function afterLoad() { refLoad(); UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
 
 /* ---------- engine check ---------- */
 /* Engine check: each row says in plain words what it means for using the app, with the technical detail underneath (and in Copy results).
@@ -8679,7 +8850,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-02', ['Automate effects on and off: each insert has an On / off lane.']],
+  ['2026-11-02', ['Reference track: import a finished song in the mixer (beside the master). Line it up with your scenes, stretch it to your tempo, and A/B it at matched loudness. It bypasses the master.', 'Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
   ['2026-10-30', ['Instruments reworked: natural ring-out for keys, harp, vibes and basses; longer, smoother loops for pads, organ, flute and brass.', 'Removed Glass Pad, Orch Hits and Timpani Roll (projects switch to similar sounds).', 'Make from a sample, rebuilt for kicks, 808s, toms and snares: a synth body with your sample layered on top.', 'Layer page for layered drums: level, pitch, start, length, filter, Keytrack.', 'Tap the drum’s picture to hear it.', 'Auto backup (optional, under Projects), now including drums and synth presets.', 'Wavetable: tap a table to step through, hold for the menu.', 'Fix: first hit after sound starts could sound different.', 'Fix: meters and playheads could freeze until restart.', 'Fix: instruments were silent in exports.']],
@@ -9113,7 +9284,7 @@ function frameBody(ts) {
   if (!P) { nextFrame(); return; }
   if (ts - lastFrame < (T.playing && UI.view !== 'seq' ? 30 : 14)) { nextFrame(); return; }   // 60 fps; 30 while playing (except the timeline's playhead): the same look, half the drawing, more room for touches
   const fdt = Math.min(.1, (ts - (lastFrame || ts)) / 1000); lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
-  meterFeed(fdt); drawMeter(); if (FLASH.size) flashExpire(performance.now());
+  meterFeed(fdt); drawMeter(); if (FLASH.size) flashExpire(performance.now()); if (P.ref) refFrame();
   const scoping = scopeMoving(); if (scoping) scopeFrame(Math.min(.1, (ts - (frame.prev || ts)) / 1000)); frame.prev = ts;
   const busy = scoping || T.playing || METQ.length || FLQ.length || FLASH.size || METER.l > 0 || METER.r > 0 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 0 || m.v[1] > 0));
   if (busy) nextFrame(); else { frameOn = false; return; }   // nothing moving: stop drawing until woken
@@ -9143,7 +9314,7 @@ async function boot() {
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: pr.mon.phones && !TF_PHONES[pr.mon.phones] ? 'Wired earbuds' : TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
-  await abLoad(); setTimeout(abTick, 15000); setInterval(abTick, 5 * 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(abTick, 4000); });
+  await abLoad(); setTimeout(abTick, 15000); setTimeout(refCleanup, 60000); setInterval(abTick, 5 * 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(abTick, 4000); });
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
   // Safari clears a website's storage after a week unused, but never an app on the Home Screen: say so (at most once a week) when that applies
   else if (location.protocol === 'https:' && !(navigator.standalone || matchMedia('(display-mode: standalone)').matches) && /iPhone|iPad|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document) {

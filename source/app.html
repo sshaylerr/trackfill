@@ -146,6 +146,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .slot .num{font:500 14px/14px var(--font-lcd);flex:none}
 .slot .mini{display:block;width:44px;height:18px;border-radius:2px;margin-top:4px}
 .slot.empty .mini{opacity:.5}
+.slot.add{opacity:.55;display:flex;align-items:center;justify-content:center}
 .slot .lbl{font-size:10.5px;min-width:0;font-weight:500;color:var(--print);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;height:13px;line-height:13px}
 .slot .meta{font:400 9.5px/10px var(--font-lcd);color:var(--dim);white-space:nowrap}
 .slot .led{position:absolute;right:6px;top:7px;width:6px;height:6px;border-radius:50%;background:var(--led-off)}
@@ -356,6 +357,8 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .sname b{font:600 11px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .sname i{display:block;width:70%;height:2px;border-radius:1px;margin-top:1px}
 .ms2{display:flex;gap:2px;width:100%;justify-content:center}
+.refab{width:44px;height:34px;margin:1px auto;border-radius:3px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #050506;font:700 10px var(--font-ui);color:var(--print)}.refab.on{color:var(--accent)}
+.strip.refStrip{margin-left:6px;border-left:1px solid var(--edge)}
 .ms2 button{width:19px;height:19px;border-radius:2px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #050506;font:700 9px var(--font-ui);color:var(--print)}
 .ms2 button.m.on{background:var(--rec);color:#2b0707} .ms2 button.s.on{background:var(--accent);color:var(--accent-ink)}
 .detail{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;align-items:center}
@@ -862,7 +865,7 @@ function reviveRenders(pi) { const pad = P.pads[pi]; if (!pad) return;
   if (pad.stx && !SAMPLES.has(pad.stx)) { pad.stx = null; if (typeof stretchCheck === 'function') stretchCheck(pi); } }
 function scopeSet(sc, v) { const [k, i] = sc.split(':'), n = +i;
   switch (k) { case 'scene': P.scenes[n] = v; syncScene(n); break; case 'pad': P.pads[n] = v; reviveRenders(n); syncPad(n); break; case 'chan': P.chans[n] = v; syncChan(n); break;
-    case 'song': Object.assign(P, v); syncSong(); break; default: P = v; P.pads.forEach((_, j) => reviveRenders(j)); syncProject(); } }
+    case 'song': Object.assign(P, v); syncSong(); break; default: P = v; P.pads.forEach((_, j) => reviveRenders(j)); syncProject(); refLoad(); } }
 function pushUndo(scope = 'all') { UNDO.push({ scope, data: JSON.stringify(scopeGet(scope)) }); if (UNDO.length > 200) UNDO.shift(); REDO.length = 0; ugKey = null; }
 function undoGroup(k, scope) { const n = Date.now(); if (k !== ugKey || n - ugTime > 1500) { pushUndo(scope); ugKey = k; } ugTime = n; }
 function applyHistory(from, to, label) { if (!from.length) { toast('Nothing to ' + label); return; } const e = from.pop();
@@ -977,10 +980,10 @@ async function startEngine() {
     if (!node) node = new AudioWorkletNode(c0, 'tf-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { wasm: WASM_BYTES, warm: true } });
     if (ctx !== c0) return;
     const clip = ctx.createWaveShaper(); clip.curve = new Float32Array([-1, 1]); clip.oversample = 'none';   // second hard clip, belt and braces
-    node.connect(clip); clip.connect(ctx.destination);
+    ENG.mixG = ctx.createGain(); node.connect(clip); clip.connect(ENG.mixG); ENG.mixG.connect(ctx.destination);   // mixG: A/B with the reference mutes your mix here
     if (ctx !== c0) return;   // restarted while this one was loading
     node.port.onmessage = e => onEngine(e.data);
-    ENG.node = node; ENG.sent.clear(); UPQ.jobs.length = 0; syncProject(); sendClick();
+    ENG.node = node; ENG.sent.clear(); UPQ.jobs.length = 0; syncProject(); sendClick(); refAttach();
   } catch (e) { if (ctx !== c0) return;   // this one was replaced by a restart while it loaded: not a real failure
     ENG.err = e.message || String(e); ENG.errLog = (ENG.errLog || []).concat('start: ' + ENG.err).slice(-5); console.error(e); toast('The audio engine could not start: ' + ENG.err); }
 }
@@ -1034,7 +1037,7 @@ function play() {
   if (T.playing) { stop(); lastStop = Date.now(); return; }
   if (Date.now() - lastStop < 450 && ctx) { panic(); lastStop = 0; return; }
   if (!ensureAudio()) return;
-  recReset();
+  refUnlock(); recReset();
   const sent = UPQ.jobs.length ? upFlush(T.loop === 'song' ? null : sceneNeeds(UI.scene)) : 0;   // what's about to play is in the engine before it starts
   const count = T.rec ? UI.countIn : 0, lead = Math.max(250 - (performance.now() - (AUD.runAt || 0)), Math.min(400, sent / 50000));   // just woken, or a big sound just sent: a moment more before the first note
   T.playing = true; REP.pos = null; TL.held = false; tlFollowUpd(); sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count, from: playFrom(), lead }); updateTransport();
@@ -1056,7 +1059,7 @@ function loopToggle() { const tl = UI.tl, L = tl.loop;
 const rangeStr = (a, b) => a % BAR || b % BAR ? `from ${posStr(a).split('.').slice(0, a % BEAT ? 3 : 2).join('.')}, ${+((b - a) / BEAT).toFixed(2)} beats` : b - a === BAR ? `bar ${a / BAR + 1}` : `bars ${a / BAR + 1}–${b / BAR}`;
 // the click: off, only while recording is armed, or always. It plays on the engine's clock, so it is sample-accurate, and never reaches exports.
 function sendClick() { send({ t: 'click', on: UI.click === 'always' || (UI.click === 'rec' && T.rec), vol: UI.clickVol }); $('#bTempo').classList.toggle('clk', UI.click === 'always' || (UI.click === 'rec' && T.rec)); }
-function stop() { T.playing = false; if (T.rec) { T.rec = false; sendClick(); } send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
+function stop() { if (REF.el) REF.el.pause(); T.playing = false; if (T.rec) { T.rec = false; sendClick(); } send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
 function panic(msg) { T.playing = false; send({ t: 'panic' }); KEYS.latch = null; KEYS.arpN = null; for (const k in HELD) delete HELD[k]; METER.l = METER.r = 0; METER.clip = false; drawMeter(); updateTransport(); updatePlayingSlot(null); toast(msg || 'Panic: all sound stopped and effect tails cleared'); }
 /* The audio clock as heard: the moment leaving the speaker right now, on the context's clock. The output timestamp pairs a moment the
    speaker played with the page's own clock, so it runs smooth and true between audio blocks (the context's clock on the page steps, and on
@@ -1230,10 +1233,12 @@ function sceneMini(i) {
   img.src = cv.toDataURL(); MINI.set(i, { sig, img }); return img;
 }
 function renderScenes() {
+  if (UI.scene >= P.scenes.length) UI.scene = P.scenes.length - 1;   // (after an undo that removed scenes)
   const S = $('#scenes'), sl = S.scrollLeft; S.innerHTML = '';
   P.scenes.forEach((sc, i) => { const n = noteCount(sc), el = h('button', 'slot' + (i === UI.scene ? ' sel' : '') + (n ? ' filled' : ' empty'));
     el.innerHTML = `<span class="srow"><span class="num">${i + 1}</span><span class="lbl">${esc(sc.name) || (n ? 'Scene' : '—')}</span></span><span class="led"></span><span class="prog"></span>`;
     el.insertBefore(sceneMini(i), el.querySelector('.led')); el.setAttribute('aria-label', `Scene ${i + 1} ${sc.name || ''}`); el.onclick = () => sceneTap(i); S.append(el); });
+  if (P.scenes.length < MAX_SCENES) { const add = h('button', 'slot add'); add.innerHTML = '<span class="srow"><span class="lbl">+ Scene</span></span>'; add.setAttribute('aria-label', 'Add a scene'); add.onclick = () => insertScene(P.scenes.length - 1, false); S.append(add); }   // a new empty scene at the end
   S.scrollLeft = sl; const sel = S.children[UI.scene];
   if (sel) { const l = sel.offsetLeft, r = l + sel.offsetWidth; if (l < S.scrollLeft || r > S.scrollLeft + S.clientWidth) S.scrollLeft = l - S.clientWidth / 2 + sel.offsetWidth / 2; }
 }
@@ -1891,7 +1896,8 @@ function openSceneSheet(i) {
     const a = h('div', 'g2');
     a.append(btn('Copy, paste, move…', () => { closeSheet(); if (UI.scene !== i) selectScene(i); openEdit(); }));
     a.append(confirmBtn('Clear scene', 'Tap again to clear', () => { pushUndo('scene:' + i); P.scenes[i] = Object.assign(emptyScene(), { bars: sc.bars }); syncScene(i); markDirty(); closeSheet(); }));
-    st.append(a); card.append(st);
+    const b2 = h('div', 'g2'); b2.append(btn('Add a scene after', () => { closeSheet(); insertScene(i, false); }, 'btn' + (P.scenes.length >= MAX_SCENES ? ' dis' : '')), confirmBtn('Remove scene', 'Tap again to remove', () => { closeSheet(); deleteScene(i); }));
+    st.append(a, b2); card.append(st);
   });
 }
 let taps = [];
@@ -1967,7 +1973,7 @@ function openAppearance() {
     for (const [v, l] of [['dark', 'Dark'], ['tint', 'Tinted'], ['bright', 'Colour']]) g.append(btn(l, () => { UI.padStyle = v; applyTheme(); savePrefs(); closeSheet(); openAppearance(); }, 'btn' + ((UI.padStyle || 'dark') === v ? ' on' : '')));
     st.append(g); card.append(st); }, () => {});
 }
-function afterLoad() { UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
+function afterLoad() { refLoad(); UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
 
 /* ---------- engine check ---------- */
 /* Engine check: each row says in plain words what it means for using the app, with the technical detail underneath (and in Copy results).
@@ -2025,7 +2031,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-02', ['Automate effects on and off: each insert has an On / off lane.']],
+  ['2026-11-02', ['Reference track: import a finished song in the mixer (beside the master). Line it up with your scenes, stretch it to your tempo, and A/B it at matched loudness. It bypasses the master.', 'Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
   ['2026-10-30', ['Instruments reworked: natural ring-out for keys, harp, vibes and basses; longer, smoother loops for pads, organ, flute and brass.', 'Removed Glass Pad, Orch Hits and Timpani Roll (projects switch to similar sounds).', 'Make from a sample, rebuilt for kicks, 808s, toms and snares: a synth body with your sample layered on top.', 'Layer page for layered drums: level, pitch, start, length, filter, Keytrack.', 'Tap the drum’s picture to hear it.', 'Auto backup (optional, under Projects), now including drums and synth presets.', 'Wavetable: tap a table to step through, hold for the menu.', 'Fix: first hit after sound starts could sound different.', 'Fix: meters and playheads could freeze until restart.', 'Fix: instruments were silent in exports.']],
@@ -2459,7 +2465,7 @@ function frameBody(ts) {
   if (!P) { nextFrame(); return; }
   if (ts - lastFrame < (T.playing && UI.view !== 'seq' ? 30 : 14)) { nextFrame(); return; }   // 60 fps; 30 while playing (except the timeline's playhead): the same look, half the drawing, more room for touches
   const fdt = Math.min(.1, (ts - (lastFrame || ts)) / 1000); lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
-  meterFeed(fdt); drawMeter(); if (FLASH.size) flashExpire(performance.now());
+  meterFeed(fdt); drawMeter(); if (FLASH.size) flashExpire(performance.now()); if (P.ref) refFrame();
   const scoping = scopeMoving(); if (scoping) scopeFrame(Math.min(.1, (ts - (frame.prev || ts)) / 1000)); frame.prev = ts;
   const busy = scoping || T.playing || METQ.length || FLQ.length || FLASH.size || METER.l > 0 || METER.r > 0 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 0 || m.v[1] > 0));
   if (busy) nextFrame(); else { frameOn = false; return; }   // nothing moving: stop drawing until woken
@@ -2489,7 +2495,7 @@ async function boot() {
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: pr.mon.phones && !TF_PHONES[pr.mon.phones] ? 'Wired earbuds' : TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
-  await abLoad(); setTimeout(abTick, 15000); setInterval(abTick, 5 * 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(abTick, 4000); });
+  await abLoad(); setTimeout(abTick, 15000); setTimeout(refCleanup, 60000); setInterval(abTick, 5 * 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(abTick, 4000); });
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
   // Safari clears a website's storage after a week unused, but never an app on the Home Screen: say so (at most once a week) when that applies
   else if (location.protocol === 'https:' && !(navigator.standalone || matchMedia('(display-mode: standalone)').matches) && /iPhone|iPad|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document) {

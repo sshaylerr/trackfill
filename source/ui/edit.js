@@ -39,14 +39,18 @@ function copyScene(i) { setClip('scene', `Scene ${i + 1}${P.scenes[i].name ? ' �
 function pasteScene(i) { if (!clipIs('scene')) return; pushUndo('scene:' + i); P.scenes[i] = clone(CLIP.data); syncScene(i); markDirty(); renderAll(); toast(`Pasted into scene ${i + 1}`); }
 // scenes move: frozen clips (stored per scene) move with them
 function remapScenes(map) { for (const p of P.pads) if (p.frz) { const f = {}; for (const k in p.frz) { const t = map(+k); if (t != null) f[t] = p.frz[k]; } p.frz = f; } }
+function sceneIdx(map) { const tl = UI.tl; for (const o of [tl.loop, tl.start]) if (o && o.scene != null) { const t = map(o.scene); if (t == null) { if (o === tl.loop) tl.loop = null; else tl.start = null; } else o.scene = t; } }
+// insert a scene after i (a copy of it, or empty); later scenes move along
+function insertScene(i, copy) { if (P.scenes.length >= MAX_SCENES) { toast(`${MAX_SCENES} scenes is the most`); return false; }
+  pushUndo('all'); P.scenes.splice(i + 1, 0, copy ? clone(P.scenes[i]) : Object.assign(emptyScene(), { bars: P.scenes[i] ? P.scenes[i].bars : 4 })); const m = k => k > i ? k + 1 : k; remapScenes(m); sceneIdx(m);
+  syncProject(); markDirty(); selectScene(i + 1); renderAll(); return true; }
+function deleteScene(i) { if (P.scenes.length <= 1) { toast('A project keeps at least one scene'); return; }
+  pushUndo('all'); P.scenes.splice(i, 1); const m = k => k === i ? null : k > i ? k - 1 : k; remapScenes(m); sceneIdx(m); if (T.playing) stop();
+  syncProject(); markDirty(); selectScene(Math.min(i, P.scenes.length - 1)); renderAll(); toast(`Scene ${i + 1} removed; later scenes moved back`); }
 function duplicateScene(i) {
-  const last = NSCENES - 1; if (i >= last) { toast('The last scene has no room after it'); return; }
-  if (noteCount(P.scenes[last])) { toast(`Scene ${NSCENES} isn't empty, so there's no room to insert. Clear it first.`); return; }
-  pushUndo('all'); P.scenes.splice(i + 1, 0, clone(P.scenes[i])); P.scenes.length = NSCENES; remapScenes(k => k > i ? (k + 1 <= last ? k + 1 : null) : k);
-  syncProject(); markDirty(); selectScene(i + 1); renderAll(); toast(`Duplicated into scene ${i + 2}; later scenes moved along`);
-}
+  if (!insertScene(i, true)) return; toast(`Duplicated into scene ${i + 2}; later scenes moved along`); }
 function moveScene(i, d) {
-  const j = i + d; if (j < 0 || j >= NSCENES) return; pushUndo('all'); [P.scenes[i], P.scenes[j]] = [P.scenes[j], P.scenes[i]]; remapScenes(k => k === i ? j : k === j ? i : k);
+  const j = i + d; if (j < 0 || j >= P.scenes.length) return; pushUndo('all'); [P.scenes[i], P.scenes[j]] = [P.scenes[j], P.scenes[i]]; remapScenes(k => k === i ? j : k === j ? i : k);
   syncProject(); markDirty(); selectScene(j); renderAll();
 }
 function clearScene(i) { pushUndo('scene:' + i); P.scenes[i] = Object.assign(emptyScene(), { bars: P.scenes[i].bars }); syncScene(i); markDirty(); renderAll(); toast(`Scene ${i + 1} cleared`); }
@@ -167,7 +171,7 @@ function pasteChan(c) { if (!clipIs('chan')) return; pushUndo('chan:' + c); Obje
 function editContext() {
   if (UI.view === 'seq') return 'bars';
   if (UI.view === 'fx') return 'fx';
-  if (UI.view === 'mix') return UI.mixSel < G0 ? 'pad' : 'chan';
+  if (UI.view === 'mix') return UI.mixSel === REF_CH ? 'ref' : UI.mixSel < G0 ? 'pad' : 'chan';
   return 'pad';
 }
 const ED = { tab: {}, qs: 1 };
@@ -188,7 +192,7 @@ function edOverview(body, bars) {
 function openEdit() {
   const ctx = editContext(), tl = UI.tl, notes = ctx === 'bars' && tl.lane === 'notes';
   if (ctx === 'bars') { const t = tl.sel ? tl.sel.n.t : tl.cursor.t || 0; EDR.from = clamp(Math.floor(t / BAR), 0, P.scenes[UI.scene].bars - 1); EDR.len = Math.min(EDR.len || 1, P.scenes[UI.scene].bars - EDR.from) || 1; }
-  const tabs = { bars: notes ? ['Notes', 'Tools', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'] }[ctx];
+  const tabs = { bars: notes ? ['Notes', 'Tools', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'], ref: ['Scene'] }[ctx];
   let tab = notes && selItems().length ? 'Notes' : tabs.includes(ED.tab[ctx]) ? ED.tab[ctx] : tabs[0];
   openSheet('Edit', card => {
     const body = h('div', 'edit'), title = card.querySelector('.shTitle span'); card.append(body);
@@ -224,8 +228,9 @@ function openEdit() {
         grid(key('Copy', () => copyFx(c, s), !!f), key(f ? 'Replace' : 'Paste', () => pasteFx(c, s, false), clipIs('fx')), key('Insert', () => pasteFx(c, s + 1, true), clipIs('fx') && !!f), key('Duplicate', () => duplicateFx(c, s), !!f, { cls: 'hot' }),
           key('Copy chain', () => copyChain(c), P.chans[c].fx.length > 0, { w: 2 }), key('Paste chain', () => pasteChain(c), clipIs('chain'), { w: 2 })); }
       if (tab === 'Scene') { const i = UI.scene;
-        grid(key('Copy', () => copyScene(i)), key('Paste', () => pasteScene(i), clipIs('scene'), { stay: 1 }), key('Duplicate', () => duplicateScene(i), i < NSCENES - 1, { stay: 1, cls: 'hot' }), confirmBtn('Clear', 'Again', () => { clearScene(i); draw(); }),
-          key('◀ Move', () => moveScene(UI.scene, -1), i > 0, { stay: 1, w: 2 }), key('Move ▶', () => moveScene(UI.scene, 1), i < NSCENES - 1, { stay: 1, w: 2 }), key('Import MIDI…', pickMidi, true, { w: 4 })); }
+        grid(key('Copy', () => copyScene(i)), key('Paste', () => pasteScene(i), clipIs('scene'), { stay: 1 }), key('Duplicate', () => duplicateScene(i), P.scenes.length < MAX_SCENES, { stay: 1, cls: 'hot' }), confirmBtn('Clear', 'Again', () => { clearScene(i); draw(); }),
+          key('◀ Move', () => moveScene(UI.scene, -1), i > 0, { stay: 1, w: 2 }), key('Move ▶', () => moveScene(UI.scene, 1), i < P.scenes.length - 1, { stay: 1, w: 2 }),
+          key('Add after', () => insertScene(i, false), P.scenes.length < MAX_SCENES, { stay: 1, w: 2 }), confirmBtn('Remove', 'Again', () => { deleteScene(i); draw(); }), key('Import MIDI…', pickMidi, true)); }
       if (fi >= 0) { const ks = keys(); let k = ks[Math.min(fi, ks.length - 1)]; if (k && k.disabled) k = ks.find(x => !x.disabled); if (k) setNav(k, true); }   // the d-pad stays where it was
       if (UI.panel) requestAnimationFrame(updatePanel); };
     draw();

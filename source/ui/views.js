@@ -209,7 +209,7 @@ function bindWave(cv) { let d = null;
 const MIX_PAGES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'Grp', 'Bus', 'Ret'];
 const STRIP_METERS = [];
 function destName(c) { const d = tfDest(P, c); return d < 0 ? '—' : d === MASTER ? 'Master' : chanName(d); }
-function mixChans(p) { return p < 8 ? [...Array(8)].map((_, i) => p * 8 + i) : p === 8 ? [...Array(8)].map((_, i) => G0 + i) : p === 9 ? [...Array(8)].map((_, i) => B0 + i) : [R0, R0 + 1, MASTER]; }
+function mixChans(p) { return p < 8 ? [...Array(8)].map((_, i) => p * 8 + i) : p === 8 ? [...Array(8)].map((_, i) => G0 + i) : p === 9 ? [...Array(8)].map((_, i) => B0 + i) : [R0, R0 + 1, MASTER, null, REF_CH]; }   // the reference sits beside the master, one gap apart
 const shortDb = v => { const g = tfFaderGain(v); if (g <= .0001) return '-∞'; const d = 20 * Math.log10(g); return (d > .05 ? '+' : '') + d.toFixed(1); };
 function renderMix(V) {
   // the mixer opens on the pad you're working on (whenever that pad changed since the mixer last showed it); otherwise it stays where you left it
@@ -218,8 +218,8 @@ function renderMix(V) {
   MIX_PAGES.forEach((l, i) => pages.append(btn(l, () => { UI.mixPage = i; UI.mixSel = mixChans(i)[0]; renderView(); }, 'key' + (UI.mixPage === i ? ' on' : ''))));
   if (!chs.includes(UI.mixSel)) UI.mixSel = chs.includes(UI.pad) ? UI.pad : chs[0];
   const con = h('div', 'scr console' + (UI.mixSlide ? ' slide' + UI.mixSlide : '')); UI.mixSlide = 0; STRIP_METERS.length = 0; bindSwipe(con);
-  for (let k = 0; k < 8; k++) { const c = chs[k]; if (c == null) { con.append(h('div', 'strip empty')); continue; } con.append(stripEl(c)); }
-  w.append(pages, con, detailEl(UI.mixSel)); V.append(w); requestAnimationFrame(() => UI.regs.forEach(f => f.upd && f.upd()));
+  for (let k = 0; k < 8; k++) { const c = chs[k]; if (c == null) { con.append(h('div', 'strip empty')); continue; } con.append(c === REF_CH ? refStripEl() : stripEl(c)); }
+  w.append(pages, con, UI.mixSel === REF_CH ? refDetailEl() : detailEl(UI.mixSel)); V.append(w); requestAnimationFrame(() => UI.regs.forEach(f => f.upd && f.upd()));
 }
 function mixSwipe(dir) { const n = clamp(UI.mixPage + dir, 0, MIX_PAGES.length - 1); if (n === UI.mixPage) return; UI.mixPage = n; UI.mixSel = mixChans(n)[0]; UI.mixSlide = dir > 0 ? 'L' : 'R'; haptic(); renderView(); }
 function bindSwipe(el) { let s = null;
