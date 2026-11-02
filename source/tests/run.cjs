@@ -169,6 +169,11 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const a = await run([Object.assign(M.newFx(M.FX_TYPES.DUCK, { 1: 1, 2: .134, 3: .032, 4: .04, 5: .25, 6: .5 }), { trig: [0] })]), b = await run([]);
     const sr = a.sr, k = Math.round(240 / (Q.bpm * 96 / (60 * sr))), c = k + Math.round(.002 * sr), g = stats(a.L, a.R, c, c + 96).rms / Math.max(1e-9, stats(b.L, b.R, c, c + 96).rms);
     ok(g < .01, `a ducker on a bus that was silent before the kick still ducks on time (×${g.toFixed(4)} 2 ms in)`); }
+  { // an effect's On / off lane switches it at its points (steps, no ramp)
+    const Q = M.demoProject(), BUS = M.B0 + 1; Q.chans.forEach((c, i) => { if (i !== 8 && i < 64) c.mute = true; c.fx = []; }); Q.chans[8].out = BUS;
+    const run = auto => { const R = JSON.parse(JSON.stringify(Q)); R.chans[BUS].fx = [M.newFx(M.FX_TYPES.UTIL, { 0: 0 })]; if (auto) R.scenes[1].auto[BUS + '.0.-1'] = [{ t: 0, v: 0, c: 0 }, { t: 192, v: 1, c: 0 }]; return H.tfRenderOffline(wasm, R, kit, { order: [{ scene: 1, reps: 1 }] }); };
+    const a = await run(true), b = await run(false), sr = a.sr, spt = 60 * sr / (Q.bpm * 96), e = (x, t0, t1) => stats(x.L, x.R, Math.round(t0 * spt), Math.round(t1 * spt)).rms;
+    ok(e(a, 20, 180) > e(b, 20, 180) * 4 && e(a, 200, 370) < e(a, 20, 180) * .25 && H.tfIsToggle(BUS + '.0.-1'), `On / off lane: off for the first half (the utility passes ${(20 * Math.log10(e(a, 20, 180) / Math.max(1e-9, e(b, 20, 180)))).toFixed(0)} dB more), on for the second`); }
   { // Band: a ducker set to Lows ducks the low end and leaves the top alone (a held saw under the kick; harmonics measured one by one)
     const Q = M.demoProject(); Q.chans.forEach((c, i) => { if (i !== 20 && i < 64) c.mute = true; c.fx = []; }); Q.chans[20].mute = false;
     Object.assign(Q.pads[20], { src: 'synth', syn: SP.synPatch(SP.SYN_INIT), mode: 'gate', voice: 'poly', poly: 8 }); Q.scenes[1].notes[20] = [{ t: 0, len: 380, p: -12, v: 1 }];

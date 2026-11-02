@@ -1169,7 +1169,8 @@ function keyMeta(key) {
   if (s === -2) return SOUNDP[i];
   if (s === -3) { const d = TFSYN[i]; return d ? { label: d.l, short: d.l, def: tfSynNorm(d, d.d), bipolar: d.k === 'bip', step: .002, coarse: .02, fmt: v => synFmt(d, tfSynPhys(d, v)) } : { label: '?', short: '?', def: 0, fmt: pct }; }
   const f = P.chans[c].fx[s]; if (!f) return { label: 'Missing effect', short: '?', def: 0, fmt: pct };
-  const d = FX_DEFS[f.type], prm = fxParams(f)[i];
+  const d = FX_DEFS[f.type]; if (i === -1) return { label: `${d.name} on`, short: `${s + 1}·On`, def: f.on ? 1 : 0, toggle: true, fmt: v => v >= .5 ? 'On' : 'Off', step: 1, coarse: 1 };
+  const prm = fxParams(f)[i];
   return { label: `${d.name} ${prm.n}`, short: `${s + 1}·${prm.n}`, def: prm.d, fmt: prm.opts ? v => prm.opts[Math.round(v * (prm.opts.length - 1))] : prm.f, step: prm.opts ? 1 / (prm.opts.length - 1) : .002, coarse: prm.opts ? 1 / (prm.opts.length - 1) : .02 };
 }
 
@@ -1439,7 +1440,8 @@ function sideVals(key) { const n = P.scenes.length, si = UI.scene, has = j => tf
   return { prev: at(pv, true), next: at(nx, false) }; }
 const homeVals = key => { const m = keyMeta(key), h = [0, .5], sv = sideVals(key); for (const v of [m.def, sv.prev, sv.next]) if (v != null && !h.includes(v)) h.push(v); return h; };
 let homeHit = null;
-function homeY(y) { const v = y2v(y), h = homeVals(UI.tl.lane).find(q => Math.abs(v2y(q) - y) < 10); if (h == null) { homeHit = null; return Math.round(v * 1000) / 1000; } if (homeHit !== h) { homeHit = h; haptic(); } return h; }
+function homeY(y) { if (keyMeta(UI.tl.lane).toggle) { const t = y2v(y) >= .5 ? 1 : 0; if (homeHit !== t) { homeHit = t; haptic(); } return t; }   // on/off lanes: only on or off
+  const v = y2v(y), h = homeVals(UI.tl.lane).find(q => Math.abs(v2y(q) - y) < 10); if (h == null) { homeHit = null; return Math.round(v * 1000) / 1000; } if (homeHit !== h) { homeHit = h; haptic(); } return h; }
 function homeStep(v, nv) { for (const h of homeVals(UI.tl.lane)) if ((v < h && nv > h) || (v > h && nv < h)) return h; return nv; }
 function lanePts(create) { const sc = P.scenes[UI.scene], k = UI.tl.lane; if (!sc.auto[k]) { if (!create) return null; sc.auto[k] = []; } return sc.auto[k]; }
 function cleanLane() { const sc = P.scenes[UI.scene]; if (sc.auto[UI.tl.lane] && !sc.auto[UI.tl.lane].length) delete sc.auto[UI.tl.lane]; }
@@ -1588,11 +1590,11 @@ function drawAutoLane(g) {
     g.fillStyle = COL.mute; g.font = '500 12px ' + FONT_UI; g.textBaseline = 'middle'; g.fillText('Tap to add points, or use Draw and Shapes', LABEL_W + 12, (y0 + y1) / 2 - 14); }
   else {
     g.beginPath(); g.moveTo(LABEL_W, v2y(pts[0].v)); g.lineTo(t2x(pts[0].t), v2y(pts[0].v));
-    for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1], x1 = t2x(a.t), x2 = t2x(b.t); if (x2 < LABEL_W - 4 || x1 > W + 4) { g.lineTo(x2, v2y(b.v)); continue; }
+    for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1], x1 = t2x(a.t), x2 = t2x(b.t); if (meta.toggle) { g.lineTo(x2, v2y(a.v)); g.lineTo(x2, v2y(b.v)); continue; } if (x2 < LABEL_W - 4 || x1 > W + 4) { g.lineTo(x2, v2y(b.v)); continue; }
       const n = Math.max(1, Math.ceil((x2 - x1) / 2)); for (let k = 1; k <= n; k++) { const f = k / n; g.lineTo(x1 + (x2 - x1) * f, v2y(a.v + (b.v - a.v) * curveFrac(f, a.c || 0))); } }
     g.lineTo(W, v2y(pts[pts.length - 1].v)); g.strokeStyle = COL.accent; g.lineWidth = 2.2; g.stroke();
     g.lineTo(W, y1); g.lineTo(LABEL_W, y1); g.closePath(); g.globalAlpha = .12; g.fillStyle = COL.accent; g.fill(); g.globalAlpha = 1;
-    for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; if (Math.abs(b.v - a.v) <= .02 || t2x(b.t) - t2x(a.t) < 28) continue; const tm = (a.t + b.t) / 2, x = t2x(tm), y = v2y(valueAt(pts, tm));
+    if (!meta.toggle) for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; if (Math.abs(b.v - a.v) <= .02 || t2x(b.t) - t2x(a.t) < 28) continue; const tm = (a.t + b.t) / 2, x = t2x(tm), y = v2y(valueAt(pts, tm));
       g.beginPath(); g.moveTo(x, y - 5); g.lineTo(x + 5, y); g.lineTo(x, y + 5); g.lineTo(x - 5, y); g.closePath(); g.fillStyle = a.c ? COL.accent : COL.panel; g.fill(); g.lineWidth = 1.5; g.strokeStyle = COL.accent; g.stroke(); }
     if (NAV.held && pts[tl.selPt]) { const p = pts[tl.selPt]; g.beginPath(); g.arc(t2x(p.t), v2y(p.v), 13, 0, 7); g.strokeStyle = COL.accent; g.lineWidth = 2; g.setLineDash([3, 3]); g.stroke(); g.setLineDash([]); }
     pts.forEach((p, i) => { const x = t2x(p.t), y = v2y(p.v); g.beginPath(); g.arc(x, y, i === tl.selPt ? 7.5 : 5.5, 0, 7); g.fillStyle = i === tl.selPt ? COL.accent : COL.panel; g.fill(); g.lineWidth = 2; g.strokeStyle = i === tl.selPt ? COL.ink : COL.accent; g.stroke(); });
@@ -1690,7 +1692,7 @@ function bindTL(cv) {
     if (hi >= 0) { tl.selPt = hi; homeHit = pts[hi] ? pts[hi].v : null; TL.drag = Object.assign(base, { kind: 'pt', i: hi, pushed: false }); drawTL(); updatePanel(); return; }
     if (tl.draw) { pushUndo('scene:' + UI.scene); TL.drag = Object.assign(base, { kind: 'draw', pushed: true, pts: [{ t: clamp(x2t(x), 0, tlLen()), v: y2v(y) }] }); return; }
     if (pts.length > 1) { const t = x2t(x); let si = -1; for (let i = 0; i < pts.length - 1; i++) if (t > pts[i].t && t < pts[i + 1].t) si = i;
-      if (si >= 0 && Math.abs(v2y(valueAt(pts, t)) - y) < 22 && Math.abs(pts[si + 1].v - pts[si].v) > .02) { pushUndo('scene:' + UI.scene); const a = pts[si], b = pts[si + 1]; TL.drag = Object.assign(base, { kind: 'bend', pushed: true, si, xf: clamp((t - a.t) / (b.t - a.t), .06, .94) }); return; } }
+      if (si >= 0 && !keyMeta(tl.lane).toggle && Math.abs(v2y(valueAt(pts, t)) - y) < 22 && Math.abs(pts[si + 1].v - pts[si].v) > .02) { pushUndo('scene:' + UI.scene); const a = pts[si], b = pts[si + 1]; TL.drag = Object.assign(base, { kind: 'bend', pushed: true, si, xf: clamp((t - a.t) / (b.t - a.t), .06, .94) }); return; } }
     TL.drag = Object.assign(base, { kind: 'empty' });
   });
   cv.addEventListener('pointermove', e => {
@@ -2023,6 +2025,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
+  ['2026-11-02', ['Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
   ['2026-10-30', ['Instruments reworked: natural ring-out for keys, harp, vibes and basses; longer, smoother loops for pads, organ, flute and brass.', 'Removed Glass Pad, Orch Hits and Timpani Roll (projects switch to similar sounds).', 'Make from a sample, rebuilt for kicks, 808s, toms and snares: a synth body with your sample layered on top.', 'Layer page for layered drums: level, pitch, start, length, filter, Keytrack.', 'Tap the drum’s picture to hear it.', 'Auto backup (optional, under Projects), now including drums and synth presets.', 'Wavetable: tap a table to step through, hold for the menu.', 'Fix: first hit after sound starts could sound different.', 'Fix: meters and playheads could freeze until restart.', 'Fix: instruments were silent in exports.']],
@@ -2370,8 +2373,8 @@ const autoCtl = {
       syncScene(UI.scene); markDirty(); }
     else tl.cursor.t = fixT(clamp((UI.fine ? tl.cursor.t : Math.round(tl.cursor.t / st) * st) + d * st, 0, len)); tlEnsure(); },
   vt(d, sh) { const tl = UI.tl, p = this.pts()[tl.selPt];
-    if (tl.selPt >= 0 && p) { if (NAV.selUndo < 0) undoGroup('a', 'scene:' + UI.scene); p.v = homeStep(p.v, clamp(Math.round((p.v + d * (UI.fine ? .002 : sh ? .1 : .02)) * 1000) / 1000, 0, 1)); tl.cursor.v = p.v; syncScene(UI.scene); markDirty(); }
-    else tl.cursor.v = homeStep(tl.cursor.v, clamp(Math.round((tl.cursor.v + d * (UI.fine ? .005 : sh ? .1 : .02)) * 1000) / 1000, 0, 1)); drawTL(); },
+    if (tl.selPt >= 0 && p) { if (NAV.selUndo < 0) undoGroup('a', 'scene:' + UI.scene); p.v = keyMeta(tl.lane).toggle ? (d > 0 ? 1 : 0) : homeStep(p.v, clamp(Math.round((p.v + d * (UI.fine ? .002 : sh ? .1 : .02)) * 1000) / 1000, 0, 1)); tl.cursor.v = p.v; syncScene(UI.scene); markDirty(); }
+    else tl.cursor.v = keyMeta(tl.lane).toggle ? (d > 0 ? 1 : 0) : homeStep(tl.cursor.v, clamp(Math.round((tl.cursor.v + d * (UI.fine ? .005 : sh ? .1 : .02)) * 1000) / 1000, 0, 1)); drawTL(); },
   ok() { const tl = UI.tl; if (tl.selPt >= 0) { tl.selPt = -1; NAV.selUndo = -1; afterEdit(); return; }
     const i = this.near(); if (i >= 0) { selStart(); tl.selPt = i; tl.cursor.v = this.pts()[i].v; drawTL(); return; }
     pushUndo('scene:' + UI.scene); NAV.selUndo = UNDO.length - 1; const pts = lanePts(true), t = clamp(tl.cursor.t, 0, tlLen()); pts.push({ t, v: tl.cursor.v, c: 0 }); pts.sort((a, b) => a.t - b.t); tl.selPt = pts.findIndex(p => p.t === t); afterEdit(); },

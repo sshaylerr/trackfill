@@ -180,6 +180,9 @@ function tfDest(P, c) {
 // Automation / parameter keys: "channel.slot.index". slot -1 = channel strip (vol, pan, send A, send B),
 // slot -2 = pad sound (cutoff, resonance), slot 0..7 = insert effect parameter.
 function tfParseKey(k) { const a = k.split('.'); return { c: +a[0], s: +a[1], i: +a[2] }; }
+// an effect's on/off lane ('c.s.-1'): it steps (holds each point until the next) instead of ramping
+const tfIsToggle = k => { const { s, i } = tfParseKey(k); return s >= 0 && i === -1; };
+function tfStepAt(pts, t) { if (!pts || !pts.length) return null; let v = pts[0].v; for (const p of pts) { if (p.t <= t) v = p.v; else break; } return v; }
 // song tempo as an automation lane on the master ('82.-4.0'): 0..1 covers 60–200 BPM
 const TF_TEMPO_KEY = TF.MASTER + '.-4.0', tfTempoV = bpm => Math.max(0, Math.min(1, (bpm - 60) / 140)), tfTempoBpm = v => 60 + v * 140;
 function tfBpmAt(P, si, tick) { const sc = P.scenes[si], pts = sc && sc.auto && sc.auto[TF_TEMPO_KEY]; return pts && pts.length ? tfTempoBpm(tfValueAt(pts, tick)) : P.bpm; }
@@ -192,7 +195,7 @@ function tfBase(P, k) {
   if (s === -1) return [C.vol, C.pan, C.sa, C.sb][i];
   if (s === -2) { const p = P.pads[c]; return p ? [p.cut, p.res, p.bend == null ? .5 : p.bend][i] : null; }
   if (s === -3) { const p = P.pads[c], d = TFSYN[i]; return p && p.syn && d ? tfSynNorm(d, p.syn.p[d.id]) : null; }   // synth parameter i
-  const f = C.fx[s]; return f ? f.p[i] : null;
+  const f = C.fx[s]; return f ? (i === -1 ? (f.on ? 1 : 0) : f.p[i]) : null;
 }
 function tfSetBase(P, k, v) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return;
@@ -401,6 +404,7 @@ class TFHost {
     else if (s === -2 && i === 2) { const p = this.P.pads[c]; ex.tf_ch_bend(c, (v * 2 - 1) * ((p && p.bendR) || 2), v * 2 - 1); }   // pitch bend: ± the pad's bend range
     else if (s === -3) { if (ex.tf_syn_param) ex.tf_syn_param(c, i, v); }
     else if (s === -2) { if (this.frozen(c)) return; ex.tf_ch_set(c, i === 0 ? 5 : 6, i === 0 ? 20 * Math.pow(1000, v) : 0.7 + v * v * 18); }
+    else if (i === -1) { if (!this.frozen(c)) ex.tf_fx_on(c, s, v >= .5 ? 1 : 0); }
     else ex.tf_fx_param(c, s, i, v);
   }
   // the song's key for the Resonator: root, then the scale's steps (sent by the page, which knows the scales)
@@ -716,7 +720,7 @@ class TFHost {
     this.pos = { scene: m.scene, tick, tps: m.tps };
     const bpm = tfBpmAt(this.P, m.scene, tick); if (bpm !== this.bpmNow) { this.bpmNow = bpm; this.ex.tf_set_bpm(bpm); }   // synced effects and LFOs follow a tempo lane
     for (const k of this.autoOn) if (!A[k] || !A[k].length || this.live.has(k)) { const b = tfBase(this.P, k); if (b != null) this.applyKey(k, b); this.autoOn.delete(k); }
-    for (const k in A) { const pts = A[k]; if (!pts || !pts.length || this.live.has(k)) continue; this.applyKey(k, tfValueAt(pts, tick)); this.autoOn.add(k); }
+    for (const k in A) { const pts = A[k]; if (!pts || !pts.length || this.live.has(k)) continue; this.applyKey(k, tfIsToggle(k) ? tfStepAt(pts, tick) : tfValueAt(pts, tick)); this.autoOn.add(k); }
   }
   render(n, L, R) {
     const ex = this.ex; let off = 0;
@@ -793,4 +797,4 @@ function tfWarmEngine(module, sr) {
   for (let r = 0; r < 3; r++) { if (sid > 0) for (let c = 4; c < 8; c++) ex.tf_voice_start(c, sid, 0, 1 + c * .1, 0, 1, 0, .8, .0005, .05, -1, 1, 0);
     for (let k = 0; k < 4; k++) ex.tf_syn_note(k, 0, 0, .8, .3, 2 + k, 0); for (let b = 0; b < 100; b++) ex.tf_render(128); }
 }
-if (typeof module !== 'undefined') module.exports = { TF_ENV_DIVS, tfEnvDiv, tfWarmEngine, TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { tfIsToggle, tfStepAt, TF_ENV_DIVS, tfEnvDiv, tfWarmEngine, TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
