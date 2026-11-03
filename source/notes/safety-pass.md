@@ -15,7 +15,7 @@ Run in this order after `./build.sh`:
    - the hold-to-type value box: markup and junk typed in never run, values stay in range
 5. `node tools/audit/smoke.cjs`: the app from a user's side, at three iPhone sizes and two Android phones (Chrome) (deploy.sh runs `--quick`, one size, and won't publish if it fails):
    - starts with no errors; every page, Sound page (sample, drum, every synth engine page and tab), every effect and mode, and 28 menus open cleanly
-   - nothing wider than the screen, no toolbar key cut off, every canvas shown at the size it was drawn; the transport and tab bar never move between pages
+   - nothing wider than the screen, no toolbar key cut off, no text cut off (long pad and scene names set on purpose), every canvas shown at the size it was drawn; the transport and tab bar never move between pages
    - older browsers: one that can't run the app gets a plain explanation; one without CSS colour mixing still runs, colours mixed for it, and Engine check says so
    - the d-pad reaches every control on every page and menu, from where it starts, using only the arrows
    - 20 s of playback: no growing pile of page elements or memory
@@ -46,5 +46,8 @@ Devices (no real older iPhone or Android to hand yet): the support check at star
 ## Bug hunting (every safety pass)
 - `node tests/fuzz.cjs 120` — engine stress test: random edits while the song plays; knob ends favoured. Fails on invalid audio, a safety mute, silence, a stalled song or runaway memory, and prints the shortest recipe.
 - `node tools/audit/session.cjs 400` — a working session in a real browser (pads, buttons, knobs, timeline, d-pad, undo, menus, background). Prints the seed to replay.
-- Both run in short form on every deploy.
+- `node tools/audit/stress.cjs` — the heaviest project allowed (64 scenes, the full 10 minutes of audio clips, 300 of your own wavetables,
+  on/off lanes, synced envelopes, ducker bands): frame time and opening time of every page while it plays, memory, the engine's table
+  slots, and meters and analyzers carrying on after a display breaks on purpose. Fails on a slow page or any error.
+- fuzz and session run in short form on every deploy.
 - From a user: ask for Engine check → Copy results. It now carries Safety mutes (channel and the effects on it) and the last 50 actions.

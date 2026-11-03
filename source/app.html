@@ -726,8 +726,6 @@ async function warmBuiltins(proj) {
     const s = buildKitSample(key, k[1]); SAMPLES.set(id, s); if (s.frames > KIT_SR) DB.put('kv', ck, { id, sr: s.sr, ch: s.ch, frames: s.frames, data: s.data });
     await new Promise(r => setTimeout(r, 0)); }   // let the screen breathe between sounds
 }
-function newJungle() { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the Liquid jungle kit…');
-  setTimeout(async () => { const np = jungleProject(); await warmBuiltins(np); await projNew(np); renderAll(); toast('Liquid jungle · F minor · 174 BPM'); }, 60); }
 function newStress(two) { if (T.playing) stop(); pushUndo('all'); closeSheet(); toast('Building the stress test…');
   setTimeout(async () => { const np = two ? stress2Project() : stressProject(); await warmBuiltins(np); await projNew(np); renderAll(); toast(two ? 'Stress test 2 loaded: scene 1 is a full mix, scene 2 the worst case' : 'Stress test loaded'); }, 60); }
 const grSrc = p => p && p.src === 'synth' && p.syn && p.syn.eng === 'gr' && p.syn.gr && p.syn.gr.src || null;   // a granular pad's source sound
@@ -1691,10 +1689,6 @@ function addNoteAt(t, row) {
   if (tl.mode === 'bank') UI.pad = pi; audition(pi, p); afterEdit(); return n;
 }
 const deleteSelNote = () => deleteSel();
-function moveNoteRow(s, d) { const tl = UI.tl, sc = P.scenes[UI.scene];
-  if (tl.mode === 'bank') { const row = clamp(s.pi - UI.bank * 16 + d, 0, 15), npi = UI.bank * 16 + row; if (npi === s.pi) return; touchPad(npi);
-    const arr = sc.notes[s.pi]; arr.splice(arr.indexOf(s.n), 1); if (!arr.length) delete sc.notes[s.pi]; (sc.notes[npi] = sc.notes[npi] || []).push(s.n); s.pi = npi; UI.pad = npi; audition(npi, s.n.p); }
-  else { const np = KR.p(clamp(KR.row(s.n.p) + d, 0, KR.rows() - 1)); if (np !== s.n.p) { s.n.p = np; audition(s.pi, np); } } }
 function afterEdit() { syncScene(UI.scene); markDirty(); drawTL(); renderScenes(); updatePanel(); }
 /* Follow: the timeline turns the page with the playhead. Touching the timeline while it plays pauses that (the view stays where you
    are working); the key dims until a tap on it, or Play, picks the playhead up again. Tap it while following to turn following off;
@@ -2108,9 +2102,6 @@ function openDiag() {
 
 /* ---------- export, backup ---------- */
 function songOrder() { const o = []; P.scenes.forEach((s, i) => { if (noteCount(s)) o.push({ scene: i, reps: s.repeat }); }); return o.length ? o : [{ scene: UI.scene, reps: 1 }]; }
-function encodeWav(L, R, sr) { const n = L.length, buf = new ArrayBuffer(44 + n * 4), v = new DataView(buf), ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  ws(0, 'RIFF'); v.setUint32(4, 36 + n * 4, true); ws(8, 'WAVE'); ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 4, true); v.setUint16(32, 4, true); v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, n * 4, true);
-  let o = 44; for (let i = 0; i < n; i++) for (const s0 of [L[i], R[i]]) { const s = clamp(s0 === s0 ? s0 : 0, -1, 1); v.setInt16(o, s < 0 ? s * 32768 : s * 32767, true); o += 2; } return new Uint8Array(buf); }
 const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 function crc32(u) { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
 function makeZip(files) { const enc = new TextEncoder(), parts = [], central = []; let off = 0;

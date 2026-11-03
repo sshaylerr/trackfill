@@ -100,7 +100,6 @@ const anF = b => TF_AN_LO * Math.pow(TF_AN_HI / TF_AN_LO, (b + .5) / TF_AN_BANDS
    full view. While you look back, the picture holds still (the history keeps filling) and says how far back you are. */
 const AN_VIEW = { spec: { fLo: TF_AN_LO, fHi: TF_AN_HI }, sgram: { fLo: TF_AN_LO, fHi: TF_AN_HI, fpp: .5, right: null }, wave: { cpp: 2, amp: 1, right: null } };
 const AN_VDEF = JSON.parse(JSON.stringify(AN_VIEW));
-const anLive = k => { const v = AN_VIEW[k]; return v.right == null; };
 function anFreqZoom(v, s, c0, c1, span) {   // pinch on a log-frequency axis: s = stretch, c0 = the fraction under the fingers at the start, c1 = where they are now
   const L0 = Math.log(v.f0Lo), L1 = Math.log(v.f0Hi), at = L0 + (L1 - L0) * c0, w = Math.max(Math.log(2), Math.min(Math.log(TF_AN_HI / TF_AN_LO), (L1 - L0) / s));
   let lo = at - w * c1; lo = Math.max(Math.log(TF_AN_LO), Math.min(Math.log(TF_AN_HI) - w, lo)); v.fLo = Math.exp(lo); v.fHi = Math.exp(lo + w); }

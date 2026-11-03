@@ -198,10 +198,6 @@ function* fitGen(x, kind, opts = {}) {
   return Object.assign(out(r.value || last), { n, total, done: true }); }
 // the distance from a hit to a voice (for picking the nearest existing type)
 function voiceDist(x, kind, v, T) { T = T || Math.min(1.2, dur(x) + .05); const R = feats(x, T, kind), y = DVF().dvRender(DVF().dvFull(v), { sr: SR, seed: 3, maxLen: T }); return dist2(R, feats(prep(y), T, kind), kind); }
-// a first guess at what kind of drum a hit is, from its sound (the player can change it)
-function guessKind(x) { const f = features(x, SR, 'perc'); if (!f) return 'perc'; const [b20, b60, b120, b250, b500, b1k, b2k, b4k, b8k] = f.bands, lowish = Math.max(b20, b60, b120), high = Math.max(b4k, b8k);
-  if (lowish > -6 && f.len60 > 120) return 'kick'; if (lowish > -8) return 'kick'; if (high > -4 && f.len60 > 600) return 'crash'; if (high > -4 && f.len60 > 250) return 'open hat'; if (high > -4) return 'closed hat';
-  if (f.flat > .3 && b1k > -12) return f.cBody > 2500 ? 'clap' : 'snare'; return 'snare'; }
 function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 /* The whole job for Make from a sample, as a list of messages: { t: 'near', id, d } for the nearest existing type, then { t: 'step', p, d, n, total }
