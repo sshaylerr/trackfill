@@ -40,7 +40,9 @@ function scopeStep(dt) {
   const v = quiet ? 0 : SCOPE.vis; SCOPE.visD = Math.abs(v) > Math.abs(SCOPE.visD) ? v : SCOPE.visD + (v - SCOPE.visD) * Math.min(1, dt * 8);
 }
 const scopeMoving = () => (SCOPE.ch >= 0 || SCOPE.fc >= 0) && SCOPE.views.length && (SCOPE.sheet >= 0 && performance.now() - SCOPE.at < 1000 ||performance.now() - SCOPE.at < 200 || SCOPE.pk[0] > -100 || SCOPE.pk[1] > -100 || SCOPE.io.hold.some(v => v > -100) || SCOPE.disp.some(v => v > -100) || Math.abs(SCOPE.visD) > .05);
-function scopeFrame(dt) { scopeStep(dt); anStep(dt); for (const v of SCOPE.views) if (v.cv.isConnected) v.draw(); }
+// each display draws on its own: one that fails is set aside (and noted for Engine check) while every other meter and analyzer carries on
+function scopeFrame(dt) { guarded('scope', () => scopeStep(dt)); guarded('analyzer', () => anStep(dt));
+  for (const v of SCOPE.views) if (v.cv.isConnected && !v.dead) { try { v.draw(); v.err = 0; } catch (e) { if (++v.err > 3) v.dead = true; appError('display: ' + (e && e.message || e)); } } }
 function scopeView(cv, draw) { SCOPE.views.push({ cv, draw }); }
 
 /* ---------- drawing ---------- */
@@ -48,6 +50,10 @@ const SPEC_LO = 25, SPEC_HI = 20000, SPEC_DB = 84;
 const specX = (f, x, w) => x + w * Math.log(f / SPEC_LO) / Math.log(SPEC_HI / SPEC_LO);
 function prepCanvas(cv) { const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, Math.round(r.height));
   if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; } const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); return { g, W, H }; }
+// canvas text that fits a width: shortened with an ellipsis rather than running into what's next to it
+const FIT = new Map();
+function fitText(g, t, w) { t = String(t); const k = g.font + '|' + w + '|' + t, hit = FIT.get(k); if (hit != null) return hit; if (FIT.size > 500) FIT.clear(); const r = fitText0(g, t, w); FIT.set(k, r); return r; }
+function fitText0(g, t, w) { if (g.measureText(t).width <= w) return t; let a = 0, b = t.length; while (b - a > 1) { const m = (a + b) >> 1; if (g.measureText(t.slice(0, m) + '…').width <= w) a = m; else b = m; } return t.slice(0, a).trimEnd() + '…'; }
 function vText(g, t, x, y, col, al = 'left', sz = 10.5, wt = 500) { g.fillStyle = col; g.font = `${wt} ${sz}px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle'; g.fillText(t, x, y); g.textAlign = 'left'; }
 // spectrum: filled curve over a log frequency axis; o.grid draws 100 Hz / 1 kHz / 10 kHz lines and labels
 function drawSpectrum(g, x, y, w, h, o = {}) {

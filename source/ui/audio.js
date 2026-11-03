@@ -44,13 +44,16 @@ async function audImportFile(pi, f) {
 /* ----- stretch: Clean renders made in the background (the engine repitches until one is ready) ----- */
 const AUDX = { pend: new Set(), t: 0 };
 function audStretchSoon() { clearTimeout(AUDX.t); AUDX.t = setTimeout(audStretchAll, 300); }
-async function audStretchAll() { const want = new Set();
-  for (const sc of P.scenes) for (const k in sc.clips || {}) for (const c of sc.clips[k]) { const key = tfClipKey(P, c); if (!key) continue; want.add(key); if (SAMPLES.has(key) || AUDX.pend.has(key)) continue;
-    const s = SAMPLES.get(c.s); if (!s) continue; AUDX.pend.add(key); stretchBusy(1);
+async function audStretchAll() { const want = new Map(); let held = 0;
+  for (const sc of P.scenes) for (const k in sc.clips || {}) for (const c of sc.clips[k]) { const key = tfClipKey(P, c); if (key && !want.has(key)) want.set(key, c); }
+  for (const k of [...SAMPLES.keys()]) if (k.startsWith('x:c:') && !want.has(k) && !AUDX.pend.has(k)) { SAMPLES.delete(k); send({ t: 'sampleDel', key: k }); ENG.sent.delete(k); }   // renders nothing uses go first
+  const made = () => { let n = 0; for (const [k, x] of SAMPLES) if (k.startsWith('x:c:')) n += x.frames / x.sr; return n; };   // Clean renders have a budget of their own: the same ten minutes
+  for (const [key, c] of want) { if (SAMPLES.has(key) || AUDX.pend.has(key)) continue; const s = SAMPLES.get(c.s); if (!s) continue; if (made() + tfClipLen(P, c) > AUD_MAX_SEC) { held++; continue; }
+    AUDX.pend.add(key); stretchBusy(1);
     try { const a = Math.floor(c.so * s.sr), n = Math.max(1, Math.min(s.frames - a, Math.round(c.d * s.sr))), sub = { sr: s.sr, ch: s.ch, frames: n, data: s.data.subarray(a * s.ch, (a + n) * s.ch) };
       const r = await cleanStretch(sub, 1 / tfClipRate(P, c), 0); SAMPLES.set(key, { id: key, name: s.name + ' · stretched', sr: r.sr, ch: 2, frames: r.L.length, data: interleave([r.L, r.R], r.L.length), x: true }); ensureSample(key); }
-    catch (e) { toast('Stretch could not render: ' + (e.message || e)); } finally { AUDX.pend.delete(key); stretchBusy(-1); } }
-  for (const k of [...SAMPLES.keys()]) if (k.startsWith('x:c:') && !want.has(k) && !AUDX.pend.has(k)) { SAMPLES.delete(k); send({ t: 'sampleDel', key: k }); ENG.sent.delete(k); } }
+    catch (e) { toast('Stretch could not render (those clips repitch): ' + (e.message || e)); break; } finally { AUDX.pend.delete(key); stretchBusy(-1); } }   // one message; the rest wait for the next change
+  if (held && !AUDX.told) { AUDX.told = true; toast(`Clean stretch covers ${AUD_MAX_SEC / 60} minutes of clips; ${held === 1 ? 'one more repitches' : held + ' more repitch'} instead`); } }
 /* ----- clip edits (toolbar, Edit sheet, Sound page and d-pad share these) ----- */
 function audSplit() { const x = audSelInfo(); if (!x) { toast('Import a recording first'); return; } const lay = audLayout(), at = audClipSec(x.si, x.c, lay), L = audLen(x.c), cut = AED.cur - at;
   if (cut <= .01 || cut >= L - .01) { toast('Put the cursor inside the clip: tap where to cut'); return; }
@@ -87,8 +90,15 @@ function audZoom(f, cx) { const vw = AED.W - LABEL_W, x = cx == null ? vw / 2 : 
 function audClampX() { const vw = AED.W - LABEL_W; AED.sx = clamp(AED.sx, -vw * .02 / AED.zoom, Math.max(0, audSongLen() - vw * .9 / AED.zoom)); }
 const audX = s => LABEL_W + (s - AED.sx) * AED.zoom, audS = x => AED.sx + (x - LABEL_W) / AED.zoom;
 const audLane = () => { const y0 = RULER_H + AUD_SB + audBR() * 4 + 6; return { y0, y1: AED.H - 4 }; };
-function audDraw() {
-  const cv = AED.cv; if (!cv || !cv.isConnected || !AED.W) return; const g = cv.getContext('2d'), W = AED.W, H = AED.H, lay = audLayout(), tl = UI.tl; g.setTransform(AED.dpr, 0, 0, AED.dpr, 0, 0);
+// drawn in two layers: everything but the playhead goes to a canvas kept aside, so while the song plays a frame is that picture plus one line
+function audDraw(head) {
+  const cv = AED.cv; if (!cv || !cv.isConnected || !AED.W) return; const W = AED.W, H = AED.H, key = AED.sx + ':' + AED.zoom + ':' + cv.width + ':' + cv.height;
+  if (!head || AED.key !== key || !AED.off) { const o = AED.off = AED.off || document.createElement('canvas'); if (o.width !== cv.width || o.height !== cv.height) { o.width = cv.width; o.height = cv.height; } audDrawAll(o.getContext('2d')); AED.key = key; }
+  const g = cv.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(AED.off, 0, 0); g.setTransform(AED.dpr, 0, 0, AED.dpr, 0, 0);
+  const ph = audPlaySec(audLayout()), px = ph == null ? -1 : Math.round(audX(ph)); if (px >= LABEL_W && px < W) { g.fillStyle = COL.ink; g.fillRect(px, 0, 1.5, H); }
+  if (T.playing && !AED.raf) AED.raf = setTimeout(() => { AED.raf = 0; if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audFollow(); audDraw(true); } }, 50); }
+function audDrawAll(g) {
+  const W = AED.W, H = AED.H, lay = audLayout(), tl = UI.tl; g.setTransform(AED.dpr, 0, 0, AED.dpr, 0, 0);
   g.fillStyle = COL.panel; g.fillRect(0, 0, W, H); const { y0: ly0, y1: ly1 } = audLane(), rowsTop = RULER_H + AUD_SB + 2;
   g.save(); g.beginPath(); g.rect(LABEL_W, 0, W - LABEL_W, H); g.clip();
   for (const e of lay) for (let r = 0; r < e.reps; r++) { const sc = P.scenes[e.scene], a = e.at + r * e.len, x0 = audX(a), x1 = audX(a + e.len); if (x1 < LABEL_W || x0 > W) continue;
@@ -100,7 +110,10 @@ function audDraw() {
     g.save(); g.beginPath(); g.rect(x0, RULER_H, Math.max(0, x1 - x0), AUD_SB); g.clip(); g.fillStyle = COL.ink; g.font = '700 10px ' + FONT_UI; g.textBaseline = 'middle'; g.fillText(`${e.scene + 1} ${sc.name || ''}${e.reps > 1 ? ' · ' + (r + 1) + '/' + e.reps : ''}`, x0 + 4, RULER_H + AUD_SB / 2); g.restore();
     const BR_ = audBR(), lh = Math.max(1, (BR_ - 3) / 16); for (let b = 0; b < 4; b++) { const y = rowsTop + b * BR_; if (b % 2) { g.fillStyle = 'rgba(255,255,255,.025)'; g.fillRect(x0, y, x1 - x0, BR_); }
       for (let k = 0; k < 16; k++) { const pi = b * 16 + k, ns = sc.notes[pi]; if (!ns || !ns.length || pi === UI.pad) continue; g.fillStyle = PAD_COLORS[P.pads[pi].color];   // pad 1 at the bottom of its bank's row, as on the pads
-        for (const n of ns) { const nx = audX(a + audTickSec(e.scene, n.t)), nw = Math.max(1.5, audX(a + audTickSec(e.scene, n.t + n.len)) - nx - .5); if (nx > W || nx + nw < LABEL_W) continue; g.fillRect(nx, y + BR_ - 2 - (k + 1) * lh, nw, Math.max(1, lh - .3)); } } }
+        const ry = y + BR_ - 2 - (k + 1) * lh, rh = Math.max(1, lh - .3); let r0 = 0, r1 = -1e9;   // notes closer than a pixel are drawn as one run (zoomed out, a scene is thousands of them)
+        for (const n of ns) { const nx = audX(a + audTickSec(e.scene, n.t)), ne = Math.max(nx + 1.5, audX(a + audTickSec(e.scene, n.t + n.len)) - .5); if (nx > W || ne < LABEL_W) continue;
+          if (nx < r1 + .25) { if (ne > r1) r1 = ne; } else { if (r1 > r0) g.fillRect(r0, ry, r1 - r0, rh); r0 = nx; r1 = ne; } }
+        if (r1 > r0) g.fillRect(r0, ry, r1 - r0, rh); } }
     // the ruler: this scene's bars
     g.fillStyle = COL.mute; g.font = '500 10px ' + FONT_LCD; g.textBaseline = 'middle'; for (let bb = 0; bb < sc.bars; bb++) { const x = audX(a + audTickSec(e.scene, bb * BAR)); if (x > LABEL_W - 20 && x < W && AED.zoom * e.len / sc.bars > 18) g.fillText(String(bb + 1), x + 3, RULER_H / 2); } }
   // the clips
@@ -115,12 +128,11 @@ function audDraw() {
   if (!clips.length) { g.fillStyle = COL.mute; g.font = '500 12px ' + FONT_UI; g.textBaseline = 'middle'; g.fillText('Tap where it should start, then Edit › Import', LABEL_W + 12, mid); }
   // the cursor (where Import, Paste and Split work) and the playhead
   const cx = Math.round(audX(AED.cur)) + .5; g.setLineDash([4, 3]); g.strokeStyle = COL.accent; g.lineWidth = 1.2; g.beginPath(); g.moveTo(cx, RULER_H); g.lineTo(cx, H); g.stroke(); g.setLineDash([]);
-  const ph = audPlaySec(lay); if (ph != null) { g.fillStyle = COL.ink; g.fillRect(Math.round(audX(ph)), 0, 1.5, H); }
   g.restore();
   // the labels, as on the timeline
   g.fillStyle = COL.raised; g.fillRect(0, 0, LABEL_W, H); g.fillStyle = COL.line; g.fillRect(0, RULER_H - 1, W, 1); g.font = '600 10px ' + FONT_LCD; g.textBaseline = 'middle'; g.fillStyle = COL.mute;
-  g.fillText('Scene', 6, RULER_H + AUD_SB / 2); for (let b = 0; b < 4; b++) g.fillText('Bank ' + BANKS[b], 6, rowsTop + b * audBR() + audBR() / 2); g.fillStyle = COL.ink; g.fillText(P.pads[UI.pad].name || 'Audio', 6, mid);
-  if (T.playing && !AED.raf) AED.raf = setTimeout(() => { AED.raf = 0; if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audFollow(); audDraw(); } }, 50); }
+  g.fillText('Scene', 6, RULER_H + AUD_SB / 2); for (let b = 0; b < 4; b++) g.fillText('Bank ' + BANKS[b], 6, rowsTop + b * audBR() + audBR() / 2); g.fillStyle = COL.ink; g.fillText(fitText(g, P.pads[UI.pad].name || 'Audio', LABEL_W - 9), 6, mid);
+}
 function audPlaySec(lay) { const pos = heardPos(); if (!pos) return null; const a = audSceneAt(pos.scene, lay); return a == null ? null : a + audTickSec(pos.scene, pos.tick); }
 function audFollow(now) { if (!AED.follow || (!T.playing && !now) || AED.drag) return; const ph = audPlaySec(audLayout()); if (ph == null) return; const x = audX(ph); if (x > AED.W - 16 || x < LABEL_W) { AED.sx = ph - 8 / AED.zoom; audClampX(); } }
 // snapping a moment to the grid of the scene it lands in

@@ -140,11 +140,11 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 /* ---------- scene keys ---------- */
 #scenes{display:flex;gap:6px;overflow-x:auto;flex:none;height:50px;scrollbar-width:none;padding-bottom:2px}
 #scenes::-webkit-scrollbar{display:none}
-.slot{flex:0 0 56px;height:47px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.08);
+.slot{flex:0 0 68px;height:47px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.08);
   display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 6px;position:relative;overflow:hidden;text-align:left}
-.slot .srow{display:flex;align-items:baseline;gap:4px;max-width:calc(100% - 8px);min-width:0;height:15px}
+.slot .srow{display:flex;align-items:baseline;gap:3px;max-width:calc(100% - 9px);min-width:0;height:15px}
 .slot .num{font:500 14px/14px var(--font-lcd);flex:none}
-.slot .mini{display:block;width:44px;height:18px;border-radius:2px;margin-top:4px}
+.slot .mini{display:block;width:56px;height:18px;border-radius:2px;margin-top:4px}
 .slot.empty .mini{opacity:.5}
 .slot.add{opacity:.55;display:flex;align-items:center;justify-content:center}
 .slot .lbl{font-size:10.5px;min-width:0;font-weight:500;color:var(--print);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;height:13px;line-height:13px}
@@ -352,9 +352,12 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .strip.sel{border-color:var(--line);background:var(--panel)}
 .strip.sel .sname b{color:var(--accent)}
 .strip.empty{opacity:.4}
-.sname{display:flex;flex-direction:column;align-items:center;width:100%;min-width:0;height:26px;line-height:12px}
-.sname em{font:400 9.5px var(--font-lcd);font-style:normal;color:var(--mute)}
-.sname b{font:600 11px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.sname{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-width:0;height:34px;line-height:12px}
+.sname em{font:400 9.5px/11px var(--font-lcd);font-style:normal;color:var(--mute)}
+.sname b{font:600 11.5px "Barlow Semi Condensed",var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.fxn{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nar{font-family:"Barlow Semi Condensed",var(--font-ui)!important}
+.sname b.two{white-space:normal;line-height:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-align:center;font-size:10px!important}
 .sname i{display:block;width:70%;height:2px;border-radius:1px;margin-top:1px}
 .ms2{display:flex;gap:2px;width:100%;justify-content:center}
 .ms2 button{width:19px;height:19px;border-radius:2px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #050506;font:700 9px var(--font-ui);color:var(--print)}
@@ -480,9 +483,9 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 /* messages: a small readout in the bottom-left corner, just above the mode keys */
 /* messages: a small box in the bottom-left corner that slides up from behind the mode keys */
 #toast{position:fixed;left:max(16px,env(safe-area-inset-left,0px),calc(50% - 374px));bottom:calc(max(6px,env(safe-area-inset-bottom,0px)) + 50px);z-index:30;
-  max-width:min(60%,300px);display:flex;align-items:center;gap:8px;padding:0 12px 0 10px;height:30px;border-radius:7px;
+  max-width:min(72%,320px);display:flex;align-items:center;gap:8px;padding:6px 12px 6px 10px;min-height:30px;line-height:16px;border-radius:7px;
   background:linear-gradient(180deg,#1d1d21,#131316);border:1px solid var(--edge);box-shadow:0 4px 14px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);
-  color:var(--ink);font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  color:var(--ink);font-weight:600;font-size:12.5px;overflow:hidden;
   opacity:0;transform:translateY(18px);transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .15s;pointer-events:none}
 #toast::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)}
 #toast.show{opacity:1;transform:none}
@@ -632,6 +635,22 @@ const innerBox = el => ({ width: el.clientWidth, height: el.clientHeight });
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// text that doesn't fit its box: a little smaller (down to 85%), else the narrow face at its size (shrunk again if it must, never below 9 px);
+// then a shorter form if it has one (data-alt), or two lines for a name in a mixer strip; past that, the ellipsis
+const FIT_SEL = '.slot .lbl, .sname b, .lanebox b, .klab, .key, .lsub, .li > span, .shTitle > span, .synInfo, .sw > span, .fxn, .blurb, .pad .nm, .lcdbox, .scopebox > span, #sheet .btn, .chip, .tgrid > button';
+function fitFonts(root) { if (!root) return; const els = [...(root.matches && root.matches(FIT_SEL) ? [root] : []), ...root.querySelectorAll(FIT_SEL)], fz = el => parseFloat(getComputedStyle(el).fontSize);
+  for (const el of els) if (el.style.fontSize || el.classList.contains('nar') || el.classList.contains('two')) { el.style.fontSize = ''; el.classList.remove('two', 'nar'); }
+  const RG = document.createRange(), over = list => list.filter(el => { const w = el.clientWidth; if (!w || el.scrollWidth < w) return false;   // all reads, then all writes: one layout per round
+    if (el.scrollWidth > w) return true; RG.selectNodeContents(el); const cs = getComputedStyle(el); return RG.getBoundingClientRect().width > el.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth) + .05; });   // equal widths: measure the text itself (a fraction over still shows the ellipsis)
+  let todo = over(els); const st = new Map(todo.map(el => [el, { f0: fz(el), step: 0 }]));
+  for (let round = 0; round < 6 && todo.length; round++) {
+    const plan = todo.map(el => { const q = st.get(el), f = fz(el), want = Math.floor(f * el.clientWidth / (el.scrollWidth + 1) * 4) / 4 - (round ? .25 : 0); return [el, q, f, want]; });
+    for (const [el, q, f, want] of plan) {
+      if (q.step === 0 && want >= q.f0 * .85) el.style.fontSize = want + 'px';   // 1: a little smaller
+      else if (q.step === 0) { q.step = 1; el.style.fontSize = ''; el.classList.add('nar'); }   // 2: the narrow face
+      else if (q.step === 1 && want >= 9) el.style.fontSize = want + 'px';
+      else if (q.step === 1) { q.step = 2; el.style.fontSize = '9px'; if (el.dataset.alt) { el.textContent = el.dataset.alt; el.classList.remove('nar'); el.style.fontSize = ''; q.step = 0; delete el.dataset.alt; } else if (el.matches('.sname b')) el.classList.add('two'); } }   // 3: its short form, or two lines
+    todo = over(todo.filter(el => st.get(el).step < 2)); } }
 function h(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
 const noteName = p => NOTE_NAMES[((p % 12) + 12) % 12] + (3 + Math.floor(p / 12));
 const pct = v => Math.round(v * 100) + '%';
@@ -682,12 +701,13 @@ function applyTheme() {
     const A = rgb(a); st.setProperty('--accent-glow', `rgba(${A.join(',')},.55)`); }
   BODY_VARS.forEach((k, i) => th.body ? st.setProperty('--' + k, th.body[i]) : st.removeProperty('--' + k));
   SCR_VARS.forEach((k, i) => th.scr ? st.setProperty('--' + k, th.scr[i]) : st.removeProperty('--' + k));
+  try { const refit = () => { fitFonts($('#scenes')); fitFonts($('#view')); fitFonts($('#top')); }; Promise.all([400, 500, 600, 700].map(w => document.fonts.load(w + ' 12px "Barlow Semi Condensed"'))).then(refit); document.fonts.ready.then(refit); } catch (e) {}   // fitFonts falls back on it: fit again once it's in
   const fam = UI.font === 'narrow' ? '"Barlow Semi Condensed", "Nunito"' : '"Nunito"';   // Rounded (the default) or Narrow, which fits more on a phone's width
   st.setProperty('--font-ui', fam + ', system-ui, -apple-system, "Segoe UI", sans-serif'); st.setProperty('--font-lcd', fam + ', system-ui, sans-serif');
   document.body.dataset.pads = UI.padStyle || 'dark'; readColors();
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = th.body ? th.body[0] : '#1c1c1f';
 }
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400); }
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400 + Math.max(0, String(msg).length - 40) * 45); }   // longer messages stay longer
 function btn(label, fn, cls = 'btn') { const b = h('button', cls, label); b.onclick = fn; return b; }
 function seg(labels, active, fn) { const s = h('div', 'keys'); labels.forEach((l, i) => { const b = h('button', 'key sm' + (i === active ? ' on' : ''), l); b.onclick = () => fn(i); s.append(b); }); return s; }
 
@@ -823,7 +843,7 @@ onmessage = async e => { try {
 function buildBackup() { return new Promise(async res => {
   const onPage = async () => { const projects = [], samples = {};
     for (const m of await DB.all('pmeta')) { const r = await DB.get('projects', m.id); if (r) projects.push({ meta: m, data: r.data }); }
-    for (const [id, s] of SAMPLES) if (id.startsWith('u:') && s.data instanceof Int16Array) samples[id] = { name: s.name, sr: s.sr, ch: s.ch, frz: !!s.frz, wt: s.wt || 0, folder: s.folder || '', tags: s.tags || [], atags: s.atags || [], aud: !!s.aud, added: s.added || 0, data: i16ToB64(s.data) };
+    for (const [id, s] of SAMPLES) if (id.startsWith('u:') && s.data instanceof Int16Array) samples[id] = sampleToFile(s);
     const extra = { userDrums: (await DB.get('kv', 'userDrums')) || [], synPresets: (await DB.get('kv', 'synPresets')) || [], wtBrowse: (await DB.get('kv', 'wtBrowse')) || null };
     res({ blob: new Blob([JSON.stringify(Object.assign({ format: 'trackfill-all', version: PROJECT_VERSION, saved: new Date().toISOString(), projects, samples }, extra))], { type: 'application/json' }), n: projects.length }); };
   if (!DB.db || typeof Worker === 'undefined') return onPage();
@@ -1031,6 +1051,7 @@ function onEngine(m) {
     if (m.ch === MASTER) { T.playing = false; updateTransport(); }
     toast(`Safety mute on ${who}: ${m.why === 1 ? 'it produced invalid audio' : 'levels ran away'}. It has been reset.` + (n - lastTrip < 4000 ? ' Check feedback, resonance and drive.' : ''));
     lastTrip = n; trail('safety mute: ' + who + (m.why === 1 ? ' (invalid audio)' : ' (runaway level)')); TRAIL.trips = TRAIL.trips.concat(new Date().toTimeString().slice(0, 8) + ' ' + who + (m.why === 1 ? ': invalid audio' : ': runaway level') + ' · effects ' + ((P.chans[m.ch] || {}).fx || []).filter(f => f.on).map(f => (FX_DEFS[f.type] || {}).name + (FX_DEFS[f.type] && FX_DEFS[f.type].modes.length > 1 ? ' ' + FX_DEFS[f.type].modes[f.mode || 0].n : '')).join(', ')).slice(-8);
+  } else if (m.t === 'err' && /^display data/.test(m.msg)) { appError(m.msg); SCOPE.key = null; setTimeout(() => { if (typeof scopeWant === 'function') scopeWant(); }, 500);   // the engine dropped a display's numbers: ask for them again (sound was never affected)
   } else if (m.t === 'err') { ENG.err = m.msg; ENG.errLog = (ENG.errLog || []).concat(m.msg).slice(-5); toast('Audio engine error: ' + m.msg + ' · Engine check has the details'); }
   else if (m.t === 'oom') { const freed = engineTidy(true); if (freed && m.key && !ENG.oomRetry.has(m.key)) { ENG.oomRetry.add(m.key); ENG.sent.delete('T' + m.key); ENG.sent.delete(m.key); ensureTable(m.key); ensureSample(m.key, true); setTimeout(() => ENG.oomRetry.delete(m.key), 5000); }
     else toast('Out of memory: remove unused sounds or effects, or freeze pads'); }
@@ -1204,7 +1225,7 @@ function renderView() {
   const V = $('#view'); V.innerHTML = ''; UI.regs = []; TL.cv = null; SCOPE.views = SCOPE.views.filter(v => v.cv.closest('#sheet'));
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === (UI.view === 'fx' ? UI.fxBack : UI.view)));
   ({ pads: renderPads, seq: renderSeq, sound: renderSound, mix: renderMix, fx: renderFx })[UI.view](V);
-  updatePanel(); updateSoundChip(); scopeWant();
+  updatePanel(); updateSoundChip(); scopeWant(); fitFonts(V); fitFonts($('#top'));
 }
 function updateTransport() {
   $('#bPlay').innerHTML = T.playing ? '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7.5 5.2 19 12 7.5 18.8z"/></svg>';
@@ -1239,7 +1260,7 @@ function sceneMini(i) {
   rows.sort((a, b) => a - b); const sig = rows.map(k => k + '.' + P.pads[k].color).join(',') + '|' + n + '|' + Math.round(sum) + '|' + sc.bars + '|' + sc.repeat;
   let m = MINI.get(i); if (m && m.sig === sig) return m.img;
   // drawn on a canvas, shown as a still image: a live canvas is a layer of its own, and sixteen of them made every frame cost more to put together
-  const cv = MINI.cv || (MINI.cv = document.createElement('canvas')), img = m ? m.img : h('img', 'mini'), W = 44, H = 18, dpr = window.devicePixelRatio || 1; cv.width = W * dpr; cv.height = H * dpr; img.alt = '';
+  const cv = MINI.cv || (MINI.cv = document.createElement('canvas')), img = m ? m.img : h('img', 'mini'), W = 56, H = 18, dpr = window.devicePixelRatio || 1; cv.width = W * dpr; cv.height = H * dpr; img.alt = '';
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
   g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 0, W, H);
   if (rows.length) { const len = sc.bars * BAR, rh = H / Math.max(rows.length, 6), oy = (H - rh * rows.length) / 2;
@@ -1255,7 +1276,7 @@ function renderScenes() {
     el.innerHTML = `<span class="srow"><span class="num">${i + 1}</span><span class="lbl">${esc(sc.name) || (n ? 'Scene' : '—')}</span></span><span class="led"></span><span class="prog"></span>`;
     el.insertBefore(sceneMini(i), el.querySelector('.led')); el.setAttribute('aria-label', `Scene ${i + 1} ${sc.name || ''}`); el.onclick = () => sceneTap(i); S.append(el); });
   if (P.scenes.length < MAX_SCENES) { const add = h('button', 'slot add'); add.innerHTML = '<span class="srow"><span class="lbl">+ Scene</span></span>'; add.setAttribute('aria-label', 'Add a scene'); add.onclick = () => insertScene(P.scenes.length - 1, false); S.append(add); }   // a new empty scene at the end
-  S.scrollLeft = sl; const sel = S.children[UI.scene];
+  fitFonts(S); S.scrollLeft = sl; const sel = S.children[UI.scene];
   if (sel) { const l = sel.offsetLeft, r = l + sel.offsetWidth; if (l < S.scrollLeft || r > S.scrollLeft + S.clientWidth) S.scrollLeft = l - S.clientWidth / 2 + sel.offsetWidth / 2; }
 }
 // the playing scene's light and progress line: touched only when they change (a whole pixel of progress), so playback costs the screen almost nothing
@@ -1307,7 +1328,7 @@ function refreshPadDots() {
     const p = P.pads[pi]; pd.style.setProperty('--pc', chop ? sliceCol(cell) : PAD_COLORS[p.color]); if (chop) pd.classList.toggle('sel', cell === UI.slice); pd.classList.toggle('empty', !hasSound(p) || (chop && cell >= chop.pts.length)); pd.classList.toggle('cursor', UI.panel && UI.keys && cell === UI.keyCell);
     pd.classList.toggle('klatch', !!(kc && ((KEYS.latch && KEYS.latch.pi === pi && KEYS.latch.cell === cell) || (KEYS.arpN && KEYS.arpN.pi === pi && !KEYS.arpN.held.size && !kc.chord && KEYS.arpN.notes.some(x => x.semi === kc.semi))))); pd.classList.toggle('kroot', !!(kc && kc.root)); pd.classList.toggle('kout', !!(kc && kc.out)); pd.classList.toggle('kchord', !!(kc && kc.chord)); pd.classList.toggle('kprog', !!(kc && kc.prog)); if (kc && kc.none) pd.classList.add('empty');
     const html = `<span class="pn">${chop ? cell + 1 : pn != null ? esc(pn) : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; } });
-  const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; }
+  const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; if (p.name && !chop && !UI.keys) sel.dataset.alt = p.name; else delete sel.dataset.alt; fitFonts(sel); }
   if (UI.strip && UI.panel) refreshStrip();
 }
 function stopLatch() { if (KEYS.latch) { send({ t: 'arpStop', tag: KEYS.latch.tag }); KEYS.latch = null; } if (KEYS.arpN) { send({ t: 'arpStop', tag: KEYS.arpN.tag }); KEYS.arpN = null; } }
@@ -1574,7 +1595,7 @@ function drawNotesLane(g) {
   g.fillStyle = COL.raised; g.fillRect(0, RULER_H, LABEL_W, H); g.font = '500 11px ' + FONT_LCD; g.textBaseline = 'middle';
   for (let r = 0; r < rows; r++) { const y = row2y(r); if (y + rh < RULER_H || y > H) continue;
     if (tl.mode === 'bank') { const pi = UI.bank * 16 + r, p = P.pads[pi]; g.fillStyle = PAD_COLORS[p.color]; g.globalAlpha = p.sample ? 1 : .3; g.fillRect(4, y + rh / 2 - 4, 3, 8); g.globalAlpha = 1;
-      g.fillStyle = pi === UI.pad ? COL.ink : (p.sample ? COL.mute : COL.dim); g.fillText((p.name || padLabel(pi)).slice(0, 6), 10, y + rh / 2); }
+      g.fillStyle = pi === UI.pad ? COL.ink : (p.sample ? COL.mute : COL.dim); g.fillText(fitText(g, p.name || padLabel(pi), LABEL_W - 13), 10, y + rh / 2); }
     else if (chop) { g.fillStyle = r === UI.slice ? COL.ink : COL.mute; g.fillText('#' + (r + 1), 10, y + rh / 2); }
     else { const p = KEY_HI - r; g.fillStyle = ((p % 12) + 12) % 12 === 0 ? COL.ink : COL.dim; g.fillText(noteName(p), 6, y + rh / 2); } }
   g.restore(); drawVelLane(g);
@@ -1896,7 +1917,8 @@ function openSheet(title, build, onClose) { const from = UI.justClosed && UI.jus
   if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } UI.sheetClose = onClose || null; navReset(); const S = $('#sheet'), card = S.querySelector('.card'); card.innerHTML = ''; const hd = h('div', 'shTitle');
   UI.sheetCur = { title, build, onClose, back: from }; UI.sheetBack = from ? () => { const b = from; closeSheet(); UI.justClosed = b.back; openSheet(b.title, b.build, b.onClose); } : null;
   if (from) { const bk = btn('‹ Back', UI.sheetBack, 'btn sm shBack'); bk.setAttribute('aria-label', 'Back to ' + from.title); hd.append(bk); }
-  hd.append(h('span', '', esc(title)), btn('Close', closeSheet, 'btn sm')); card.append(hd); build(card); S.hidden = false; UI.sheet = true; placeSheet(); card.scrollTop = 0; if (UI.panel) requestAnimationFrame(updatePanel); }
+  const tt = h('span', '', esc(title)); if (title.includes(' · ')) tt.dataset.alt = title.slice(title.indexOf(' · ') + 3);   // "Analyzer · A01 Kick": cramped, the detail alone
+  hd.append(tt, btn('Close', closeSheet, 'btn sm')); card.append(hd); build(card); S.hidden = false; UI.sheet = true; placeSheet(); fitFonts(card); card.scrollTop = 0; if (UI.panel) requestAnimationFrame(updatePanel); }
 function closeSheet() { if (UI.sheet && UI.sheetCur) { const jc = UI.justClosed = UI.sheetCur; setTimeout(() => { if (UI.justClosed === jc) UI.justClosed = null; }, 400); } UI.sheetCur = null; if (UI.sheetClose) { const f = UI.sheetClose; UI.sheetClose = null; f(); } navReset(); $('#sheet').hidden = true; UI.sheet = false; renderScenes(); renderView(); }
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 function confirmBtn(label, again, fn, cls = 'btn warn') { const b = btn(label, e => { if (e) e.stopPropagation(); if (b._armed) { fn(); return; } b._armed = true; b.textContent = again; setTimeout(() => { b._armed = false; b.textContent = label; }, 3000); }, cls); return b; }
@@ -2051,7 +2073,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-03', ['New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
+  ['2026-11-03', ['Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
@@ -2170,8 +2192,11 @@ function sampleFromFile(id, s) { if (!/^u:[A-Za-z0-9_-]{1,40}$/.test(id) || SAMP
   const tags = a => Array.isArray(a) ? a.filter(t => typeof t === 'string').slice(0, 40).map(t => tfName(t, 20)).filter(Boolean) : [];
   if (typeof s.folder === 'string' && s.folder) rec.folder = s.folder.split('/').map(p => tfName(p, 30)).filter(Boolean).slice(0, 6).join('/'); rec.tags = tags(s.tags); rec.atags = tags(s.atags); if (s.aud) rec.aud = 1; return rec; }
 function b64ToI16(b) { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Int16Array(u.buffer); }
-async function saveBackup() { const samples = {}; for (const id of usedSampleIds()) { const s = SAMPLES.get(id); if (s && !s.builtin) samples[id] = { name: s.name, sr: s.sr, ch: s.ch, frz: !!s.frz, data: i16ToB64(s.data) }; }
-  await saveFile(slug(P.name) + '.trackfill.json', JSON.stringify({ format: 'trackfill', version: PROJECT_VERSION, saved: new Date().toISOString(), project: P, samples })); }
+// a sound as a backup file holds it (both kinds of backup; session-only renders and built-in sounds are never written)
+const sampleToFile = s => ({ name: s.name, sr: s.sr, ch: s.ch, frz: !!s.frz, wt: s.wt || 0, folder: s.folder || '', tags: s.tags || [], atags: s.atags || [], aud: !!s.aud, added: s.added || 0, data: i16ToB64(s.data) });
+async function saveBackup() { const samples = {}; for (const id of usedSampleIds()) { const s = SAMPLES.get(id); if (s && id.startsWith('u:') && s.data instanceof Int16Array) samples[id] = sampleToFile(s); }
+  let txt; try { txt = JSON.stringify({ format: 'trackfill', version: PROJECT_VERSION, saved: new Date().toISOString(), project: P, samples }); } catch (e) { toast('This project is too big for one file on this device: try Back up all, or shorter recordings'); return; }   // (a string that big fails on some phones)
+  await saveFile(slug(P.name) + '.trackfill.json', txt); }
 $('#fileProj').addEventListener('change', async e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
   try { const d = JSON.parse(await f.text());
     if (d.format === 'trackfill-all' && Array.isArray(d.projects)) {   // a full backup: every song and template comes back as its own entry; nothing here is replaced
@@ -2451,7 +2476,8 @@ const METER = { l: 0, r: 0, clip: false };
    output-latency correction as the playhead), so the meters move with the sound rather than ahead of it. */
 const METQ = [], METER_FALL = 24;
 const FLQ = [], flashOne = f => flashPad(f.v & 255, (f.v >> 8) - 1);
-function meterTake(r) { METER.l = Math.max(METER.l, r.pk[0]); METER.r = Math.max(METER.r, r.pk[1]); if (r.pk[0] > 1 || r.pk[1] > 1) METER.clip = true;
+function meterTake(r) { try { meterTake0(r); } catch (e) { appError('meter report: ' + (e && e.message || e)); } }
+function meterTake0(r) { METER.l = Math.max(METER.l, r.pk[0]); METER.r = Math.max(METER.r, r.pk[1]); if (r.pk[0] > 1 || r.pk[1] > 1) METER.clip = true;
   const cm = r.cm || []; if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) m.v[k] = Math.max(m.v[k], cm[m.c * 2 + k] || 0);
   if (r.sc) onScope(r.sc); }
 function meterFeed(dt) { const live = ctx && ctx.state === 'running', heard = live ? heardTime() + DISP_LEAD : Infinity;
@@ -2478,7 +2504,8 @@ document.addEventListener('touchmove', e => { if (e.touches.length > 1 || !e.tar
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 document.addEventListener('touchend', () => { if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); }, true);
 document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(); if (T.playing) stop(); if (mediaTag) mediaTag.pause(); } });
-new ResizeObserver(() => { placeSheet(); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audSize(); audDraw(); } if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); }).observe($('#view'));
+new ResizeObserver(() => { placeSheet(); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audSize(); audDraw(); } if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); clearTimeout(FIT_T); FIT_T = setTimeout(() => { fitFonts(V); fitFonts($('#scenes')); fitFonts($('#top')); }, 150); }).observe($('#view'));   // a new width: text fitted again
+let FIT_T = 0;
 let lastHeard = -1;
 // the screen loop runs only while something moves (playback, sound, meters falling, a recent touch); wake() restarts it
 let frameOn = false, lastFrame = 0, wakeAt = 0;
@@ -2486,17 +2513,19 @@ let framePend = false; const nextFrame = () => { if (framePend) return; framePen
 function wake() { wakeAt = performance.now(); if (!frameOn) { frameOn = true; nextFrame(); } }
 // the drawing loop survives a fault in anything it draws: the fault is reported, the next frame comes anyway (otherwise every meter in the app would freeze)
 function frame(ts) { try { frameBody(ts); } catch (e) { appError('display: ' + (e && e.message || e) + ((e && e.stack || '').split('\n').find(l => /:\d+:\d+/.test(l)) || '').trim().slice(-40)); console.error(e); frameOn = true; nextFrame(); } }
+// one part of the screen failing must never stop the rest: each part of a frame runs on its own
+function guarded(what, f) { try { f(); } catch (e) { appError(what + ': ' + (e && e.message || e)); } }
 function frameBody(ts) {
   if (!P) { nextFrame(); return; }
   if (ts - lastFrame < (T.playing && UI.view !== 'seq' ? 30 : 14)) { nextFrame(); return; }   // 60 fps; 30 while playing (except the timeline's playhead): the same look, half the drawing, more room for touches
   const fdt = Math.min(.1, (ts - (lastFrame || ts)) / 1000); lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
-  meterFeed(fdt); drawMeter(); if (FLASH.size) flashExpire(performance.now());
-  const scoping = scopeMoving(); if (scoping) scopeFrame(Math.min(.1, (ts - (frame.prev || ts)) / 1000)); frame.prev = ts;
+  guarded('meters', () => meterFeed(fdt)); guarded('meter', drawMeter); if (FLASH.size) guarded('pads', () => flashExpire(performance.now()));
+  let scoping = false; guarded('scope', () => { scoping = scopeMoving(); if (scoping) scopeFrame(Math.min(.1, (ts - (frame.prev || ts)) / 1000)); }); frame.prev = ts;
   const busy = scoping || T.playing || METQ.length || FLQ.length || FLASH.size || METER.l > 0 || METER.r > 0 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 0 || m.v[1] > 0));
   if (busy) nextFrame(); else { frameOn = false; return; }   // nothing moving: stop drawing until woken
   if (!ctx) return;
-  if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) { const db = m.v[k] > 1e-5 ? 20 * Math.log10(m.v[k]) : -99, f = tfFaderPos(m.v[k]);   // stereo, on the fader's own scale: 0 dBFS sits on the unity mark
-    const el = m.el[k]; el.style.height = (f * 100).toFixed(1) + '%'; el.style.background = db > 0 ? COL.rec : db > -6 ? COL.accent : COL.play; }
+  if (UI.view === 'mix') guarded('mixer meters', () => { for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) { const db = m.v[k] > 1e-5 ? 20 * Math.log10(m.v[k]) : -99, f = tfFaderPos(m.v[k]);   // stereo, on the fader's own scale: 0 dBFS sits on the unity mark
+    const el = m.el[k]; el.style.height = (f * 100).toFixed(1) + '%'; el.style.background = db > 0 ? COL.rec : db > -6 ? COL.accent : COL.play; } });
   const pos = heardPos(DISP_LEAD); VIS.pos = pos;
   if (pos) {
     if (pos.scene !== lastHeard) { lastHeard = pos.scene; if (pos.scene !== UI.scene && !TL.drag && (UI.view !== 'seq' || tlFollowing())) { UI.scene = pos.scene; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.sx = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else if (UI.view === 'seq') renderView(); } }

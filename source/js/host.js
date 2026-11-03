@@ -188,8 +188,13 @@ function tfStepAt(pts, t) { if (!pts || !pts.length) return null; let v = pts[0]
 const TF_TEMPO_KEY = TF.MASTER + '.-4.0', tfTempoV = bpm => Math.max(0, Math.min(1, (bpm - 60) / 140)), tfTempoBpm = v => 60 + v * 140;
 function tfBpmAt(P, si, tick) { const sc = P.scenes[si], pts = sc && sc.auto && sc.auto[TF_TEMPO_KEY]; return pts && pts.length ? tfTempoBpm(tfValueAt(pts, tick)) : P.bpm; }
 // a scene's length in samples, following its tempo lane (exports and bounces use it)
-function tfSceneSamples(P, si, sr) { const sc = P.scenes[si], len = sc.bars * TF.BAR, pts = sc.auto && sc.auto[TF_TEMPO_KEY]; if (!pts || !pts.length) return Math.ceil(len / (P.bpm * TF.PPQ / (60 * sr)));
-  let n = 0; for (let t = 0; t < len; t++) n += 60 * sr / (tfBpmAt(P, si, t + .5) * TF.PPQ); return Math.ceil(n); }
+function tfSceneSamples(P, si, sr) { const sc = P.scenes[si], len = sc.bars * TF.BAR, cum = tfTempoCum(P, si, sr); return cum ? Math.ceil(cum[len]) : Math.ceil(len / (P.bpm * TF.PPQ / (60 * sr))); }
+// samples up to each tick of a scene with a tempo lane, built once per lane shape (the audio editor and the engine's catch-up ask often)
+const TF_CUM = new WeakMap();
+function tfTempoCum(P, si, sr) { const sc = P.scenes[si], pts = sc && sc.auto && sc.auto[TF_TEMPO_KEY]; if (!pts || !pts.length) return null;
+  const len = sc.bars * TF.BAR; let sig = len * 7 + sr + P.bpm; for (const q of pts) sig = (sig * 31 + q.t * 13 + q.v * 1e5 + (q.c || 0) * 977) % 1e15;
+  const hit = TF_CUM.get(pts); if (hit && hit.sig === sig) return hit.cum;
+  const cum = new Float64Array(len + 1); let n = 0; for (let t = 0; t < len; t++) { n += 60 * sr / (tfBpmAt(P, si, t + .5) * TF.PPQ); cum[t + 1] = n; } TF_CUM.set(pts, { sig, cum }); return cum; }
 function tfBase(P, k) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return null;
   if (s === -4) return tfTempoV(P.bpm);
@@ -209,8 +214,9 @@ function tfSetBase(P, k, v) {
 function tfHasNotes(sc) { for (const k in sc.notes) if (sc.notes[k].length) return true; for (const k in sc.clips || {}) if (sc.clips[k].length) return true; return false; }
 /* ---------- audio clips: each sits in a scene (its anchor) at a tick, and plays its stretch of a recording in seconds, past the scene's end if it is long ---------- */
 // samples from a scene's start to one of its ticks (following a tempo lane if it has one)
-function tfTickSamples(P, si, tick, sr) { const sc = P.scenes[si], pts = sc && sc.auto && sc.auto[TF_TEMPO_KEY]; if (!pts || !pts.length) return tick * 60 * sr / (P.bpm * TF.PPQ);
-  let n = 0; for (let t = 0; t < tick; t++) n += Math.min(1, tick - t) * 60 * sr / (tfBpmAt(P, si, t + .5) * TF.PPQ); return n; }
+function tfTickSamples(P, si, tick, sr) { const cum = tfTempoCum(P, si, sr); if (!cum) return tick * 60 * sr / (P.bpm * TF.PPQ);
+  if (tick <= 0) return 0; const L = cum.length - 1, f = Math.min(L - 1, Math.floor(tick)); if (tick >= L) return cum[L] + (tick - L) * 60 * sr / (tfBpmAt(P, si, L - .5) * TF.PPQ);
+  return cum[f] + (tick - f) * (cum[f + 1] - cum[f]); }
 // a clip's stretch: Repitch plays it faster or slower, Clean plays a render that keeps the pitch (made on the page, key below); both follow the project's tempo
 const tfClipRate = (P, c) => c.wm && c.wm !== 'off' && c.bpm > 0 ? Math.max(.25, Math.min(4, P.bpm / c.bpm)) : 1;
 const tfClipLen = (P, c) => c.d / tfClipRate(P, c);   // seconds it lasts on the song
@@ -402,7 +408,7 @@ class TFHost {
       case 'param': if (!Number.isFinite(m.v)) break; tfSetBase(P, m.key, m.v); this.applyKey(m.key, m.v); break;
       case 'preview': this.preview(m.key); break;
       case 'panic': this.panic(); break;
-      case 'scope': this.setScope(m); break;
+      case 'scope': this.visErr = false; this.setScope(m); break;
       case 'anReset': if (this.an) this.an.resetLoud(); break;
       case 'monitor': { if (!this.ex.tf_mon) break; this.ex.tf_mon(m.mode | 0); const ph = TF_PHONES[m.phones];   // live output only: exports never get this message
         if (ph) { ph.bands.forEach((b, k) => this.ex.tf_mon_band(k, ...tfBiquad(b[0], b[1], b[2], b[3], this.sr))); this.ex.tf_mon_eq(ph.bands.length, Math.pow(10, ph.pre / 20)); } else this.ex.tf_mon_eq(0, 1); break; }
@@ -749,6 +755,8 @@ class TFHost {
     for (const k of this.autoOn) if (!A[k] || !A[k].length || this.live.has(k)) { const b = tfBase(this.P, k); if (b != null) this.applyKey(k, b); this.autoOn.delete(k); }
     for (const k in A) { const pts = A[k]; if (!pts || !pts.length || this.live.has(k)) continue; this.applyKey(k, tfIsToggle(k) ? tfStepAt(pts, tick) : tfValueAt(pts, tick)); this.autoOn.add(k); }
   }
+  safeReport() { try { return this.scopeReport(); } catch (e) { this.visFail(e); return null; } }
+  visFail(e) { this.scope = null; this.visFx = null; this.an = null; if (this.post && !this.visErr) { this.visErr = true; this.post({ t: 'err', msg: 'display data: ' + (e && e.message || e) }); } }   // the page asks again when a display opens
   render(n, L, R) {
     const ex = this.ex; let off = 0;
     while (off < n) {
@@ -764,7 +772,7 @@ class TFHost {
       if (this.playing) this.automate(end);
       if (ex.tf_set_pos) { const pos = songPos; this.freeBeat = pos ? pos.tick / TF.PPQ + m / this.sr * this.P.bpm / 60 : (this.freeBeat || 0) + m / this.sr * (this.P ? this.P.bpm : 120) / 60;   // stopped, it counts on from where the song was (no jump)   // the song position for synced effects (free-running when stopped)
         ex.tf_set_pos(pos ? pos.tick / TF.PPQ : this.freeBeat, pos ? 1 : 0); }
-      ex.tf_render(m); this.views(); if (this.scope) this.scopeFeed(m); if (this.visFx) this.waveFeed(m);
+      ex.tf_render(m); try { this.views(); if (this.scope) this.scopeFeed(m); if (this.visFx) this.waveFeed(m); } catch (e) { this.visFail(e); }   // a display's numbers going wrong never stops the sound
       const vL = this.vL, vR = this.vR;
       for (let i = 0; i < m; i++) { L[off + i] = vL[i]; R[off + i] = vR[i]; }
       this.now = end; off += m;
@@ -778,8 +786,8 @@ class TFHost {
       const idle = !this.playing && !voices && pk[0] < 1e-5 && pk[1] < 1e-5 && !this.flashes.length;
       if (!idle || !this.idleSent) this.post({ t: 'pos', time: (typeof currentTime !== 'undefined' ? currentTime : 0) + n / this.sr, playing: this.playing, pos: this.pos,
         pk, cm: Array.from(this.vPk), cpu: blocksMs > 0 ? this.cpuMs / blocksMs : 0, voices, fl: this.flashes.splice(0), fa: this.flashT.splice(0).map(s => this.now - s),   // fa: how many samples ago each flash's sound started (pads light when it's heard)
-        arp: this.arpOut.length ? this.arpOut.splice(0) : undefined, sc: this.scope || this.visFx ? this.scopeReport() : null });
-      else if (this.scope || this.visFx) this.scopeReport();
+        arp: this.arpOut.length ? this.arpOut.splice(0) : undefined, sc: this.scope || this.visFx ? this.safeReport() : null });
+      else if (this.scope || this.visFx) this.safeReport();
       this.idleSent = idle;
       this.vPk.fill(0); this.cpuMs = 0; this.cpuBlocks = 0;
     }

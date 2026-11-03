@@ -305,18 +305,18 @@ const GRIN_P = [P_('Amount', 0, fPct), P_('Auto', 0, null, ['Off', '1 bar', '2 b
 // modes beyond each effect's original (mode 0). Names stay generic: what the circuit does, not whose it was.
 const FX_MODES = {
   0: { mode0: ['Clean', 'Precise digital bands'], more: [
-    ['Passive', 'Tube passive EQ: boost and cut the same low frequency for the bump-and-dip; silky top', [P_('Low freq', .667, null, ['20', '30', '60', '100']), P_('Low boost', 0, v => '+' + linmap(v, 0, 13.5).toFixed(1) + ' dB'), P_('Low atten', 0, v => '−' + linmap(v, 0, 17.5).toFixed(1) + ' dB'),
+    ['Passive', 'Tube EQ: boost and cut one low band; silky top', [P_('Low freq', .667, null, ['20', '30', '60', '100']), P_('Low boost', 0, v => '+' + linmap(v, 0, 13.5).toFixed(1) + ' dB'), P_('Low atten', 0, v => '−' + linmap(v, 0, 17.5).toFixed(1) + ' dB'),
       P_('High freq', .667, null, ['3k', '4k', '5k', '8k', '10k', '12k', '16k']), P_('High boost', 0, v => '+' + linmap(v, 0, 16).toFixed(1) + ' dB'), P_('Bandwidth', .5, v => v < .34 ? 'Sharp' : v > .66 ? 'Broad' : 'Medium'),
       P_('Atten freq', .5, null, ['5k', '10k', '20k']), P_('High atten', 0, v => '−' + linmap(v, 0, 16).toFixed(1) + ' dB'), P_('Tube', .3, fPct), P_('Output', .5, v => fSign(v, -12, 12))]],
-    ['Punch', 'Proportional Q: gentle when subtle, focused when pushed; stepped frequencies', [P_('Low freq', .5, null, ['30', '40', '50', '100', '200', '300', '400']), P_('Low gain', .5, v => fSign(v, -12, 12)),
+    ['Punch', 'Gentle when subtle, focused when pushed', [P_('Low freq', .5, null, ['30', '40', '50', '100', '200', '300', '400']), P_('Low gain', .5, v => fSign(v, -12, 12)),
       P_('Mid freq', .667, null, ['200', '400', '600', '800', '1.5k', '3k', '5k']), P_('Mid gain', .5, v => fSign(v, -12, 12)), P_('High freq', .5, null, ['2.5k', '5k', '7.5k', '10k', '12.5k', '15k', '20k']), P_('High gain', .5, v => fSign(v, -12, 12)),
       P_('Low shape', 1, null, ['Bell', 'Shelf']), P_('High shape', 1, null, ['Bell', 'Shelf']), P_('Filter', 0, null, ['Off', 'On']), P_('Output', .5, v => fSign(v, -12, 12)), P_('Colour', .3, fPct)]],
-    ['Console', 'Channel-strip EQ: shelves, two sweepable mids, high-pass', [P_('HPF', 0, fHzOff(16, 350)), P_('LF gain', .5, v => fSign(v, -15, 15)), P_('LF freq', .5, v => fHz(expmap(v, 30, 450))),
+    ['Console', 'Channel strip: shelves, two mids, high-pass', [P_('HPF', 0, fHzOff(16, 350)), P_('LF gain', .5, v => fSign(v, -15, 15)), P_('LF freq', .5, v => fHz(expmap(v, 30, 450))),
       P_('LMF gain', .5, v => fSign(v, -15, 15)), P_('LMF freq', .5, v => fHz(expmap(v, 200, 2500))), P_('LMF Q', .5, v => expmap(v, .5, 2.5).toFixed(2)), P_('HMF gain', .5, v => fSign(v, -15, 15)), P_('HMF freq', .5, v => fHz(expmap(v, 600, 7000))),
       P_('HMF Q', .5, v => expmap(v, .5, 2.5).toFixed(2)), P_('HF gain', .5, v => fSign(v, -15, 15)), P_('HF freq', .5, v => fHz(expmap(v, 1500, 16000))), P_('Output', .5, v => fSign(v, -12, 12))]]] },
   1: { mode0: ['Digital', 'Clean and exact, with a sidechain high-pass'], more: [
-    ['Opto', 'Optical leveling: smooth attack, release that follows the music', [P_('Peak reduction', .4, fPct), P_('Makeup', .2, v => '+' + linmap(v, 0, 30).toFixed(1) + ' dB'), P_('Mode', 0, null, ['Compress', 'Limit']), P_('Emphasis', .3, fPct), P_('Mix', 1, fPct), P_('Tube', .3, fPct)]],
-    ['FET', 'Lightning-fast and aggressive; colour grows as you push it', [P_('Input', .35, v => '+' + linmap(v, 0, 36).toFixed(1) + ' dB'), P_('Output', .667, v => fSign(v, -24, 12)), P_('Attack', .5, v => Math.round(expmap(v, 20, 800)) + ' µs'),
+    ['Opto', 'Smooth optical leveling that follows the music', [P_('Peak reduction', .4, fPct), P_('Makeup', .2, v => '+' + linmap(v, 0, 30).toFixed(1) + ' dB'), P_('Mode', 0, null, ['Compress', 'Limit']), P_('Emphasis', .3, fPct), P_('Mix', 1, fPct), P_('Tube', .3, fPct)]],
+    ['FET', 'Fast and aggressive; colour grows as you push', [P_('Input', .35, v => '+' + linmap(v, 0, 36).toFixed(1) + ' dB'), P_('Output', .667, v => fSign(v, -24, 12)), P_('Attack', .5, v => Math.round(expmap(v, 20, 800)) + ' µs'),
       P_('Release', .4, v => fMs(expmap(v, 50, 1100))), P_('Ratio', 0, null, ['4', '8', '12', '20', 'All']), P_('Mix', 1, fPct)]],
     ['VCA', 'Bus glue: clean, stepped controls, auto release', [P_('Threshold', .6, v => fDb(linmap(v, -40, 0))), P_('Ratio', .5, null, ['2', '4', '10']), P_('Attack', .6, null, ['0.1', '0.3', '1', '3', '10', '30']),
       P_('Release', 1, null, ['0.1', '0.3', '0.6', '1.2', 'Auto']), P_('Makeup', 0, v => '+' + linmap(v, 0, 20).toFixed(1) + ' dB'), P_('Mix', 1, fPct), P_('Key HPF', 0, fHzOff(20, 500))]]] },
@@ -335,7 +335,7 @@ const FX_MODES = {
     ['Tape', 'Wow, flutter and saturation in the repeats', [...DELAY_P, P_('Drive', .3, fPct), P_('Wow', .3, fPct), P_('Flutter', .3, fPct), P_('Age', .2, fPct)]],
     ['Analog', 'Dark, warm repeats that soften as they get longer', [...DELAY_P, P_('Drive', .3, fPct), P_('Wow', .15, fPct), P_('Flutter', .1, fPct), P_('Age', .2, fPct)]]] },
   5: { mode0: ['Classic', 'The original compact reverb'], more: [
-    ['Room', 'Real rooms: early reflections, three-band decay, smooth tails', [ROOMF, PRE(), P_('Decay', .477, v => fMs(expmap(v, .2, 20) * 1000)), P_('High cut', .7, v => fHz(expmap(v, 1000, 20000))), P_('Depth', .7, v => 'Early ' + Math.round((1 - v) * 100) + '%'),
+    ['Room', 'Real rooms: early reflections and smooth tails', [ROOMF, PRE(), P_('Decay', .477, v => fMs(expmap(v, .2, 20) * 1000)), P_('High cut', .7, v => fHz(expmap(v, 1000, 20000))), P_('Depth', .7, v => 'Early ' + Math.round((1 - v) * 100) + '%'),
       P_('Size', .5, fPct), P_('Early size', .5, fPct), P_('Bass mult', .5, v => expmap(v, .25, 4).toFixed(2) + '×'), P_('Bass xover', .5, v => fHz(expmap(v, 100, 2000))), P_('High mult', .594, v => expmap(v, .1, 1.5).toFixed(2) + '×'),
       P_('High xover', .5, v => fHz(expmap(v, 1000, 16000))), P_('Mod', .3, fPct)]],
     ['Plate', 'Dense and bright from the first moment', [ROOMF, PRE(), P_('Decay', .45, v => fMs(expmap(v, .2, 20) * 1000)), P_('Damping', .7, v => fHz(expmap(v, 1000, 20000))), P_('Bandwidth', .85, v => fHz(expmap(v, 1000, 20000))),
@@ -359,7 +359,7 @@ const FX_MODES = {
   22: { mode0: ['Classic', 'Filter up, echo, reverb and a little dirt'], more: [['Wash', 'A wall of reverb that swallows the mix', GRIN_P], ['Dub', 'Echoes that run away into a narrow band', GRIN_P],
     ['Grit', 'Drive and crush, thinning out as it climbs', GRIN_P], ['Space', 'Swirling phaser, wide and washed', GRIN_P], ['Pump', 'A quarter-note pump that digs in harder', GRIN_P]] },
   23: { mode0: ['Overdrive', 'Pedal drive: a mid push into a warm clip'], more: [['Distortion', 'Op-amp into diodes: tight and aggressive', DIST_P('Hardness', .6)], ['Amp', 'Two preamp stages into a speaker cabinet', DIST_P('Cabinet', .7)],
-    ['Fold', 'Folds back on itself as it gets louder: growls and metal', DIST_P('Symmetry', 0)], ['Rectify', 'The wave flipped up: octave fuzz', DIST_P('Half–full', .5)], ['Bass', 'A driven top over clean, untouched lows', DIST_P('Split', .45, v => fHz(expmap(v, 60, 400)))]] },
+    ['Fold', 'Folds back as it gets louder: growls and metal', DIST_P('Symmetry', 0)], ['Rectify', 'The wave flipped up: octave fuzz', DIST_P('Half–full', .5)], ['Bass', 'A driven top over clean, untouched lows', DIST_P('Split', .45, v => fHz(expmap(v, 60, 400)))]] },
   26: { mode0: ['Shift', 'Pitch and voice character, each on its own'], more: [['Robot', 'Every note on one pitch', [P_('Note', 0, null, NOTE12), P_('Octave', 1 / 3, null, ['2', '3', '4', '5']), P_('Formant', .5, fSt), P_('Mix', 1, fPct), P_('Output', .8, v => fDb(linmap(v, -24, 6)))]],
     ['Octaves', 'Layers an octave below and above', [P_('Down', .7, fPct), P_('Up', 0, fPct), P_('Dry', 1, fPct), P_('Formant', .5, fSt), P_('Mix', 1, fPct)]]] },
   15: { mode0: ['Studio', 'Pro reel-to-reel: warm and steady'], more: [['Cassette', 'Darker, wobblier, hissier', TAPE_P], ['Worn', 'Old tape: dull, wobbly, the odd dropout', TAPE_P]] },

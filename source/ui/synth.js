@@ -154,11 +154,11 @@ function synSpecial(pi, what) {
 let synCv = null;
 // engines: one faceplate each
 const SYN_ENGINES = [{ id: 'analog', n: 'Analog', blurb: 'Three oscillators into a ladder: basses, leads, pads', look: { face: '#1b1a19', face2: '#121212', cap: '#e6dcc6', ind: '#1a1714', ring: '#f2b544', track: '#050505', ink: '#ece5d4', ink2: '#a59c88', scr: '#0c0d0e', sw: '#0b0b0c', swInk: '#f0c35a', tex: 'none' } },
-  { id: 'fm', n: 'FM', blurb: 'Four operators with modes: keys, bells, growls', look: { face: '#15171a', face2: '#0c0d0f', cap: '#2b2f35', ind: '#e9edf0', ring: '#4fd1c5', track: '#050607', ink: '#e4e8eb', ink2: '#87909a', scr: '#06090a', sw: '#1b1e23', swInk: '#4fd1c5', tex: 'none' } }, { id: 'wt', n: 'Wavetable', blurb: 'Two morphing wavetable oscillators: growls, pads, leads', look: { face: '#17161d', face2: '#0e0d12', cap: '#2c2a36', ind: '#ece9ff', ring: '#9b8cff', track: '#060509', ink: '#e8e6f2', ink2: '#8d89a3', scr: '#07060b', sw: '#1c1a24', swInk: '#9b8cff', tex: 'none' } },
-  { id: 'gr', n: 'Granular', blurb: 'Clouds of grains from any sound: textures, stretches, glitches', look: { face: '#141917', face2: '#0c100e', cap: '#28302c', ind: '#e6f2ec', ring: '#5fd3a0', track: '#050706', ink: '#e3ece7', ink2: '#86978e', scr: '#060908', sw: '#19201c', swInk: '#5fd3a0', tex: 'none' } },
+  { id: 'fm', n: 'FM', blurb: 'Four operators with modes: keys, bells, growls', look: { face: '#15171a', face2: '#0c0d0f', cap: '#2b2f35', ind: '#e9edf0', ring: '#4fd1c5', track: '#050607', ink: '#e4e8eb', ink2: '#87909a', scr: '#06090a', sw: '#1b1e23', swInk: '#4fd1c5', tex: 'none' } }, { id: 'wt', n: 'Wavetable', blurb: 'Two morphing wavetables: growls, pads, leads', look: { face: '#17161d', face2: '#0e0d12', cap: '#2c2a36', ind: '#ece9ff', ring: '#9b8cff', track: '#060509', ink: '#e8e6f2', ink2: '#8d89a3', scr: '#07060b', sw: '#1c1a24', swInk: '#9b8cff', tex: 'none' } },
+  { id: 'gr', n: 'Granular', blurb: 'Grains from any sound: textures, stretches', look: { face: '#141917', face2: '#0c100e', cap: '#28302c', ind: '#e6f2ec', ring: '#5fd3a0', track: '#050706', ink: '#e3ece7', ink2: '#86978e', scr: '#060908', sw: '#19201c', swInk: '#5fd3a0', tex: 'none' } },
   { id: 'sub', n: 'Sub', blurb: 'Clean sub with harmonics above it: subs and 808s', look: { face: '#1b1517', face2: '#120d0f', cap: '#33272b', ind: '#f6e7ea', ring: '#ff6b81', track: '#070405', ink: '#f0e4e7', ink2: '#a3878e', scr: '#0a0607', sw: '#21181b', swInk: '#ff6b81', tex: 'none' } },
   { id: 'ins', n: 'Instrument', blurb: 'Pianos, stabs, strings, choirs, keys and basses', look: { face: '#1a1814', face2: '#110f0c', cap: '#2e2a22', ind: '#f3ead7', ring: '#e8c37a', track: '#060504', ink: '#efe6d4', ink2: '#a3977e', scr: '#0a0907', sw: '#1f1c16', swInk: '#e8c37a', tex: 'none' } },
-  { id: 'sfx', n: 'FX', blurb: 'One sweep: risers, drops, impacts, washouts, lasers, sirens', look: { face: '#14181d', face2: '#0d1014', cap: '#252b33', ind: '#e6f0ff', ring: '#5aa9ff', track: '#05070a', ink: '#e3eaf3', ink2: '#8494a8', scr: '#06080b', sw: '#191e25', swInk: '#5aa9ff', tex: 'none' } }];
+  { id: 'sfx', n: 'FX', blurb: 'One sweep: risers, drops, impacts, lasers', look: { face: '#14181d', face2: '#0d1014', cap: '#252b33', ind: '#e6f0ff', ring: '#5aa9ff', track: '#05070a', ink: '#e3eaf3', ink2: '#8494a8', scr: '#06080b', sw: '#191e25', swInk: '#5aa9ff', tex: 'none' } }];
 function openEnginePicker(pi) {
   openSheet('Synth engine', card => { const st = h('div', 'stack');
     for (const e of SYN_ENGINES) { const b = btn(`<b>${e.n}</b><i>${esc(e.blurb)}</i>`, () => { closeSheet(); setEngine(pi, e.id); }, 'btn prow' + (e.id === (synOf(pi).eng || 'analog') ? ' on' : '')); st.append(b); }
@@ -717,7 +717,7 @@ function openFollow(pi) {
   openSheet('Follow · ' + padLabel(pi), card => { const top = h('div', 'row'), grid = h('div', 'tgrid'); grid.style.marginTop = '10px';
     const draw = () => { const f = pad.follow = pad.follow || []; top.innerHTML = ''; top.append(seg(['A', 'B', 'C', 'D'], bank, i => { bank = i; draw(); }), btn('Off', () => { pushUndo('pad:' + pi); pad.follow = []; syncPad(pi); markDirty(); draw(); }, 'key sm' + (f.length ? '' : ' on'))); grid.innerHTML = '';
       for (const i of padOrder(16)) { const q = bank * 16 + i, p = P.pads[q], b = btn(esc(p.name || padLabel(q)), () => { pushUndo('pad:' + pi); const k = f.indexOf(q); if (k >= 0) f.splice(k, 1); else if (f.length < 16) f.push(q); syncPad(pi); markDirty(); draw(); }, f.includes(q) ? 'on' : '');
-        if (q === pi) b.disabled = true; grid.append(b); } };
+        if (q === pi) b.disabled = true; grid.append(b); } if (grid.isConnected) fitFonts(grid); };
     draw(); card.append(top, grid); }, () => renderView());
 }
 

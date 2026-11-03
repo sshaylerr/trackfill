@@ -10,11 +10,11 @@ const HTML = process.env.TF_HTML || path.join(__dirname, '../../dist/trackfill.h
 let fails = 0; const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails++; };
 const QUICK = process.argv.includes('--quick');   // deploy.sh: one phone size, no long play
 const ANDROID = { label: 'Android phone (Chrome)', userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36', dpr: 2.625, mobile: true };
-const SIZES = QUICK ? [[390, 844]] : [[375, 667], [390, 844], [430, 932], [412, 915, ANDROID], [360, 780, Object.assign({}, ANDROID, { label: 'small Android phone (Chrome)', dpr: 3 })]];
+const SIZES = (QUICK ? [[390, 844]] : [[375, 667], [390, 844], [430, 932], [412, 915, ANDROID], [360, 780, Object.assign({}, ANDROID, { label: 'small Android phone (Chrome)', dpr: 3 })]]).filter(s => !process.env.TF_SIZE || String(s[0]) === process.env.TF_SIZE);   // TF_SIZE=430: one size only
 
 // runs inside the page: every state the crawl visits, as [name, setup]
 const crawl = async () => {
-  const sl = ms => new Promise(r => setTimeout(r, ms)), out = { errs: [], wide: [], moved: [], unreached: [], blurry: [], cut: [], states: 0, menus: 0, navd: 0, navs: 0 };
+  const sl = ms => new Promise(r => setTimeout(r, ms)), out = { errs: [], wide: [], moved: [], unreached: [], blurry: [], cut: [], text: [], states: 0, menus: 0, navd: 0, navs: 0 };
   const bars = () => ['#top', '#tabs'].map(s => { const e = document.querySelector(s); if (!e) return s + ':none'; const r = e.getBoundingClientRect(); return [s, Math.round(r.top), Math.round(r.height), Math.round(r.width)].join(':'); }).join(' ');
   const base = bars();
   const reach = () => { const items = navItems(); if (items.length < 2) return [];
@@ -22,7 +22,13 @@ const crawl = async () => {
     while (q.length) { const el = q.shift(); for (const d of ['up', 'down', 'left', 'right']) { NAV.el = el; NAV.mode = 'nav'; navMove(d); const n = NAV.el; if (n && !seen.has(n)) { seen.add(n); q.push(n); } } }
     out.navd += seen.size; out.navs++; setNav(keep, true); window.scrollTo(0, 0); document.querySelectorAll('.scr, #sheet .card').forEach(s => { s.scrollTop = 0; });
     return items.filter(el => !seen.has(el)).map(el => (el.getAttribute('aria-label') || el.textContent || el.className || el.tagName).trim().replace(/\s+/g, ' ').slice(0, 30)); };
-  const check = (name, dpad = true) => { out.states++;
+  // text that doesn't fit its box: wider than it (cut or ellipsised) or taller (clipped tops and tails)
+  const textCut = name => { for (const el of document.querySelectorAll('#view *, #top *, #tabs *, #sheet:not([hidden]) *')) {
+      if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue; const r = el.getBoundingClientRect(); if (!r.width || r.bottom < 0 || r.top > innerHeight) continue;
+      const cs = getComputedStyle(el); if (cs.visibility === 'hidden' || +cs.opacity === 0) continue; const clipX = cs.overflowX !== 'visible' || cs.textOverflow === 'ellipsis', clipY = cs.overflowY !== 'visible';
+      const wide = clipX && el.scrollWidth > el.clientWidth + 1, tall = clipY && cs.overflowY !== 'auto' && cs.overflowY !== 'scroll' && el.scrollHeight > el.clientHeight + 2;
+      if (wide || tall) out.text.push(`${name}: "${el.textContent.trim().replace(/\s+/g, ' ').slice(0, 24)}" ${wide ? `${el.scrollWidth}>${el.clientWidth}w` : `${el.scrollHeight}>${el.clientHeight}h`} (${el.tagName.toLowerCase()}${el.className && typeof el.className === "string" ? "." + el.className.replace(/ /g, ".") : ""} ${el.style.fontSize})`); } };
+  const check = (name, dpad = true) => { out.states++; textCut(name);
     const W = innerWidth, sw = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth); if (sw > W + 1) out.wide.push(`${name} (${sw}px)`);
     if (!UI.sheet && bars() !== base) out.moved.push(name);
     if (!UI.sheet) for (const tb of document.querySelectorAll('#view .toolbar')) { const R = tb.getBoundingClientRect(); for (const k of tb.children) { const r = k.getBoundingClientRect(); if (r.width && r.right > R.right + 1) out.cut.push(`${name}: ${(k.getAttribute('aria-label') || k.textContent || k.className).trim().slice(0, 16)}`); } }   // a toolbar key cut off at the edge
@@ -30,6 +36,8 @@ const crawl = async () => {
       if (Math.abs(r.width * d - cv.width) > d + .5 || Math.abs(r.height * d - cv.height) > d + .5) out.blurry.push(`${name} ${cv.className || 'canvas'} ${r.width.toFixed(1)}×${r.height.toFixed(1)} drawn ${(cv.width / d).toFixed(1)}×${(cv.height / d).toFixed(1)}`); }
     if (dpad) { const u = reach(); if (u.length) out.unreached.push(`${name}: ${u.slice(0, 4).join(' | ')}${u.length > 4 ? ` (+${u.length - 4})` : ''}`); } };
   const at = async (name, f, dpad) => { try { await f(); await sl(60); check(name, dpad); } catch (e) { out.errs.push(name + ': ' + e.message); } };
+  // long names, as people name things (pads hold 12 characters): nothing may be cut off
+  ['Supersaw Pad', 'Jump Up Wobb', 'Rave Stab', 'Chorus Strng', 'Open Hat', 'Reese Bass 2'].forEach((n, i) => { P.pads[i].name = n; }); ['Chorus', 'Bridge', 'Drop 2'].forEach((n, i) => { if (P.scenes[i]) P.scenes[i].name = n; }); renderAll();
   for (const v of ['pads', 'seq', 'mix']) await at(v, () => setView(v));
   await at('seq keys', () => { setView('seq'); UI.tl.mode = 'keys'; renderView(); }); UI.tl.mode = 'bank';
   await at('seq automation', () => { UI.tl.lane = 'auto'; renderView(); }); UI.tl.lane = 'notes';
@@ -73,6 +81,8 @@ const crawl = async () => {
     ok(!r.errs.length && !errs.length, `${r.states} pages and ${r.menus} menus open without errors` + (r.errs.length || errs.length ? ': ' + r.errs.concat(errs).slice(0, 4).join(' / ') : ''));
     ok(!r.wide.length, 'nothing wider than the screen' + (r.wide.length ? ': ' + r.wide.slice(0, 5).join(', ') : ''));
     ok(!r.cut.length, 'no toolbar key is cut off' + (r.cut.length ? ': ' + [...new Set(r.cut)].slice(0, 6).join(', ') : ''));
+    if (process.env.SHOWTEXT) [...new Set(r.text)].forEach(t => console.log('      ' + t));
+    ok(!r.text.length, 'no text is cut off' + (r.text.length ? ` (${new Set(r.text).size}): ` + [...new Set(r.text)].slice(0, 8).join(', ') : ''));
     ok(!r.blurry.length, 'every canvas is shown at the size it was drawn' + (r.blurry.length ? ': ' + [...new Set(r.blurry)].slice(0, 6).join(', ') : ''));
     ok(!r.moved.length, 'transport and tabs stay put on every page' + (r.moved.length ? ': ' + r.moved.slice(0, 5).join(', ') : ''));
     ok(!r.unreached.length, `the d-pad reaches every control (${r.navd} on ${r.navs} pages and menus)` + (r.unreached.length ? ':\n      ' + r.unreached.slice(0, 12).join('\n      ') + (r.unreached.length > 12 ? `\n      (+${r.unreached.length - 12} more)` : '') : ''));

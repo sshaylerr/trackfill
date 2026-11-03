@@ -25,9 +25,9 @@ function renderPads(V) {
 }
 
 /* ---------- timeline ---------- */
-function laneTitle() {
-  const tl = UI.tl; if (tl.lane === 'notes') return 'Notes · ' + (tl.mode === 'keys' ? chanName(UI.pad) + (chopOf(UI.pad) ? ' slices' : '') : BANKS[UI.bank]);
-  return keyMeta(tl.lane).label + ' · ' + chanName(tlTarget());
+function laneTitle(short) {   // short: what's left when the full title doesn't fit
+  const tl = UI.tl; if (tl.lane === 'notes') return short ? (tl.mode === 'keys' ? chanName(UI.pad) : 'Notes · ' + BANKS[UI.bank]) : 'Notes · ' + (tl.mode === 'keys' ? chanName(UI.pad) + (chopOf(UI.pad) ? ' slices' : '') : BANKS[UI.bank]);
+  return short ? keyMeta(tl.lane).label : keyMeta(tl.lane).label + ' · ' + chanName(tlTarget());
 }
 function renderSeq(V) {
   const w = h('div', 'seqView'), tl = UI.tl, tgt = tlTarget();
@@ -35,7 +35,7 @@ function renderSeq(V) {
   if (tl.lane === 'notes' && tgt >= G0) tl.lane = tgt + '.-1.0';
   if (tl.lane === 'notes' && tl.mode === 'keys' && isAudioPad(UI.pad)) { renderAudioEd(V); return; }   // an audio track's Keys view is its audio editor
   const isNotes = tl.lane === 'notes', bar = h('div', 'toolbar'), lb = h('button', 'lanebox');
-  lb.innerHTML = `<b>${esc(laneTitle())}</b><i>▾</i>`; lb.setAttribute('aria-label', 'Choose lane'); lb.onclick = () => openLaneSheet(tgt); bar.append(lb);
+  lb.innerHTML = `<b data-alt="${esc(laneTitle(true))}">${esc(laneTitle())}</b><i>▾</i>`; lb.setAttribute('aria-label', 'Choose lane'); lb.onclick = () => openLaneSheet(tgt); bar.append(lb);
   if (isNotes) bar.append(btn(tl.mode === 'bank' ? 'Bank' : chopOf(UI.pad) ? 'Chop' : 'Keys', () => { const k = tl.mode === 'bank'; tl.mode = k ? 'keys' : 'bank'; tl.sel = null; tl.sy = null; tl.cursor.row = k ? (chopOf(UI.pad) ? 0 : KEY_HI) : UI.pad % 16; renderView(); }, 'key sm'));
   bar.append(btn(snapName(tl.snap), openSnap, 'key sm'));
   const zoom = f => { if (UI.shift && isNotes) zoomV(f); else zoomTL(f); };   // Shift + zoom: row height
@@ -260,7 +260,7 @@ function openOutputPicker(c) {
   const opts = [MASTER, TF.SPEAKER].concat(c < G0 ? [...Array(8)].map((_, i) => G0 + i) : []).concat(c < B0 ? [...Array(8)].map((_, i) => B0 + i) : []);
   openSheet(`${chanLabel(c)} output`, card => { const list = h('div', 'list'), cur = tfDest(P, c);
     for (const o of opts) { const li = h('div', 'li' + (o === cur ? ' on' : '')), C = P.chans[o];
-      li.innerHTML = o === TF.SPEAKER ? '<div class="lt"><b>Speaker (direct)</b><span>past the master and its effects; left out of exports: for a reference</span></div>' : `<div class="lt"><b>${esc(chanLabel(o) + ' · ' + chanName(o))}</b><span>${o === MASTER ? 'straight to the master' : (C.fx.map(f => FX_DEFS[f.type].name).join(' · ') || 'no effects')}</span></div>`;
+      li.innerHTML = o === TF.SPEAKER ? '<div class="lt"><b>Speaker (direct)</b><span>past the master; left out of exports</span></div>' : `<div class="lt"><b>${esc(chanLabel(o) + ' · ' + chanName(o))}</b><span>${o === MASTER ? 'straight to the master' : (C.fx.map(f => FX_DEFS[f.type].name).join(' · ') || 'no effects')}</span></div>`;
       li.onclick = () => { pushUndo('chan:' + c); P.chans[c].out = o; syncChan(c); markDirty(); closeSheet(); }; list.append(li); }
     card.append(list); });
 }
@@ -327,7 +327,7 @@ function renderFx(V) {
   if (c >= G0 && c < MASTER) { const nm = h('input'); nm.value = C.name; nm.maxLength = 14; nm.setAttribute('aria-label', 'Channel name'); nm.onfocus = () => pushUndo('chan:' + c); nm.oninput = () => { C.name = nm.value; markDirty(); }; head.append(nm); }
   else { const b = h('div', 'lcdbox', esc(chanName(c))); b.style.flex = '1'; head.append(b); }
   const slots = h('div', 'slots'); UI.fxSlot = clamp(UI.fxSlot, 0, Math.min(NSLOTS - 1, C.fx.length));
-  for (let s = 0; s < NSLOTS; s++) { const f = C.fx[s], md = f && f.mode ? FX_DEFS[f.type].modes[f.mode].n : null, k = btn(`<span class="led"></span><span class="lcd" style="font-size:8px;color:var(--dim)">${s + 1}</span>${f ? esc(md || FX_DEFS[f.type].short) : (s === C.fx.length ? '+' : '')}`,
+  for (let s = 0; s < NSLOTS; s++) { const f = C.fx[s], md = f && f.mode ? FX_DEFS[f.type].modes[f.mode].n : null, k = btn(`<span class="led"></span><span class="lcd" style="font-size:8px;color:var(--dim)">${s + 1}</span>${f ? '<span class="fxn" data-alt="' + esc(FX_DEFS[f.type].short) + '">' + esc(md || FX_DEFS[f.type].short) + '</span>' : (s === C.fx.length ? '+' : '')}`,
       () => { if (s <= C.fx.length) { UI.fxSlot = s; renderView(); } }, 'key' + (s === UI.fxSlot ? ' cur' : '') + (f && f.on ? ' lit' : ''));
     if (f) { const lk = fxLook(f.type, f.mode | 0); k.style.boxShadow = `inset 0 -3px 0 ${lk.ring}, 0 2px 0 #050506`; }
     if (s > C.fx.length) k.disabled = true; slots.append(k); }

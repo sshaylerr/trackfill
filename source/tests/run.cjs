@@ -173,6 +173,15 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const near = (a, x) => Math.abs(a - x) < .05, checks = [near(b.cm(0), b.out), near(b.cm(TF.MASTER), b.out), near(b.top, b.out), near(f6.cm(0) - b.cm(0), -6.02), near(hl.cm(0) - b.cm(0), 3.01), hl.cm(0, 1) < -100, mu.cm(0) < -300,
       near(gr.cm(TF.G0) - gr.cm(0), -6.02), near(gr.cm(TF.MASTER), gr.out), near(rt.cm(TF.R0), rt.cm(0)), near(ut.io(0), b.cm(0)), near(ut.io(2) - ut.io(0), 6), near(ck.cm(0), ck.out)];
     ok(checks.every(Boolean), `meters read what is heard within 0.05 dB: pad, fader, pan law, mute, group, return, master, output, device in/out, a one-sample click (${checks.map(x => x ? '✓' : '·').join('')})`); }
+  { // a display's numbers going wrong (an analyzer, a device meter) stops only that display: the sound and the mixer meters go on, one error is reported, and opening the display again brings it back
+    const sr = 48000, ex = new WebAssembly.Instance(wasm, {}).exports, posts = [], host = new H.TFHost(ex, sr, m => posts.push(m)), Q = M.newProject(true), d = new Int16Array(sr * 2);
+    for (let i = 0; i < d.length; i++) d[i] = Math.round(Math.sin(i * .13) * 8000); Object.assign(Q.pads[0], { sample: 'tone', mode: 'one' }); Q.chans[0].fx = [M.newFx(M.FX_TYPES.EQ)];
+    host.msg({ t: 'project', P: Q }); host.msg({ t: 'sample', key: 'tone', data: d, frames: d.length, ch: 1, sr }); host.msg({ t: 'scope', ch: 0, fc: 0, fs: 0, full: 0 }); host.msg({ t: 'hit', pad: 0, semi: 0, vel: 1, tag: 1 });
+    const L = new Float32Array(128), R = new Float32Array(128), go = n => { let pk = 0; for (let i = 0; i < n; i++) { host.render(128, L, R); for (let k = 0; k < 128; k++) pk = Math.max(pk, Math.abs(L[k])); } return pk; };
+    go(40); const feed = host.scopeFeed; host.scopeFeed = () => { throw new Error('test'); }; posts.length = 0; const pk = go(60);
+    const errs = posts.filter(p => p.t === 'err').length, meters = posts.filter(p => p.t === 'pos' && p.cm && p.cm[0] > 0).length;
+    host.scopeFeed = feed; host.msg({ t: 'scope', ch: 0, fc: 0, fs: 0, full: 0 }); posts.length = 0; go(40); const back = posts.some(p => p.t === 'pos' && p.sc);
+    ok(pk > .05 && errs === 1 && meters > 3 && back, `a display that fails stops only itself: sound and meters go on, one error, back when reopened (${errs} error, ${meters} meter reports, ${back ? 'back' : 'not back'})`); }
   console.log('monitoring');
   { const go = (msg) => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); host.msg({ t: 'project', P: Q });
       for (const [key, sm] of kit) host.msg({ t: 'sample', key, data: sm.data, frames: sm.frames, ch: sm.ch, sr: sm.sr }); if (msg) host.msg(msg); host.msg({ t: 'play', scene: 1, loop: 'scene' });
