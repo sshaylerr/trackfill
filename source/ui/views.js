@@ -4,6 +4,7 @@ const IC = {
   draw: '<svg viewBox="0 0 24 24"><path d="M4 17.5V20h2.5L17 9.5 14.5 7zM19.7 6.8l-2.5-2.5-1.6 1.6 2.5 2.5z"/></svg>',
   select: '<svg viewBox="0 0 24 24"><path d="M3 3h4v2H5v2H3zm6 0h6v2H9zm8 0h4v4h-2V5h-2zM3 9h2v6H3zm16 0h2v4h-2zM3 17h2v2h2v2H3zm6 2h4v2H9zm5.5-6.5l7 2.6-3 1.2 2.6 2.6-1.4 1.4-2.6-2.6-1.2 3z"/></svg>',
   follow: '<svg viewBox="0 0 24 24"><path d="M5 3h2.2v18H5zM10 7l9 5-9 5z"/></svg>',
+  split: '<svg viewBox="0 0 24 24"><path d="M11 2h2v20h-2zM3 7h6v10H3zM15 7h6v10h-6z" opacity=".95"/></svg>',
   shapes: '<svg viewBox="0 0 24 24"><path d="M2 18c4 0 5-12 10-12s6 12 10 12v2.2C17 20.2 16 8.2 12 8.2S7 20.2 2 20.2z"/></svg>',
   left: '<svg viewBox="0 0 24 24"><path d="M15 5l-8 7 8 7z"/></svg>', right: '<svg viewBox="0 0 24 24"><path d="M9 5l8 7-8 7z"/></svg>' };
 
@@ -64,6 +65,9 @@ function openLaneSheet(c) {
         li.innerHTML = `<div class="lt"><b>${esc(name)}</b><span>${esc(sub)}</span></div>` + (has ? '<span class="dot" title="Automated in this scene"></span>' : ''); li.onclick = () => pick(key); l.append(li); }
       card.append(l); };
     if (c === MASTER) list('Song', [[TF_TEMPO_KEY, 'Tempo', 'The song\'s BPM through the scene: ramps, drops, halftime feels']]);
+    const auds = P.pads.map((p, i) => i).filter(i => isAudioPad(i));   // audio tracks: open one's editor
+    if (auds.length) { card.append(h('div', 'sec', 'Audio tracks')); const l = h('div', 'list'); for (const i of auds) { const n = audClips(i).length, li = h('div', 'li' + (UI.pad === i && UI.tl.mode === 'keys' && UI.tl.lane === 'notes' ? ' on' : ''));
+      li.innerHTML = `<div class="lt"><b>${esc(padLabel(i) + ' ' + (P.pads[i].name || 'Audio'))}</b><span>${n} clip${n === 1 ? '' : 's'}</span></div>`; li.onclick = () => { UI.pad = i; UI.bank = Math.floor(i / 16); UI.tl.target = null; UI.tl.lane = 'notes'; UI.tl.mode = 'keys'; AED.sel = null; closeSheet(); if (UI.view !== 'seq') setView('seq'); else renderView(); }; l.append(li); } card.append(l); }
     if (c < G0) { card.append(h('div', 'sec', 'Notes')); const l = h('div', 'list');
       for (let b = 0; b < 4; b++) { const used = [...Array(16)].reduce((a, _, i) => a + ((sc.notes[b * 16 + i] || []).length ? 1 : 0), 0);
         const li = h('div', 'li' + (UI.tl.lane === 'notes' && UI.tl.mode === 'bank' && UI.bank === b ? ' on' : ''));
@@ -143,6 +147,7 @@ function drawDisp() {
   const cv = dispCv; if (!cv || !cv.isConnected || UI.view !== 'sound') return; const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = r.height;
   if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; } const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
   const pi = UI.pad, pad = P.pads[pi], s = SAMPLES.get(pad.sample), col = PAD_COLORS[pad.color];
+  if (pad.src === 'audio') { drawAudioDisp(g, W, H); return; }
   const txt = (t, x, y, c = COL.mute, al = 'left', sz = 10.5) => { g.fillStyle = c; g.font = `500 ${sz}px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle'; g.fillText(t, x, y); g.textAlign = 'left'; };
   const grid = (xs, ys) => { g.fillStyle = COL.line; for (const x of xs) g.fillRect(Math.round(x), 0, 1, H); for (const y of ys) g.fillRect(0, Math.round(y), W, 1); };
   if (UI.snd === PG.CHOP) { drawChop(); return; }

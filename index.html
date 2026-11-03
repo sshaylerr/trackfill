@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-x4GWdj35P0mcjgh6RuPkbqgPVXP9e+3mPXgUHMiDCsA=' 'sha256-t3K7x7a2npECnmO8D8CNuvNb4wYT+0F+bzgQ+EM1tNg=' 'sha256-2F8xX6QQOfrHx8uxWF/7fCg4aiMGuMHGwjDQ9k8c1G8=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-x4GWdj35P0mcjgh6RuPkbqgPVXP9e+3mPXgUHMiDCsA=' 'sha256-t3K7x7a2npECnmO8D8CNuvNb4wYT+0F+bzgQ+EM1tNg=' 'sha256-wm39MO/Kwx/s+mmZ+iL9Eo7FCe7YrDzKQWbkYq6xy0A=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -3775,7 +3775,7 @@ function upgradeSampleRecord(s) {   // v1 stored Float32 channel arrays; v2 stor
   if (s.chans) { const data = interleave(s.chans, s.chans[0].length); return { id: s.id, name: s.name, sr: s.sr, ch: s.chans.length, frames: s.chans[0].length, data, added: 0 }; }
   return null;
 }
-const usedSampleIds = () => { const u = new Set(); for (const sc of P.scenes) for (const k in sc.clips || {}) for (const c of sc.clips[k]) u.add(c.s); for (const p of P.pads) { if (p.sample) u.add(p.sample); if (p.frz) for (const k in p.frz) u.add(p.frz[k]); } for (const k of tableKeys()) if (!k.startsWith('w:')) u.add(k); for (const p of P.pads) { const g = grSrc(p); if (g) u.add(g); if (p.stx && p.wm !== 'Repitch') u.add(p.stx); } return u; };   // your own wavetables travel with the project like samples
+const usedSampleIds = () => { const u = new Set(); for (const sc of P.scenes) for (const k in sc.clips || {}) for (const c of sc.clips[k]) { u.add(c.s); const xk = tfClipKey(P, c); if (xk && SAMPLES.has(xk)) u.add(xk); } for (const p of P.pads) { if (p.sample) u.add(p.sample); if (p.frz) for (const k in p.frz) u.add(p.frz[k]); } for (const k of tableKeys()) if (!k.startsWith('w:')) u.add(k); for (const p of P.pads) { const g = grSrc(p); if (g) u.add(g); if (p.stx && p.wm !== 'Repitch') u.add(p.stx); } return u; };   // your own wavetables travel with the project like samples
 
 /* ================= storage ================= */
 const DB = { db: null, ok: false,
@@ -3988,7 +3988,7 @@ function samplePeakMap(s) { if (s._pk) return s._pk; const B = 1024, ch = s.ch, 
 function normGain(p) { const s = SAMPLES.get(p.sample); if (!s || !s.data) return 1; const pk = samplePeakMap(s), a = Math.floor(p.start * s.frames / 1024), b = Math.min(pk.length - 1, Math.ceil(p.end * s.frames / 1024)); let m = 0; for (let k = a; k <= b; k++) if (pk[k] > m) m = pk[k]; return m > 1e-4 ? Math.min(16, 0.891 / m) : 1; }
 function syncPad(i) { const p = P.pads[i]; if (p.norm) p.ng = normGain(p); ensureIns(insOf(p)); ensureSample(p.sample); if (p.stx) ensureSample(p.stx); if (typeof stretchCheck === 'function') stretchCheck(i); const gs = grSrc(p); if (gs) { if (gs.startsWith('b:')) buildBuiltin(gs.slice(2)); ensureSample(gs); } for (const k of tableKeys([p])) ensureTable(k); if (p.frz) for (const k in p.frz) ensureSample(p.frz[k]); send({ t: 'pad', i, v: p }); }
 function syncChan(c) { send({ t: 'chan', i: c, v: P.chans[c] }); }
-function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing, swq: P.swq || 24 } }); updateTransport(); if (typeof stretchAllSoon === 'function') stretchAllSoon(); }   // stretched pads follow the tempo
+function syncSong() { send({ t: 'song', v: { bpm: P.bpm, swing: P.swing, swq: P.swq || 24 } }); updateTransport(); if (typeof stretchAllSoon === 'function') stretchAllSoon(); if (typeof audStretchSoon === 'function') audStretchSoon(); }   // stretched pads follow the tempo
 function syncProject() { if (!ENG.node) return; for (const p of P.pads) ensureIns(insOf(p)); for (const id of usedSampleIds()) ensureSample(id); for (const k of tableKeys()) ensureTable(k); upPrefer(UI.scene); syncKey(true); send({ t: 'project', P }); send({ t: 'loop', v: T.loop }); }
 function sendParam(key, v) { send({ t: 'param', key, v }); }
 function silentWavUrl() { const sr = 8000, n = sr / 2, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), ws = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
@@ -5844,6 +5844,7 @@ const IC = {
   draw: '<svg viewBox="0 0 24 24"><path d="M4 17.5V20h2.5L17 9.5 14.5 7zM19.7 6.8l-2.5-2.5-1.6 1.6 2.5 2.5z"/></svg>',
   select: '<svg viewBox="0 0 24 24"><path d="M3 3h4v2H5v2H3zm6 0h6v2H9zm8 0h4v4h-2V5h-2zM3 9h2v6H3zm16 0h2v4h-2zM3 17h2v2h2v2H3zm6 2h4v2H9zm5.5-6.5l7 2.6-3 1.2 2.6 2.6-1.4 1.4-2.6-2.6-1.2 3z"/></svg>',
   follow: '<svg viewBox="0 0 24 24"><path d="M5 3h2.2v18H5zM10 7l9 5-9 5z"/></svg>',
+  split: '<svg viewBox="0 0 24 24"><path d="M11 2h2v20h-2zM3 7h6v10H3zM15 7h6v10h-6z" opacity=".95"/></svg>',
   shapes: '<svg viewBox="0 0 24 24"><path d="M2 18c4 0 5-12 10-12s6 12 10 12v2.2C17 20.2 16 8.2 12 8.2S7 20.2 2 20.2z"/></svg>',
   left: '<svg viewBox="0 0 24 24"><path d="M15 5l-8 7 8 7z"/></svg>', right: '<svg viewBox="0 0 24 24"><path d="M9 5l8 7-8 7z"/></svg>' };
 
@@ -5904,6 +5905,9 @@ function openLaneSheet(c) {
         li.innerHTML = `<div class="lt"><b>${esc(name)}</b><span>${esc(sub)}</span></div>` + (has ? '<span class="dot" title="Automated in this scene"></span>' : ''); li.onclick = () => pick(key); l.append(li); }
       card.append(l); };
     if (c === MASTER) list('Song', [[TF_TEMPO_KEY, 'Tempo', 'The song\'s BPM through the scene: ramps, drops, halftime feels']]);
+    const auds = P.pads.map((p, i) => i).filter(i => isAudioPad(i));   // audio tracks: open one's editor
+    if (auds.length) { card.append(h('div', 'sec', 'Audio tracks')); const l = h('div', 'list'); for (const i of auds) { const n = audClips(i).length, li = h('div', 'li' + (UI.pad === i && UI.tl.mode === 'keys' && UI.tl.lane === 'notes' ? ' on' : ''));
+      li.innerHTML = `<div class="lt"><b>${esc(padLabel(i) + ' ' + (P.pads[i].name || 'Audio'))}</b><span>${n} clip${n === 1 ? '' : 's'}</span></div>`; li.onclick = () => { UI.pad = i; UI.bank = Math.floor(i / 16); UI.tl.target = null; UI.tl.lane = 'notes'; UI.tl.mode = 'keys'; AED.sel = null; closeSheet(); if (UI.view !== 'seq') setView('seq'); else renderView(); }; l.append(li); } card.append(l); }
     if (c < G0) { card.append(h('div', 'sec', 'Notes')); const l = h('div', 'list');
       for (let b = 0; b < 4; b++) { const used = [...Array(16)].reduce((a, _, i) => a + ((sc.notes[b * 16 + i] || []).length ? 1 : 0), 0);
         const li = h('div', 'li' + (UI.tl.lane === 'notes' && UI.tl.mode === 'bank' && UI.bank === b ? ' on' : ''));
@@ -5983,6 +5987,7 @@ function drawDisp() {
   const cv = dispCv; if (!cv || !cv.isConnected || UI.view !== 'sound') return; const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = r.height;
   if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; } const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
   const pi = UI.pad, pad = P.pads[pi], s = SAMPLES.get(pad.sample), col = PAD_COLORS[pad.color];
+  if (pad.src === 'audio') { drawAudioDisp(g, W, H); return; }
   const txt = (t, x, y, c = COL.mute, al = 'left', sz = 10.5) => { g.fillStyle = c; g.font = `500 ${sz}px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle'; g.fillText(t, x, y); g.textAlign = 'left'; };
   const grid = (xs, ys) => { g.fillStyle = COL.line; for (const x of xs) g.fillRect(Math.round(x), 0, 1, H); for (const y of ys) g.fillRect(0, Math.round(y), W, 1); };
   if (UI.snd === PG.CHOP) { drawChop(); return; }
@@ -7439,6 +7444,7 @@ function pasteChan(c) { if (!clipIs('chan')) return; pushUndo('chan:' + c); Obje
 
 /* ----- the Edit sheet: a few tabs, one grid of keys each, nothing to scroll; a small overview of the scene shows each edit land ----- */
 function editContext() {
+  if ((UI.view === 'seq' && UI.tl.mode === 'keys' && UI.tl.lane === 'notes' || UI.view === 'sound') && isAudioPad(UI.pad)) return 'clip';   // an audio track's clips
   if (UI.view === 'seq') return 'bars';
   if (UI.view === 'fx') return 'fx';
   if (UI.view === 'mix') return UI.mixSel < G0 ? 'pad' : 'chan';
@@ -7462,7 +7468,7 @@ function edOverview(body, bars) {
 function openEdit() {
   const ctx = editContext(), tl = UI.tl, notes = ctx === 'bars' && tl.lane === 'notes';
   if (ctx === 'bars') { const t = tl.sel ? tl.sel.n.t : tl.cursor.t || 0; EDR.from = clamp(Math.floor(t / BAR), 0, P.scenes[UI.scene].bars - 1); EDR.len = Math.min(EDR.len || 1, P.scenes[UI.scene].bars - EDR.from) || 1; }
-  const tabs = { bars: notes ? ['Notes', 'Tools', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'] }[ctx];
+  const tabs = { bars: notes ? ['Notes', 'Tools', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'], clip: ['Clip', 'Scene'] }[ctx];
   let tab = notes && selItems().length ? 'Notes' : tabs.includes(ED.tab[ctx]) ? ED.tab[ctx] : tabs[0];
   openSheet('Edit', card => {
     const body = h('div', 'edit'), title = card.querySelector('.shTitle span'); card.append(body);
@@ -7473,6 +7479,10 @@ function openEdit() {
       if (tabs.length > 1) { const tb = h('div', 'g' + tabs.length + ' hrow edtabs'); for (const t of tabs) tb.append(btn(t, () => { tab = ED.tab[ctx] = t; draw(); }, 'btn sm' + (t === tab ? ' on' : ''))); body.append(tb); }
       const n = selItems().length, sc = P.scenes[UI.scene];
       if ((tab === 'Notes' || tab === 'Tools' || tab === 'Bars') && UI.view === 'seq' && tl.lane === 'notes') edOverview(body, tab === 'Bars');
+      if (tab === 'Clip') { const has = !!audSelInfo();
+        grid(key('Copy', audCopy, has), key('Paste', audPaste, clipIs('clip'), { stay: 1 }), key('Duplicate', audDuplicate, has, { stay: 1, cls: 'hot' }), key('Delete', audDelete, has, { stay: 1, cls: 'warn' }),
+          key('Split at cursor', audSplit, has, { stay: 1, w: 2 }), key('Reverse', () => { const x = audSelInfo(); if (x) { pushUndo('all'); audSet('rev', !x.c.rev); } }, has, { stay: 1 }), key('To a pad', audToPad, has),
+          key('Import a recording…', () => { closeSheet(); audImport(UI.pad); }, true, { w: 4 })); }
       if (tab === 'Notes') {
         grid(key('Copy', () => copyNotes(), n > 0), key('Cut', () => copyNotes(true), n > 0), key('Paste', pasteNotes, clipIs('notes'), { stay: 1 }), key('Delete', deleteSel, n > 0, { cls: 'warn' }),
           key('Duplicate', () => duplicateNote(), n > 0, { stay: 1, w: 2, cls: 'hot' }), key('Fill to end', () => duplicateNote(true), n > 0, { stay: 1 }), key('Select all', selectAll, true, { stay: 1 }),
@@ -7706,7 +7716,7 @@ function renderSynthSound(w, pi, head) {
   g.addEventListener('click', e => { if (UI.map && e.target.closest('[data-syn]')) { e.stopPropagation(); e.preventDefault(); } }, true);
   dev.append(disp, g); w.append(dev); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
 }
-function synHeadKey(pi) { const pad = P.pads[pi], k = btn(pad.src === 'synth' ? 'Synth' : pad.src === 'drum' ? 'Drum' : 'Sample', () => openSynthSource(pi), 'key sm srcKey' + (pad.src !== 'sample' ? ' on' : '')); return k; }
+function synHeadKey(pi) { const pad = P.pads[pi], k = btn(pad.src === 'synth' ? 'Synth' : pad.src === 'drum' ? 'Drum' : pad.src === 'audio' ? 'Audio' : 'Sample', () => openSynthSource(pi), 'key sm srcKey' + (pad.src !== 'sample' ? ' on' : '')); return k; }
 function mapKey(pi) { return btn('Map', () => { UI.map = UI.map ? null : { target: null, route: -1, armed: -1 }; renderView(); }, 'key sm mapKey' + (UI.map ? ' on' : '')); }
 
 /* ----- source and presets ----- */
@@ -8597,15 +8607,17 @@ function midiImport(m, into) { const sc = P.scenes[UI.scene], groups = midiGroup
 }
 
 /* ---------- Audio tracks: a pad whose sound is recordings laid along the song ----------
-   A clip sits in the scene it starts in (so copying or moving that scene takes it along) at a tick, and plays its stretch of the
-   recording in seconds, running on across later scenes when it's long. The editor (Keys on an audio pad) shows the whole song: the
-   scenes along the top, this track's clips below. Drag a clip to move it (it snaps to the grid; Fine for free), its edges to trim,
-   and Split / Clip… for the rest. Nothing changes the recording itself. */
-const AED = { sx: 0, zoom: 0, sel: null, cur: 0, cv: null, W: 0, H: 0, dpr: 1, drag: null, raf: 0 };
+   A clip sits in the scene it starts in (copying or moving that scene takes it along) at a tick, and plays its stretch of the recording
+   in seconds, running on across later scenes when it's long. Keys on an audio pad opens its editor: the timeline you know, laid along the
+   whole song. Scenes across the top (tap one to jump there), each bank's notes as a row underneath so you can see what a word lands on,
+   then the clips, on the same grid. Drag a clip to move it, its edges to trim; Split and Delete on the toolbar, the rest in Edit and on
+   the Sound page (gain, fades, reverse, stretch). Nothing changes the recording itself. */
+const AED = { sx: 0, zoom: 0, sel: null, cur: 0, cv: null, W: 0, H: 0, dpr: 1, drag: null, raf: 0, fitFor: null, follow: true };
 const AUD_MAX_SEC = 600;   // recordings per project (all audio tracks together): ten minutes
 const isAudioPad = pi => P.pads[pi] && P.pads[pi].src === 'audio';
 const audOrder = () => { const o = tfSongOrder(P); return o.length ? o : [{ scene: UI.scene, reps: 1 }]; };
 const audSceneSec = si => tfSceneSamples(P, si, 48000) / 48000, audTickSec = (si, t) => tfTickSamples(P, si, t, 48000) / 48000;
+const audLen = c => tfClipLen(P, c);
 function audLayout() { const out = []; let acc = 0; for (const o of audOrder()) { const L = audSceneSec(o.scene); out.push({ scene: o.scene, reps: o.reps, at: acc, len: L, end: acc + L * o.reps }); acc += L * o.reps; } return out; }
 function audSceneAt(si, lay = audLayout()) { const e = lay.find(x => x.scene === si); return e ? e.at : null; }
 // a moment of the song (s) → the scene it's in and the tick there (first time round)
@@ -8613,13 +8625,19 @@ function audPosOf(sec, lay = audLayout()) { if (!lay.length) return { scene: UI.
   const off = clamp(sec - e.at, 0, e.len - 1e-6), len = P.scenes[e.scene].bars * BAR; let lo = 0, hi = len; for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (audTickSec(e.scene, m) < off) lo = m; else hi = m; }
   return { scene: e.scene, tick: clamp(lo, 0, len - 1e-3) }; }
 const audClipSec = (si, c, lay) => { const a = audSceneAt(si, lay); return a == null ? null : a + audTickSec(si, c.t); };
-function audClips(pi, lay = audLayout()) { const out = []; P.scenes.forEach((sc, si) => (sc.clips && sc.clips[pi] || []).forEach((c, i) => { const at = audClipSec(si, c, lay); if (at != null) out.push({ si, i, c, at }); })); return out; }
+function audClips(pi, lay = audLayout()) { const out = []; P.scenes.forEach((sc, si) => (sc.clips && sc.clips[pi] || []).forEach((c, i) => { const at = audClipSec(si, c, lay); if (at != null) out.push({ si, i, c, at }); })); return out.sort((a, b) => a.at - b.at); }
 function audUsedSec() { const seen = new Set(); let n = 0; for (const sc of P.scenes) for (const k in sc.clips || {}) for (const c of sc.clips[k]) if (!seen.has(c.s)) { seen.add(c.s); const s = SAMPLES.get(c.s); if (s) n += s.frames / s.sr; } return n; }
+function audSyncAll() { P.scenes.forEach((_, i) => syncScene(i)); audStretchSoon(); }
 // waveform peaks of a recording: 100 columns a second, worked out once
 const AUD_PK = new Map();
 function audPeaks(id) { let p = AUD_PK.get(id); if (p) return p; const s = SAMPLES.get(id); if (!s) return null; const per = Math.max(1, Math.round(s.sr / 100)), n = Math.ceil(s.frames / per), d = s.data, ch = s.ch; p = new Uint8Array(n);
   for (let k = 0; k < n; k++) { let m = 0; const a = k * per, b = Math.min(s.frames, a + per); for (let i = a; i < b; i += 2) { const v = Math.abs(d[i * ch]); if (v > m) m = v; } p[k] = Math.min(255, m >> 7); } AUD_PK.set(id, p); return p; }
-// making a pad an audio track, and bringing recordings in
+// the clip being worked on: picked in the editor, or the first one in this scene (then in the song) when nothing is
+function audSelInfo(pi = UI.pad) { let s = AED.sel; if (s) { const L = (P.scenes[s.si].clips || {})[pi] || [], i = L.indexOf(s.c); if (i >= 0) return { si: s.si, i, c: s.c, L }; }
+  const all = audClips(pi), x = all.find(q => q.si === UI.scene) || all[0]; if (!x) return null; AED.sel = { si: x.si, c: x.c }; const L = P.scenes[x.si].clips[pi]; return { si: x.si, i: L.indexOf(x.c), c: x.c, L }; }
+function audPut(si, c, pi = UI.pad) { const B = P.scenes[si]; B.clips = B.clips || {}; (B.clips[pi] = B.clips[pi] || []).push(c); }
+function audMove(c, fromSi, toSi, tick) { if (fromSi !== toSi) { const A = P.scenes[fromSi].clips[UI.pad]; A.splice(A.indexOf(c), 1); if (!A.length) delete P.scenes[fromSi].clips[UI.pad]; audPut(toSi, c); } c.t = tick; }
+/* ----- bringing recordings in ----- */
 function makeAudioPad(pi) { pushUndo('pad:' + pi); touchPad(pi); Object.assign(P.pads[pi], { src: 'audio', sample: null, syn: null, drum: null, name: P.pads[pi].name || 'Audio', mode: 'one' }); syncPad(pi); markDirty(); }
 function audImport(pi) { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = AUDIO_ACCEPT; inp.onchange = () => audImportFile(pi, inp.files && inp.files[0]); inp.click(); }
 async function audImportFile(pi, f) {
@@ -8628,115 +8646,171 @@ async function audImportFile(pi, f) {
   const left = AUD_MAX_SEC - audUsedSec(); if (left < 1) { toast(`Audio tracks hold ${AUD_MAX_SEC / 60} minutes of recordings per project, and that's used up`); return; }
   const secs = Math.min(buf.duration, left), chans = []; for (let c = 0; c < Math.min(2, buf.numberOfChannels); c++) chans.push(buf.getChannelData(c));
   const id = addUserSample(f.name.replace(/\.[^.]+$/, ''), buf.sampleRate, chans.length, interleave(chans, Math.floor(secs * buf.sampleRate)), { aud: 1 });
-  const pos = audPosOf(AED.cur); pushUndo('all'); const sc = P.scenes[pos.scene]; sc.clips = sc.clips || {}; (sc.clips[pi] = sc.clips[pi] || []).push({ s: id, t: pos.tick, so: 0, d: secs, g: 0, fi: 0, fo: 0 });
-  AED.sel = { si: pos.scene, c: sc.clips[pi][sc.clips[pi].length - 1] }; syncScene(pos.scene); ensureSample(id); markDirty(); renderAll();
-  toast(`${tfName(f.name, 30)}: ${secs.toFixed(1)} s in scene ${pos.scene + 1}` + (secs < buf.duration - .05 ? ` (cut to fit the ${AUD_MAX_SEC / 60}-minute budget)` : '')); }
-function audSyncAll() { P.scenes.forEach((_, i) => syncScene(i)); }
-// edits
-function audSelInfo() { const s = AED.sel; if (!s) return null; const L = (P.scenes[s.si].clips || {})[UI.pad] || [], i = L.indexOf(s.c); return i < 0 ? null : { si: s.si, i, c: s.c, L }; }
-function audMove(c, fromSi, toSi, tick) { if (fromSi !== toSi) { const A = P.scenes[fromSi].clips[UI.pad]; A.splice(A.indexOf(c), 1); if (!A.length) delete P.scenes[fromSi].clips[UI.pad];
-    const B = P.scenes[toSi]; B.clips = B.clips || {}; (B.clips[UI.pad] = B.clips[UI.pad] || []).push(c); } c.t = tick; }
-function audSplit() { const x = audSelInfo(); if (!x) { toast('Select a clip first'); return; } const lay = audLayout(), at = audClipSec(x.si, x.c, lay), cut = AED.cur - at;
-  if (cut <= .01 || cut >= x.c.d - .01) { toast('Put the cursor inside the clip (tap where to cut)'); return; }
-  pushUndo('all'); const b = Object.assign({}, x.c, { so: x.c.so + cut, d: x.c.d - cut, fi: 0 }), pos = audPosOf(AED.cur, lay); x.c.d = cut; x.c.fo = 0;
-  const B = P.scenes[pos.scene]; B.clips = B.clips || {}; (B.clips[UI.pad] = B.clips[UI.pad] || []).push(b); b.t = pos.tick; AED.sel = { si: pos.scene, c: b }; audSyncAll(); markDirty(); audDraw(); toast('Split'); }
-function audDelete() { const x = audSelInfo(); if (!x) { toast('Select a clip first'); return; } pushUndo('all'); x.L.splice(x.i, 1); if (!x.L.length) delete P.scenes[x.si].clips[UI.pad]; AED.sel = null; syncScene(x.si); markDirty(); audDraw(); }
-function audClipSheet() { const x = audSelInfo(); if (!x) { openSheet('Audio', card => { const st = h('div', 'stack'); card.append(st); st.append(h('p', 'note', 'No clip selected. Import a recording: it lands at the cursor.')); const g = h('div', 'g2'); g.append(btn('Import a recording…', () => { closeSheet(); audImport(UI.pad); }, 'btn on'), btn('Output: ' + destName(UI.pad), () => openOutputPicker(UI.pad))); st.append(g); }); return; }
-  const c = x.c, sync = () => { syncScene(x.si); markDirty(); audDraw(); };
-  openSheet('Clip', card => { const st = h('div', 'stack'); card.append(st); const g = h('div', 'g2');
-    g.append(paramEl({ label: 'Gain', min: -30, max: 12, step: .1, coarse: 1, big: 6, get: () => c.g, set: v => { c.g = v; sync(); }, onStart: () => pushUndo('all'), def: 0, fmt: v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB', noFocus: true }),
-      paramEl({ label: 'Length', min: .02, max: Math.max(.02, (SAMPLES.get(c.s) ? SAMPLES.get(c.s).frames / SAMPLES.get(c.s).sr : c.d) - c.so), step: .01, coarse: .1, big: 1, get: () => c.d, set: v => { c.d = v; sync(); }, onStart: () => pushUndo('all'), def: c.d, fmt: v => v.toFixed(2) + ' s', noFocus: true }),
-      paramEl({ label: 'Fade in', min: 0, max: 10, step: .005, coarse: .05, big: .5, get: () => c.fi, set: v => { c.fi = Math.min(v, c.d / 2); sync(); }, onStart: () => pushUndo('all'), def: 0, fmt: v => v < .001 ? 'Off' : Math.round(v * 1000) + ' ms', noFocus: true }),
-      paramEl({ label: 'Fade out', min: 0, max: 10, step: .005, coarse: .05, big: .5, get: () => c.fo, set: v => { c.fo = Math.min(v, c.d / 2); sync(); }, onStart: () => pushUndo('all'), def: 0, fmt: v => v < .001 ? 'Off' : Math.round(v * 1000) + ' ms', noFocus: true }));
-    st.append(g); const g2 = h('div', 'g2');
-    g2.append(btn('Duplicate after it', () => { pushUndo('all'); const lay = audLayout(), at = audClipSec(x.si, c, lay) + c.d, pos = audPosOf(at, lay), B = P.scenes[pos.scene], n = Object.assign({}, c, { t: pos.tick });
-      B.clips = B.clips || {}; (B.clips[UI.pad] = B.clips[UI.pad] || []).push(n); AED.sel = { si: pos.scene, c: n }; audSyncAll(); markDirty(); closeSheet(); audDraw(); }),
-      btn('Start at its scene\'s start', () => { pushUndo('all'); c.t = 0; sync(); closeSheet(); }), btn('Import another…', () => { closeSheet(); audImport(UI.pad); }), btn('Output: ' + destName(UI.pad), () => openOutputPicker(UI.pad)));
-    st.append(g2); }); }
+  const pos = audPosOf(AED.cur); pushUndo('all'); const c = { s: id, t: pos.tick, so: 0, d: secs, g: 0, fi: 0, fo: 0, rev: false, wm: 'off', bpm: 0 }; audPut(pos.scene, c, pi);
+  AED.sel = { si: pos.scene, c }; syncScene(pos.scene); ensureSample(id); markDirty(); renderAll();
+  toast(`${tfName(f.name, 30)} · ${secs.toFixed(1)} s, from scene ${pos.scene + 1}` + (secs < buf.duration - .05 ? ` (cut to fit the ${AUD_MAX_SEC / 60}-minute budget)` : '')); }
+/* ----- stretch: Clean renders made in the background (the engine repitches until one is ready) ----- */
+const AUDX = { pend: new Set(), t: 0 };
+function audStretchSoon() { clearTimeout(AUDX.t); AUDX.t = setTimeout(audStretchAll, 300); }
+async function audStretchAll() { const want = new Set();
+  for (const sc of P.scenes) for (const k in sc.clips || {}) for (const c of sc.clips[k]) { const key = tfClipKey(P, c); if (!key) continue; want.add(key); if (SAMPLES.has(key) || AUDX.pend.has(key)) continue;
+    const s = SAMPLES.get(c.s); if (!s) continue; AUDX.pend.add(key); stretchBusy(1);
+    try { const a = Math.floor(c.so * s.sr), n = Math.max(1, Math.min(s.frames - a, Math.round(c.d * s.sr))), sub = { sr: s.sr, ch: s.ch, frames: n, data: s.data.subarray(a * s.ch, (a + n) * s.ch) };
+      const r = await cleanStretch(sub, 1 / tfClipRate(P, c), 0); SAMPLES.set(key, { id: key, name: s.name + ' · stretched', sr: r.sr, ch: 2, frames: r.L.length, data: interleave([r.L, r.R], r.L.length), x: true }); ensureSample(key); }
+    catch (e) { toast('Stretch could not render: ' + (e.message || e)); } finally { AUDX.pend.delete(key); stretchBusy(-1); } }
+  for (const k of [...SAMPLES.keys()]) if (k.startsWith('x:c:') && !want.has(k) && !AUDX.pend.has(k)) { SAMPLES.delete(k); send({ t: 'sampleDel', key: k }); ENG.sent.delete(k); } }
+/* ----- clip edits (toolbar, Edit sheet, Sound page and d-pad share these) ----- */
+function audSplit() { const x = audSelInfo(); if (!x) { toast('Import a recording first'); return; } const lay = audLayout(), at = audClipSec(x.si, x.c, lay), L = audLen(x.c), cut = AED.cur - at;
+  if (cut <= .01 || cut >= L - .01) { toast('Put the cursor inside the clip: tap where to cut'); return; }
+  pushUndo('all'); const r = tfClipRate(P, x.c), srcCut = cut * r, b = Object.assign({}, x.c, { fi: 0 }), pos = audPosOf(AED.cur, lay);
+  if (x.c.rev) { b.d = x.c.d - srcCut; x.c.so += x.c.d - srcCut; x.c.d = srcCut; } else { b.so = x.c.so + srcCut; b.d = x.c.d - srcCut; x.c.d = srcCut; } x.c.fo = 0;
+  b.t = pos.tick; audPut(pos.scene, b); AED.sel = { si: pos.scene, c: b }; audSyncAll(); markDirty(); audRedraw(); toast('Split'); }
+function audDelete() { const x = audSelInfo(); if (!x || !AED.sel) { toast('Tap a clip first'); return; } pushUndo('all'); x.L.splice(x.i, 1); if (!x.L.length) delete P.scenes[x.si].clips[UI.pad]; AED.sel = null; syncScene(x.si); markDirty(); audRedraw(); }
+function audDuplicate() { const x = audSelInfo(); if (!x) return; pushUndo('all'); const lay = audLayout(), pos = audPosOf(audClipSec(x.si, x.c, lay) + audLen(x.c), lay), n = Object.assign({}, x.c, { t: pos.tick });
+  audPut(pos.scene, n); AED.sel = { si: pos.scene, c: n }; AED.cur = audClipSec(pos.scene, n, lay); audSyncAll(); markDirty(); audRedraw(); toast('Duplicated after it'); }
+function audSet(k, v) { const x = audSelInfo(); if (!x) return; x.c[k] = v; syncScene(x.si); if (k === 'wm' || k === 'bpm' || k === 'so' || k === 'd') audStretchSoon(); markDirty(); audRedraw(); }
+function audCopy() { const x = audSelInfo(); if (!x) { toast('Tap a clip first'); return; } setClip('clip', (SAMPLES.get(x.c.s) || {}).name || 'Clip', x.c); }
+function audPaste() { if (!clipIs('clip')) return; pushUndo('all'); const pos = audPosOf(AED.cur), c = Object.assign(clone(CLIP.data), { t: pos.tick }); audPut(pos.scene, c); AED.sel = { si: pos.scene, c }; audSyncAll(); markDirty(); audRedraw(); toast('Pasted at the cursor'); }
+// the clip as its own sound on the next empty pad, to chop or play
+function audToPad() { const x = audSelInfo(); if (!x) return; const s = SAMPLES.get(x.c.s); if (!s) return; const to = P.pads.findIndex((p, i) => i !== UI.pad && !hasSound(p) && p.src !== 'audio'); if (to < 0) { toast('No empty pad left'); return; }
+  const a = Math.floor(x.c.so * s.sr), n = Math.max(1, Math.min(s.frames - a, Math.round(x.c.d * s.sr))), data = s.data.slice(a * s.ch, (a + n) * s.ch); if (x.c.rev) for (let i = 0, j = n - 1; i < j; i++, j--) for (let k = 0; k < s.ch; k++) { const t = data[i * s.ch + k]; data[i * s.ch + k] = data[j * s.ch + k]; data[j * s.ch + k] = t; }
+  const id = addUserSample(s.name.slice(0, 18) + ' clip', s.sr, s.ch, data); pushUndo('all'); touchPad(to); Object.assign(P.pads[to], { src: 'sample', sample: id, name: s.name.slice(0, 12), start: 0, end: 1, reverse: false, frz: null }); syncPad(to); markDirty(); toast(`On ${padLabel(to)}: ready to chop or play`); }
+function audRedraw() { audDraw(); if (UI.view === 'sound' && typeof drawDisp === 'function') drawDisp(); }
 /* ----- the editor ----- */
+const AUD_SB = 18;   // the scene band (px); each bank's row takes a share of what's left: audBR()
+const audBR = () => clamp(Math.floor((AED.H - RULER_H - AUD_SB) * .4 / 4), 12, 30);
 function renderAudioEd(V) {
-  const pi = UI.pad, w = h('div', 'seqView'), bar = h('div', 'toolbar'), lb = h('button', 'lanebox'); lb.innerHTML = `<b>${esc(padLabel(pi) + ' ' + (P.pads[pi].name || 'Audio'))}</b><i>▾</i>`; lb.onclick = () => openLaneSheet(pi);
-  bar.append(lb, btn('Bank', () => { UI.tl.mode = 'bank'; renderView(); }, 'key sm'), btn(snapName(UI.tl.snap), openSnap, 'key sm'), btn('−', () => audZoom(1 / 1.5), 'key sm ic'), btn('+', () => audZoom(1.5), 'key sm ic'),
-    btn('Split', audSplit, 'key sm'), btn('Clip…', audClipSheet, 'key sm'));
-  const del = btn(IC.del, audDelete, 'key sm ic warn'); del.setAttribute('aria-label', 'Delete clip'); bar.append(del);
+  const pi = UI.pad, tl = UI.tl, w = h('div', 'seqView'), bar = h('div', 'toolbar'), lb = h('button', 'lanebox'); lb.innerHTML = `<b>${esc(padLabel(pi) + ' ' + (P.pads[pi].name || 'Audio'))}</b><i>▾</i>`; lb.setAttribute('aria-label', 'Choose track or lane'); lb.onclick = () => openLaneSheet(pi);
+  const zoom = f => audZoom(f), fb = btn(IC.follow, () => { AED.follow = !AED.follow; fb.classList.toggle('on', AED.follow); if (AED.follow) audFollow(true); }, 'key sm ic follow' + (AED.follow ? ' on' : '')); fb.setAttribute('aria-label', 'Follow playhead');
+  const del = btn(IC.del, audDelete, 'key sm ic warn'); del.setAttribute('aria-label', 'Delete clip');
+  bar.append(lb, btn('Audio', () => { tl.mode = 'bank'; renderView(); }, 'key sm'), btn(snapName(tl.snap), openSnap, 'key sm'), btn('−', () => zoom(1 / 1.5), 'key sm ic'), btn('+', () => zoom(1.5), 'key sm ic'), fb, (() => { const k = btn(IC.split, audSplit, 'key sm ic'); k.setAttribute('aria-label', 'Split at the cursor'); return k; })(), del);
   const wrap = h('div', 'scr tlwrap'), cv = h('canvas', 'navc'); cv.setAttribute('aria-label', 'Audio editor'); cv._ctl = audCtl; cv._draw = audDraw; wrap.append(cv); w.append(bar, wrap); V.append(w);
-  AED.cv = cv; audBind(cv); requestAnimationFrame(() => { audSize(); if (!AED.zoom) audFit(); audDraw(); }); }
+  AED.cv = cv; audBind(cv); requestAnimationFrame(() => { audSize(); if (AED.fitFor !== UI.scene || !AED.zoom) audFitScene(UI.scene); audDraw(); }); }
 function audSize() { const cv = AED.cv; if (!cv || !cv.isConnected) return; const r = innerBox(cv.parentNode); AED.dpr = devicePixelRatio || 1; AED.W = r.width; AED.H = r.height; cv.width = Math.round(r.width * AED.dpr); cv.height = Math.round(r.height * AED.dpr); cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px'; }
-function audSongLen() { const lay = audLayout(), end = lay.length ? lay[lay.length - 1].end : 8; let m = end; for (const x of audClips(UI.pad, lay)) m = Math.max(m, x.at + x.c.d); return m; }
-function audFit() { AED.zoom = Math.max(4, (AED.W - 8) / Math.max(4, audSongLen() * 1.04)); AED.sx = 0; }
-function audZoom(f, cx) { const x = cx == null ? AED.W / 2 : cx, s = AED.sx + x / AED.zoom; AED.zoom = clamp(AED.zoom * f, 2, 2000); AED.sx = Math.max(-1, s - x / AED.zoom); audDraw(); }
-const audX = s => (s - AED.sx) * AED.zoom, audS = x => AED.sx + x / AED.zoom, AUD_TOP = 34;
+// the view: one scene across the width (as on the timeline), zoom out toward the whole song
+function audFitScene(si) { const lay = audLayout(), e = lay.find(x => x.scene === si) || lay[0], vw = Math.max(40, AED.W - LABEL_W); AED.fitFor = si;
+  if (!e) { AED.zoom = vw / 8; AED.sx = 0; return; } AED.zoom = vw / Math.max(.5, e.len * 1.02); AED.sx = e.at - e.len * .01; if (AED.cur < e.at || AED.cur > e.at + e.len * e.reps) AED.cur = e.at; }
+function audSongLen() { const lay = audLayout(), end = lay.length ? lay[lay.length - 1].end : 8; let m = end; for (const x of audClips(UI.pad, lay)) m = Math.max(m, x.at + audLen(x.c)); return m; }
+function audZoom(f, cx) { const vw = AED.W - LABEL_W, x = cx == null ? vw / 2 : cx - LABEL_W, s = AED.sx + x / AED.zoom; AED.zoom = clamp(AED.zoom * f, Math.max(1, vw / (audSongLen() * 1.05)), 4000); AED.sx = s - x / AED.zoom; audClampX(); audDraw(); }
+function audClampX() { const vw = AED.W - LABEL_W; AED.sx = clamp(AED.sx, -vw * .02 / AED.zoom, Math.max(0, audSongLen() - vw * .9 / AED.zoom)); }
+const audX = s => LABEL_W + (s - AED.sx) * AED.zoom, audS = x => AED.sx + (x - LABEL_W) / AED.zoom;
+const audLane = () => { const y0 = RULER_H + AUD_SB + audBR() * 4 + 6; return { y0, y1: AED.H - 4 }; };
 function audDraw() {
-  const cv = AED.cv; if (!cv || !cv.isConnected || !AED.W) return; const g = cv.getContext('2d'), W = AED.W, H = AED.H, lay = audLayout(); g.setTransform(AED.dpr, 0, 0, AED.dpr, 0, 0);
-  g.fillStyle = COL.panel; g.fillRect(0, 0, W, H);
-  // the song along the top: each scene (its repeats shaded), with bar lines through the lane
-  for (const e of lay) { const sc = P.scenes[e.scene], x0 = audX(e.at), x1 = audX(e.end); if (x1 < 0 || x0 > W) continue;
-    g.fillStyle = PAD_COLORS[(sc.color ?? e.scene) % 8]; g.globalAlpha = e.scene === UI.scene ? .75 : .45; g.fillRect(x0 + 1, 2, Math.max(1, x1 - x0 - 2), AUD_TOP - 14); g.globalAlpha = 1;
-    for (let r = 1; r < e.reps; r++) { g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(audX(e.at + e.len * r), 2, 1, AUD_TOP - 14); }
-    g.save(); g.beginPath(); g.rect(x0, 0, Math.max(0, x1 - x0), AUD_TOP); g.clip(); g.fillStyle = COL.ink; g.font = '700 10px ' + FONT_UI; g.textBaseline = 'middle'; g.fillText(`${e.scene + 1} ${sc.name || ''}${e.reps > 1 ? ' ×' + e.reps : ''}`, x0 + 4, 11); g.restore();
-    const spb = 60 / P.bpm; for (let b = 0; b <= sc.bars * e.reps; b++) { const x = Math.round(audX(e.at + audTickSec(e.scene, (b % sc.bars) * BAR) + Math.floor(b / sc.bars) * e.len)) + .5; if (x < 0 || x > W) continue; g.fillStyle = b % sc.bars ? COL.line : COL.dim; g.fillRect(x, AUD_TOP - 10, 1, H); }
-    void spb; }
-  // this track's clips
-  const lane0 = AUD_TOP + 4, lane1 = H - 6, mid = (lane0 + lane1) / 2, amp = (lane1 - lane0) / 2 - 3, pcol = PAD_COLORS[P.pads[UI.pad].color];
-  for (const x of audClips(UI.pad, lay)) { const c = x.c, x0 = audX(x.at), x1 = audX(x.at + c.d); if (x1 < 0 || x0 > W) continue; const sel = AED.sel && AED.sel.c === c, pk = audPeaks(c.s), gain = Math.pow(10, (c.g || 0) / 20);
-    g.fillStyle = COL.raised; g.fillRect(x0, lane0, x1 - x0, lane1 - lane0); g.fillStyle = pcol; g.globalAlpha = .9;
-    if (pk) { const a = Math.max(0, x0), b = Math.min(W, x1); for (let px = Math.floor(a); px < b; px++) { const t0 = c.so + (px - x0) / AED.zoom, t1 = t0 + 1 / AED.zoom; let m = 0; for (let k = Math.floor(t0 * 100); k <= Math.floor(t1 * 100) && k < pk.length; k++) if (pk[k] > m) m = pk[k];
-      const tin = (px - x0) / AED.zoom, f = Math.min(1, c.fi > 0 ? tin / c.fi : 1, c.fo > 0 ? (c.d - tin) / c.fo : 1), hh = Math.max(.5, Math.min(1, m / 255 * gain) * amp * f); g.fillRect(px, mid - hh, 1, hh * 2); } }
-    g.globalAlpha = 1; g.strokeStyle = sel ? COL.ink : pcol; g.lineWidth = sel ? 2 : 1; g.strokeRect(x0 + .5, lane0 + .5, Math.max(1, x1 - x0 - 1), lane1 - lane0 - 1);
-    const s = SAMPLES.get(c.s); g.save(); g.beginPath(); g.rect(x0, lane0, Math.max(0, x1 - x0), 16); g.clip(); g.fillStyle = COL.ink; g.font = '600 10px ' + FONT_UI; g.textBaseline = 'top'; g.fillText(s ? s.name : 'Missing recording', x0 + 4, lane0 + 3); g.restore(); }
-  // the cursor (where Import and Split work) and the playhead
-  const cx = Math.round(audX(AED.cur)) + .5; g.setLineDash([4, 3]); g.strokeStyle = COL.accent; g.lineWidth = 1; g.beginPath(); g.moveTo(cx, AUD_TOP - 10); g.lineTo(cx, H); g.stroke(); g.setLineDash([]);
+  const cv = AED.cv; if (!cv || !cv.isConnected || !AED.W) return; const g = cv.getContext('2d'), W = AED.W, H = AED.H, lay = audLayout(), tl = UI.tl; g.setTransform(AED.dpr, 0, 0, AED.dpr, 0, 0);
+  g.fillStyle = COL.panel; g.fillRect(0, 0, W, H); const { y0: ly0, y1: ly1 } = audLane(), rowsTop = RULER_H + AUD_SB + 2;
+  g.save(); g.beginPath(); g.rect(LABEL_W, 0, W - LABEL_W, H); g.clip();
+  for (const e of lay) for (let r = 0; r < e.reps; r++) { const sc = P.scenes[e.scene], a = e.at + r * e.len, x0 = audX(a), x1 = audX(a + e.len); if (x1 < LABEL_W || x0 > W) continue;
+    // the grid, as on the timeline: bar lines, beats, then the grid's own steps where there's room
+    const step = tl.snap && tl.snap * AED.zoom * audTickSec(e.scene, 1) >= 6 ? tl.snap : 24 * AED.zoom * audTickSec(e.scene, 1) >= 6 ? 24 : BEAT * AED.zoom * audTickSec(e.scene, 1) >= 5 ? BEAT : BAR;
+    for (let t = 0; t <= sc.bars * BAR; t += step) { const x = Math.round(audX(a + audTickSec(e.scene, t))) + .5; if (x < LABEL_W || x > W) continue; g.fillStyle = t === 0 ? COL.mute : t % BAR === 0 ? COL.dim : t % BEAT === 0 ? COL.line : COL.raised2 || COL.line; g.globalAlpha = t % BEAT === 0 ? 1 : .7; g.fillRect(x - .5, RULER_H, 1, H - RULER_H); g.globalAlpha = 1; }
+    // the scene above, then each bank's notes (the scene in miniature)
+    const on = e.scene === UI.scene; g.fillStyle = PAD_COLORS[(sc.color ?? e.scene) % 8]; g.globalAlpha = on ? .8 : .45; g.fillRect(x0 + 1, RULER_H + 2, Math.max(1, x1 - x0 - 2), AUD_SB - 4); g.globalAlpha = 1;
+    g.save(); g.beginPath(); g.rect(x0, RULER_H, Math.max(0, x1 - x0), AUD_SB); g.clip(); g.fillStyle = COL.ink; g.font = '700 10px ' + FONT_UI; g.textBaseline = 'middle'; g.fillText(`${e.scene + 1} ${sc.name || ''}${e.reps > 1 ? ' · ' + (r + 1) + '/' + e.reps : ''}`, x0 + 4, RULER_H + AUD_SB / 2); g.restore();
+    const BR_ = audBR(), lh = Math.max(1, (BR_ - 3) / 16); for (let b = 0; b < 4; b++) { const y = rowsTop + b * BR_; if (b % 2) { g.fillStyle = 'rgba(255,255,255,.025)'; g.fillRect(x0, y, x1 - x0, BR_); }
+      for (let k = 0; k < 16; k++) { const pi = b * 16 + k, ns = sc.notes[pi]; if (!ns || !ns.length || pi === UI.pad) continue; g.fillStyle = PAD_COLORS[P.pads[pi].color];   // pad 1 at the bottom of its bank's row, as on the pads
+        for (const n of ns) { const nx = audX(a + audTickSec(e.scene, n.t)), nw = Math.max(1.5, audX(a + audTickSec(e.scene, n.t + n.len)) - nx - .5); if (nx > W || nx + nw < LABEL_W) continue; g.fillRect(nx, y + BR_ - 2 - (k + 1) * lh, nw, Math.max(1, lh - .3)); } } }
+    // the ruler: this scene's bars
+    g.fillStyle = COL.mute; g.font = '500 10px ' + FONT_LCD; g.textBaseline = 'middle'; for (let bb = 0; bb < sc.bars; bb++) { const x = audX(a + audTickSec(e.scene, bb * BAR)); if (x > LABEL_W - 20 && x < W && AED.zoom * e.len / sc.bars > 18) g.fillText(String(bb + 1), x + 3, RULER_H / 2); } }
+  // the clips
+  const mid = (ly0 + ly1) / 2, amp = (ly1 - ly0) / 2 - 3, pcol = PAD_COLORS[P.pads[UI.pad].color], clips = audClips(UI.pad, lay);
+  for (const x of clips) { const c = x.c, L = audLen(c), r = tfClipRate(P, c), x0 = audX(x.at), x1 = audX(x.at + L); if (x1 < LABEL_W || x0 > W) continue; const sel = AED.sel && AED.sel.c === c, pk = audPeaks(c.s), gain = Math.pow(10, (c.g || 0) / 20);
+    g.fillStyle = COL.raised; g.fillRect(x0, ly0, x1 - x0, ly1 - ly0); g.fillStyle = pcol; g.globalAlpha = .9;
+    if (pk) { const a = Math.max(LABEL_W, Math.floor(x0)), b = Math.min(W, x1); for (let px = a; px < b; px++) { const tin = (px - x0) / AED.zoom, t0 = c.rev ? c.so + c.d - (tin + 1 / AED.zoom) * r : c.so + tin * r, t1 = t0 + r / AED.zoom; let m = 0; for (let k = Math.max(0, Math.floor(t0 * 100)); k <= Math.floor(t1 * 100) && k < pk.length; k++) if (pk[k] > m) m = pk[k];
+      const f = Math.min(1, c.fi > 0 ? tin / c.fi : 1, c.fo > 0 ? (L - tin) / c.fo : 1), hh = Math.max(.5, Math.min(1, m / 255 * gain) * amp * Math.max(0, f)); g.fillRect(px, mid - hh, 1, hh * 2); } }
+    g.globalAlpha = 1; g.strokeStyle = sel ? COL.ink : pcol; g.lineWidth = sel ? 2 : 1; g.strokeRect(x0 + .5, ly0 + .5, Math.max(1, x1 - x0 - 1), ly1 - ly0 - 1);
+    const s = SAMPLES.get(c.s); g.save(); g.beginPath(); g.rect(x0, ly0, Math.max(0, x1 - x0), 16); g.clip(); g.fillStyle = COL.ink; g.font = '600 10px ' + FONT_UI; g.textBaseline = 'top';
+    g.fillText((s ? s.name : 'Missing recording') + (c.rev ? ' · reversed' : '') + (r !== 1 ? ' · ×' + r.toFixed(2) : ''), x0 + 5, ly0 + 3); g.restore(); }
+  if (!clips.length) { g.fillStyle = COL.mute; g.font = '500 12px ' + FONT_UI; g.textBaseline = 'middle'; g.fillText('Tap where it should start, then Edit › Import', LABEL_W + 12, mid); }
+  // the cursor (where Import, Paste and Split work) and the playhead
+  const cx = Math.round(audX(AED.cur)) + .5; g.setLineDash([4, 3]); g.strokeStyle = COL.accent; g.lineWidth = 1.2; g.beginPath(); g.moveTo(cx, RULER_H); g.lineTo(cx, H); g.stroke(); g.setLineDash([]);
   const ph = audPlaySec(lay); if (ph != null) { g.fillStyle = COL.ink; g.fillRect(Math.round(audX(ph)), 0, 1.5, H); }
-  if (!audClips(UI.pad, lay).length) { g.fillStyle = COL.mute; g.font = '500 12px ' + FONT_UI; g.textBaseline = 'middle'; g.fillText('Clip… › Import a recording: it lands at the cursor (tap to move it)', 10, mid); }
-  if (T.playing && !AED.raf) AED.raf = setTimeout(() => { AED.raf = 0; if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) audDraw(); }, 50); }
+  g.restore();
+  // the labels, as on the timeline
+  g.fillStyle = COL.raised; g.fillRect(0, 0, LABEL_W, H); g.fillStyle = COL.line; g.fillRect(0, RULER_H - 1, W, 1); g.font = '600 10px ' + FONT_LCD; g.textBaseline = 'middle'; g.fillStyle = COL.mute;
+  g.fillText('Scene', 6, RULER_H + AUD_SB / 2); for (let b = 0; b < 4; b++) g.fillText('Bank ' + BANKS[b], 6, rowsTop + b * audBR() + audBR() / 2); g.fillStyle = COL.ink; g.fillText(P.pads[UI.pad].name || 'Audio', 6, mid);
+  if (T.playing && !AED.raf) AED.raf = setTimeout(() => { AED.raf = 0; if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audFollow(); audDraw(); } }, 50); }
 function audPlaySec(lay) { const pos = heardPos(); if (!pos) return null; const a = audSceneAt(pos.scene, lay); return a == null ? null : a + audTickSec(pos.scene, pos.tick); }
+function audFollow(now) { if (!AED.follow || (!T.playing && !now) || AED.drag) return; const ph = audPlaySec(audLayout()); if (ph == null) return; const x = audX(ph); if (x > AED.W - 16 || x < LABEL_W) { AED.sx = ph - 8 / AED.zoom; audClampX(); } }
 // snapping a moment to the grid of the scene it lands in
 function audSnap(sec, lay) { if (UI.fine || !UI.tl.snap) return sec; const p = audPosOf(sec, lay), t = Math.round(p.tick / UI.tl.snap) * UI.tl.snap, a = audSceneAt(p.scene, lay); return a + audTickSec(p.scene, Math.min(t, P.scenes[p.scene].bars * BAR - 1e-3)); }
 function audBind(cv) { const ptrs = new Map();
   cv.addEventListener('pointerdown', e => { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; ptrs.set(e.pointerId, { x, y });
-    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; AED.drag = { kind: 'pinch', d0: Math.abs(a.x - b.x) || 1, z0: AED.zoom, cx: (a.x + b.x) / 2, s0: AED.sx + (a.x + b.x) / 2 / AED.zoom }; return; }
-    const lay = audLayout(), hit = y > AUD_TOP ? audClips(UI.pad, lay).find(q => x >= audX(q.at) - 8 && x <= audX(q.at + q.c.d) + 8) : null;
-    if (hit) { const x0 = audX(hit.at), x1 = audX(hit.at + hit.c.d), edge = x1 - x0 > 30 ? (x - x0 < 12 ? 'l' : x1 - x < 12 ? 'r' : '') : '';
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; AED.drag = { kind: 'pinch', d0: Math.abs(a.x - b.x) || 1, z0: AED.zoom, s0: audS((a.x + b.x) / 2) }; return; }
+    const lay = audLayout(), { y0 } = audLane();
+    if (y >= RULER_H && y < RULER_H + AUD_SB && x > LABEL_W) { AED.drag = { kind: 'scene', x0: x, y0: y, id: e.pointerId, sx0: AED.sx, moved: false }; return; }
+    const hit = y >= y0 ? audClips(UI.pad, lay).find(q => x >= audX(q.at) - 6 && x <= audX(q.at + audLen(q.c)) + 6) : null;
+    if (hit) { const x0 = audX(hit.at), x1 = audX(hit.at + audLen(hit.c)), edge = x1 - x0 > 36 ? (x - x0 < 14 ? 'l' : x1 - x < 14 ? 'r' : '') : '';
       AED.sel = { si: hit.si, c: hit.c }; AED.drag = { kind: edge ? 'trim' + edge : 'move', x0: x, hit, at0: hit.at, so0: hit.c.so, d0: hit.c.d, pushed: false, id: e.pointerId }; audDraw(); return; }
     AED.drag = { kind: 'pan', x0: x, y0: y, sx0: AED.sx, moved: false, id: e.pointerId }; });
   cv.addEventListener('pointermove', e => { const d = AED.drag; if (!d) return; const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x, y });
-    if (d.kind === 'pinch') { const [a, b] = [...ptrs.values()]; if (!b) return; AED.zoom = clamp(d.z0 * Math.abs(a.x - b.x) / d.d0, 2, 2000); AED.sx = d.s0 - (a.x + b.x) / 2 / AED.zoom; audDraw(); return; }
+    if (d.kind === 'pinch') { const [a, b] = [...ptrs.values()]; if (!b) return; AED.zoom = clamp(d.z0 * Math.abs(a.x - b.x) / d.d0, 1, 4000); AED.sx = d.s0 - ((a.x + b.x) / 2 - LABEL_W) / AED.zoom; audClampX(); audDraw(); return; }
     if (e.pointerId !== d.id) return; const ds = (x - d.x0) / AED.zoom;
-    if (d.kind === 'pan') { if (Math.abs(x - d.x0) > 6) d.moved = true; if (d.moved) { AED.sx = Math.max(-2, d.sx0 - ds); audDraw(); } return; }
+    if (d.kind === 'pan' || d.kind === 'scene') { if (Math.abs(x - d.x0) > 6) d.moved = true; if (d.moved) { AED.sx = d.sx0 - ds; audClampX(); audDraw(); } return; }
     if (!d.pushed) { if (Math.abs(x - d.x0) < 4) return; pushUndo('all'); d.pushed = true; }
-    const lay = audLayout(), c = d.hit.c, src = SAMPLES.get(c.s), full = src ? src.frames / src.sr : c.so + c.d;
-    if (d.kind === 'move') { const at = audSnap(Math.max(0, d.at0 + ds), lay), p = audPosOf(at, lay); const from = AED.sel.si; audMove(c, from, p.scene, p.tick); AED.sel = { si: p.scene, c }; }
-    else if (d.kind === 'triml') { let at = audSnap(d.at0 + ds, lay); at = clamp(at, d.at0 - d.so0, d.at0 + d.d0 - .02); const dd = at - d.at0, p = audPosOf(Math.max(0, at), lay); c.so = d.so0 + dd; c.d = d.d0 - dd; audMove(c, AED.sel.si, p.scene, p.tick); AED.sel = { si: p.scene, c }; }
-    else if (d.kind === 'trimr') { const end = audSnap(d.at0 + d.d0 + ds, lay); c.d = clamp(end - d.at0, .02, full - c.so); }
+    const lay = audLayout(), c = d.hit.c, rt = tfClipRate(P, c), src = SAMPLES.get(c.s), full = src ? src.frames / src.sr : c.so + c.d;
+    if (d.kind === 'move') { const at = audSnap(Math.max(0, d.at0 + ds), lay), p = audPosOf(at, lay); audMove(c, AED.sel.si, p.scene, p.tick); AED.sel = { si: p.scene, c }; AED.cur = at; }
+    else if (d.kind === 'triml') { let at = audSnap(d.at0 + ds, lay); at = clamp(at, Math.max(0, d.at0 - (c.rev ? full - d.so0 - d.d0 : d.so0) / rt), d.at0 + d.d0 / rt - .02); const dd = (at - d.at0) * rt, p = audPosOf(at, lay); if (!c.rev) c.so = d.so0 + dd; c.d = d.d0 - dd; audMove(c, AED.sel.si, p.scene, p.tick); AED.sel = { si: p.scene, c }; }
+    else if (d.kind === 'trimr') { const end = audSnap(d.at0 + d.d0 / rt + ds, lay), nd = clamp((end - d.at0) * rt, .02, c.rev ? d.so0 + d.d0 : full - c.so); if (c.rev) c.so = d.so0 + d.d0 - nd; c.d = nd; }
     audDraw(); });
-  const up = e => { ptrs.delete(e.pointerId); const d = AED.drag; if (!d) return; if (d.kind === 'pinch') { if (!ptrs.size) AED.drag = null; return; } if (e.pointerId !== d.id) return; AED.drag = null;
-    if (d.kind === 'pan' && !d.moved) { const r = cv.getBoundingClientRect(); AED.cur = Math.max(0, audSnap(audS(e.clientX - r.left), audLayout())); AED.sel = null; audDraw(); return; }
-    if (d.kind !== 'pan' && d.pushed) { audSyncAll(); markDirty(); haptic(); } else if (d.kind !== 'pan') { AED.cur = d.hit.at; } audDraw(); };
+  const up = e => { ptrs.delete(e.pointerId); const d = AED.drag; if (!d) return; if (d.kind === 'pinch') { if (!ptrs.size) AED.drag = null; return; } if (e.pointerId !== d.id) return; AED.drag = null; const r = cv.getBoundingClientRect(), x = e.clientX - r.left;
+    if (d.kind === 'scene' && !d.moved) { const lay = audLayout(), s = audS(x), e2 = lay.find(q => s >= q.at && s < q.end); if (e2) { if (e2.scene !== UI.scene) selectScene(e2.scene); audFitScene(e2.scene); audDraw(); } return; }   // tap a scene: jump there
+    if (d.kind === 'pan' && !d.moved) { AED.cur = Math.max(0, audSnap(audS(x), audLayout())); AED.sel = null; audDraw(); return; }
+    if (d.kind === 'pan' || d.kind === 'scene') return;
+    if (d.pushed) { audSyncAll(); markDirty(); haptic(); } else AED.cur = audSnap(audS(x), audLayout()); audRedraw(); };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
-  cv.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey || e.metaKey) audZoom(Math.exp(-e.deltaY * .01), e.offsetX); else { AED.sx = Math.max(-2, AED.sx + (e.deltaX || e.deltaY) / AED.zoom); audDraw(); } }, { passive: false }); }
-// the d-pad: ←→ moves the cursor (or the selected clip, held), ↑↓ picks the clip before or after, OK selects the clip at the cursor
+  cv.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey || e.metaKey) audZoom(Math.exp(-e.deltaY * .01), e.offsetX); else { AED.sx += (e.deltaX || e.deltaY) / AED.zoom; audClampX(); audDraw(); } }, { passive: false }); }
+// the d-pad: ←→ moves the cursor a grid step (holding OK on a clip moves the clip), ↑↓ the clip before or after, OK picks the clip at the cursor
 const audCtl = {
   hasSel() { return !!AED.sel; },
-  step() { const lay = audLayout(), p = audPosOf(AED.cur, lay), g = UI.fine ? 6 : (UI.tl.snap || 24); return audTickSec(p.scene, g); },
-  hz(d, sh) { const lay = audLayout(), x = audSelInfo(), st = this.step() * (sh ? 4 : 1);
+  step(sh) { const p = audPosOf(AED.cur), g = UI.fine ? 6 : (UI.tl.snap || 24); return audTickSec(p.scene, g) * (sh ? 4 : 1); },
+  hz(d, sh) { const lay = audLayout(), x = AED.sel && audSelInfo(), st = this.step(sh);
     if (x && NAV.held) { if (NAV.selUndo < 0) { pushUndo('all'); NAV.selUndo = UNDO.length - 1; } const at = audSnap(Math.max(0, audClipSec(x.si, x.c, lay) + d * st), lay), p = audPosOf(at, lay); audMove(x.c, x.si, p.scene, p.tick); AED.sel = { si: p.scene, c: x.c }; AED.cur = at; audSyncAll(); markDirty(); }
     else AED.cur = Math.max(0, audSnap(AED.cur + d * st, lay)); audEnsure(); audDraw(); },
   left(sh) { this.hz(-1, sh); }, right(sh) { this.hz(1, sh); },
-  vt(d) { const L = audClips(UI.pad).sort((a, b) => a.at - b.at); if (!L.length) return; let i = L.findIndex(q => AED.sel && q.c === AED.sel.c); i = i < 0 ? (d > 0 ? 0 : L.length - 1) : clamp(i + d, 0, L.length - 1); AED.sel = { si: L[i].si, c: L[i].c }; AED.cur = L[i].at; audEnsure(); audDraw(); },
+  vt(d) { const L = audClips(UI.pad); if (!L.length) return; let i = L.findIndex(q => AED.sel && q.c === AED.sel.c); i = i < 0 ? (d > 0 ? 0 : L.length - 1) : clamp(i + d, 0, L.length - 1); AED.sel = { si: L[i].si, c: L[i].c }; AED.cur = L[i].at; audEnsure(); audDraw(); },
   up() { this.vt(-1); }, down() { this.vt(1); },
-  ok() { const hit = audClips(UI.pad).find(q => AED.cur >= q.at - .001 && AED.cur <= q.at + q.c.d); AED.sel = hit ? { si: hit.si, c: hit.c } : null; NAV.selUndo = -1; audDraw(); },
+  ok() { const hit = audClips(UI.pad).find(q => AED.cur >= q.at - .001 && AED.cur <= q.at + audLen(q.c)); AED.sel = hit ? { si: hit.si, c: hit.c } : null; NAV.selUndo = -1; audDraw(); },
   back() { if (!AED.sel) return false; AED.sel = null; audDraw(); return true; },
   del() { audDelete(); },
-  info() { const x = audSelInfo(), lay = audLayout(), p = audPosOf(AED.cur, lay); return x ? `Clip ${(SAMPLES.get(x.c.s) || {}).name || ''} · ${x.c.d.toFixed(2)} s · hold OK + ←→ moves · Del removes` : `Cursor scene ${p.scene + 1} ${posStr(p.tick)} · OK selects a clip · ↑↓ next clip`; },
+  info() { const x = AED.sel && audSelInfo(), p = audPosOf(AED.cur); return x ? `${(SAMPLES.get(x.c.s) || {}).name || 'Clip'} · ${audLen(x.c).toFixed(2)} s · hold OK + ←→ moves it · Del removes` : `Scene ${p.scene + 1} ${posStr(p.tick)} · OK picks the clip here · ↑↓ next clip`; },
   heldInfo() { return 'Moving the clip · ←→'; } };
-function audEnsure() { const x = audX(AED.cur); if (x < 20 || x > AED.W - 20) AED.sx = Math.max(-2, AED.cur - AED.W / 2 / AED.zoom); }
-// the Sound page of an audio track
+function audEnsure() { const x = audX(AED.cur); if (x < LABEL_W + 12 || x > AED.W - 12) { AED.sx = AED.cur - (AED.W - LABEL_W) / 2 / AED.zoom; audClampX(); } }
+/* ----- the Sound page of an audio track: the same shape as a sample's (pages, a screen, eight controls) ----- */
+const AUD_PAGES = ['Clip', 'Stretch', 'Mix'];
 function renderAudioSound(w, pi, head) {
-  const pad = P.pads[pi], n = audClips(pi).length, used = audUsedSec(); const st = h('div', 'stack'); st.style.padding = '10px 0';
-  st.append(h('p', 'note', `Audio track · ${n} clip${n === 1 ? '' : 's'} · recordings in this project ${(used / 60).toFixed(1)} of ${AUD_MAX_SEC / 60} minutes. Clips sit in the scene they start in and move with it.`));
-  const g = h('div', 'g2'); g.append(btn('Open the editor', () => { UI.tl.mode = 'keys'; UI.tl.lane = 'notes'; UI.tl.target = null; setView('seq'); }, 'btn on'), btn('Import a recording…', () => audImport(pi), 'btn'),
-    btn('Output: ' + destName(pi), () => openOutputPicker(pi), 'btn'), btn('Sound source…', () => openSynthSource(pi), 'btn')); st.append(g);
-  w.append(head, st); }
+  UI.audPg = clamp(UI.audPg || 0, 0, AUD_PAGES.length - 1); const pages = seg(AUD_PAGES, UI.audPg, i => { UI.audPg = i; renderView(); }); pages.style.display = 'grid'; pages.style.gridTemplateColumns = `repeat(${AUD_PAGES.length},1fr)`; pages.querySelectorAll('.key').forEach(k => k.style.width = '100%');
+  const disp = h('div', 'scr disp'), cv = h('canvas'); disp.append(cv); dispCv = cv; disp.append(btn('Import a recording', () => audImport(pi), 'key sm dispKey'));
+  const g = h('div', 'kgrid'), x = audSelInfo(pi), C = P.chans[pi], none = () => blankCell(), all = audClips(pi);
+  const num = (label, k, o) => makeCtl(Object.assign({ label, key: 'aud:' + pi + ':' + k, get: () => { const y = audSelInfo(pi); return y ? y.c[k] : o.def; }, set: v => audSet(k, v), onStart: dpad => { if (!dpad) pushUndo('all'); } }, o), 'knob');
+  if (UI.audPg === 0) {
+    const src = x && SAMPLES.get(x.c.s), full = src ? src.frames / src.sr : 60;
+    g.append(selEl('Clip', all.length ? all.map((q, i) => `${i + 1} of ${all.length}`) : ['None'], () => Math.max(0, all.findIndex(q => x && q.c === x.c)), i => { const q = all[i]; if (q) { AED.sel = { si: q.si, c: q.c }; AED.cur = q.at; renderView(); } }),
+      x ? num('Gain', 'g', { min: -30, max: 12, step: .1, coarse: 1, big: 6, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB' }) : none(),
+      x ? num('Fade in', 'fi', { min: 0, max: 10, step: .005, coarse: .05, big: .5, def: 0, fmt: v => v < .001 ? 'Off' : v < 1 ? Math.round(v * 1000) + ' ms' : v.toFixed(2) + ' s' }) : none(),
+      x ? num('Fade out', 'fo', { min: 0, max: 10, step: .005, coarse: .05, big: .5, def: 0, fmt: v => v < .001 ? 'Off' : v < 1 ? Math.round(v * 1000) + ' ms' : v.toFixed(2) + ' s' }) : none(),
+      x ? num('Start', 'so', { min: 0, max: Math.max(.01, full - .02), step: .001, coarse: .05, big: 1, def: 0, fmt: v => v.toFixed(2) + ' s' }) : none(),
+      x ? num('Length', 'd', { min: .02, max: Math.max(.03, full - x.c.so), step: .001, coarse: .05, big: 1, def: x.c.d, fmt: v => v.toFixed(2) + ' s' }) : none(),
+      x ? selEl('Reverse', ['Off', 'On'], () => x.c.rev ? 1 : 0, i => { pushUndo('all'); audSet('rev', !!i); }) : none(),
+      cellBtn('Tools', 'Open', () => { if (UI.view !== 'seq') { UI.tl.mode = 'keys'; UI.tl.lane = 'notes'; UI.tl.target = null; } openEdit(); }));
+  } else if (UI.audPg === 1) {
+    g.append(x ? selEl('Stretch', ['Off', 'Repitch', 'Clean'], () => ['off', 'repitch', 'clean'].indexOf(x.c.wm || 'off'), i => { pushUndo('all'); const wm = ['off', 'repitch', 'clean'][i]; if (wm !== 'off' && !(x.c.bpm > 0)) toast('Set the recording\'s tempo too'); audSet('wm', wm); renderView(); }) : none(),
+      x ? num('Its tempo', 'bpm', { min: 0, max: 220, step: .1, coarse: 1, big: 10, def: 0, entry: ENTRY.bpm, fmt: v => v < 40 ? 'Not set' : (+v.toFixed(1)) + ' BPM' }) : none(),
+      cellBtn('Speed', x && tfClipRate(P, x.c) !== 1 ? '×' + tfClipRate(P, x.c).toFixed(3) : 'As recorded', () => toast('Stretch follows your tempo (' + P.bpm + ' BPM)')), none(), none(), none(), none(), none());
+  } else {
+    for (let i = 0; i < 4; i++) g.append(keyParam(pi + '.-1.' + i, { label: STRIP[i].label }));
+    g.append(cellBtn('Output', destName(pi), () => openOutputPicker(pi)), cellBtn('Effects', C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'None', () => openFx(pi, 'sound')), none(), cellBtn('Mixer', 'Open', () => { UI.mixPage = Math.floor(pi / 8); UI.mixSel = pi; setView('mix'); }));
+  }
+  w.append(head, pages, disp, g); requestAnimationFrame(drawDisp); }
+// the screen: the selected clip in its recording (the part the clip plays lit, fades drawn on it)
+function drawAudioDisp(g, W, H) { const pi = UI.pad, x = audSelInfo(pi), col = PAD_COLORS[P.pads[pi].color]; g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
+  const txt = (t, x0, y, c = COL.mute, al = 'left') => { g.fillStyle = c; g.font = `500 10.5px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle'; g.fillText(t, x0, y); g.textAlign = 'left'; };
+  if (!x) { txt('No clips yet · import a recording, or place one in the Timeline', W / 2, H / 2, COL.dim, 'center'); return; }
+  const c = x.c, s = SAMPLES.get(c.s); if (!s) { txt('The recording is missing', W / 2, H / 2, COL.dim, 'center'); return; } const full = s.frames / s.sr, pk = audPeaks(c.s), mid = H / 2 + 6, amp = H / 2 - 18, X = t => t / full * W;
+  for (let px = 0; px < W; px++) { const t0 = px / W * full, t1 = (px + 1) / W * full; let m = 0; for (let k = Math.floor(t0 * 100); k <= Math.floor(t1 * 100) && k < pk.length; k++) if (pk[k] > m) m = pk[k]; const inC = t0 >= c.so && t0 <= c.so + c.d;
+    g.fillStyle = inC ? col : COL.dim; g.globalAlpha = inC ? .95 : .5; const hh = Math.max(.5, m / 255 * amp); g.fillRect(px, mid - hh, 1, hh * 2); } g.globalAlpha = 1;
+  const a = X(c.so), b = X(c.so + c.d); g.strokeStyle = COL.ink; g.lineWidth = 1.5; g.strokeRect(a + .5, 14, Math.max(1, b - a - 1), H - 16);
+  const L = c.d, fiw = c.fi / L * (b - a), fow = c.fo / L * (b - a); g.beginPath(); g.moveTo(a, H - 2); g.lineTo(a + fiw, 14); g.lineTo(b - fow, 14); g.lineTo(b, H - 2); g.strokeStyle = COL.accent; g.lineWidth = 1.2; g.stroke();
+  txt(`${s.name}${c.rev ? ' · reversed' : ''} · ${c.so.toFixed(2)}–${(c.so + c.d).toFixed(2)} s of ${full.toFixed(1)} s`, 8, 8); }
 
 /* ---------- The wavetable browser: search, folders, tags, favourites and recent ----------
    Your tables live in folders (an imported pack gets its own, with the pack's own sub-folders) and carry tags: the ones you set, and ones
@@ -8932,7 +9006,7 @@ function openAppearance() {
     for (const [v, l] of [['rounded', 'Rounded'], ['narrow', 'Narrow']]) fg.append(btn(l, () => { UI.font = v; applyTheme(); savePrefs(); renderAll(); closeSheet(); openAppearance(); }, 'btn' + ((UI.font || 'rounded') === v ? ' on' : '')));
     st.append(fg); card.append(st); }, () => {});
 }
-function afterLoad() { UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
+function afterLoad() { UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => { stretchAllSoon(0); audStretchSoon(); }, 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
 
 /* ---------- engine check ---------- */
 /* Engine check: each row says in plain words what it means for using the app, with the technical detail underneath (and in Copy results).
@@ -8990,7 +9064,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-03', ['New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track) and import recordings up to 10 minutes per project. Keys opens its editor over the whole song: drag clips anywhere, across scenes, trim, split, fade.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
+  ['2026-11-03', ['New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],

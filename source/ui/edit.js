@@ -170,6 +170,7 @@ function pasteChan(c) { if (!clipIs('chan')) return; pushUndo('chan:' + c); Obje
 
 /* ----- the Edit sheet: a few tabs, one grid of keys each, nothing to scroll; a small overview of the scene shows each edit land ----- */
 function editContext() {
+  if ((UI.view === 'seq' && UI.tl.mode === 'keys' && UI.tl.lane === 'notes' || UI.view === 'sound') && isAudioPad(UI.pad)) return 'clip';   // an audio track's clips
   if (UI.view === 'seq') return 'bars';
   if (UI.view === 'fx') return 'fx';
   if (UI.view === 'mix') return UI.mixSel < G0 ? 'pad' : 'chan';
@@ -193,7 +194,7 @@ function edOverview(body, bars) {
 function openEdit() {
   const ctx = editContext(), tl = UI.tl, notes = ctx === 'bars' && tl.lane === 'notes';
   if (ctx === 'bars') { const t = tl.sel ? tl.sel.n.t : tl.cursor.t || 0; EDR.from = clamp(Math.floor(t / BAR), 0, P.scenes[UI.scene].bars - 1); EDR.len = Math.min(EDR.len || 1, P.scenes[UI.scene].bars - EDR.from) || 1; }
-  const tabs = { bars: notes ? ['Notes', 'Tools', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'] }[ctx];
+  const tabs = { bars: notes ? ['Notes', 'Tools', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'], clip: ['Clip', 'Scene'] }[ctx];
   let tab = notes && selItems().length ? 'Notes' : tabs.includes(ED.tab[ctx]) ? ED.tab[ctx] : tabs[0];
   openSheet('Edit', card => {
     const body = h('div', 'edit'), title = card.querySelector('.shTitle span'); card.append(body);
@@ -204,6 +205,10 @@ function openEdit() {
       if (tabs.length > 1) { const tb = h('div', 'g' + tabs.length + ' hrow edtabs'); for (const t of tabs) tb.append(btn(t, () => { tab = ED.tab[ctx] = t; draw(); }, 'btn sm' + (t === tab ? ' on' : ''))); body.append(tb); }
       const n = selItems().length, sc = P.scenes[UI.scene];
       if ((tab === 'Notes' || tab === 'Tools' || tab === 'Bars') && UI.view === 'seq' && tl.lane === 'notes') edOverview(body, tab === 'Bars');
+      if (tab === 'Clip') { const has = !!audSelInfo();
+        grid(key('Copy', audCopy, has), key('Paste', audPaste, clipIs('clip'), { stay: 1 }), key('Duplicate', audDuplicate, has, { stay: 1, cls: 'hot' }), key('Delete', audDelete, has, { stay: 1, cls: 'warn' }),
+          key('Split at cursor', audSplit, has, { stay: 1, w: 2 }), key('Reverse', () => { const x = audSelInfo(); if (x) { pushUndo('all'); audSet('rev', !x.c.rev); } }, has, { stay: 1 }), key('To a pad', audToPad, has),
+          key('Import a recording…', () => { closeSheet(); audImport(UI.pad); }, true, { w: 4 })); }
       if (tab === 'Notes') {
         grid(key('Copy', () => copyNotes(), n > 0), key('Cut', () => copyNotes(true), n > 0), key('Paste', pasteNotes, clipIs('notes'), { stay: 1 }), key('Delete', deleteSel, n > 0, { cls: 'warn' }),
           key('Duplicate', () => duplicateNote(), n > 0, { stay: 1, w: 2, cls: 'hot' }), key('Fill to end', () => duplicateNote(true), n > 0, { stay: 1 }), key('Select all', selectAll, true, { stay: 1 }),

@@ -197,7 +197,7 @@ function renderSynthSound(w, pi, head) {
   g.addEventListener('click', e => { if (UI.map && e.target.closest('[data-syn]')) { e.stopPropagation(); e.preventDefault(); } }, true);
   dev.append(disp, g); w.append(dev); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
 }
-function synHeadKey(pi) { const pad = P.pads[pi], k = btn(pad.src === 'synth' ? 'Synth' : pad.src === 'drum' ? 'Drum' : 'Sample', () => openSynthSource(pi), 'key sm srcKey' + (pad.src !== 'sample' ? ' on' : '')); return k; }
+function synHeadKey(pi) { const pad = P.pads[pi], k = btn(pad.src === 'synth' ? 'Synth' : pad.src === 'drum' ? 'Drum' : pad.src === 'audio' ? 'Audio' : 'Sample', () => openSynthSource(pi), 'key sm srcKey' + (pad.src !== 'sample' ? ' on' : '')); return k; }
 function mapKey(pi) { return btn('Map', () => { UI.map = UI.map ? null : { target: null, route: -1, armed: -1 }; renderView(); }, 'key sm mapKey' + (UI.map ? ' on' : '')); }
 
 /* ----- source and presets ----- */
