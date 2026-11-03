@@ -46,6 +46,8 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const Q2 = mk(); Q2.chans[5].out = H.TF.SPEAKER; Q2.scenes[1].notes = { 0: [{ t: 0, len: 1, p: 0, v: 0 }] }; const kitless = new Map([['u:vox', { id: 'u:vox', data: d, frames: N, ch: 1, sr }]]);
     const live = grab(host(Q2, 0, 'song'), 2), lv = hz(live, 1.1, 1.9), ex2 = await H.tfRenderOffline(wasm, Q2, kitless, { order: [{ scene: 0, reps: 1 }] }); let pk = 0; for (const v of ex2.L) pk = Math.max(pk, Math.abs(v));
     ok(a < 5 && Math.abs(b - 300) < 8 && Math.abs(c - 600) < 8 && Math.abs(e - 600) < 8 && Math.abs(lv - 300) < 8 && pk < 1e-4, `audio clips: silent before (${a.toFixed(0)} Hz), in at beat 2 (${b.toFixed(0)}), on into the next scene (${c.toFixed(0)}); looping that scene alone picks it up partway (${e.toFixed(0)}); routed to the speaker it plays live (${lv.toFixed(0)}) and stays out of exports (peak ${pk.toExponential(0)})`); }
+  { global.tfFFT = H.tfFFT; const W = require('../js/wavetables.js'), bad = W.WT_NAMES.filter(n => { const r = W.tfWtFactoryRaw(n); return JSON.stringify(W.wtAnalyze(r.raw, r.F, n)) !== JSON.stringify(W.WT_FACTORY_TAGS[n]); });
+    ok(!bad.length, `factory wavetable tags are up to date${bad.length ? ' (out of date: ' + bad.join(', ') + ': regenerate WT_FACTORY_TAGS in js/wavetables.js)' : ''}`); }
   console.log('clock');
   { // 300 loops at awkward tempos and both common rates: loop starts stay within a sample of true tempo (loops never round up)
     let worst = 0; for (const [bpm, sr, bars] of [[174, 44100, 1], [140, 48000, 2], [123.4, 44100, 1]]) {

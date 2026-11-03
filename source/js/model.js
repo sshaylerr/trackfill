@@ -490,10 +490,10 @@ function rechop(pad, s) { const c = pad.chop; if (!c || !s) return; if (c.by ===
   c.pts = c.by === 'e' ? chopEqual(pad.start, pad.end, c.div) : chopTransients(s, pad.start, pad.end, c.sens); }
 function sliceRange(pad, k) { const p = pad.chop.pts, n = p.length; k = Math.max(0, Math.min(n - 1, k)); return [p[k], k + 1 < n ? p[k + 1] : pad.end]; }
 function emptyScene() { return { name: '', bars: 4, repeat: 1, notes: {}, auto: {}, clips: {} }; }
-// audio clips (per pad, in the scene they start in): recording s, at tick t, its seconds so..so+d, gain g (dB), fades fi/fo (s); anything odd is dropped
+// audio clips (per pad, in the scene they start in): recording s, at tick t, its seconds so..so+d, gain g (dB), fades fi/fo (s), reversed, stretch (wm, its tempo bpm); anything odd is dropped
 function clipsClean(c) { const o = {}; if (!c || typeof c !== 'object') return o; const num = (v, a, b, d) => Number.isFinite(+v) ? Math.min(b, Math.max(a, +v)) : d;
   for (const k in c) { const pi = +k; if (!(pi >= 0 && pi < NPADS) || !Array.isArray(c[k])) continue; const L = c[k].filter(x => x && typeof x.s === 'string' && /^[a-z]:[\w.-]{1,60}$/.test(x.s) && +x.d > 0).slice(0, 256)
-    .map(x => ({ s: x.s, t: num(x.t, 0, 16 * BAR, 0), so: num(x.so, 0, 3600, 0), d: num(x.d, .001, 3600, 1), g: num(x.g, -60, 12, 0), fi: num(x.fi, 0, 60, 0), fo: num(x.fo, 0, 60, 0) })); if (L.length) o[pi] = L; } return o; }
+    .map(x => ({ s: x.s, t: num(x.t, 0, 16 * BAR, 0), so: num(x.so, 0, 3600, 0), d: num(x.d, .001, 3600, 1), g: num(x.g, -60, 12, 0), fi: num(x.fi, 0, 60, 0), fo: num(x.fo, 0, 60, 0), rev: !!x.rev, wm: ['off', 'repitch', 'clean'].includes(x.wm) ? x.wm : 'off', bpm: num(x.bpm, 0, 300, 0) })); if (L.length) o[pi] = L; } return o; }
 function newProject(blank) {
   const p = { v: PROJECT_VERSION, name: 'Untitled', bpm: 96, swing: 0, swq: 24, key: { root: 0, scale: 5 },
     pads: Array.from({ length: NPADS }, (_, i) => defaultPad(i)), chans: Array.from({ length: NCHANS }, (_, c) => defaultChan(c)),

@@ -211,6 +211,10 @@ function tfHasNotes(sc) { for (const k in sc.notes) if (sc.notes[k].length) retu
 // samples from a scene's start to one of its ticks (following a tempo lane if it has one)
 function tfTickSamples(P, si, tick, sr) { const sc = P.scenes[si], pts = sc && sc.auto && sc.auto[TF_TEMPO_KEY]; if (!pts || !pts.length) return tick * 60 * sr / (P.bpm * TF.PPQ);
   let n = 0; for (let t = 0; t < tick; t++) n += Math.min(1, tick - t) * 60 * sr / (tfBpmAt(P, si, t + .5) * TF.PPQ); return n; }
+// a clip's stretch: Repitch plays it faster or slower, Clean plays a render that keeps the pitch (made on the page, key below); both follow the project's tempo
+const tfClipRate = (P, c) => c.wm && c.wm !== 'off' && c.bpm > 0 ? Math.max(.25, Math.min(4, P.bpm / c.bpm)) : 1;
+const tfClipLen = (P, c) => c.d / tfClipRate(P, c);   // seconds it lasts on the song
+const tfClipKey = (P, c) => c.wm === 'clean' && c.bpm > 0 ? 'x:c:' + c.s + ':' + (+c.so).toFixed(4) + ':' + (+c.d).toFixed(4) + ':' + tfClipRate(P, c).toFixed(5) : null;
 // the song: the scenes with something in them, in order, each with its repeats
 function tfSongOrder(P) { const o = []; P.scenes.forEach((s, i) => { if (tfHasNotes(s)) o.push({ scene: i, reps: Math.max(1, s.repeat | 0 || 1) }); }); return o; }
 
@@ -711,13 +715,16 @@ class TFHost {
     if (!natural) { for (const pi of audio) this.heap.push({ time: t - 1, k: 3, tag: TF.AUD_TAG + pi, rel: .006 });
       const order = tfSongOrder(P), at = order.findIndex(o => o.scene === si); let back = 0;
       for (let k = at - 1; k >= 0; k--) { const o = order[k], L = tfSceneSamples(P, o.scene, sr); back += L * o.reps; const start = t - back + L * (o.reps - 1), C = P.scenes[o.scene].clips || {};   // that scene's last repeat
-        for (const pi of audio) for (const c of C[pi] || []) { const ct = start + tfTickSamples(P, o.scene, c.t, sr); if (ct + c.d * sr > t) this.heap.push({ time: t, at: ct, k: 8, pi, c }); } } }   // (queued at the scene's start, after the cut, playing from where it would be)
+        for (const pi of audio) for (const c of C[pi] || []) { const ct = start + tfTickSamples(P, o.scene, c.t, sr); if (ct + tfClipLen(P, c) * sr > t) this.heap.push({ time: t, at: ct, k: 8, pi, c }); } } }   // (queued at the scene's start, after the cut, playing from where it would be)
     const C = P.scenes[si].clips || {}; for (const pi of audio) for (const c of C[pi] || []) this.heap.push({ time: t + tfTickSamples(P, si, c.t, sr), k: 8, pi, c });
   }
   // an audio clip from where the song is: its start, or partway in when the song arrived after it began (fades as set, a short one when joining partway)
-  clipStart(e, off) { const c = e.c, s = this.sm.get(c.s); if (!s || !(c.d > 0)) return; const el = Math.max(0, (this.now + off - (e.at ?? e.time)) / this.sr), left = c.d - el; if (left <= .002) return;
-    const g = Math.pow(10, (c.g || 0) / 20), fi = Math.max(0, c.fi || 0), fo = Math.max(0, Math.min(c.fo || 0, left));
-    this.ex.tf_voice_frames(e.pi, s.id, off, 1, (c.so + el) * s.sr, (c.so + c.d) * s.sr, g, el > .001 ? .004 : Math.max(.0005, fi - el > 0 ? fi - el : .0005), Math.max(.004, fo), Math.max(0, left - Math.max(.004, fo)), TF.AUD_TAG + e.pi); }
+  clipStart(e, off) { const c = e.c, P = this.P; if (!(c.d > 0)) return; const r = tfClipRate(P, c), len = c.d / r, el = Math.max(0, (this.now + off - (e.at ?? e.time)) / this.sr), left = len - el; if (left <= .002) return;
+    const xk = tfClipKey(P, c), x = xk && this.sm.get(xk), s = x || this.sm.get(c.s); if (!s) return;   // a Clean render once it's ready; until then, repitched
+    const rate = x ? 1 : r, a = x ? 0 : c.so, srcEl = x ? el : el * r, srcD = x ? len : c.d;   // where in the source (render) the song is now, in its own seconds
+    const g = Math.pow(10, (c.g || 0) / 20), fi = Math.max(0, c.fi || 0), fo = Math.max(.004, Math.min(c.fo || 0, left)), atk = el > .001 ? .004 : Math.max(.0005, fi);
+    const first = c.rev ? a : a + srcEl, last = c.rev ? a + srcD - srcEl : a + srcD;   // reversed: it reads backwards from the end
+    this.ex.tf_voice_frames(e.pi, s.id, off, rate, first * s.sr, last * s.sr, c.rev ? 1 : 0, g, atk, fo, Math.max(0, left - fo), TF.AUD_TAG + e.pi); }
   cutClips(t) { this.P.pads.forEach((p, pi) => { if (p.frz) this.heap.push({ time: t, k: 3, tag: TF.FRZ_TAG + pi }); }); }
   dispatch(e, off) {
     const ex = this.ex;
@@ -817,4 +824,4 @@ function tfWarmEngine(module, sr) {
   for (let r = 0; r < 3; r++) { if (sid > 0) for (let c = 4; c < 8; c++) ex.tf_voice_start(c, sid, 0, 1 + c * .1, 0, 1, 0, .8, .0005, .05, -1, 1, 0);
     for (let k = 0; k < 4; k++) ex.tf_syn_note(k, 0, 0, .8, .3, 2 + k, 0); for (let b = 0; b < 100; b++) ex.tf_render(128); }
 }
-if (typeof module !== 'undefined') module.exports = { tfFFT, tfTickSamples, tfSongOrder, tfIsToggle, tfStepAt, TF_ENV_DIVS, tfEnvDiv, tfWarmEngine, TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { tfClipRate, tfClipLen, tfClipKey, tfFFT, tfTickSamples, tfSongOrder, tfIsToggle, tfStepAt, TF_ENV_DIVS, tfEnvDiv, tfWarmEngine, TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

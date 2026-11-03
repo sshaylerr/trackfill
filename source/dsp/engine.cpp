@@ -165,9 +165,9 @@ EX i32 tf_voice_start(i32 ch, i32 sid, i32 delay, float rate, float start, float
   start = sane(start, 0.f, 1.f, 0.f); end = sane(end, 0.f, 1.f, 1.f);
   const double fr = samp[sid].frames; return voiceStart(ch, sid, delay, rate, start * fr, end * fr - 1.0, rev, vel, atk, rel, gate, tag, post); }
 // an audio clip: a stretch of a long recording given in frames (a fraction can't place a frame exactly in a song-length file)
-EX i32 tf_voice_frames(i32 ch, i32 sid, i32 delay, float rate, double first, double last, float vel, float atk, float rel, float gate, i32 tag) {
+EX i32 tf_voice_frames(i32 ch, i32 sid, i32 delay, float rate, double first, double last, i32 rev, float vel, float atk, float rel, float gate, i32 tag) {
   if (ch < 0 || ch >= NCH || sid <= 0 || sid >= NSAMP || !samp[sid].d || !(first == first) || !(last == last)) return -1;
-  const double fr = samp[sid].frames; if (first < 0) first = 0; if (last > fr - 1.0) last = fr - 1.0; return voiceStart(ch, sid, delay, rate, first, last, 0, vel, atk, rel, gate, tag, 0); }
+  const double fr = samp[sid].frames; if (first < 0) first = 0; if (last > fr - 1.0) last = fr - 1.0; return voiceStart(ch, sid, delay, rate, first, last, rev ? 1 : 0, vel, atk, rel, gate, tag, 0); }
 static i32 voiceStart(i32 ch, i32 sid, i32 delay, float rate, double first, double last, i32 rev, float vel, float atk, float rel, float gate, i32 tag, i32 post) {
   if (!(rate > 0.f) || rate > 64.f) return -1;
   Samp* S = &samp[sid]; const double fr = S->frames;

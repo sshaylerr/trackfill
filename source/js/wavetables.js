@@ -72,6 +72,29 @@ const WT_FACTORY = [
   { n: 'Noise Cycles', F: 32, pre: t => { wtSeed = 99; const a = new Float64Array(129), ph = new Float64Array(129); for (let k = 1; k <= 128; k++) { a[k] = Math.pow(k, -.5 - t * 1.5); ph[k] = wtRnd() * WTAU; } return { a, ph }; }, f: (x, t, s) => addH(x, s.a, s.ph) },
 ];
 const WT_NAMES = WT_FACTORY.map(w => w.n);
+const BR_WORDS = { growl: 'growl', wobble: 'growl', reese: 'growl', pad: 'pad', bass: 'bass', sub: 'bass', lead: 'lead', vox: 'vocal', vocal: 'vocal', voice: 'vocal', vowel: 'formant', formant: 'formant',
+  pluck: 'pluck', fx: 'fx', noise: 'noisy', digi: 'digital', digital: 'digital', bit: 'digital', fm: 'digital', warm: 'warm', analog: 'warm', harsh: 'harsh', dist: 'harsh', saw: 'buzzy', square: 'hollow', sine: 'pure' };
+/* Listening by numbers: the average frame's harmonics say pure / buzzy / hollow / bright / dark / formant / digital / harsh / warm,
+   and how much the frames differ says evolving or static. Quick (a handful of frames, one FFT each), so it runs on every import. */
+function wtAnalyze(raw, F, name) {
+  const N = 2048, fft = tfFFT(N), rev = new Uint16Array(N), re = new Float32Array(N), im = new Float32Array(N), take = Math.min(F, 12), H = 128, avg = new Float64Array(H + 1), prev = new Float64Array(H + 1); let move = 0;
+  for (let i = 0, j = 0; i < N; i++) { rev[i] = j; let b = N >> 1; while (j & b) { j ^= b; b >>= 1; } j |= b; }
+  for (let k = 0; k < take; k++) { const f = take > 1 ? Math.round(k * (F - 1) / (take - 1)) : 0; for (let i = 0; i < N; i++) { re[rev[i]] = raw[f * N + i] || 0; im[i] = 0; } fft(re, im);   // (the transform takes its input in bit-reversed order)
+    const mag = new Float64Array(H + 1); let tot = 0; for (let h = 1; h <= H; h++) { mag[h] = Math.hypot(re[h], im[h]); tot += mag[h]; } if (tot > 0) for (let h = 1; h <= H; h++) mag[h] /= tot;
+    if (k) { let d = 0; for (let h = 1; h <= H; h++) d += Math.abs(mag[h] - prev[h]); move += d / (take - 1); } prev.set(mag); for (let h = 1; h <= H; h++) avg[h] += mag[h] / take; }
+  let cen = 0, odd = 0, even = 0, hi = 0, irr = 0, s3 = 0; for (let h = 1; h <= H; h++) { cen += h * avg[h]; if (h > 1) (h & 1 ? (odd += avg[h]) : (even += avg[h])); if (h > 24) hi += avg[h]; if (h > 2 && h < H) { irr += Math.abs(avg[h] - (avg[h - 1] + avg[h + 1]) / 2); s3 += avg[h]; } }
+  irr /= s3 || 1; const both = odd > .2 && even > .2;   // irregularity only means something when the harmonics aren't every other one
+  let peaks = 0; if (both) for (let h = 4; h < 60; h++) if (avg[h] > avg[h - 1] * 1.5 && avg[h] > avg[h + 1] * 1.5 && avg[h] > .015) peaks++;
+  const t = new Set();
+  if (avg[1] > .6) t.add('pure'); else if (cen > 18) t.add('bright'); else if (cen < 6) t.add('dark');
+  if (avg[1] < .6 && odd > even * 2.5 && even < .1) t.add('hollow'); if (odd > .25 && even > .25 && irr < .3) t.add('buzzy');
+  if (peaks >= 2) t.add('formant'); if (both && irr > .4) t.add('digital'); if (hi > .33) t.add('harsh'); if (cen < 8 && avg[1] > .2 && avg[1] < .6) t.add('warm');
+  if (F > 1) t.add(move > .12 ? 'evolving' : 'static'); if (move > .3 && cen > 8 && (t.has('buzzy') || t.has('formant'))) t.add('growl');
+  for (const w of String(name || '').toLowerCase().split(/[^a-z]+/)) { let k = BR_WORDS[w]; if (!k) { const p = Object.keys(BR_WORDS).find(x => x.length > 3 && w.startsWith(x)); if (p) k = BR_WORDS[p]; } if (k) t.add(k); }   // words in the name
+  return [...t]; }
+// the factory tables' tags, worked out ahead of time (tests/run.cjs checks they still match wtAnalyze)
+const WT_FACTORY_TAGS = {"Basic Shapes":["evolving"],"Pulse Width":["bright","buzzy","evolving","growl"],"Harmonic Sweep":["buzzy","evolving"],"Digital":["bright","formant","digital","harsh","evolving","growl"],"Vowels":["buzzy","evolving","growl","formant"],"Talk":["buzzy","evolving","growl"],"Growl":["bright","buzzy","evolving","growl"],"Riddim":["bright","hollow","evolving"],"Sync Saw":["bright","buzzy","formant","harsh","evolving","growl"],"Fold":["dark","hollow","warm","evolving"],"FM Sweep":["dark","hollow","warm","evolving","digital"],"Hollow":["bright","formant","digital","static"],"Glass":["bright","formant","digital","harsh","evolving"],"Metallic":["bright","hollow","harsh","evolving"],"Organ":["dark","evolving"],"Squash":["pure","static"],"Bit Saw":["bright","buzzy","static","digital"],"Phase Saw":["bright","buzzy","evolving","growl"],"Formant Sweep":["bright","buzzy","evolving","growl","formant"],"Noise Cycles":["bright","buzzy","evolving","noisy"]};
+
 function tfWtFactoryRaw(name) {
   const d = WT_FACTORY.find(w => w.n === name) || WT_FACTORY[0], F = d.F, raw = new Float32Array(F * WT_N);
   for (let f = 0; f < F; f++) { const t = F > 1 ? f / (F - 1) : 0, pre = d.pre ? d.pre(t) : null; for (let i = 0; i < WT_N; i++) raw[f * WT_N + i] = d.f(i / WT_N, t, pre); }
@@ -129,4 +152,4 @@ function wtTool(raw, F, tool) {
   let pk = 1e-9; for (let i = 0; i < out.length; i++) pk = Math.max(pk, Math.abs(out[i])); for (let i = 0; i < out.length; i++) out[i] /= pk;
   return out;
 }
-if (typeof module !== 'undefined') module.exports = { WT_N, WT_LV, WT_MAXF, wtLen, wtHarm, WT_FACTORY, WT_NAMES, tfWtFactoryRaw, tfWtPrepare, wtParseWav, wtFromFrames, wtFromSample, wtTool, wtFft };
+if (typeof module !== 'undefined') module.exports = { wtAnalyze, WT_FACTORY_TAGS, WT_N, WT_LV, WT_MAXF, wtLen, wtHarm, WT_FACTORY, WT_NAMES, tfWtFactoryRaw, tfWtPrepare, wtParseWav, wtFromFrames, wtFromSample, wtTool, wtFft };
