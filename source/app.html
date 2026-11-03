@@ -643,7 +643,7 @@ const posStr = t => `${Math.floor(t / BAR) + 1}.${Math.floor(t % BAR / BEAT) + 1
 const fixT = t => Math.round(t * 1e4) / 1e4;
 const sceneLen = i => P.scenes[i].bars * BAR;
 const spt = () => 60 / (P.bpm * BEAT);
-const noteCount = sc => { let n = 0; for (const k in sc.notes) n += sc.notes[k].length; return n; };
+const noteCount = sc => { let n = 0; for (const k in sc.notes) n += sc.notes[k].length; for (const k in sc.clips || {}) n += sc.clips[k].length; return n; };   // (audio clips count: a scene with only audio is in the song)
 const lenStr = t => { if (Math.abs(t - Math.round(t)) > 1e-3) return Math.round(t * spt() * 1000) + ' ms'; t = Math.round(t); if (!t) return '0'; const g = gcd(t, BAR); return `${t / g}/${BAR / g}`; };
 function offGrid(t) { const g = UI.tl.snap || 24, off = t - gridQ(t, g), ms = off * spt() * 1000; return Math.abs(ms) < 0.05 ? 'on grid' : (ms > 0 ? '+' : '−') + Math.abs(ms).toFixed(1) + ' ms off grid'; }
 const curveFrac = tfCurve, valueAt = tfValueAt;
@@ -723,7 +723,7 @@ function upgradeSampleRecord(s) {   // v1 stored Float32 channel arrays; v2 stor
   if (s.chans) { const data = interleave(s.chans, s.chans[0].length); return { id: s.id, name: s.name, sr: s.sr, ch: s.chans.length, frames: s.chans[0].length, data, added: 0 }; }
   return null;
 }
-const usedSampleIds = () => { const u = new Set(); for (const p of P.pads) { if (p.sample) u.add(p.sample); if (p.frz) for (const k in p.frz) u.add(p.frz[k]); } for (const k of tableKeys()) if (!k.startsWith('w:')) u.add(k); for (const p of P.pads) { const g = grSrc(p); if (g) u.add(g); if (p.stx && p.wm !== 'Repitch') u.add(p.stx); } return u; };   // your own wavetables travel with the project like samples
+const usedSampleIds = () => { const u = new Set(); for (const sc of P.scenes) for (const k in sc.clips || {}) for (const c of sc.clips[k]) u.add(c.s); for (const p of P.pads) { if (p.sample) u.add(p.sample); if (p.frz) for (const k in p.frz) u.add(p.frz[k]); } for (const k of tableKeys()) if (!k.startsWith('w:')) u.add(k); for (const p of P.pads) { const g = grSrc(p); if (g) u.add(g); if (p.stx && p.wm !== 'Repitch') u.add(p.stx); } return u; };   // your own wavetables travel with the project like samples
 
 /* ================= storage ================= */
 const DB = { db: null, ok: false,
@@ -1386,7 +1386,8 @@ function padDown(cell, hk = cell) {   // hk: the key this press is held under (t
   if (UI.keys) { pi = UI.pad; if (!fromStrip) UI.keyCell = cell; if (chop) { semi = cell; if (cell >= chop.pts.length) { flash(cell); return hk; } } else { kc = keyCell(cell); if (kc.none) { flash(cell); return hk; } semi = kc.semi; } }
   else if (UI.swapFrom != null) { const a = UI.swapFrom; UI.swapFrom = null; pi = UI.bank * 16 + cell; if (a === pi) { refreshPadDots(); toast('Swap cancelled'); } else { swapPads(a, pi); UI.pad = pi; } return hk; }
   else { pi = UI.bank * 16 + cell; if (UI.pad !== pi) { UI.pad = pi; UI.tl.target = null; requestAnimationFrame(() => { refreshPadDots(); updatePanel(); }); } }   // screen updates wait until the note is sent
-  const pad = P.pads[pi]; flash(cell); if (!hasSound(pad)) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return hk; }
+  const pad = P.pads[pi]; flash(cell); if (pad && pad.src === 'audio') { toast('Audio track: its clips play with the song (Timeline › Keys edits them)'); return hk; }
+  if (!hasSound(pad)) { if (!UI.keys) toast('Empty pad. Tap Import, or load a sound in the Sound tab.'); return hk; }
   const tag = tagSeq++; ensureSample(pad.sample); if (UPQ.jobs.length) upFlush(padNeeds(pi));   // still on its way to the engine: send it now, before the note
   if (kc && !kc.chord && !chop && kxOf(pi).arp) {   // arpeggiator on single notes: every note held on this pad joins one pattern (one note just repeats)
     const kx = kxOf(pi), A = KEYS.arpN, vel = kc.vel != null ? kc.vel : .9, fresh = !A || A.pi !== pi || !A.held.size;
@@ -1559,6 +1560,7 @@ function drawNotesLane(g) {
   const SEL = new Set(selItems().map(x => x.n));
   if (tl.mode === 'bank') { g.font = '600 9.5px ' + FONT_LCD; g.textBaseline = 'middle';
     for (let r = 0; r < 16; r++) { const pi = UI.bank * 16 + r, arr = (sc.notes[pi] || []).slice().sort((a, b) => a.t - b.t); for (const n of arr) drawNote(n, pi, r, SEL.has(n));
+      if (sc.clips && sc.clips[pi]) for (const c of sc.clips[pi]) { const x1 = t2x(c.t), x2 = t2x(c.t + c.d * P.bpm * BEAT / 60), y = row2y(r); if (x2 < LABEL_W || x1 > W) continue; g.fillStyle = PAD_COLORS[P.pads[pi].color]; g.globalAlpha = .35; g.fillRect(Math.max(LABEL_W, x1), y + 2, Math.min(W, x2) - Math.max(LABEL_W, x1), rh - 4); g.globalAlpha = 1; g.fillRect(Math.max(LABEL_W, x1), y + 2, 2, rh - 4); }   // an audio track's clips (edit them in Keys)
       for (let i = 0; i < arr.length;) { let j = i + 1; while (j < arr.length && arr[j].t - arr[i].t < STACK_T) j++;   // a chord stack: one block with a count
         if (j - i > 1) { const x = t2x(arr[i].t), y = row2y(r); if (x > LABEL_W && x < W && y + rh > RULER_H && y < H && rh >= 14) { g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(x + 2, y + 3, 17, Math.min(12, rh - 6)); g.fillStyle = COL.ink; g.fillText('×' + (j - i), x + 4, y + 3 + Math.min(12, rh - 6) / 2); } }
         i = j; } } }
@@ -1862,7 +1864,7 @@ function openLibrary() {
     const top = h('div', 'row'), q = h('input', 'textin'); q.placeholder = 'Search sounds'; q.style.flex = '1'; top.append(q, btn('Import', () => { closeSheet(); pickAudio(UI.pad); }, 'btn on')); card.append(top);
     const box = h('div', 'stack'); box.style.marginTop = '10px'; card.append(box);
     const used = usedSampleIds();
-    const draw = () => { box.innerHTML = ''; const f = q.value.trim().toLowerCase(), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt && !s.drum && !s.x && !s.ins && (!f || s.name.toLowerCase().includes(f)));
+    const draw = () => { box.innerHTML = ''; const f = q.value.trim().toLowerCase(), all = [...SAMPLES.values()].filter(s => !s.frz && !s.wt && !s.drum && !s.x && !s.ins && !s.aud && (!f || s.name.toLowerCase().includes(f)));
       const mine = all.filter(s => !s.builtin).sort((a, b) => (b.added || 0) - (a.added || 0));
       // built-ins are listed by pack and only synthesized when you preview or use one
       const packs = PACKS.map(([title, keys]) => [title, keys.map(k => ALL_BUILTINS.find(x => x[0] === k)).filter(k => k && (!f || k[1].toLowerCase().includes(f) || title.toLowerCase().includes(f))).map(k => ({ id: 'b:' + k[0], name: k[1].replace(/ \((classic|jungle)\)$/, ''), builtin: true, kit: k }))]);
@@ -2046,7 +2048,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-03', ['New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'The reference track is gone for now; it comes back as audio tracks.']],
+  ['2026-11-03', ['New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track) and import recordings up to 10 minutes per project. Keys opens its editor over the whole song: drag clips anywhere, across scenes, trim, split, fade.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
@@ -2127,7 +2129,7 @@ async function mp3File(L, R, sr, onP) { const n = L.length, e = new lamejs.Mp3En
   const f = e.flush(); if (f.length) parts.push(new Uint8Array(f.buffer, f.byteOffset, f.length).slice()); const all = new Uint8Array(parts.reduce((a, b) => a + b.length, 0)); let o = 0; for (const p of parts) { all.set(p, o); o += p.length; } return all; }
 async function encodeAudio(r, fmt, onP) { return fmt === 'mp3' ? mp3File(r.L, r.R, r.sr, onP) : wavFile(r.L, r.R, r.sr, fmt === 'wav16' ? 16 : 24); }
 // the sources that will actually sound in these scenes, among those feeding the master
-function stemSources(order) { const scenes = new Set(order.map(o => o.scene)), live = new Set(), mark = c => { while (c >= 0 && c !== MASTER && !live.has(c)) { live.add(c); c = tfDest(P, c); } };
+function stemSources(order) { const scenes = new Set(order.map(o => o.scene)), live = new Set(), mark = c => { while (c >= 0 && c !== MASTER && c !== TF.SPEAKER && !live.has(c)) { live.add(c); c = tfDest(P, c); } };
   P.pads.forEach((pad, pi) => { if (hasSound(pad) && [...scenes].some(si => (P.scenes[si].notes[pi] || []).length)) mark(pi); });
   for (const c of [...live]) for (const [k, r] of [['sa', R0], ['sb', R0 + 1]]) if (P.chans[c][k] > 0.001) mark(r);
   return [...live].filter(c => tfDest(P, c) === MASTER).sort((a, b) => a - b); }
@@ -2469,7 +2471,7 @@ document.addEventListener('touchmove', e => { if (e.touches.length > 1 || !e.tar
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 document.addEventListener('touchend', () => { if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); }, true);
 document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(); if (T.playing) stop(); if (mediaTag) mediaTag.pause(); } });
-new ResizeObserver(() => { placeSheet(); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); }).observe($('#view'));
+new ResizeObserver(() => { placeSheet(); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audSize(); audDraw(); } if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); }).observe($('#view'));
 let lastHeard = -1;
 // the screen loop runs only while something moves (playback, sound, meters falling, a recent touch); wake() restarts it
 let frameOn = false, lastFrame = 0, wakeAt = 0;

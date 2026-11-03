@@ -14,7 +14,7 @@ typedef short i16;
 
 #define EX extern "C" __attribute__((visibility("default")))
 
-enum { NCH = 83, NPAD = 64, G0 = 64, B0 = 72, R0 = 80, MASTER = 82, NSLOT = 8, MAXN = 128,
+enum { NCH = 83, SPEAKER = 83, NPAD = 64, G0 = 64, B0 = 72, R0 = 80, MASTER = 82, NSLOT = 8, MAXN = 128,
        NVOICE = 96, VOICECAP = 80, NSAMP = 1024, NPARAM = 12 };
 enum { FX_EQ = 0, FX_COMP, FX_FILTER, FX_SAT, FX_DELAY, FX_REVERB, FX_DUCK, FX_UTIL, FX_CHORUS, FX_CLIP, FX_CRUSH, FX_TRANS, FX_PHASER,
        FX_LIMIT, FX_MBAND, FX_TAPE, FX_GATE, FX_DISP, FX_APAN, FX_LFOT, FX_VINYL, FX_STEP, FX_GRIN, FX_DIST, FX_INFL, FX_RESO, FX_PITCH, FX_FSHIFT, FX_RING, FX_IMAGER, FX_DEESS, FX_COUNT };
@@ -158,13 +158,19 @@ static void voiceRelease(Voice* v, float rel) {
   v->relFrom = envAt(v, v->t); v->relStart = v->t; v->relEnd = v->t + maxd(1.0, rel * SR);
 }
 // gate < 0: one-shot. post = 1: bypass pad filter and inserts (frozen clips, previews on master).
+static i32 voiceStart(i32 ch, i32 sid, i32 delay, float rate, double first, double last, i32 rev, float vel, float atk, float rel, float gate, i32 tag, i32 post);
 EX i32 tf_voice_start(i32 ch, i32 sid, i32 delay, float rate, float start, float end, i32 rev, float vel,
                       float atk, float rel, float gate, i32 tag, i32 post) {
   if (ch < 0 || ch >= NCH || sid <= 0 || sid >= NSAMP || !samp[sid].d) return -1;
-  if (!(rate > 0.f) || rate > 64.f) return -1;
-  Samp* S = &samp[sid];
   start = sane(start, 0.f, 1.f, 0.f); end = sane(end, 0.f, 1.f, 1.f);
-  double fr = S->frames, first = start * fr, last = end * fr - 1.0;
+  const double fr = samp[sid].frames; return voiceStart(ch, sid, delay, rate, start * fr, end * fr - 1.0, rev, vel, atk, rel, gate, tag, post); }
+// an audio clip: a stretch of a long recording given in frames (a fraction can't place a frame exactly in a song-length file)
+EX i32 tf_voice_frames(i32 ch, i32 sid, i32 delay, float rate, double first, double last, float vel, float atk, float rel, float gate, i32 tag) {
+  if (ch < 0 || ch >= NCH || sid <= 0 || sid >= NSAMP || !samp[sid].d || !(first == first) || !(last == last)) return -1;
+  const double fr = samp[sid].frames; if (first < 0) first = 0; if (last > fr - 1.0) last = fr - 1.0; return voiceStart(ch, sid, delay, rate, first, last, 0, vel, atk, rel, gate, tag, 0); }
+static i32 voiceStart(i32 ch, i32 sid, i32 delay, float rate, double first, double last, i32 rev, float vel, float atk, float rel, float gate, i32 tag, i32 post) {
+  if (!(rate > 0.f) || rate > 64.f) return -1;
+  Samp* S = &samp[sid]; const double fr = S->frames;
   if (last < first + 1.0) last = first + 1.0;
   if (last > fr - 1.0) last = fr - 1.0;
   if (first >= last) return -1;
@@ -249,6 +255,8 @@ struct Chan {
   i32 out; u32 quiet, tail, oq, gap; Fx fx[NSLOT];   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
 };
 static Chan chs[NCH];
+static float dirL[MAXN], dirR[MAXN]; static i32 dirMute = 0;   // channels routed to the speaker; exports leave them out
+EX void tf_direct_mute(i32 m) { dirMute = m ? 1 : 0; }
 static float inL[NCH][MAXN], inR[NCH][MAXN], keyL[NCH][MAXN], keyR[NCH][MAXN], pstL[NPAD][MAXN], pstR[NPAD][MAXN];
 // which input buffers hold anything this block: every other one is all zeros, so quiet channels cost nearly nothing
 static u8 dIn[NCH], dPst[NPAD], keyZ[NCH]; static i32 prevN = MAXN;
@@ -264,6 +272,7 @@ static u32 runaway = 0;
 static i32 defaultOut(i32 c) { return c == MASTER ? -1 : MASTER; }
 static i32 validOut(i32 c, i32 o) {
   if (c == MASTER) return -1;
+  if (o == SPEAKER && c < R0) return SPEAKER;   // straight to the speaker: past the master and its chain (still through the final guard)
   if (c < NPAD) return (o >= G0 && o < R0) || o == MASTER ? o : MASTER;
   if (c < B0) return (o >= B0 && o < R0) || o == MASTER ? o : MASTER;
   return MASTER;
@@ -769,7 +778,7 @@ static void processChan(i32 c, i32 n) {
   if (mx < 1e-7f && om < 1e-6f) { if (C->oq < 0xf0000000u) C->oq += n; } else C->oq = 0;
   for (i32 i = 0; i < n; i++) { keyL[c][i] = L[i]; keyR[c][i] = R[i]; }
   const float a = onepole(160.f);   // ~1 ms smoothing on fader, pan, sends, mute
-  float *dL, *dR; if (c == MASTER) { dL = oL; dR = oR; } else { dL = inL[C->out]; dR = inR[C->out]; dIn[C->out] = 1; }
+  float *dL, *dR; if (c == MASTER) { dL = oL; dR = oR; } else if (C->out == SPEAKER) { dL = dirL; dR = dirR; } else { dL = inL[C->out]; dR = inR[C->out]; dIn[C->out] = 1; }
   const i32 stemOff = stemSrc >= 0 && C->out == MASTER && c != MASTER && c != stemSrc;   // stem export: only one source reaches the master (everything else still runs: sends, groups, returns)
   const i32 sends = c < R0;
   // pan: constant power on sine/cosine curves, 0 dB at the centre, +3 dB on the near side when hard over (as Live's mixer)
@@ -834,10 +843,11 @@ EX void tf_render(i32 n) {
   const u32 zb = (u32)prevN * 4u; prevN = n;   // only what the last block wrote
   for (i32 c = 0; c < NCH; c++) if (dIn[c]) { zero(inL[c], zb); zero(inR[c], zb); dIn[c] = 0; }
   for (i32 c = 0; c < NPAD; c++) if (dPst[c]) { zero(pstL[c], zb); zero(pstR[c], zb); dPst[c] = 0; }
-  zero(oL, n * 4); zero(oR, n * 4);
+  zero(oL, n * 4); zero(oR, n * 4); zero(dirL, n * 4); zero(dirR, n * 4);
   for (i32 c = 0; c < NPAD; c++) { float d = chBend[c] - chBendS[c]; chBendS[c] = fabsf_(d) < 1e-4f ? chBend[c] : chBendS[c] + d * 0.3f; }   // ~1 ms smoothing
   renderVoices(n); renderSynth(n);
   for (i32 c = 0; c < NCH; c++) processChan(c, n);
+  if (!dirMute) for (i32 i = 0; i < n; i++) { oL[i] += dirL[i]; oR[i] += dirR[i]; }
   // master safety guard + hard clip. Transparent below 0 dBFS.
   i32 big = 0, bad = 0;
   for (i32 i = 0; i < n; i++) {

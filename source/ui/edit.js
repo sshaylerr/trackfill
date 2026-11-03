@@ -27,6 +27,7 @@ function swapPads(a, b) {
   const m = x => x === a ? b : x === b ? a : x;
   for (const sc of P.scenes) {
     const na = sc.notes[a], nb = sc.notes[b]; delete sc.notes[a]; delete sc.notes[b]; if (na) sc.notes[b] = na; if (nb) sc.notes[a] = nb;
+    if (sc.clips) { const ca = sc.clips[a], cb = sc.clips[b]; delete sc.clips[a]; delete sc.clips[b]; if (ca) sc.clips[b] = ca; if (cb) sc.clips[a] = cb; }
     const A = {}; for (const k in sc.auto) { const p = k.split('.'); p[0] = String(m(+p[0])); A[p.join('.')] = sc.auto[k]; } sc.auto = A; }
   for (const C of P.chans) for (const f of C.fx || []) if (f.trig) f.trig = f.trig.map(m);
   syncProject(); markDirty(); renderAll(); toast(`Swapped ${padLabel(a)} and ${padLabel(b)}`);

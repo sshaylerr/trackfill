@@ -32,6 +32,20 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     for (let i = 0; i < 100; i++) { host.msg({ t: 'wtable', key: 'u:t' + i, F, lv, fund }); if (i) host.msg({ t: 'tableDel', key: 'u:t' + (i - 1) }); }
     let full = 0; const h2 = new H.TFHost(new WebAssembly.Instance(wasm, {}).exports, 48000, m => { if (m.t === 'oom') full++; }); h2.msg({ t: 'project', P: M.newProject() }); for (let i = 0; i < 60; i++) h2.msg({ t: 'wtable', key: 'u:t' + i, F, lv, fund });
     ok(oom === 0 && full > 0, `wavetables are freed when let go: 100 in turn, no shortage (${oom}); kept, the engine fills up (${full} refused), which is what the app's tidy-up now prevents`); }
+  console.log('audio clips');
+  { // a clip sits in a scene at a tick and plays across into the next; looping the next scene picks it up partway; Speaker skips the master and exports
+    const sr = 48000, N = sr * 20, d = new Int16Array(N); for (let i = 0; i < N; i++) d[i] = Math.round(Math.sin(i / sr * 2 * Math.PI * (200 + 100 * Math.floor(i / sr))) * 12000);   // the pitch says where in the file we are: 200 Hz in second 0, 300 in second 1…
+    const mk = () => { const Q = M.newProject(true); Q.bpm = 120; Q.chans.forEach(c => { c.fx = []; }); Object.assign(Q.pads[5], { src: 'audio', name: 'Vox' });
+      Q.scenes[0] = Object.assign(M.emptyScene(), { bars: 2, clips: { 5: [{ s: 'u:vox', t: 192, so: 1, d: 6, g: 0, fi: 0, fo: 0 }] } }); Q.scenes[1] = Object.assign(M.emptyScene(), { bars: 2, notes: { 0: [] }, clips: {} }); Q.scenes[1].clips[6] = []; return Q; };
+    const host = (Q, scene, loop) => { const ex = new WebAssembly.Instance(wasm, {}).exports, h = new H.TFHost(ex, sr, null); h.msg({ t: 'project', P: Q }); h.msg({ t: 'sample', key: 'u:vox', data: d, frames: N, ch: 1, sr }); h.soft = false; h.msg({ t: 'play', scene, loop }); return h; };
+    const grab = (h, secs) => { const L = new Float32Array(128), R = new Float32Array(128), o = []; for (let i = 0; i < Math.round(secs * sr / 128); i++) { h.render(128, L, R); for (let j = 0; j < 128; j++) o.push(L[j]); } return o; };
+    const hz = (x, a, b) => { let z = 0; for (let i = Math.round(a * sr) + 1; i < Math.round(b * sr); i++) if (x[i - 1] < 0 && x[i] >= 0) z++; return z / (b - a); };
+    const Q1 = mk(); Q1.scenes[1].clips = { 5: [] }; Q1.scenes[1].notes = { 0: [{ t: 0, len: 1, p: 0, v: 0 }] };
+    const song = grab(host(Q1, 0, 'song'), 6), a = hz(song, .2, .9), b = hz(song, 1.1, 1.9), c = hz(song, 4.1, 4.9);   // clip from 1 s (300 Hz from its 1 s mark) at beat 2 = 1 s; scene 0 is 4 s
+    const loop = grab(host(Q1, 1, 'scene'), 1.6), e = hz(loop, .2, .9);   // scene 1 alone: the clip is 3 s in when scene 1 starts, so it plays the file's 4 s mark (600 Hz)
+    const Q2 = mk(); Q2.chans[5].out = H.TF.SPEAKER; Q2.scenes[1].notes = { 0: [{ t: 0, len: 1, p: 0, v: 0 }] }; const kitless = new Map([['u:vox', { id: 'u:vox', data: d, frames: N, ch: 1, sr }]]);
+    const live = grab(host(Q2, 0, 'song'), 2), lv = hz(live, 1.1, 1.9), ex2 = await H.tfRenderOffline(wasm, Q2, kitless, { order: [{ scene: 0, reps: 1 }] }); let pk = 0; for (const v of ex2.L) pk = Math.max(pk, Math.abs(v));
+    ok(a < 5 && Math.abs(b - 300) < 8 && Math.abs(c - 600) < 8 && Math.abs(e - 600) < 8 && Math.abs(lv - 300) < 8 && pk < 1e-4, `audio clips: silent before (${a.toFixed(0)} Hz), in at beat 2 (${b.toFixed(0)}), on into the next scene (${c.toFixed(0)}); looping that scene alone picks it up partway (${e.toFixed(0)}); routed to the speaker it plays live (${lv.toFixed(0)}) and stays out of exports (peak ${pk.toExponential(0)})`); }
   console.log('clock');
   { // 300 loops at awkward tempos and both common rates: loop starts stay within a sample of true tempo (loops never round up)
     let worst = 0; for (const [bpm, sr, bars] of [[174, 44100, 1], [140, 48000, 2], [123.4, 44100, 1]]) {

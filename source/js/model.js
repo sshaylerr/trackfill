@@ -489,7 +489,11 @@ function chopTransients(s, start, end, sens, max = MAX_SLICES) {
 function rechop(pad, s) { const c = pad.chop; if (!c || !s) return; if (c.by === 'm' && c.pts.length) return;
   c.pts = c.by === 'e' ? chopEqual(pad.start, pad.end, c.div) : chopTransients(s, pad.start, pad.end, c.sens); }
 function sliceRange(pad, k) { const p = pad.chop.pts, n = p.length; k = Math.max(0, Math.min(n - 1, k)); return [p[k], k + 1 < n ? p[k + 1] : pad.end]; }
-function emptyScene() { return { name: '', bars: 4, repeat: 1, notes: {}, auto: {} }; }
+function emptyScene() { return { name: '', bars: 4, repeat: 1, notes: {}, auto: {}, clips: {} }; }
+// audio clips (per pad, in the scene they start in): recording s, at tick t, its seconds so..so+d, gain g (dB), fades fi/fo (s); anything odd is dropped
+function clipsClean(c) { const o = {}; if (!c || typeof c !== 'object') return o; const num = (v, a, b, d) => Number.isFinite(+v) ? Math.min(b, Math.max(a, +v)) : d;
+  for (const k in c) { const pi = +k; if (!(pi >= 0 && pi < NPADS) || !Array.isArray(c[k])) continue; const L = c[k].filter(x => x && typeof x.s === 'string' && /^[a-z]:[\w.-]{1,60}$/.test(x.s) && +x.d > 0).slice(0, 256)
+    .map(x => ({ s: x.s, t: num(x.t, 0, 16 * BAR, 0), so: num(x.so, 0, 3600, 0), d: num(x.d, .001, 3600, 1), g: num(x.g, -60, 12, 0), fi: num(x.fi, 0, 60, 0), fo: num(x.fo, 0, 60, 0) })); if (L.length) o[pi] = L; } return o; }
 function newProject(blank) {
   const p = { v: PROJECT_VERSION, name: 'Untitled', bpm: 96, swing: 0, swq: 24, key: { root: 0, scale: 5 },
     pads: Array.from({ length: NPADS }, (_, i) => defaultPad(i)), chans: Array.from({ length: NCHANS }, (_, c) => defaultChan(c)),
@@ -547,7 +551,7 @@ function normalize(p) {
     d.kx = d.kx ? HMN().normalizeKx(d.kx) : null;
     d.bend = d.bend == null ? .5 : clamp01(+d.bend); d.bendR = [1, 2, 3, 5, 7, 12, 24].includes(+d.bendR) ? +d.bendR : 2;
     delete d.nv;   // per-note renders of a layered drum: remade on load
-    d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.drum = d.drum ? DRN().drumNormalize(d.drum) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : d.src === 'drum' && d.drum ? 'drum' : 'sample';
+    d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.drum = d.drum ? DRN().drumNormalize(d.drum) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : d.src === 'drum' && d.drum ? 'drum' : d.src === 'audio' ? 'audio' : 'sample';
     d.choke = Math.max(0, Math.min(4, d.choke | 0));
     d.gain = Math.max(-24, Math.min(24, +d.gain || 0)); d.norm = !!d.norm; d.ng = Math.max(0, Math.min(16, +d.ng || 1)); d.fin = Math.max(0, Math.min(10, +d.fin || 0)); d.fout = Math.max(0, Math.min(10, +d.fout || 0));   // non-destructive edits
     d.swg = d.swg == null || d.swg === '' ? null : clamp01(+d.swg); d.swq = [48, 24, 12].includes(+d.swq) ? +d.swq : null; d.tim = Math.max(-40, Math.min(40, +d.tim || 0));   // groove: own swing (null: the song's) and a timing offset in ms
@@ -567,7 +571,7 @@ function normalize(p) {
       if (o.type === 21) o.steps = Array.from({ length: 16 }, (_, i) => Math.max(0, Math.min(6, (Array.isArray(f.steps) ? f.steps[i] : 0) | 0)));
       return o; });
     return o; });
-  n.scenes = Array.from({ length: Array.isArray(p.scenes) && p.scenes.length ? Math.min(MAX_SCENES, p.scenes.length) : NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.name = tfName(s.name, 14); s.notes = s.notes && typeof s.notes === 'object' ? s.notes : {}; s.auto = s.auto && typeof s.auto === 'object' ? s.auto : {}; return s; });
+  n.scenes = Array.from({ length: Array.isArray(p.scenes) && p.scenes.length ? Math.min(MAX_SCENES, p.scenes.length) : NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.name = tfName(s.name, 14); s.notes = s.notes && typeof s.notes === 'object' ? s.notes : {}; s.auto = s.auto && typeof s.auto === 'object' ? s.auto : {}; s.clips = clipsClean(s.clips); return s; });
   n.bpm = Math.min(220, Math.max(40, +n.bpm || 96)); n.swing = clamp01(+n.swing || 0); n.swq = [48, 24, 12].includes(+n.swq) ? +n.swq : 24;   // the swing grid: 1/8, 1/16 (the default) or 1/32
   return n;
 }
@@ -703,5 +707,5 @@ function stress2V2() {
   for (const s of [0, 1]) { S[s].auto['8.-2.0'] = lane([[0, .35], [4 * BAR, 1], [8 * BAR - 24, .5]]);     S[s].auto['31.-1.3'] = lane([[4 * BAR, 0], [8 * BAR - 24, .45]]); S[s].auto[G.bass + '.-1.0'] = lane([[0, .3], [BAR, .45], [8 * BAR - 24, .45]]); }
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { MAX_SCENES, fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
+if (typeof module !== 'undefined') module.exports = { clipsClean, MAX_SCENES, fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
   buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };

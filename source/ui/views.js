@@ -32,6 +32,7 @@ function renderSeq(V) {
   const w = h('div', 'seqView'), tl = UI.tl, tgt = tlTarget();
   if (tl.lane !== 'notes' && tfParseKey(tl.lane).c !== tgt) tl.lane = tgt < G0 ? 'notes' : tgt + '.-1.0';
   if (tl.lane === 'notes' && tgt >= G0) tl.lane = tgt + '.-1.0';
+  if (tl.lane === 'notes' && tl.mode === 'keys' && isAudioPad(UI.pad)) { renderAudioEd(V); return; }   // an audio track's Keys view is its audio editor
   const isNotes = tl.lane === 'notes', bar = h('div', 'toolbar'), lb = h('button', 'lanebox');
   lb.innerHTML = `<b>${esc(laneTitle())}</b><i>▾</i>`; lb.setAttribute('aria-label', 'Choose lane'); lb.onclick = () => openLaneSheet(tgt); bar.append(lb);
   if (isNotes) bar.append(btn(tl.mode === 'bank' ? 'Bank' : chopOf(UI.pad) ? 'Chop' : 'Keys', () => { const k = tl.mode === 'bank'; tl.mode = k ? 'keys' : 'bank'; tl.sel = null; tl.sy = null; tl.cursor.row = k ? (chopOf(UI.pad) ? 0 : KEY_HI) : UI.pad % 16; renderView(); }, 'key sm'));
@@ -101,6 +102,7 @@ function renderSound(V) {
   const badge = h('div', 'lcdbox', padLabel(pi)); badge.style.flex = '0 0 50px';
   head.append(btn(IC.left, () => go(-1), 'key ic'), badge, nm, synHeadKey(pi)); if (pad.src === 'synth') head.append(mapKey(pi)); head.append(btn(IC.right, () => go(1), 'key ic'));
   if (pad.src === 'synth' && pad.syn) { renderSynthSound(w, pi, head); V.append(w); return; }
+  if (pad.src === 'audio') { renderAudioSound(w, pi, head); V.append(w); return; }
   const pages = seg(pad.src === 'drum' && pad.drum ? ['Drum', ...SND_PAGES.slice(1)] : SND_PAGES, UI.snd, i => { UI.snd = i; renderView(); }); pages.style.display = 'grid'; pages.style.gridTemplateColumns = 'repeat(5,1fr)'; pages.querySelectorAll('.key').forEach(k => k.style.width = '100%');
   if (UI.snd === PG.SAMPLE && pad.src === 'drum' && pad.drum) { renderDrumPage(w, pi, head, pages); V.append(w); return; }
   if (UI.snd === PG.CHOP) { w.append(head, pages, chopView(pi)); V.append(w); requestAnimationFrame(drawChop); return; }
@@ -187,7 +189,7 @@ function drawDisp() {
     return;
   }
   // MIX: where this pad's sound goes
-  const C = P.chans[pi], path = []; let d = tfDest(P, pi); while (d >= 0) { path.push(chanName(d)); d = tfDest(P, d); }
+  const C = P.chans[pi], path = []; let d = tfDest(P, pi); while (d >= 0 && d !== TF.SPEAKER) { path.push(chanName(d)); d = tfDest(P, d); } if (d === TF.SPEAKER) path.push('Speaker');
   // MIX: the live analyzer and meters for this pad, with its routing on top
   const l1 = (C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' › ') + ' › ' : '') + path.join(' › '), l2 = `A ${sendFmt(C.sa)} · B ${sendFmt(C.sb)} · ${volFmt(C.vol)} · ${panFmt(C.pan)}${C.mute ? ' · muted' : ''}${C.solo ? ' · solo' : ''}${pad.frz ? ' · frozen' : ''}`;
   const tall = H > 120, top = tall ? 40 : 4; if (tall) { txt(l1, 8, 12, COL.ink, 'left', 11); txt(l2, 8, 28, COL.mute, 'left', 10.5); }
@@ -208,7 +210,7 @@ function bindWave(cv) { let d = null;
 /* ---------- mixer: a console page of 8 strips; the selected strip's details sit below ---------- */
 const MIX_PAGES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'Grp', 'Bus', 'Ret'];
 const STRIP_METERS = [];
-function destName(c) { const d = tfDest(P, c); return d < 0 ? '—' : d === MASTER ? 'Master' : chanName(d); }
+function destName(c) { const d = tfDest(P, c); return d < 0 ? '—' : d === MASTER ? 'Master' : d === TF.SPEAKER ? 'Speaker' : chanName(d); }
 function mixChans(p) { return p < 8 ? [...Array(8)].map((_, i) => p * 8 + i) : p === 8 ? [...Array(8)].map((_, i) => G0 + i) : p === 9 ? [...Array(8)].map((_, i) => B0 + i) : [R0, R0 + 1, MASTER]; }
 const shortDb = v => { const g = tfFaderGain(v); if (g <= .0001) return '-∞'; const d = 20 * Math.log10(g); return (d > .05 ? '+' : '') + d.toFixed(1); };
 function renderMix(V) {
@@ -250,10 +252,10 @@ function detailEl(c) {
   d.append(bt, dk); return d;
 }
 function openOutputPicker(c) {
-  const opts = [MASTER].concat(c < G0 ? [...Array(8)].map((_, i) => G0 + i) : []).concat(c < B0 ? [...Array(8)].map((_, i) => B0 + i) : []);
+  const opts = [MASTER, TF.SPEAKER].concat(c < G0 ? [...Array(8)].map((_, i) => G0 + i) : []).concat(c < B0 ? [...Array(8)].map((_, i) => B0 + i) : []);
   openSheet(`${chanLabel(c)} output`, card => { const list = h('div', 'list'), cur = tfDest(P, c);
     for (const o of opts) { const li = h('div', 'li' + (o === cur ? ' on' : '')), C = P.chans[o];
-      li.innerHTML = `<div class="lt"><b>${esc(chanLabel(o) + ' · ' + chanName(o))}</b><span>${o === MASTER ? 'straight to the master' : (C.fx.map(f => FX_DEFS[f.type].name).join(' · ') || 'no effects')}</span></div>`;
+      li.innerHTML = o === TF.SPEAKER ? '<div class="lt"><b>Speaker (direct)</b><span>past the master and its effects; left out of exports: for a reference</span></div>' : `<div class="lt"><b>${esc(chanLabel(o) + ' · ' + chanName(o))}</b><span>${o === MASTER ? 'straight to the master' : (C.fx.map(f => FX_DEFS[f.type].name).join(' · ') || 'no effects')}</span></div>`;
       li.onclick = () => { pushUndo('chan:' + c); P.chans[c].out = o; syncChan(c); markDirty(); closeSheet(); }; list.append(li); }
     card.append(list); });
 }
