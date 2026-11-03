@@ -531,22 +531,7 @@ const tableKeysAll = () => WT_NAMES.map(n => 'w:' + n).concat([...SAMPLES.values
 // a table change without redrawing the page (so a tap or the d-pad can keep stepping)
 function setTableQuiet(pi, o, key) { const S = synOf(pi); pushUndo('pad:' + pi); touchPad(pi); S.wt = Object.assign({ a: 'w:Basic Shapes', b: 'w:Basic Shapes' }, S.wt || {}, { [o]: key }); syncPad(pi); markDirty();
   if (typeof drawSynDisp === 'function') requestAnimationFrame(drawSynDisp); audition(pi); }
-function saveUserTable(name, raw, F) { const id = addUserSample(name, 48000, 1, interleave([raw], raw.length), { wt: F }); return id; }
-function openTablePicker(pi, o) {
-  const S = synOf(pi), cur = S.wt && S.wt[o], fid = 'w' + o + 'h';
-  openSheet('Table · Osc ' + o.toUpperCase(), card => { const st = h('div', 'stack'); card.append(st);
-    st.append(h('div', 'sec', 'Factory')); let l = h('div', 'g2'); for (const n of WT_NAMES) l.append(btn(esc(n), () => { closeSheet(); setTable(pi, o, 'w:' + n); }, 'btn' + (cur === 'w:' + n ? ' on' : ''))); st.append(l);
-    const mine = [...SAMPLES.values()].filter(x => x.wt).sort((a, b) => (b.added || 0) - (a.added || 0));
-    if (mine.length) { st.append(h('div', 'sec', 'Yours')); l = h('div', 'g2'); for (const x of mine) l.append(btn(esc(x.name), () => { closeSheet(); setTable(pi, o, x.id); }, 'btn' + (cur === x.id ? ' on' : ''))); st.append(l); }
-    st.append(h('div', 'sec', 'Make a table')); l = h('div', 'g2');
-    l.append(btn('Import wavetables… <span class="lsub">one or many WAVs, or a zip</span>', () => { closeSheet(); pickTableFile(pi, o); }), btn('From a sound…', () => { closeSheet(); openTableFromSound(pi, o); })); st.append(l);
-    st.append(h('div', 'sec', 'This table')); l = h('div', 'g2');
-    const noF = (S.p[fid] ?? 'Keep') === 'Remove';
-    l.append(btn(noF ? 'Fundamental: removed' : 'Fundamental: kept', () => { pushUndo('pad:' + pi); synSet(pi, fid, noF ? 'Keep' : 'Remove'); closeSheet(); renderView(); }, 'btn' + (noF ? ' on' : '')));
-    for (const [tool, label] of [['nolow', 'Remove low harmonics'], ['smooth', 'Smooth'], ['align', 'Phase align'], ['normalize', 'Normalize']])
-      l.append(btn(label, () => { const t0 = tableRaw(cur); if (!t0) return; closeSheet(); const id = saveUserTable(tableName(cur).slice(0, 16) + ' · ' + label.split(' ')[0].toLowerCase(), wtTool(t0.raw, t0.F, tool), t0.F); setTable(pi, o, id); toast(`Made "${SAMPLES.get(id).name}" in your tables`); }));
-    st.append(l); });
-}
+function saveUserTable(name, raw, F, extra) { const e = extra || {}; return addUserSample(name, 48000, 1, interleave([raw], raw.length), { wt: F, folder: e.folder || '', tags: [], atags: wtAnalyze(raw, F, name) }); }
 function tableRaw(key) { if (!key) return null; if (key.startsWith('w:')) return tfWtFactoryRaw(key.slice(2)); const s = SAMPLES.get(key); if (!s || !s.wt) return null; const raw = new Float32Array(s.data.length); for (let i = 0; i < raw.length; i++) raw[i] = s.data[i] / 32767; return { raw, F: s.wt }; }
 // wavetable WAVs, one or many at once (or zip files of them): each becomes one of your tables; the first one goes on this oscillator
 function pickTableFile(pi, o) {
@@ -555,8 +540,9 @@ function pickTableFile(pi, o) {
     const files = (await expandAudio(picked)).filter(f => /\.wave?$/i.test(f.name)); if (!files.length) { toast('No wavetable WAVs found'); return; }
     const got = [], unknown = [], bad = [];
     for (const f of files) { const r = wtParseWav(await f.arrayBuffer()), name = tfName(f.name.replace(/\.[^.]+$/, ''), 20);
-      if (!r) { bad.push(name); continue; } const size = r.frameSize || (r.data.length % 2048 === 0 ? 2048 : 0); (size ? got : unknown).push({ name, mono: r.data, size }); }
-    const finish = list => { let first = null, n = 0; for (const x of list) { const t = wtFromFrames(x.mono, x.size); if (!t) { bad.push(x.name); continue; } const id = saveUserTable(x.name, t.raw, t.F); first = first || id; n++; }
+      if (!r) { bad.push(name); continue; } const size = r.frameSize || (r.data.length % 2048 === 0 ? 2048 : 0), folder = f.tfPack ? [f.tfPack].concat(f.tfDir ? f.tfDir.split('/') : []).map(p => tfName(p, 30)).filter(Boolean).join('/') : 'Imported';   // a pack's tables land in its own folder (keeping its sub-folders)
+      (size ? got : unknown).push({ name, mono: r.data, size, folder }); }
+    const finish = list => { let first = null, n = 0; for (const x of list) { const t = wtFromFrames(x.mono, x.size); if (!t) { bad.push(x.name); continue; } const id = saveUserTable(x.name, t.raw, t.F, { folder: x.folder }); first = first || id; n++; }
       if (first) setTable(pi, o, first);
       toast(n === 1 && !bad.length ? `Imported "${list.find(x => x).name}"` : `Imported ${n} table${n === 1 ? '' : 's'}${bad.length ? ` · couldn't read ${bad.length}` : ''}`); };
     if (!unknown.length) return finish(got);
