@@ -490,10 +490,6 @@ function rechop(pad, s) { const c = pad.chop; if (!c || !s) return; if (c.by ===
   c.pts = c.by === 'e' ? chopEqual(pad.start, pad.end, c.div) : chopTransients(s, pad.start, pad.end, c.sens); }
 function sliceRange(pad, k) { const p = pad.chop.pts, n = p.length; k = Math.max(0, Math.min(n - 1, k)); return [p[k], k + 1 < n ? p[k + 1] : pad.end]; }
 function emptyScene() { return { name: '', bars: 4, repeat: 1, notes: {}, auto: {} }; }
-// the reference track: only known keys, sane numbers (the file itself is kept on the device under its key)
-function refClean(r) { if (!r || typeof r !== 'object' || typeof r.key !== 'string' || !/^ref:[a-z0-9]{1,24}$/.test(r.key)) return null; const num = (v, a, b, d) => Number.isFinite(+v) ? Math.min(b, Math.max(a, +v)) : d;
-  return { key: r.key, name: tfName(r.name || 'Reference', 40), dur: num(r.dur, 0, 7200, 0), at: num(r.at, -3600, 3600, 0), bpm: num(r.bpm, 0, 300, 0), match: !!r.match, gain: num(r.gain, 0, 1, .85),
-    ab: ['mix', 'ref', 'both'].includes(r.ab) ? r.ab : 'both', lufs: num(r.lufs, -120, 10, -120), peaks: Array.isArray(r.peaks) ? r.peaks.slice(0, 2000).map(x => num(x, 0, 255, 0) | 0) : [] }; }
 function newProject(blank) {
   const p = { v: PROJECT_VERSION, name: 'Untitled', bpm: 96, swing: 0, swq: 24, key: { root: 0, scale: 5 },
     pads: Array.from({ length: NPADS }, (_, i) => defaultPad(i)), chans: Array.from({ length: NCHANS }, (_, c) => defaultChan(c)),
@@ -572,7 +568,6 @@ function normalize(p) {
       return o; });
     return o; });
   n.scenes = Array.from({ length: Array.isArray(p.scenes) && p.scenes.length ? Math.min(MAX_SCENES, p.scenes.length) : NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.name = tfName(s.name, 14); s.notes = s.notes && typeof s.notes === 'object' ? s.notes : {}; s.auto = s.auto && typeof s.auto === 'object' ? s.auto : {}; return s; });
-  n.ref = refClean(p.ref);
   n.bpm = Math.min(220, Math.max(40, +n.bpm || 96)); n.swing = clamp01(+n.swing || 0); n.swq = [48, 24, 12].includes(+n.swq) ? +n.swq : 24;   // the swing grid: 1/8, 1/16 (the default) or 1/32
   return n;
 }

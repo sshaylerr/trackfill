@@ -16,8 +16,8 @@
   --accent-hi:color-mix(in srgb,var(--accent) 62%,#fff); --accent-lo:color-mix(in srgb,var(--accent) 72%,#000); --accent-deep:color-mix(in srgb,var(--accent) 34%,#000);
   --accent-ring:color-mix(in srgb,var(--accent) 52%,#111); --accent-glow:color-mix(in srgb,var(--accent) 55%,transparent);
   --on1:color-mix(in srgb,var(--accent) 22%,#38362f); --on2:color-mix(in srgb,var(--accent) 16%,#2a2722); --rec:#e5483d; --play:#53d18d; --play-ink:#0a1a11;
-  --font-ui:"Barlow Semi Condensed", "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-lcd:"Barlow Semi Condensed", "Figtree", system-ui, sans-serif;   /* values: same family as the UI, lighter weight, fixed-width digits */
+  --font-ui:"Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-lcd:"Nunito", system-ui, sans-serif;   /* values: same family as the UI, lighter weight, fixed-width digits */
 }
 [hidden]{display:none!important}
 html{height:100%;box-sizing:border-box;overscroll-behavior:none;background:#0b0b0c}   /* what iOS shows in any strip outside the page (it keeps the colour it saw at launch): dark, so it reads as the phone's edge */
@@ -357,8 +357,6 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .sname b{font:600 11px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .sname i{display:block;width:70%;height:2px;border-radius:1px;margin-top:1px}
 .ms2{display:flex;gap:2px;width:100%;justify-content:center}
-.refab{width:44px;height:34px;margin:1px auto;border-radius:3px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #050506;font:700 10px var(--font-ui);color:var(--print)}.refab.on{color:var(--accent)}
-.strip.refStrip{margin-left:6px;border-left:1px solid var(--edge)}
 .ms2 button{width:19px;height:19px;border-radius:2px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #050506;font:700 9px var(--font-ui);color:var(--print)}
 .ms2 button.m.on{background:var(--rec);color:#2b0707} .ms2 button.s.on{background:var(--accent);color:var(--accent-ink)}
 .detail{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;align-items:center}
@@ -681,7 +679,7 @@ function applyTheme() {
     const A = rgb(a); st.setProperty('--accent-glow', `rgba(${A.join(',')},.55)`); }
   BODY_VARS.forEach((k, i) => th.body ? st.setProperty('--' + k, th.body[i]) : st.removeProperty('--' + k));
   SCR_VARS.forEach((k, i) => th.scr ? st.setProperty('--' + k, th.scr[i]) : st.removeProperty('--' + k));
-  const fam = UI.font === 'std' ? '"Figtree"' : '"Barlow Semi Condensed", "Figtree"';   // Narrow (the default) fits more on a phone's width
+  const fam = UI.font === 'narrow' ? '"Barlow Semi Condensed", "Nunito"' : '"Nunito"';   // Rounded (the default) or Narrow, which fits more on a phone's width
   st.setProperty('--font-ui', fam + ', system-ui, -apple-system, "Segoe UI", sans-serif'); st.setProperty('--font-lcd', fam + ', system-ui, sans-serif');
   document.body.dataset.pads = UI.padStyle || 'dark'; readColors();
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = th.body ? th.body[0] : '#1c1c1f';
@@ -836,6 +834,8 @@ async function backupAll() { await projSave(); toast('Preparing the backup…');
 /* ---------- auto backup (optional): once a day or once a week, if anything changed, a backup is made in the background while nothing
    plays, then offered with one tap (an iPhone only lets a page save a file when you tap). Off by default. ---------- */
 const AB = { every: 'off', last: 0, changed: 0, ready: null, busy: false, offered: 0 };
+// the reference track (since replaced): clear the files it kept on the device
+async function refCleanup() { if (!DB.ok || !DB.db) return; const keys = await DB.req('kv', 'readonly', s => s.getAllKeys()).catch(() => null); if (keys) for (const k of keys) if (typeof k === 'string' && k.startsWith('ref:')) DB.del('kv', k); }
 async function abLoad() { const r = await DB.get('kv', 'autoBackup'); if (r && typeof r === 'object') { AB.every = ['off', 'day', 'week'].includes(r.every) ? r.every : 'off'; AB.last = +r.last || 0; AB.changed = +r.changed || 0; } }
 const abStore = () => DB.put('kv', 'autoBackup', { every: AB.every, last: AB.last, changed: AB.changed });
 function abTouched() { const n = Date.now(); if (n - AB.changed > 60000) { AB.changed = n; abStore(); } AB.ready = null; }   // something was saved (written at most once a minute)
@@ -854,7 +854,7 @@ function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 
 // the song's key, for effects that play in it (the Resonator): sent whenever it changes
 let keySent = ''; function syncKey(force) { if (!P || !P.key) return; const iv = scaleOf(P.key.scale)[1], sig = P.key.root + ':' + iv.join(','); if (sig === keySent && !force) return; keySent = sig; send({ t: 'key', root: P.key.root, iv }); }
 function saveNow() { clearTimeout(saveTimer); if (P) { projSave(); abTouched(); } }
-function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, font: UI.font, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog }); }
+function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, font2: UI.font, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -867,7 +867,7 @@ function reviveRenders(pi) { const pad = P.pads[pi]; if (!pad) return;
   if (pad.stx && !SAMPLES.has(pad.stx)) { pad.stx = null; if (typeof stretchCheck === 'function') stretchCheck(pi); } }
 function scopeSet(sc, v) { const [k, i] = sc.split(':'), n = +i;
   switch (k) { case 'scene': P.scenes[n] = v; syncScene(n); break; case 'pad': P.pads[n] = v; reviveRenders(n); syncPad(n); break; case 'chan': P.chans[n] = v; syncChan(n); break;
-    case 'song': Object.assign(P, v); syncSong(); break; default: P = v; P.pads.forEach((_, j) => reviveRenders(j)); syncProject(); refLoad(); } }
+    case 'song': Object.assign(P, v); syncSong(); break; default: P = v; P.pads.forEach((_, j) => reviveRenders(j)); syncProject(); } }
 function pushUndo(scope = 'all') { UNDO.push({ scope, data: JSON.stringify(scopeGet(scope)) }); if (UNDO.length > 200) UNDO.shift(); REDO.length = 0; ugKey = null; }
 function undoGroup(k, scope) { const n = Date.now(); if (k !== ugKey || n - ugTime > 1500) { pushUndo(scope); ugKey = k; } ugTime = n; }
 function applyHistory(from, to, label) { if (!from.length) { toast('Nothing to ' + label); return; } const e = from.pop();
@@ -877,7 +877,7 @@ const undo = () => { REC.saved = -1; applyHistory(UNDO, REDO, 'undo'); }, redo =
 
 /* ================= audio engine bridge ================= */
 let ctx = null, wasmModule = null, mediaTag = null;
-const ENG = { node: null, ready: false, err: '', sent: new Set() };
+const ENG = { node: null, ready: false, err: '', sent: new Set(), heard: new Map(), oomRetry: new Set() };
 const REP = { time: 0, playing: false, pos: null, pk: [0, 0], cpu: 0, voices: 0, cm: [] };
 function send(m) { if (ENG.node) ENG.node.port.postMessage(m); }
 /* wavetables: factory ones ('w:Name') are generated, your own live in the library as samples marked .wt (frames); prepared once, cached */
@@ -914,8 +914,18 @@ function upPrefer(si) { const want = sceneNeeds(si); UPQ.jobs.sort((a, b) => (wa
 function padNeeds(pi, out = new Set()) { const p = P.pads[pi]; if (!p) return out; if (p.sample) out.add(p.sample); if (p.stx) out.add(p.stx); const g = grSrc(p); if (g) out.add(g); const i = insOf(p); if (i) out.add(i);
   if (p.src === 'synth' && p.syn && p.syn.eng === 'wt' && p.syn.wt) { if (p.syn.wt.a) out.add('T' + p.syn.wt.a); if (p.syn.wt.b) out.add('T' + p.syn.wt.b); } if (p.frz) for (const k in p.frz) out.add(p.frz[k]); if (p.nv) for (const k in p.nv) out.add(p.nv[k]); return out; }
 function sceneNeeds(si) { const out = new Set(), sc = P.scenes[si]; if (sc) for (const k in sc.notes) if (sc.notes[k].length) padNeeds(+k, out); return out; }
-function ensureTable(key) { if (!key || ENG.sent.has('T' + key) || !ENG.node) return; const t = tableFor(key); if (!t) return; ENG.sent.add('T' + key); upAdd({ k: 't', key, t, l: -1 }); }
-function ensureSample(id, now) { if (!id || !ENG.node) return; if (!ENG.sent.has(id)) { const s = SAMPLES.get(id); if (!s || s.wt) return; ENG.sent.add(id); upAdd({ k: 's', id, s, off: 0 }); } if (now) upFlush(new Set([id])); }
+/* Engine memory: sounds and wavetables go into the engine when something needs them, and come out again once nothing does, so trying
+   one table or sound after another never fills it up. The tidy runs a few seconds after things change, and at once when the engine is full. */
+function engineNeeds() { const need = new Set(usedSampleIds()); P.pads.forEach((_, pi) => padNeeds(pi, need)); for (const k of tableKeys()) need.add('T' + k);
+  const now = Date.now(); for (const [k, t] of ENG.heard) { if (now - t < 20000) need.add(k); else ENG.heard.delete(k); } return need; }
+function engineTidy(now) { clearTimeout(ENG.tidyT); if (!now) { ENG.tidyT = setTimeout(() => engineTidy(true), 4000); return 0; } if (!ENG.node || !P) return 0;
+  const need = engineNeeds(); let n = 0;
+  for (const k of [...ENG.sent]) { if (k[0] === 'Z' || need.has(k)) continue;
+    if (k[0] === 'T') { const key = k.slice(1); if (need.has(key)) continue; send({ t: 'tableDel', key }); } else send({ t: 'sampleDel', key: k });
+    ENG.sent.delete(k); UPQ.jobs = UPQ.jobs.filter(j => upKey(j) !== k); n++; }
+  return n; }
+function ensureTable(key) { engineTidy(); if (!key || ENG.sent.has('T' + key) || !ENG.node) return; const t = tableFor(key); if (!t) return; ENG.sent.add('T' + key); upAdd({ k: 't', key, t, l: -1 }); }
+function ensureSample(id, now) { engineTidy(); if (!id || !ENG.node) return; if (!ENG.sent.has(id)) { const s = SAMPLES.get(id); if (!s || s.wt) return; ENG.sent.add(id); upAdd({ k: 's', id, s, off: 0 }); } if (now) upFlush(new Set([id])); }
 function syncScene(i) { const sc = P.scenes[i]; send({ t: 'scene', i, v: sc }); if (typeof drumNotesSoon === 'function' && P.pads.some(p => p.src === 'drum' && p.drum && isLayered(p.drum))) drumNotesSoon(); for (const k in sc.notes) for (const n of sc.notes[k]) if (n.f) delete n.f; }
 // instruments: decoded on first use, zone table to the engine, then the sample
 function ensureIns(key) { if (!key || !key.startsWith('i:')) return; if (!SAMPLES.has(key)) { const s = insSample(key); if (!s) return; SAMPLES.set(key, s); }
@@ -982,10 +992,10 @@ async function startEngine() {
     if (!node) node = new AudioWorkletNode(c0, 'tf-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { wasm: WASM_BYTES, warm: true } });
     if (ctx !== c0) return;
     const clip = ctx.createWaveShaper(); clip.curve = new Float32Array([-1, 1]); clip.oversample = 'none';   // second hard clip, belt and braces
-    ENG.mixG = ctx.createGain(); node.connect(clip); clip.connect(ENG.mixG); ENG.mixG.connect(ctx.destination);   // mixG: A/B with the reference mutes your mix here
+    node.connect(clip); clip.connect(ctx.destination);
     if (ctx !== c0) return;   // restarted while this one was loading
     node.port.onmessage = e => onEngine(e.data);
-    ENG.node = node; ENG.sent.clear(); UPQ.jobs.length = 0; syncProject(); sendClick(); refAttach();
+    ENG.node = node; ENG.sent.clear(); UPQ.jobs.length = 0; syncProject(); sendClick();
   } catch (e) { if (ctx !== c0) return;   // this one was replaced by a restart while it loaded: not a real failure
     ENG.err = e.message || String(e); ENG.errLog = (ENG.errLog || []).concat('start: ' + ENG.err).slice(-5); console.error(e); toast('The audio engine could not start: ' + ENG.err); }
 }
@@ -1019,7 +1029,8 @@ function onEngine(m) {
     toast(`Safety mute on ${who}: ${m.why === 1 ? 'it produced invalid audio' : 'levels ran away'}. It has been reset.` + (n - lastTrip < 4000 ? ' Check feedback, resonance and drive.' : ''));
     lastTrip = n; trail('safety mute: ' + who + (m.why === 1 ? ' (invalid audio)' : ' (runaway level)')); TRAIL.trips = TRAIL.trips.concat(new Date().toTimeString().slice(0, 8) + ' ' + who + (m.why === 1 ? ': invalid audio' : ': runaway level') + ' · effects ' + ((P.chans[m.ch] || {}).fx || []).filter(f => f.on).map(f => (FX_DEFS[f.type] || {}).name + (FX_DEFS[f.type] && FX_DEFS[f.type].modes.length > 1 ? ' ' + FX_DEFS[f.type].modes[f.mode || 0].n : '')).join(', ')).slice(-8);
   } else if (m.t === 'err') { ENG.err = m.msg; ENG.errLog = (ENG.errLog || []).concat(m.msg).slice(-5); toast('Audio engine error: ' + m.msg + ' · Engine check has the details'); }
-  else if (m.t === 'oom') toast('Out of memory: remove unused sounds or effects, or freeze pads');
+  else if (m.t === 'oom') { const freed = engineTidy(true); if (freed && m.key && !ENG.oomRetry.has(m.key)) { ENG.oomRetry.add(m.key); ENG.sent.delete('T' + m.key); ENG.sent.delete(m.key); ensureTable(m.key); ensureSample(m.key, true); setTimeout(() => ENG.oomRetry.delete(m.key), 5000); }
+    else toast('Out of memory: remove unused sounds or effects, or freeze pads'); }
 }
 async function getModule() { if (!wasmModule) wasmModule = await WebAssembly.compile(WASM_BYTES); return wasmModule; }
 async function renderOffline(order, tail, tap, onProgress, opts = {}) {
@@ -1031,7 +1042,7 @@ async function renderOffline(order, tail, tap, onProgress, opts = {}) {
   return tfRenderOffline(mod, opts.P || P, samples, { sr: opts.sr || 48000, order, tail, tap, onProgress, tables, stem: opts.stem, maxSec: opts.maxSec, time: opts.time, zones });
 }
 function audition(pi, semi = 0) { if (!ENG.node) return; const pad = P.pads[pi]; if (hasSound(pad)) { ensureSample(pad.sample); if (UPQ.jobs.length) upFlush(padNeeds(pi)); send({ t: 'hit', pad: pi, semi, vel: .8, gate: .25, tag: 0 }); } }
-function previewSample(id) { ensureAudio(); ensureSample(id, true); send({ t: 'preview', key: id }); }
+function previewSample(id) { ensureAudio(); ENG.heard.set(id, Date.now()); ensureSample(id, true); send({ t: 'preview', key: id }); }
 
 /* ================= transport ================= */
 let lastStop = 0;
@@ -1039,7 +1050,7 @@ function play() {
   if (T.playing) { stop(); lastStop = Date.now(); return; }
   if (Date.now() - lastStop < 450 && ctx) { panic(); lastStop = 0; return; }
   if (!ensureAudio()) return;
-  refUnlock(); recReset();
+  recReset();
   const sent = UPQ.jobs.length ? upFlush(T.loop === 'song' ? null : sceneNeeds(UI.scene)) : 0;   // what's about to play is in the engine before it starts
   const count = T.rec ? UI.countIn : 0, lead = Math.max(250 - (performance.now() - (AUD.runAt || 0)), Math.min(400, sent / 50000));   // just woken, or a big sound just sent: a moment more before the first note
   T.playing = true; REP.pos = null; TL.held = false; tlFollowUpd(); sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count, from: playFrom(), lead }); updateTransport();
@@ -1061,7 +1072,7 @@ function loopToggle() { const tl = UI.tl, L = tl.loop;
 const rangeStr = (a, b) => a % BAR || b % BAR ? `from ${posStr(a).split('.').slice(0, a % BEAT ? 3 : 2).join('.')}, ${+((b - a) / BEAT).toFixed(2)} beats` : b - a === BAR ? `bar ${a / BAR + 1}` : `bars ${a / BAR + 1}–${b / BAR}`;
 // the click: off, only while recording is armed, or always. It plays on the engine's clock, so it is sample-accurate, and never reaches exports.
 function sendClick() { send({ t: 'click', on: UI.click === 'always' || (UI.click === 'rec' && T.rec), vol: UI.clickVol }); $('#bTempo').classList.toggle('clk', UI.click === 'always' || (UI.click === 'rec' && T.rec)); }
-function stop() { if (REF.el) REF.el.pause(); T.playing = false; if (T.rec) { T.rec = false; sendClick(); } send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
+function stop() { T.playing = false; if (T.rec) { T.rec = false; sendClick(); } send({ t: 'stop' }); for (const k in HELD) delete HELD[k]; updateTransport(); updatePlayingSlot(null); if (UI.view === 'seq') drawTL(); }
 function panic(msg) { T.playing = false; send({ t: 'panic' }); KEYS.latch = null; KEYS.arpN = null; for (const k in HELD) delete HELD[k]; METER.l = METER.r = 0; METER.clip = false; drawMeter(); updateTransport(); updatePlayingSlot(null); toast(msg || 'Panic: all sound stopped and effect tails cleared'); }
 /* The audio clock as heard: the moment leaving the speaker right now, on the context's clock. The output timestamp pairs a moment the
    speaker played with the page's own clock, so it runs smooth and true between audio blocks (the context's clock on the page steps, and on
@@ -1974,10 +1985,10 @@ function openAppearance() {
     st.append(tg, h('div', 'sec', 'Pads')); const g = h('div', 'g3');
     for (const [v, l] of [['dark', 'Dark'], ['tint', 'Tinted'], ['bright', 'Colour']]) g.append(btn(l, () => { UI.padStyle = v; applyTheme(); savePrefs(); closeSheet(); openAppearance(); }, 'btn' + ((UI.padStyle || 'dark') === v ? ' on' : '')));
     st.append(g, h('div', 'sec', 'Text')); const fg = h('div', 'g2');
-    for (const [v, l] of [['narrow', 'Narrow'], ['std', 'Standard']]) fg.append(btn(l, () => { UI.font = v; applyTheme(); savePrefs(); renderAll(); closeSheet(); openAppearance(); }, 'btn' + ((UI.font || 'narrow') === v ? ' on' : '')));
+    for (const [v, l] of [['rounded', 'Rounded'], ['narrow', 'Narrow']]) fg.append(btn(l, () => { UI.font = v; applyTheme(); savePrefs(); renderAll(); closeSheet(); openAppearance(); }, 'btn' + ((UI.font || 'rounded') === v ? ' on' : '')));
     st.append(fg); card.append(st); }, () => {});
 }
-function afterLoad() { refLoad(); UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
+function afterLoad() { UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => stretchAllSoon(0), 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
 
 /* ---------- engine check ---------- */
 /* Engine check: each row says in plain words what it means for using the app, with the technical detail underneath (and in Copy results).
@@ -2035,8 +2046,8 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-03', ['Narrower text everywhere, so less gets cut off (Appearance › Text switches back to Standard).']],
-  ['2026-11-02', ['Reference track: import a finished song in the mixer (beside the master). Line it up with your scenes, stretch it to your tempo, and A/B it at matched loudness. It bypasses the master.', 'Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
+  ['2026-11-03', ['New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'The reference track is gone for now; it comes back as audio tracks.']],
+  ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
   ['2026-10-30', ['Instruments reworked: natural ring-out for keys, harp, vibes and basses; longer, smoother loops for pads, organ, flute and brass.', 'Removed Glass Pad, Orch Hits and Timpani Roll (projects switch to similar sounds).', 'Make from a sample, rebuilt for kicks, 808s, toms and snares: a synth body with your sample layered on top.', 'Layer page for layered drums: level, pitch, start, length, filter, Keytrack.', 'Tap the drum’s picture to hear it.', 'Auto backup (optional, under Projects), now including drums and synth presets.', 'Wavetable: tap a table to step through, hold for the menu.', 'Fix: first hit after sound starts could sound different.', 'Fix: meters and playheads could freeze until restart.', 'Fix: instruments were silent in exports.']],
@@ -2054,7 +2065,7 @@ function openChanges() {
     for (const [d, items] of CHANGES) { st.append(h('div', 'sec', fmtDay(d))); const ul = h('ul', 'log'); for (const t of items) ul.append(h('li', '', esc(t))); st.append(ul); } }); }
 function openAbout() { openSheet('About', card => { const st = h('div', 'stack'); card.append(st);
   st.append(h('div', 'sec', 'Your work'), h('p', 'note', 'Everything stays on this device. Trackfill never sends your work or anything about you anywhere: no accounts, no tracking, no ads. Back up from Projects.'));
-  st.append(h('div', 'sec', 'Built with'), h('p', 'note', 'MP3 encoding: lamejs (LGPL-3.0), unmodified · Time stretch: Signalsmith Stretch (MIT) · Fonts: Barlow Semi Condensed and Figtree (SIL Open Font License) · Sampled instruments: VCSL and VSCO 2 Community Edition (CC0) · Source and licences: github.com/sshaylerr/trackfill')); }); }
+  st.append(h('div', 'sec', 'Built with'), h('p', 'note', 'MP3 encoding: lamejs (LGPL-3.0), unmodified · Time stretch: Signalsmith Stretch (MIT) · Fonts: Nunito and Barlow Semi Condensed (SIL Open Font License) · Sampled instruments: VCSL and VSCO 2 Community Edition (CC0) · Source and licences: github.com/sshaylerr/trackfill')); }); }
 function openDiag() {
   openSheet('Engine check', async card => { const box = h('div', 'diag'); box.append(h('p', 'note', 'Checking this device…')); card.append(box);
     const draw = async () => { const rows = await runChecks(); box.innerHTML = ''; const sym = { ok: '✓', warn: '!', fail: '×' };
@@ -2470,7 +2481,7 @@ function frameBody(ts) {
   if (!P) { nextFrame(); return; }
   if (ts - lastFrame < (T.playing && UI.view !== 'seq' ? 30 : 14)) { nextFrame(); return; }   // 60 fps; 30 while playing (except the timeline's playhead): the same look, half the drawing, more room for touches
   const fdt = Math.min(.1, (ts - (lastFrame || ts)) / 1000); lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
-  meterFeed(fdt); drawMeter(); if (FLASH.size) flashExpire(performance.now()); if (P.ref) refFrame();
+  meterFeed(fdt); drawMeter(); if (FLASH.size) flashExpire(performance.now());
   const scoping = scopeMoving(); if (scoping) scopeFrame(Math.min(.1, (ts - (frame.prev || ts)) / 1000)); frame.prev = ts;
   const busy = scoping || T.playing || METQ.length || FLQ.length || FLASH.size || METER.l > 0 || METER.r > 0 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 0 || m.v[1] > 0));
   if (busy) nextFrame(); else { frameOn = false; return; }   // nothing moving: stop drawing until woken
@@ -2495,7 +2506,7 @@ async function boot() {
   P = await projBoot(); await warmBuiltins(P); ensureBuiltinsFor(P);
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (SNAPS.some(x => x.t === pr.snap)) UI.tl.snap = pr.snap; UI.tl.velOpen = pr.velOpen !== false;
-    UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark'; UI.font = pr.font === 'std' ? 'std' : 'narrow';
+    UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark'; UI.font = pr.font2 === 'narrow' ? 'narrow' : 'rounded';
     UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null;
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: pr.mon.phones && !TF_PHONES[pr.mon.phones] ? 'Wired earbuds' : TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);

@@ -26,6 +26,12 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
   { const Q = M.newProject(); Q.scenes = Array.from({ length: 30 }, (_, i) => Object.assign(M.emptyScene ? M.emptyScene() : {}, { bars: 4, notes: i === 29 ? { 0: [{ t: 0, len: 24, p: 0, v: .9 }] } : {} }));
     const back = M.migrate(JSON.parse(JSON.stringify(Q))), big = M.migrate(Object.assign(M.newProject(), { scenes: Array.from({ length: 99 }, () => ({ bars: 4 })) }));
     ok(back.scenes.length === 30 && back.scenes[29].notes[0].length === 1 && big.scenes.length === M.MAX_SCENES && M.migrate({}).scenes.length === 16, `scenes: a project keeps however many it has (30 → ${back.scenes.length}; at most ${M.MAX_SCENES}; a new one starts with 16)`); }
+  { // wavetables come out of the engine again: a hundred different ones, one after another, never fill it up
+    const ex = new WebAssembly.Instance(wasm, {}).exports; let oom = 0; const host = new H.TFHost(ex, 48000, m => { if (m.t === 'oom') oom++; }); host.msg({ t: 'project', P: M.newProject() });
+    const F = 64, lv = Array.from({ length: 9 }, (_, l) => new Float32Array(F * Math.max(64, 2048 >> l))), fund = new Float32Array(F * 2);
+    for (let i = 0; i < 100; i++) { host.msg({ t: 'wtable', key: 'u:t' + i, F, lv, fund }); if (i) host.msg({ t: 'tableDel', key: 'u:t' + (i - 1) }); }
+    let full = 0; const h2 = new H.TFHost(new WebAssembly.Instance(wasm, {}).exports, 48000, m => { if (m.t === 'oom') full++; }); h2.msg({ t: 'project', P: M.newProject() }); for (let i = 0; i < 60; i++) h2.msg({ t: 'wtable', key: 'u:t' + i, F, lv, fund });
+    ok(oom === 0 && full > 0, `wavetables are freed when let go: 100 in turn, no shortage (${oom}); kept, the engine fills up (${full} refused), which is what the app's tidy-up now prevents`); }
   console.log('clock');
   { // 300 loops at awkward tempos and both common rates: loop starts stay within a sample of true tempo (loops never round up)
     let worst = 0; for (const [bpm, sr, bars] of [[174, 44100, 1], [140, 48000, 2], [123.4, 44100, 1]]) {

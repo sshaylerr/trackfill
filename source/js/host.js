@@ -366,6 +366,7 @@ class TFHost {
       case 'ins': this.setIns(m.key, m.zones); break;
       case 'wtable': this.addTable(m.key, m.F, m.lv, m.fund); break;
       case 'sampleDel': this.removeSample(m.key); break;
+      case 'tableDel': { const id = this.wtm && this.wtm.get(m.key); if (id) { this.ex.tf_wt_free(id); this.wtm.delete(m.key); if (this.wtLeft) this.wtLeft.delete(m.key); } break; }
       // big sounds and tables arrive in pieces, a few per block, so copying them never holds up the sound
       case 'sampleStart': { this.removeSample(m.key); this.pendS = this.pendS || new Map(); const old = this.pendS.get(m.key); if (old) this.ex.tf_free(old.ptr);
         const ptr = this.ex.tf_malloc(m.n * 2); if (!ptr) { this.post && this.post({ t: 'oom', key: m.key }); break; } this.pendS.set(m.key, { ptr, n: m.n, frames: m.frames, ch: m.ch, sr: m.sr }); break; }

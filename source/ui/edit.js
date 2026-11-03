@@ -171,7 +171,7 @@ function pasteChan(c) { if (!clipIs('chan')) return; pushUndo('chan:' + c); Obje
 function editContext() {
   if (UI.view === 'seq') return 'bars';
   if (UI.view === 'fx') return 'fx';
-  if (UI.view === 'mix') return UI.mixSel === REF_CH ? 'ref' : UI.mixSel < G0 ? 'pad' : 'chan';
+  if (UI.view === 'mix') return UI.mixSel < G0 ? 'pad' : 'chan';
   return 'pad';
 }
 const ED = { tab: {}, qs: 1 };
@@ -192,7 +192,7 @@ function edOverview(body, bars) {
 function openEdit() {
   const ctx = editContext(), tl = UI.tl, notes = ctx === 'bars' && tl.lane === 'notes';
   if (ctx === 'bars') { const t = tl.sel ? tl.sel.n.t : tl.cursor.t || 0; EDR.from = clamp(Math.floor(t / BAR), 0, P.scenes[UI.scene].bars - 1); EDR.len = Math.min(EDR.len || 1, P.scenes[UI.scene].bars - EDR.from) || 1; }
-  const tabs = { bars: notes ? ['Notes', 'Tools', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'], ref: ['Scene'] }[ctx];
+  const tabs = { bars: notes ? ['Notes', 'Tools', 'Bars', 'Scene'] : ['Bars', 'Scene'], pad: ['Pad', 'Scene'], fx: ['Effect', 'Scene'], chan: ['Channel', 'Scene'] }[ctx];
   let tab = notes && selItems().length ? 'Notes' : tabs.includes(ED.tab[ctx]) ? ED.tab[ctx] : tabs[0];
   openSheet('Edit', card => {
     const body = h('div', 'edit'), title = card.querySelector('.shTitle span'); card.append(body);
