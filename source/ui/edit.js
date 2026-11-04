@@ -211,7 +211,8 @@ function openEdit() {
           key('Import a recording…', () => { closeSheet(); audImport(UI.pad); }, true, { w: 4 })); }
       if (tab === 'Notes') {
         grid(key('Copy', () => copyNotes(), n > 0), key('Cut', () => copyNotes(true), n > 0), key('Paste', pasteNotes, clipIs('notes'), { stay: 1 }), key('Delete', deleteSel, n > 0, { cls: 'warn' }),
-          key('Duplicate', () => duplicateNote(), n > 0, { stay: 1, w: 2, cls: 'hot' }), key('Fill to end', () => duplicateNote(true), n > 0, { stay: 1 }), key('Select all', selectAll, true, { stay: 1 }),
+          key('Duplicate', () => duplicateNote(), n > 0, { stay: 1, cls: 'hot' }), key('Fill to end', () => duplicateNote(true), n > 0, { stay: 1 }), key('Select all', selectAll, true, { stay: 1 }),
+          key(tl.mode === 'bank' ? 'Select track' : 'Select key', () => selectRow(tl.sel ? selRowOf(tl.sel) : tl.cursor.row), true, { stay: 1 }),
           key(n ? 'Quantize' : 'Quantize all', () => quantizeNotes(ED.qs), true, { stay: 1 }), ...[1, .75, .5].map(q => key(Math.round(q * 100) + '%', () => { ED.qs = q; }, true, { stay: 1, cls: 'sm' + (ED.qs === q ? ' on' : '') }))); }
       if (tab === 'Tools') { const g = snapName(tl.snap || 24);   // acts on the selection, or every note in view
         grid(key('Legato', toolLegato, true, { stay: 1 }), key('Length ' + g, toolLength, true, { stay: 1 }), key('Reverse', toolReverse, true, { stay: 1 }), key('Chop ' + g, toolChop, true, { stay: 1 }),
