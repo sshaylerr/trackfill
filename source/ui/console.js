@@ -103,7 +103,7 @@ function conRot(opts, cap, style) { const n = opts.length, span = n <= 2 ? 120 :
   return (sw, i) => { const lab = opts.map((o, k) => { const t = ang(k) * Math.PI / 180; return `<text x="${(46 + 36 * Math.sin(t)).toFixed(1)}" y="${(35 - 23 * Math.cos(t)).toFixed(1)}" text-anchor="middle" class="${k === i ? 'on' : ''}">${esc(o)}</text>`; }).join('');
     const body = st === 'punchy' ? `<circle cx="46" cy="34.5" r="13" fill="rgba(0,0,0,.5)"/><g transform="rotate(${ang(i)} 46 33)"><path d="M46 14.5 L51.4 21 A12.6 12.6 0 1 1 40.6 21 Z" fill="url(#kAluF)" stroke="#4a4e53" stroke-width=".6"/></g><circle cx="46" cy="33" r="7.6" fill="${cap || '#c3c7cb'}"/><circle cx="44.2" cy="31" r="2.8" fill="rgba(255,255,255,.32)"/>`
       : st === 'clean' ? `<circle cx="46" cy="34.5" r="13" fill="rgba(0,0,0,.45)"/><circle cx="46" cy="33" r="12.6" fill="url(#kDesk)" stroke="#55534e" stroke-width=".7"/><circle cx="46" cy="33" r="8.8" fill="${cap || '#d8d7d1'}"/><g transform="rotate(${ang(i)} 46 33)"><rect x="45" y="23.4" width="2" height="8" rx="1" fill="#26272a"/></g>`
-      : `<circle cx="46" cy="34" r="14" fill="#24221e" stroke="#0e0d0b"/><circle cx="46" cy="33" r="10" fill="${cap || '#8f918c'}"/><circle cx="46" cy="33" r="10" fill="url(#kWm)"/><g transform="rotate(${ang(i)} 46 33)"><path d="M46 17 L49 21 L43 21 Z" fill="#e8e1cf"/><rect x="45.1" y="23" width="1.8" height="7" rx=".9" fill="#f3ecdc"/></g>`;
+      : `<circle cx="46" cy="34.6" r="13.4" fill="rgba(0,0,0,.5)"/><g transform="rotate(${ang(i)} 46 33)"><circle cx="46" cy="33" r="13" fill="url(#kWmS)" stroke="#2c3238" stroke-width=".6"/><circle cx="46" cy="33" r="12.2" fill="none" stroke="rgba(20,24,28,.45)" stroke-width="1.4" stroke-dasharray=".6 1"/><circle cx="46" cy="33" r="8.6" fill="${cap || '#9aa3ad'}" stroke="rgba(0,0,0,.45)" stroke-width=".5"/><circle cx="46" cy="33" r="8.6" fill="url(#kWm)"/><rect x="45.2" y="25.4" width="1.6" height="7.6" rx=".8" fill="#fbfbf7"/></g>`;
     sw.innerHTML = `<svg class="rot" viewBox="0 0 92 52" aria-hidden="true">${lab}${body}</svg><svg class="rotk" viewBox="30 17 32 32" aria-hidden="true">${body}</svg><span class="rv">${esc(opts[i])}</span>`; }; }
 // a grid cell holding one button, or two side by side (each still a full-height target)
 function conCell(...btns) { const d = h('div', 'cbc' + (btns.length > 1 ? ' two' : '')); d.append(...btns); return d; }
@@ -150,12 +150,12 @@ function peqRows(c, f, redraw, frz, tg) {
 // Warm's module, as columns: the 12 kHz shelf, the mid bell (Hi-Q narrows it), the low shelf, the high-pass; gains on top, the fixed
 // points below (its own redesign from photos is next)
 function weqRows(c, f, redraw, frz, tg) {
-  const g = h('div', 'cgrid'), ch = () => { frz(); redraw(); refreshThumb(c); }, RED = '#c22f26'; g.style.setProperty('--cols', 4);
+  const g = h('div', 'cgrid'), ch = () => { frz(); redraw(); refreshThumb(c); }, RED = '#9aa3ad'; g.style.setProperty('--cols', 4);
   const gain = (i, b) => { const k = conKnob(`${c}.8.${i}`, RED, { label: 'GAIN', hot: b + ' gain', after: ch }); k.setAttribute('aria-label', 'EQ ' + WEQ_P[i].n); return k; };
   const rot = (i, lab, cap) => conRotary(`${c}.8.${i}`, f, i, { n: lab, opts: WEQ_P[i].opts }, ch, cap, WEQ_P[i].n);
   const hq = conToggle('HI-Q', f.p[5] >= .5, () => { pushUndo('chan:' + c); frz(); f.p[5] = f.p[5] >= .5 ? 0 : 1; sendParam(`${c}.8.5`, f.p[5]); markDirty(); renderView(); });
   g.append(h('div', 'cbh', 'HIGH'), h('div', 'cbh', 'MID'), h('div', 'cbh', 'LOW'), h('div', 'cbh', 'HPF'),
-    gain(6, 'High'), gain(4, 'Mid'), gain(2, 'Low'), rot(0, 'Hz', '#3f6f9f'), conCell(tg.in(), hq), rot(3, 'Hz'), rot(1, 'Hz'), conCell(tg.pre(), tg.post()));
+    gain(6, 'High'), gain(4, 'Mid'), gain(2, 'Low'), rot(0, 'Hz', '#22325a'), conCell(tg.in(), hq), rot(3, 'Hz'), rot(1, 'Hz'), conCell(tg.pre(), tg.post()));
   return g;
 }
 function refreshThumb(c) { const t = document.querySelector(`.cx .eqt[data-c="${c}"]`); if (t) t.innerHTML = ceqThumb(P.chans[c]); }
@@ -189,10 +189,10 @@ function conBus2(sel) {
   if (pk) { for (const [k, lab] of [['in', 'IN'], ['gr', 'GR']]) { const m = h('div', 'cvf'); m.innerHTML = vuSvg('Y', lab); vu.append(m); CON_VU.push({ el: m.querySelector('.ndl'), src: k, c, vk: 'Y', vd: k === 'gr' ? VU_REST_GR : 0 }); } }
   else { const m = h('div', 'cvf'); m.innerHTML = vuSvg('W', 'GAIN REDUCTION'); vu.append(m); CON_VU.push({ el: m.querySelector('.ndl'), src: 'gr', c, vk: 'W', vd: 1 }); }
   vu.append(h('div', 'chot'));
-  const K = (i, cap) => { const k = conKnob(`${c}.9.${i}`, cap || '#8f918c', { label: ps[i].n.toUpperCase(), hot: 'Bus ' + ps[i].n }); k.setAttribute('aria-label', 'Bus ' + ps[i].n); return k; }, R = (i, lab, cap) => conRotary(`${c}.9.${i}`, f, i, { n: lab || ps[i].n, opts: ps[i].opts }, null, cap, 'Bus ' + ps[i].n);
+  const K = (i, cap) => { const k = conKnob(`${c}.9.${i}`, cap || '#9aa3ad', { label: ps[i].n.toUpperCase(), hot: 'Bus ' + ps[i].n }); k.setAttribute('aria-label', 'Bus ' + ps[i].n); return k; }, R = (i, lab, cap) => conRotary(`${c}.9.${i}`, f, i, { n: lab || ps[i].n, opts: ps[i].opts }, null, cap, 'Bus ' + ps[i].n);
   const g = h('div', 'cgrid'), cin = conCell(conToggle('COMP IN', f.on, flip(() => { f.on = !f.on; }, () => 'Bus compressor ' + (f.on ? 'in' : 'out')), true)); g.style.setProperty('--cols', 4);
   if (pk) g.append(K(0, '#d63b2f'), R(1), R(2, 'Attack ms'), R(3, 'Release s'), K(7, '#e3e5e7'), K(8, '#4a4d52'), R(4), R(5), R(6), cin, blankCell(), blankCell());
-  else g.append(K(0), R(1), R(2), R(3, 'Recovery'), K(4, '#c22f26'), K(9), K(6, '#2f5f8f'), R(7, 'Lim attack'), R(8, 'Lim recovery'), cin,
+  else g.append(K(0, '#9aa3ad'), R(1), R(2), R(3, 'Recovery'), K(4, '#a51c24'), K(9, '#9aa3ad'), K(6, '#22325a'), R(7, 'Lim attack'), R(8, 'Lim recovery'), cin,
     conCell(conToggle('LIMIT', f.p[5] >= .5, () => { pushUndo('chan:' + c); f.p[5] = f.p[5] >= .5 ? 0 : 1; sendParam(`${c}.9.5`, f.p[5]); markDirty(); renderView(); }, true)), blankCell());
   w.append(vu, g); if (!f.on) w.classList.add('off'); return w;
 }
@@ -203,13 +203,13 @@ const CON_VU = [], VU_P = [[-20, 0], [-10, .3], [-7, .42], [-5, .52], [-3, .64],
 const VU_REST_GR = .78;
 const vuMap = (tab, v) => { if (v <= tab[0][0]) return tab[0][1]; for (let i = 1; i < tab.length; i++) if (v <= tab[i][0]) { const [a, pa] = tab[i - 1], [b, pb] = tab[i]; return pa + (pb - pa) * (v - a) / (b - a); } return tab[tab.length - 1][1]; };
 // each meter's drawing box (its aspect is the box's, so the needle, an HTML element turned by CSS, sits exactly on the drawing's pivot)
-const VU_GEO = { y: { w: 100, h: 74, cx: 50, cy: 84, r: 66, a: 42 }, Y: { w: 100, h: 62, cx: 50, cy: 70, r: 52, a: 44 }, a: { w: 40, h: 22, cx: 20, cy: 24, r: 18, a: 45 }, W: { w: 320, h: 100, cx: 160, cy: 168, r: 144, a: 34 } };
+const VU_GEO = { y: { w: 100, h: 74, cx: 50, cy: 84, r: 66, a: 42 }, Y: { w: 100, h: 62, cx: 50, cy: 70, r: 52, a: 44 }, a: { w: 40, h: 22, cx: 20, cy: 24, r: 18, a: 45 }, W: { w: 220, h: 100, cx: 110, cy: 150, r: 130, a: 46 } };
 function vuSvg(k, lab = '') { const G = VU_GEO[k], A = p => (-G.a + 2 * G.a * p) * Math.PI / 180, xy = (p, r) => [+(G.cx + r * Math.sin(A(p))).toFixed(1), +(G.cy - r * Math.cos(A(p))).toFixed(1)];
   const arc = (p0, p1, r) => { const [x0, y0] = xy(p0, r), [x1, y1] = xy(p1, r); return `M${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1}`; };
   const tick = (p, r0, r1, cls = '') => { const [x0, y0] = xy(p, r0), [x1, y1] = xy(p, r1); return `<line class="${cls}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; };
   const label = (p, r, t, cls = '', dy = 3) => { const [x, y] = xy(p, r); return `<text class="${cls}" x="${x}" y="${y + dy}">${t}</text>`; };
   let face;
-  if (k === 'W') face = `<rect class="face" width="${G.w}" height="${G.h}"/><path class="sc" d="${arc(0, 1, G.r - 14)}"/>${GR_P.map(([v, p]) => tick(p, G.r - 26, G.r - 14) + label(p, G.r - 38, v, '', 4)).join('')}<text class="lab" x="${G.cx}" y="90">${lab}</text>`;
+  if (k === 'W') { const R0 = G.r - 30; face = `<rect class="face" width="${G.w}" height="${G.h}"/><path class="sc" d="${arc(0, 1, R0)}"/>${GR_P.map(([v, p]) => tick(p, R0, R0 + 7) + label(p, R0 + 16, v, '', 3)).join('')}${[1, 3, 5, 8, 12, 17].map(v => tick(vuMap(GR_P, v), R0, R0 + 4, 'mn')).join('')}<text class="lab" x="${G.cx}" y="88">${lab}</text><text class="db" x="${G.cx}" y="70">dB</text>`; }
   else if (k === 'a') face = `<path class="sc" d="${arc(0, .78, G.r - 1)}"/><path class="red" d="${arc(.78, 1, G.r - 1)}"/>`;
   else { const big = k === 'Y', sc = [[-20, 0], [-10, .3], [-7, .42], [-5, .52], [-3, .64], [0, .78], [3, 1]];
     face = `<path class="sc" d="${arc(0, .78, G.r - 4)}"/><path class="red" d="${arc(.78, 1, G.r - 4)}"/>` + sc.map(([v, p], i) => tick(p, G.r - 4, G.r + 2, p > .77 ? 'r' : '') + (i !== 2 && (big || i % 2 === 0 || i === 5) ? label(p, G.r + 8, i === 6 ? '+3' : Math.abs(v), p > .77 ? 'r' : '', 2) : '')).join('')

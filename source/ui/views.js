@@ -239,12 +239,12 @@ function bindSwipe(el) { let s = null;
   el.addEventListener('pointerup', e => { if (!s) return; const dx = e.clientX - s.x, dy = e.clientY - s.y; s = null; if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) { el._swiped = true; mixSwipe(dx < 0 ? 1 : -1); } });
   el.addEventListener('click', e => { if (el._swiped) { e.stopPropagation(); e.preventDefault(); el._swiped = false; } }, true); }
 function stripEl(c) {
-  const C = P.chans[c], isPad = c < G0, el = h('div', 'strip' + (c === UI.mixSel ? ' sel' : '') + (isPad && !padUsed(P.pads[c]) ? ' empty' : ''));
+  const C = P.chans[c], isPad = c < G0, el = h('div', 'strip' + (c === MASTER ? ' mst' : '') + (c === UI.mixSel ? ' sel' : '') + (isPad && !padUsed(P.pads[c]) ? ' empty' : ''));
   const nm = h('button', 'sname'); nm.innerHTML = `<em>${chanLabel(c)}</em><b>${esc(isPad ? (P.pads[c].name || (!padUsed(P.pads[c]) ? '—' : P.pads[c].src === 'synth' ? 'Synth' : P.pads[c].src === 'audio' ? 'Audio' : 'Sound')) : chanName(c))}</b><i style="background:${isPad ? PAD_COLORS[P.pads[c].color] : 'var(--dim)'}"></i>`;
   nm.onclick = () => { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); };
   const fd = keyParam(c + '.-1.0', { kind: 'fader', label: chanLabel(c) + ' volume', fmt: shortDb, unity: .85, onSwipe: mixSwipe, onTap: () => { if (UI.mixSel !== c) { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); } } });
   STRIP_METERS.push({ c, el: fd._meter, v: [0, 0] });
-  const pan = keyParam(c + '.-1.1', Object.assign({ cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe }, conOn() ? { skin: conSkin() } : {})); pan.style.setProperty('--kc', P.console === 'warm' ? '#8f918c' : P.console === 'punchy' ? '#4a4d52' : '#5a86e0');
+  const pan = keyParam(c + '.-1.1', Object.assign({ cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe }, conOn() ? { skin: conSkin() } : {})); pan.style.setProperty('--kc', P.console === 'warm' ? '#22325a' : P.console === 'punchy' ? '#4a4d52' : '#5a86e0');
   const ms = h('div', 'ms2'), cx = conOn();
   if (c !== MASTER) { const mb = btn(cx ? 'CUT' : 'M', () => { pushUndo('chan:' + c); C.mute = !C.mute; mb.classList.toggle('on', C.mute); syncChan(c); markDirty(); }, 'm' + (C.mute ? ' on' : ''));
     const sb = btn(cx ? 'SOLO' : 'S', () => { pushUndo('chan:' + c); C.solo = !C.solo; sb.classList.toggle('on', C.solo); syncChan(c); markDirty(); }, 's' + (C.solo ? ' on' : '')); ms.append(mb, sb); }
@@ -259,11 +259,11 @@ function detailEl(c, slim) {   // slim (a console's EQ and Comp views): the anal
   if (c < R0) bt.append(btn('→ ' + esc(destName(c)), () => openOutputPicker(c), 'key sm'));
   { const fb = btn(`FX ${C.fx.length} · ` + (C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'none'), () => openFx(c, 'mix'), 'key sm' + (C.fx.length ? ' on' : '')); fb.dataset.alt = 'FX ' + C.fx.length; bt.append(fb); }
   if (slim) { d.append(bt); return d; }
-  const cx = conOn(), pk = P.console === 'punchy', cl = P.console === 'clean', cap = P.console === 'warm' ? '#8f918c' : '#d8d7d1', K = (key, label) => cx ? conKnob(key, pk ? (label === 'Pan' ? '#4a4d52' : '#2fae4a') : cl && label === 'Pan' ? '#5a86e0' : cap, { label }) : keyParam(key, { label });   // Punchy: the sends' green caps, the pan's grey   // on a console the desk's knobs, and its drive
+  const cx = conOn(), pk = P.console === 'punchy', cl = P.console === 'clean', cap = P.console === 'warm' ? '#9aa3ad' : '#d8d7d1', K = (key, label) => cx ? conKnob(key, pk ? (label === 'Pan' ? '#4a4d52' : '#2fae4a') : cl && label === 'Pan' ? '#5a86e0' : label === 'Pan' ? '#22325a' : cap, { label }) : keyParam(key, { label });   // Punchy: the sends' green caps, the pan's grey   // on a console the desk's knobs, and its drive
   if (c < R0) { dk.append(K(c + '.-1.2', 'Send A'), K(c + '.-1.3', 'Send B')); }
   else { dk.append(blankCell(), blankCell()); }
   dk.append(K(c + '.-1.1', 'Pan'));
-  if (cx) dk.append(conKnob(c + '.-1.4', P.console === 'warm' ? '#c22f26' : pk ? '#3a78d4' : '#d6332a', { label: 'Drive' }));
+  if (cx) dk.append(conKnob(c + '.-1.4', P.console === 'warm' ? '#a51c24' : pk ? '#3a78d4' : '#d6332a', { label: 'Drive' }));
   d.append(bt, dk); return d;
 }
 function openOutputPicker(c) {

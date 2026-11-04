@@ -141,3 +141,5 @@ all inlined, so it asks no other site for anything and works offline as a home-s
   - move the sample library onto the same browser as the wavetables (folders, tags, search);
   - keep refining presets.
 - Parked ideas and decisions are in `notes/todo.md`.
+
+- Warm refresh (2026-11-04): slate panel + mahogany frame (top/bottom/sides as background layers on .cwin), `wm` knob = knurled metal skirt (#kWmS) + cap + white line, caps grey #9aa3ad / navy #22325a / red #a51c24. Cream-faced `.vua` and `.vuW` (W geometry now 220x100). Master strip gets `.mst` (red cap on Warm and Clean, red-lined cap on Punchy). `#view.short` hides strip meters, EQ thumbs and the Punchy bridge. Mixer tab from EQ/Comp returns to faders.
