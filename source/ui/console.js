@@ -187,12 +187,14 @@ function vuSvg(k, lab = '') { const G = VU_GEO[k], A = p => (-G.a + 2 * G.a * p)
   const arc = (p0, p1, r) => { const [x0, y0] = xy(p0, r), [x1, y1] = xy(p1, r); return `M${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1}`; };
   const tick = (p, r0, r1, cls = '') => { const [x0, y0] = xy(p, r0), [x1, y1] = xy(p, r1); return `<line class="${cls}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; };
   const label = (p, r, t, cls = '', dy = 3) => { const [x, y] = xy(p, r); return `<text class="${cls}" x="${x}" y="${y + dy}">${t}</text>`; };
-  const ndl = `<line class="ndl" x1="${G.cx}" y1="${G.cy}" x2="${G.cx}" y2="${G.cy - G.r - 2}" transform="rotate(${k === 'W' ? G.a : -G.a} ${G.cx} ${G.cy})"/>`;
+  const [nx, ny] = vuTip(G, k === 'W' ? 1 : 0), ndl = `<line class="ndl" x1="${G.cx}" y1="${G.cy}" x2="${nx}" y2="${ny}"/>`;
   if (k === 'W') return `<svg class="vu vuW" viewBox="0 0 ${G.w} ${G.h}" preserveAspectRatio="xMidYMid meet"><rect class="face" width="${G.w}" height="${G.h}"/><path class="sc" d="${arc(0, 1, G.r - 14)}"/>${GR_P.map(([v, p]) => tick(p, G.r - 26, G.r - 14) + label(p, G.r - 38, v, '', 4)).join('')}<text class="lab" x="${G.cx}" y="90">${lab}</text>${ndl}</svg>`;
   if (k === 'a') return `<svg class="vu vua" viewBox="0 0 ${G.w} ${G.h}" aria-hidden="true"><rect class="face" width="${G.w}" height="${G.h}" rx="1.5"/><path class="sc" d="${arc(0, .78, G.r - 1)}"/><path class="red" d="${arc(.78, 1, G.r - 1)}"/>${ndl}</svg>`;
   const big = k === 'Y', ticks = VU_P.map(([v, p], i) => tick(p, G.r - 8, G.r - 2, p > .77 ? 'r' : '') + (big && i !== 2 ? label(p, G.r - 15, i === 6 ? '+3' : Math.abs(v), p > .77 ? 'r' : '', 2.5) : '')).join('');
   return `<svg class="vu vu${k}" viewBox="0 0 ${G.w} ${G.h}" preserveAspectRatio="xMidYMid slice"><rect class="face" width="${G.w}" height="${G.h}"/><path class="sc" d="${arc(0, .78, G.r - 2)}"/><path class="red" d="${arc(.78, 1, G.r - 2)}"/>${ticks}<text class="lab" x="${G.cx}" y="${big ? 44 : 46}">${lab || 'VU'}</text>${ndl}</svg>`; }
-const vuSet = (m, el, p) => { if (Math.abs(p - (m.vs ?? -1)) < .002) return; m.vs = p; const G = VU_GEO[m.vk]; el.setAttribute('transform', `rotate(${(-G.a + 2 * G.a * p).toFixed(2)} ${G.cx} ${G.cy})`); };
+// the needle moves by its tip (its geometry, not a transform: every browser repaints that)
+function vuTip(G, p) { const a = (-G.a + 2 * G.a * p) * Math.PI / 180, r = G.r + 2; return [(G.cx + r * Math.sin(a)).toFixed(2), (G.cy - r * Math.cos(a)).toFixed(2)]; }
+const vuSet = (m, el, p) => { if (Math.abs(p - (m.vs == null ? -1 : m.vs)) < .002) return; m.vs = p; const [x, y] = vuTip(VU_GEO[m.vk], p); el.setAttribute('x2', x); el.setAttribute('y2', y); };
 // the needles read the peak meters, so 0 VU sits at -14 dBFS peak (about -18 dBFS average, the usual alignment); they ease a tenth of the way each frame, about the swing of a real VU
 const VU_REF = 14;
 function conMeters() {
