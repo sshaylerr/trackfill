@@ -221,11 +221,11 @@ const vuSet = (m, el, p) => { if (Math.abs(p - (m.vs == null ? -1 : m.vs)) < .00
 const VU_REF = 14;
 function conMeters() {
   for (const m of STRIP_METERS) if (m.vu) { const lv = Math.max(m.v[0], m.v[1]), t = lv > 1e-5 ? vuMap(VU_P, 20 * Math.log10(lv) + VU_REF) : 0; m.vd += (t - m.vd) * .1; if (m.vd < .001) m.vd = 0; vuSet(m, m.vu, m.vd); }
-  for (const m of CON_VU) { if (!m.el.isConnected) continue; let t;
+  for (const m of CON_VU) { if (!m.el.isConnected) continue; let t;   // gain reduction: the engine's reading itself (these needles have their own ballistics; the scope's smoothing runs only for canvases)
     if (m.src === 'in') { const cm = UI.cm || [], lv = Math.max(cm[m.c * 2] || 0, cm[m.c * 2 + 1] || 0); t = lv > 1e-5 ? vuMap(VU_P, 20 * Math.log10(lv) + VU_REF) : 0; }
-    else { const gr = SCOPE.fc === m.c && SCOPE.fs === NSLOTS + 1 ? Math.max(0, -SCOPE.visD) : 0; t = m.vk === 'W' ? vuMap(GR_P, gr) : vuMap(VU_P, -gr); }
+    else { const live = SCOPE.fc === m.c && SCOPE.fs === NSLOTS + 1 && performance.now() - SCOPE.at < 250, gr = live ? Math.max(0, -SCOPE.vis) : 0; t = m.vk === 'W' ? vuMap(GR_P, gr) : vuMap(VU_P, -gr); }
     m.vd += (t - m.vd) * .1; vuSet(m, m.el, m.vd); }
 }
-function conMetersBusy() { return STRIP_METERS.some(m => m.vu && m.vd > .002) || CON_VU.some(m => m.el.isConnected && Math.abs(m.vd - (m.src === 'in' ? 0 : m.vk === 'W' ? 1 : VU_REST_GR)) > .003) || (CON_VU.length && SCOPE.fc >= 0 && Math.abs(SCOPE.visD) > .05); }
+function conMetersBusy() { return STRIP_METERS.some(m => m.vu && m.vd > .002) || CON_VU.some(m => m.el.isConnected && Math.abs(m.vd - (m.src === 'in' ? 0 : m.vk === 'W' ? 1 : VU_REST_GR)) > .003) || (CON_VU.length && SCOPE.fc >= 0 && performance.now() - SCOPE.at < 250); }
 // Warm's strip meter: a small amber meter where Clean draws the EQ; it opens the EQ too
 function conStripVu(c) { const b = btn(vuSvg('a'), () => { UI.mixSel = c; if (c < G0) UI.pad = c; UI.mixFollow = UI.pad; UI.mixMode = 'eq'; renderView(); }, 'cstripvu'); b.setAttribute('aria-label', chanLabel(c) + ' EQ'); return b; }
