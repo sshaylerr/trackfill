@@ -15,7 +15,7 @@ function putPad(pi, src) {
 }
 function pastePad(pi) { if (!clipIs('pad')) return; pushUndo('all'); putPad(pi, CLIP.data); renderAll(); toast(`Pasted onto ${padLabel(pi)}`); }
 function duplicatePad(pi) {
-  let to = -1; for (let k = 1; k < NPADS; k++) { const j = (pi + k) % NPADS; if (!hasSound(P.pads[j]) && !Object.values(P.scenes).some(s => s.notes[j] && s.notes[j].length)) { to = j; break; } }
+  let to = -1; for (let k = 1; k < NPADS; k++) { const j = (pi + k) % NPADS; if (!padUsed(P.pads[j]) && !Object.values(P.scenes).some(s => s.notes[j] && s.notes[j].length)) { to = j; break; } }
   if (to < 0) { toast('No empty pad left to duplicate into'); return; }
   pushUndo('all'); putPad(to, { pad: P.pads[pi], chan: P.chans[pi] }); P.pads[to].name = (P.pads[pi].name || 'Sound').slice(0, 10) + ' 2';
   UI.pad = to; UI.bank = Math.floor(to / 16); renderAll(); toast(`Duplicated to ${padLabel(to)}`);

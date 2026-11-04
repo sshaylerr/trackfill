@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-So2oLx39H7m6duzKkTKBv1+zbOxzjdRuBvfL8g55c9E=' 'sha256-Uu4e5tNiG0+XkhqukPwnGwUA9pMg1o1JM5tteb2DgqI=' 'sha256-D1CimWP+UyTTHlhki5C4qSRisgoYT62IxQe8EJI8QJQ=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-So2oLx39H7m6duzKkTKBv1+zbOxzjdRuBvfL8g55c9E=' 'sha256-Uu4e5tNiG0+XkhqukPwnGwUA9pMg1o1JM5tteb2DgqI=' 'sha256-5xZjnOES33u/VYXEOEbgXPb2Zk1y80XXRQlgs0KMBOg=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -3677,6 +3677,7 @@ function openSnap() { const tl = UI.tl; openSheet('Grid', card => { const st = h
 const KEY_HI = 67, KEY_LO = -60, KEY_ROWS = KEY_HI - KEY_LO + 1,   /* the whole MIDI range: C-2 to G8 (p is semitones from C3, MIDI note 60) */ KEY_H = 24, LABEL_W = 50, RULER_H = 20, STRIP_H = 28;
 // a chopped pad's notes carry a slice number; in Keys mode its rows (and the 16 pads) become its slices
 const hasSound = p => !!(p && (p.src === 'synth' ? p.syn : p.sample));   // a pad makes sound: a sample, or a synth patch
+const padUsed = p => hasSound(p) || !!(p && p.src === 'audio');   // ...or it's an audio track: not empty, not free to fill
 const chopOf = pi => { const p = P.pads[pi]; return p && p.src !== 'synth' && p.sample && p.chop && p.chop.on && p.chop.pts.length ? p.chop : null; };
 // where a slice starts: in beats of the original loop when its tempo is known, otherwise in seconds
 function sliceName(pi, k) { const p = P.pads[pi], s = SAMPLES.get(p.sample); if (!s) return ''; const sec = (p.chop.pts[k] - p.start) * s.frames / s.sr;
@@ -4212,7 +4213,7 @@ function doCapture() {
 /* ================= chop: spread slices onto their own pads ================= */
 function spreadSlices(pi) {
   const pad = P.pads[pi], c = chopOf(pi); if (!c) return; const n = c.pts.length, free = [];
-  for (let i = 1; i < NPADS && free.length < n; i++) { const j = (pi + i) % NPADS; if (!hasSound(P.pads[j])) free.push(j); }
+  for (let i = 1; i < NPADS && free.length < n; i++) { const j = (pi + i) % NPADS; if (!padUsed(P.pads[j])) free.push(j); }
   if (free.length < n) { toast(`Needs ${n} empty pads (${free.length} free)`); return; }
   touchPad(pi); pushUndo('all'); const S = P.chans[pi], tpl = JSON.parse(JSON.stringify(pad));
   free.forEach((j, k) => { const [a, b] = sliceRange(pad, k);
@@ -4510,9 +4511,9 @@ function refreshPadDots() {
     let pn = null, kc = null;
     if (UI.keys) { pi = UI.pad; if (chop) name = cell < chop.pts.length ? sliceName(UI.pad, cell) : '—'; else { kc = keyCell(cell); name = kc.name; pn = kc.pn; }
       pd.classList.add('kp'); pd.classList.remove('sel', 'has', 'frz'); }
-    else { pi = UI.bank * 16 + cell; const p = P.pads[pi]; name = hasSound(p) ? (p.name || (p.src === 'synth' ? 'Synth' : 'Sound')) : 'Empty'; pd.classList.remove('kp');
+    else { pi = UI.bank * 16 + cell; const p = P.pads[pi]; name = padUsed(p) ? (p.name || (p.src === 'synth' ? 'Synth' : p.src === 'audio' ? 'Audio' : 'Sound')) : 'Empty'; pd.classList.remove('kp');
       pd.classList.toggle('sel', UI.pad === pi); pd.classList.toggle('has', !!(sc.notes[pi] && sc.notes[pi].length)); pd.classList.toggle('frz', !!p.frz); }
-    const p = P.pads[pi]; pd.style.setProperty('--pc', chop ? sliceCol(cell) : PAD_COLORS[p.color]); if (chop) pd.classList.toggle('sel', cell === UI.slice); pd.classList.toggle('empty', !hasSound(p) || (chop && cell >= chop.pts.length)); pd.classList.toggle('cursor', UI.panel && UI.keys && cell === UI.keyCell);
+    const p = P.pads[pi]; pd.style.setProperty('--pc', chop ? sliceCol(cell) : PAD_COLORS[p.color]); if (chop) pd.classList.toggle('sel', cell === UI.slice); pd.classList.toggle('empty', !padUsed(p) || (chop && cell >= chop.pts.length)); pd.classList.toggle('cursor', UI.panel && UI.keys && cell === UI.keyCell);
     pd.classList.toggle('klatch', !!(kc && ((KEYS.latch && KEYS.latch.pi === pi && KEYS.latch.cell === cell) || (KEYS.arpN && KEYS.arpN.pi === pi && !KEYS.arpN.held.size && !kc.chord && KEYS.arpN.notes.some(x => x.semi === kc.semi))))); pd.classList.toggle('kroot', !!(kc && kc.root)); pd.classList.toggle('kout', !!(kc && kc.out)); pd.classList.toggle('kchord', !!(kc && kc.chord)); pd.classList.toggle('kprog', !!(kc && kc.prog)); if (kc && kc.none) pd.classList.add('empty');
     const html = `<span class="pn">${chop ? cell + 1 : pn != null ? esc(pn) : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; } });
   const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; if (p.name && !chop && !UI.keys) sel.dataset.alt = p.name; else delete sel.dataset.alt; fitFonts(sel); }
@@ -5949,7 +5950,7 @@ function openLaneSheet(c) {
 }
 function openChannelPicker() {
   openSheet('Automate another channel', card => {
-    const groups = [['Pads in bank ' + BANKS[UI.bank], [...Array(16)].map((_, i) => UI.bank * 16 + i).filter(i => hasSound(P.pads[i]))], ['Groups', [...Array(8)].map((_, i) => G0 + i)], ['Buses', [...Array(8)].map((_, i) => B0 + i)], ['Returns & master', [R0, R0 + 1, MASTER]]];
+    const groups = [['Pads in bank ' + BANKS[UI.bank], [...Array(16)].map((_, i) => UI.bank * 16 + i).filter(i => padUsed(P.pads[i]))], ['Groups', [...Array(8)].map((_, i) => G0 + i)], ['Buses', [...Array(8)].map((_, i) => B0 + i)], ['Returns & master', [R0, R0 + 1, MASTER]]];
     for (const [title, chs] of groups) { const l = h('div', 'list');
       for (const c of chs) { const C = P.chans[c]; if (c >= G0 && c < R0 && !C.fx.length && !chanUsed(c)) continue;
         const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(chanLabel(c) + ' · ' + chanName(c))}</b><span>${esc(C.fx.map(f => FX_DEFS[f.type].name).join(' · ') || 'no effects')}</span></div>`;
@@ -6097,8 +6098,8 @@ function bindSwipe(el) { let s = null;
   el.addEventListener('pointerup', e => { if (!s) return; const dx = e.clientX - s.x, dy = e.clientY - s.y; s = null; if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) { el._swiped = true; mixSwipe(dx < 0 ? 1 : -1); } });
   el.addEventListener('click', e => { if (el._swiped) { e.stopPropagation(); e.preventDefault(); el._swiped = false; } }, true); }
 function stripEl(c) {
-  const C = P.chans[c], isPad = c < G0, el = h('div', 'strip' + (c === UI.mixSel ? ' sel' : '') + (isPad && !P.pads[c].sample ? ' empty' : ''));
-  const nm = h('button', 'sname'); nm.innerHTML = `<em>${chanLabel(c)}</em><b>${esc(isPad ? (P.pads[c].name || (P.pads[c].sample ? 'Sound' : '—')) : chanName(c))}</b><i style="background:${isPad ? PAD_COLORS[P.pads[c].color] : 'var(--dim)'}"></i>`;
+  const C = P.chans[c], isPad = c < G0, el = h('div', 'strip' + (c === UI.mixSel ? ' sel' : '') + (isPad && !padUsed(P.pads[c]) ? ' empty' : ''));
+  const nm = h('button', 'sname'); nm.innerHTML = `<em>${chanLabel(c)}</em><b>${esc(isPad ? (P.pads[c].name || (!padUsed(P.pads[c]) ? '—' : P.pads[c].src === 'synth' ? 'Synth' : P.pads[c].src === 'audio' ? 'Audio' : 'Sound')) : chanName(c))}</b><i style="background:${isPad ? PAD_COLORS[P.pads[c].color] : 'var(--dim)'}"></i>`;
   nm.onclick = () => { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); };
   const fd = keyParam(c + '.-1.0', { kind: 'fader', label: chanLabel(c) + ' volume', fmt: shortDb, unity: .85, onSwipe: mixSwipe, onTap: () => { if (UI.mixSel !== c) { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); } } });
   STRIP_METERS.push({ c, el: fd._meter, v: [0, 0] });
@@ -6249,7 +6250,7 @@ function openKeyPicker(c, s) {
     const add = (k, title, sub) => { const li = h('div', 'li' + ((f.key ?? null) === k ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${esc(title)}</b><span>${esc(sub)}</span></div>`;
       li.onclick = () => { pushUndo('chan:' + c); f.key = k; syncChan(c); markDirty(); closeSheet(); }; list.append(li); };
     add(null, gate ? 'Itself' : 'None', gate ? 'the gate listens to its own channel' : 'the ducker does nothing in audio mode');
-    for (let k = 0; k < NCHANS; k++) { if (k === c) continue; if (k < G0 && !hasSound(P.pads[k])) continue; if (k >= G0 && k < R0 && !chanUsed(k) && !P.chans[k].fx.length) continue;
+    for (let k = 0; k < NCHANS; k++) { if (k === c) continue; if (k < G0 && !padUsed(P.pads[k])) continue; if (k >= G0 && k < R0 && !chanUsed(k) && !P.chans[k].fx.length) continue;
       add(k, chanLabel(k) + ' · ' + chanName(k), k < G0 ? 'pad' : chanKind(k)); }
     card.append(list); });
 }
@@ -7317,7 +7318,7 @@ function putPad(pi, src) {
 }
 function pastePad(pi) { if (!clipIs('pad')) return; pushUndo('all'); putPad(pi, CLIP.data); renderAll(); toast(`Pasted onto ${padLabel(pi)}`); }
 function duplicatePad(pi) {
-  let to = -1; for (let k = 1; k < NPADS; k++) { const j = (pi + k) % NPADS; if (!hasSound(P.pads[j]) && !Object.values(P.scenes).some(s => s.notes[j] && s.notes[j].length)) { to = j; break; } }
+  let to = -1; for (let k = 1; k < NPADS; k++) { const j = (pi + k) % NPADS; if (!padUsed(P.pads[j]) && !Object.values(P.scenes).some(s => s.notes[j] && s.notes[j].length)) { to = j; break; } }
   if (to < 0) { toast('No empty pad left to duplicate into'); return; }
   pushUndo('all'); putPad(to, { pad: P.pads[pi], chan: P.chans[pi] }); P.pads[to].name = (P.pads[pi].name || 'Sound').slice(0, 10) + ' 2';
   UI.pad = to; UI.bank = Math.floor(to / 16); renderAll(); toast(`Duplicated to ${padLabel(to)}`);
@@ -9105,7 +9106,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-03', ['Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
+  ['2026-11-03', ['Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],

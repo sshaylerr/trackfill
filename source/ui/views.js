@@ -86,7 +86,7 @@ function openLaneSheet(c) {
 }
 function openChannelPicker() {
   openSheet('Automate another channel', card => {
-    const groups = [['Pads in bank ' + BANKS[UI.bank], [...Array(16)].map((_, i) => UI.bank * 16 + i).filter(i => hasSound(P.pads[i]))], ['Groups', [...Array(8)].map((_, i) => G0 + i)], ['Buses', [...Array(8)].map((_, i) => B0 + i)], ['Returns & master', [R0, R0 + 1, MASTER]]];
+    const groups = [['Pads in bank ' + BANKS[UI.bank], [...Array(16)].map((_, i) => UI.bank * 16 + i).filter(i => padUsed(P.pads[i]))], ['Groups', [...Array(8)].map((_, i) => G0 + i)], ['Buses', [...Array(8)].map((_, i) => B0 + i)], ['Returns & master', [R0, R0 + 1, MASTER]]];
     for (const [title, chs] of groups) { const l = h('div', 'list');
       for (const c of chs) { const C = P.chans[c]; if (c >= G0 && c < R0 && !C.fx.length && !chanUsed(c)) continue;
         const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(chanLabel(c) + ' · ' + chanName(c))}</b><span>${esc(C.fx.map(f => FX_DEFS[f.type].name).join(' · ') || 'no effects')}</span></div>`;
@@ -234,8 +234,8 @@ function bindSwipe(el) { let s = null;
   el.addEventListener('pointerup', e => { if (!s) return; const dx = e.clientX - s.x, dy = e.clientY - s.y; s = null; if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) { el._swiped = true; mixSwipe(dx < 0 ? 1 : -1); } });
   el.addEventListener('click', e => { if (el._swiped) { e.stopPropagation(); e.preventDefault(); el._swiped = false; } }, true); }
 function stripEl(c) {
-  const C = P.chans[c], isPad = c < G0, el = h('div', 'strip' + (c === UI.mixSel ? ' sel' : '') + (isPad && !P.pads[c].sample ? ' empty' : ''));
-  const nm = h('button', 'sname'); nm.innerHTML = `<em>${chanLabel(c)}</em><b>${esc(isPad ? (P.pads[c].name || (P.pads[c].sample ? 'Sound' : '—')) : chanName(c))}</b><i style="background:${isPad ? PAD_COLORS[P.pads[c].color] : 'var(--dim)'}"></i>`;
+  const C = P.chans[c], isPad = c < G0, el = h('div', 'strip' + (c === UI.mixSel ? ' sel' : '') + (isPad && !padUsed(P.pads[c]) ? ' empty' : ''));
+  const nm = h('button', 'sname'); nm.innerHTML = `<em>${chanLabel(c)}</em><b>${esc(isPad ? (P.pads[c].name || (!padUsed(P.pads[c]) ? '—' : P.pads[c].src === 'synth' ? 'Synth' : P.pads[c].src === 'audio' ? 'Audio' : 'Sound')) : chanName(c))}</b><i style="background:${isPad ? PAD_COLORS[P.pads[c].color] : 'var(--dim)'}"></i>`;
   nm.onclick = () => { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); };
   const fd = keyParam(c + '.-1.0', { kind: 'fader', label: chanLabel(c) + ' volume', fmt: shortDb, unity: .85, onSwipe: mixSwipe, onTap: () => { if (UI.mixSel !== c) { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); } } });
   STRIP_METERS.push({ c, el: fd._meter, v: [0, 0] });
@@ -386,7 +386,7 @@ function openKeyPicker(c, s) {
     const add = (k, title, sub) => { const li = h('div', 'li' + ((f.key ?? null) === k ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${esc(title)}</b><span>${esc(sub)}</span></div>`;
       li.onclick = () => { pushUndo('chan:' + c); f.key = k; syncChan(c); markDirty(); closeSheet(); }; list.append(li); };
     add(null, gate ? 'Itself' : 'None', gate ? 'the gate listens to its own channel' : 'the ducker does nothing in audio mode');
-    for (let k = 0; k < NCHANS; k++) { if (k === c) continue; if (k < G0 && !hasSound(P.pads[k])) continue; if (k >= G0 && k < R0 && !chanUsed(k) && !P.chans[k].fx.length) continue;
+    for (let k = 0; k < NCHANS; k++) { if (k === c) continue; if (k < G0 && !padUsed(P.pads[k])) continue; if (k >= G0 && k < R0 && !chanUsed(k) && !P.chans[k].fx.length) continue;
       add(k, chanLabel(k) + ' · ' + chanName(k), k < G0 ? 'pad' : chanKind(k)); }
     card.append(list); });
 }
