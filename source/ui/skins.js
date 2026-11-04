@@ -4,12 +4,12 @@
    so the d-pad, Map mode, automation and saved patches work exactly as before.
    Switch rule: a lever, paddle or slider points at the setting that's on, and that setting's label lights. */
 const SKINS = {
-  analog: { tag: 'Three oscillator', knob: 'skirt', sw: 'paddle', sel: 'rotary', screen: { bg: '#140a02', ink: '#ffc261', trace: '#ffcf86', mute: '#c98a32', dim: '#6e4510', line: 'rgba(255,181,71,.17)', accent: '#ffc261', font: 'VT323', fs: 1.55, glow: 5, glowCol: 'rgba(255,166,48,.85)' } },
+  analog: { tag: 'Three oscillator', knob: 'skirt', sw: 'paddle', sel: 'rotary', screen: { bg: '#140a02', ink: '#ffc261', trace: '#ffcf86', mute: '#e6a54a', dim: '#6e4510', line: 'rgba(255,181,71,.17)', accent: '#ffc261', font: 'VT323', fs: 1.6, glow: 3, glowCol: 'rgba(255,166,48,.85)' } },
   fm: { tag: 'Four operator', knob: 'encoder', sw: 'box', screen: { bg: '#adbd6c', ink: '#1f2a0c', trace: '#1f2a0c', mute: '#3c4a1c', dim: '#7d8d45', line: 'rgba(31,42,12,.16)', accent: '#1f2a0c', font: 'Silkscreen', fs: .78, pixel: true } },
   wt: { tag: 'Morphing VA', knob: 'ledring', sw: 'box', screen: { bg: '#1c48d9', bg2: '#0f2b98', ink: '#eef3ff', trace: '#ffffff', mute: '#b7c8ff', dim: '#7390ea', line: 'rgba(255,255,255,.13)', accent: '#ffffff', font: 'DotGothic16', fs: 1.15, glow: 4, glowCol: 'rgba(255,255,255,.7)' } },
   gr: { tag: 'Cloud processor', knob: 'knurl', sw: 'lever', jacks: ['pos cv', 'size cv', 'gate', 'out'], screen: { bg: '#000000', ink: '#e8fffb', trace: '#2fe0b0', mute: '#8fb9b2', dim: '#3b4a48', line: '#17211f', accent: '#2fe0b0', font: 'Space Mono', fs: .95 } },
-  sub: { tag: 'Bass voice', knob: 'cap', sw: 'slide', screen: { bg: '#0a0505', ink: '#ff3b24', trace: '#ff3b24', mute: '#b8402a', dim: '#4a1510', line: '#2a0d0a', accent: '#ffb02e', font: 'Share Tech Mono', fs: 1.1, glow: 5, glowCol: 'rgba(255,42,16,.9)' } },
-  ins: { tag: 'Sound module', knob: 'alu', sw: 'box', cats: true, screen: { bg: '#041a19', bg2: '#021010', ink: '#6ff7e6', trace: '#6ff7e6', mute: '#43b3a4', dim: '#1f5a53', line: 'rgba(111,247,230,.12)', accent: '#6ff7e6', font: 'Iceland', fs: 1.45, glow: 5, glowCol: 'rgba(63,240,220,.8)' } },
+  sub: { tag: 'Bass voice', knob: 'cap', sw: 'slide', screen: { bg: '#0a0505', ink: '#ff3b24', trace: '#ff3b24', mute: '#ec5a40', dim: '#4a1510', line: '#2a0d0a', accent: '#ffb02e', font: 'Share Tech Mono', fs: 1.15, glow: 3, glowCol: 'rgba(255,42,16,.9)' } },
+  ins: { tag: 'Sound module', knob: 'alu', sw: 'box', cats: true, screen: { bg: '#041a19', bg2: '#021010', ink: '#6ff7e6', trace: '#6ff7e6', mute: '#62d8c8', dim: '#1f5a53', line: 'rgba(111,247,230,.12)', accent: '#6ff7e6', font: 'Iceland', fs: 1.5, glow: 3, glowCol: 'rgba(63,240,220,.8)' } },
   sfx: { tag: 'Sweep generator', knob: 'flat', sw: 'slide', play: true, screen: { bg: '#000000', ink: '#ffffff', trace: '#2d6bff', mute: '#9c9c9c', dim: '#4a4a4a', line: '#1a1a1a', accent: '#ff5a1f', font: '"Press Start 2P"', fs: .72, pixel: true } } };
 const synSkin = pi => SKINS[engOf(pi)] || null;
 let CTL_SKIN = null;   // while a faceplate builds its controls, every knob on it takes its knob

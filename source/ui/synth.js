@@ -152,6 +152,7 @@ function synCtl(pi, id) {
       get: () => tfSynNorm(p, cur()), set: n => { let v = tfSynPhys(p, n); if (intish) v = Math.round(v); synSet(pi, id, v); if (T.playing && T.rec) recAuto(pi + '.-3.' + p.i, tfSynNorm(p, v)); },
       onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); send({ t: 'live', key: pi + '.-3.' + p.i, on: true }); }, onEnd: () => { send({ t: 'live', key: pi + '.-3.' + p.i, on: false }); UI.autoRec = null; } }, 'knob');
   }
+  const SHORT = { 'Noise → filter': 'Noise → flt', 'Sub → filter': 'Sub → flt' }, kl = el.querySelector('.klab'); if (kl && SHORT[kl.textContent]) kl.dataset.alt = SHORT[kl.textContent];   // cramped: the short name
   el.dataset.syn = id; return el;
 }
 function synSpecial(pi, what) {
@@ -309,7 +310,7 @@ function drawSynDisp0(cv, sc) {
   const fs = sc ? sc.fs : 1, v = id => S.p[id] ?? TFSYN_ID[id].d, tab = synTab(), col = sc ? sc.trace : PAD_COLORS[P.pads[pi].color];
   const txt = (t, x, y, c = COL.mute, al = 'left') => { g.fillStyle = c; let sz = 10.5 * fs; g.font = `${sc ? 400 : 500} ${sz.toFixed(1)}px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle';
     const room = al === 'left' ? W - x - 4 : al === 'right' ? x - 4 : W - 8, tw = g.measureText(t).width; if (tw > room && room > 20) { sz = Math.max(6, sz * room / tw); g.font = `${sc ? 400 : 500} ${sz.toFixed(1)}px ${FONT_LCD}`; }   // a long line gets smaller rather than running off the screen
-    g.fillText(t, x, y); g.textAlign = 'left'; };
+    const sb = g.shadowBlur; if (sb > 1.5) g.shadowBlur = 1.5; g.fillText(t, x, y); g.shadowBlur = sb; g.textAlign = 'left'; };   // text keeps only a faint glow, so it stays crisp
   const grid = () => { g.fillStyle = COL.line; for (let k = 1; k < 4; k++) g.fillRect(Math.round(W * k / 4), 0, 1, H); g.fillRect(0, Math.round(H / 2), W, 1); };
   const line = (fn, c = col, lw = 2) => { g.beginPath(); for (let x = 0; x <= W; x++) { const y = fn(x / W); x ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = c; g.lineWidth = lw; g.stroke(); };
   const wave = (w, ph, pw) => { ph -= Math.floor(ph); switch (w) { case 'Sine': return Math.sin(ph * 2 * Math.PI); case 'Triangle': return ph < .5 ? 4 * ph - 1 : 3 - 4 * ph; case 'Saw': return 2 * ph - 1; case 'Square': return ph < .5 ? 1 : -1; default: return ph < pw ? 1 : -1; } };
@@ -719,7 +720,7 @@ function mapBar(pi) {
 // every source in one sheet, grouped and coloured (no scrolling rows); with no control picked it arms the source instead
 function openSourcePicker(pi) {
   const M = UI.map, S = synOf(pi), t = M.target;
-  openSheet(t ? 'Modulate ' + TFSYN_ID[t].l + ' with…' : 'Pick a source, then tap controls', card => { const st = h('div', 'stack');
+  openSheet(t ? 'Modulate ' + TFSYN_ID[t].l + ' with…' : 'Pick a source', card => { const st = h('div', 'stack');
     for (const [title, ids] of [['Envelopes', [0, 1, 2]], ['LFOs', [3, 4, 5, 6, 11]], ['Playing', [7, 8, 9, 10, 16]], ['Macros', [12, 13, 14, 15]]]) {
       st.append(h('div', 'sec', title)); const g = h('div', 'g3');
       for (const s of ids) { const used = t && routesFor(pi, t).some(([q]) => q.s === s);

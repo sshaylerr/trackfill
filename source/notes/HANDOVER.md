@@ -91,7 +91,7 @@ all inlined, so it asks no other site for anything and works offline as a home-s
   - the page reopens the display (`scopeWant`);
   - each view in `scopeFrame` and each part of `frameBody` is guarded on its own (`guarded`), so one broken drawing can't freeze the
     meters.
-- Messages: `toast(msg)` writes to the info window (`#pinfo`), which is always on screen: a slim bar above the tabs when the d-pad is closed (`#panel.mini`), the d-pad's own window when open. A long message runs past; a tap puts it away. Otherwise the window shows the d-pad's focus (open) or the selected pad (closed, `padStatus`). Only "Tap to turn on sound" stays a shade over the page.
+- Messages: `toast(msg)` slides a note in over the level meter (`#note`), or writes to the d-pad's window (`#pinfo`) when the d-pad is open. A long message runs past; a tap puts it away. Only "Tap to turn on sound" is a shade over the page.
 - Synth faceplates (`ui/skins.js`): each engine has a skin.
   - A skin sets the knob SVG (`KNOBS`, chosen for every knob built while `CTL_SKIN` is set) and the switch (`skinSwitch`: paddle, lever or slide, for options that fit `SW_FITS`, else the usual box).
   - It also sets the screen palette and face (`drawSynDisp` lends `COL`/`FONT_LCD` for the draw; `glow`, `pixel`), and extras: FX Play, Instrument categories, Granular jacks.
@@ -99,8 +99,7 @@ all inlined, so it asks no other site for anything and works offline as a home-s
   - Only looks change: same controls, same order, same d-pad path.
   - Switch rule: the second option is up (or right), and the lit label is the one that's on.
 - Text that doesn't fit: `fitFonts(root)` (app.html) runs after a page, sheet or scene strip renders.
-  - First it shrinks the text slightly (down to 85%), then switches to the narrow face, then uses a short form (`data-alt`) or two lines
-    (mixer names).
+  - First it shrinks the text slightly (down to 85%), then (to 75%), then uses a short form (`data-alt`, `data-alt2`). It never switches typeface. Pad names, mixer names and scene names are left out on purpose: one size per row, two lines (pads, mixer) or an ellipsis.
   - Only after all that does it fall back to an ellipsis.
   - Add a selector to `FIT_SEL` for new tight labels. On canvases use `fitText(g, text, width)`.
 

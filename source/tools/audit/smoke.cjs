@@ -26,7 +26,7 @@ const crawl = async () => {
   const textCut = name => { for (const el of document.querySelectorAll('#view *, #top *, #tabs *, #sheet:not([hidden]) *')) {
       if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue; const r = el.getBoundingClientRect(); if (!r.width || r.bottom < 0 || r.top > innerHeight) continue;
       const cs = getComputedStyle(el); if (cs.visibility === 'hidden' || +cs.opacity === 0) continue; const clipX = cs.overflowX !== 'visible' || cs.textOverflow === 'ellipsis', clipY = cs.overflowY !== 'visible';
-      const wide = clipX && el.scrollWidth > el.clientWidth + 1, tall = clipY && cs.overflowY !== 'auto' && cs.overflowY !== 'scroll' && el.scrollHeight > el.clientHeight + 2;
+      const wide = clipX && el.scrollWidth > el.clientWidth + 1, tall = !el.matches('.sname b') && clipY && cs.overflowY !== 'auto' && cs.overflowY !== 'scroll' && el.scrollHeight > el.clientHeight + 2;
       if (wide || tall) out.text.push(`${name}: "${el.textContent.trim().replace(/\s+/g, ' ').slice(0, 24)}" ${wide ? `${el.scrollWidth}>${el.clientWidth}w` : `${el.scrollHeight}>${el.clientHeight}h`} (${el.tagName.toLowerCase()}${el.className && typeof el.className === "string" ? "." + el.className.replace(/ /g, ".") : ""} ${el.style.fontSize})`); } };
   const check = (name, dpad = true) => { out.states++; textCut(name);
     const W = innerWidth, sw = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth); if (sw > W + 1) out.wide.push(`${name} (${sw}px)`);

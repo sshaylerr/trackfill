@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-So2oLx39H7m6duzKkTKBv1+zbOxzjdRuBvfL8g55c9E=' 'sha256-Uu4e5tNiG0+XkhqukPwnGwUA9pMg1o1JM5tteb2DgqI=' 'sha256-vvTzjQkZNbGkdvcBMbAnREl8JELc/RAOIc3kgc9y7K8=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-So2oLx39H7m6duzKkTKBv1+zbOxzjdRuBvfL8g55c9E=' 'sha256-Uu4e5tNiG0+XkhqukPwnGwUA9pMg1o1JM5tteb2DgqI=' 'sha256-FjsnRaO+WbUDi+QZ9snvTfuPXNHEGFsPpLpDFX2JL5g=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -183,7 +183,7 @@ body{font-variant-numeric:tabular-nums}
 .synDev[data-eng="analog"] .synPages .key::before{content:'';width:5px;height:5px;border-radius:50%;background:#5a1a12;flex:none} .synDev[data-eng="analog"] .synPages .key.on::before{background:#ff3b2a;box-shadow:0 0 6px #ff3b2a}
 .synDev[data-eng="analog"] .synTabs .key{background:#22201d;color:#d8cdb2;font:700 11px "Archivo Narrow",var(--font-ui);letter-spacing:.08em;text-transform:uppercase} .synDev[data-eng="analog"] .synTabs .key.on{background:linear-gradient(180deg,#f1e9d4,#c9bfa5);color:#1a1714}
 .synDev[data-eng="analog"] .disp{border-radius:12px;padding:6px;background:linear-gradient(180deg,#0b0b0b,#2a2826);box-shadow:inset 0 2px 4px rgba(0,0,0,.9)} .synDev[data-eng="analog"] .disp canvas{border-radius:8px}
-.synDev[data-eng="analog"] .disp::after{inset:6px;border-radius:8px;background:repeating-linear-gradient(180deg,rgba(0,0,0,.28) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 45%,transparent 60%,rgba(0,0,0,.45))}
+.synDev[data-eng="analog"] .disp::after{inset:6px;border-radius:8px;background:repeating-linear-gradient(180deg,rgba(0,0,0,.1) 0 1px,transparent 1px 4px),radial-gradient(120% 100% at 50% 45%,transparent 70%,rgba(0,0,0,.3))}
 .synDev[data-eng="analog"] .selr:not(.swk) .sw{background:#0c0a06} .synDev[data-eng="analog"] .selr .sw>span{font:400 17px VT323,monospace;color:#ffb547;text-shadow:0 0 5px rgba(255,170,60,.6)}
 .synDev[data-eng="analog"] .nf{outline-color:#ffb547!important}
 
@@ -207,7 +207,7 @@ body{font-variant-numeric:tabular-nums}
 .synDev[data-eng="wt"]{background:radial-gradient(140% 70% at 30% 0%,#c4202c 0%,#8e0f1a 55%,#5e0a12 100%);border-left:9px solid #060607;border-right:9px solid #060607;outline:1px solid #34333a;outline-offset:-1px;--d-track:#4a0c12;--d-ring:#ff3341;--sw-font:Archivo}
 .synDev[data-eng="wt"] .klab{font:700 10.5px Archivo,var(--font-ui);letter-spacing:.05em;text-transform:uppercase;color:#fff}
 .synDev[data-eng="wt"] .knob .kval{font:400 11.5px/13px DotGothic16,var(--font-lcd);color:#ffd0d4} .synDev[data-eng="wt"] .knob .kd.on{filter:drop-shadow(0 0 2px #ff3341)}
-.synDev[data-eng="wt"] .engKey b{font:400 14px/1 Michroma,var(--font-ui);letter-spacing:.1em;color:#fff} .synDev[data-eng="wt"] .engKey small{font-family:Archivo;font-weight:700;color:#ffc9cd}
+.synDev[data-eng="wt"] .engKey b{font:400 12.5px/1 Michroma,var(--font-ui);letter-spacing:.06em;color:#fff} .synDev[data-eng="wt"] .engKey small{font-family:Archivo;font-weight:700;color:#ffc9cd}
 .synDev[data-eng="wt"] .presetLcd{background:linear-gradient(180deg,#2f6cff,#1a46d8);border-color:#1a0306} .synDev[data-eng="wt"] .presetLcd span{font:400 14px DotGothic16,monospace;color:#eef3ff;text-shadow:0 0 4px rgba(255,255,255,.5)} .synDev[data-eng="wt"] .presetLcd i{color:#b7c8ff}
 .synDev[data-eng="wt"] .pstep{background:radial-gradient(70% 70% at 50% 30%,#3a3a3e,#131315);border-radius:14px;color:#fff}
 .synDev[data-eng="wt"] .synPages .key{background:radial-gradient(70% 70% at 50% 30%,#3a3a3e,#131315);border-radius:14px;color:#fff;font:700 10.5px Archivo,var(--font-ui);text-transform:uppercase;gap:4px;border:0;box-shadow:0 2px 2px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.15)}
@@ -245,7 +245,7 @@ body{font-variant-numeric:tabular-nums}
 .synDev[data-eng="sub"] .synPages .key:nth-child(-n+2){--pk:#e8331f} .synDev[data-eng="sub"] .synPages .key:nth-child(n+3):nth-child(-n+4){--pk:#ff7a1a} .synDev[data-eng="sub"] .synPages .key:nth-child(5){--pk:#f5c400} .synDev[data-eng="sub"] .synPages .key:nth-child(6){--pk:#efe9d6}
 .synDev[data-eng="sub"] .synPages .key.on{box-shadow:inset 0 2px 3px rgba(0,0,0,.45);transform:translateY(1px);outline:2px solid #fff;outline-offset:-2px}
 .synDev[data-eng="sub"] .synTabs .key{background:#161615;color:#d9d7cf;font:800 11px Archivo,var(--font-ui);text-transform:uppercase} .synDev[data-eng="sub"] .synTabs .key.on{color:#ff7a1a;box-shadow:inset 0 -3px 0 #ff7a1a}
-.synDev[data-eng="sub"] .disp{border-radius:3px;padding:4px;background:#0a0505;box-shadow:inset 0 2px 5px #000} .synDev[data-eng="sub"] .disp::after{inset:4px;background:radial-gradient(circle,transparent 1.1px,rgba(10,5,5,.82) 1.6px) 0 0/3px 3px}
+.synDev[data-eng="sub"] .disp{border-radius:3px;padding:4px;background:#0a0505;box-shadow:inset 0 2px 5px #000} .synDev[data-eng="sub"] .disp::after{inset:4px;background:radial-gradient(circle,transparent 1.2px,rgba(10,5,5,.28) 1.7px) 0 0/3px 3px}
 .synDev[data-eng="sub"] [data-col="0"]{--kc:#efe9d6} .synDev[data-eng="sub"] [data-col="1"]{--kc:#ff7a1a} .synDev[data-eng="sub"] [data-col="2"]{--kc:#e8331f} .synDev[data-eng="sub"] [data-col="3"]{--kc:#f5c400}
 .synDev[data-eng="sub"] .selr:not(.swk) .sw{background:#0a0505} .synDev[data-eng="sub"] .selr .sw>span{font:400 13px "Share Tech Mono",monospace;color:#ff3b24}
 .synDev[data-eng="sub"] .lcdbox.synInfo{background:#0a0505;color:#ff3b24;font-family:"Share Tech Mono"} .synDev[data-eng="sub"] .nf{outline-color:#ff7a1a!important}
@@ -260,7 +260,7 @@ body{font-variant-numeric:tabular-nums}
 .synDev[data-eng="ins"] .synPages .key,.synDev[data-eng="ins"] .synTabs .key,.synDev[data-eng="ins"] .insCats .key{font:700 11px Rajdhani,var(--font-ui);letter-spacing:.06em;text-transform:uppercase;flex-direction:column;gap:2px}
 .synDev[data-eng="ins"] .synPages .key::before,.synDev[data-eng="ins"] .synTabs .key::before{content:'';width:12px;height:3px;border-radius:1px;background:#1c3633;flex:none} .synDev[data-eng="ins"] .synPages .key.on::before,.synDev[data-eng="ins"] .synTabs .key.on::before{background:#6ff7e6;box-shadow:0 0 6px #6ff7e6}
 .synDev[data-eng="ins"] .synPages .key.on,.synDev[data-eng="ins"] .synTabs .key.on{color:#fff} .synDev[data-eng="ins"] .insCats .key{background:#0d0e10;color:#8f969e;box-shadow:inset 0 1px 2px #000} .synDev[data-eng="ins"] .insCats .key.on{background:#6ff7e6;color:#031312}
-.synDev[data-eng="ins"] .disp{border-radius:3px;padding:5px;background:#050607;box-shadow:inset 0 2px 5px #000} .synDev[data-eng="ins"] .disp::after{inset:5px;background-image:linear-gradient(90deg,rgba(0,0,0,.35) 1px,transparent 1px);background-size:3px 100%}
+.synDev[data-eng="ins"] .disp{border-radius:3px;padding:5px;background:#050607;box-shadow:inset 0 2px 5px #000} .synDev[data-eng="ins"] .disp::after{inset:5px;background-image:linear-gradient(90deg,rgba(0,0,0,.12) 1px,transparent 1px);background-size:4px 100%}
 .synDev[data-eng="ins"] .selr:not(.swk) .sw{background:#031312} .synDev[data-eng="ins"] .selr .sw>span{font:400 15px Iceland,monospace;color:#6ff7e6;text-shadow:0 0 5px rgba(111,247,230,.6)}
 .synDev[data-eng="ins"] .lcdbox.synInfo{background:#031312;color:#6ff7e6;font-family:Iceland;font-size:14px} .synDev[data-eng="ins"] .nf{outline-color:#6ff7e6!important}
 
@@ -314,7 +314,10 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 #bTempo small{font-size:9px;color:var(--print)}
 #bPanel.on{color:var(--accent)}
 .spacer{flex:1}
-#meter{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 60px 30px 32px;gap:6px;align-items:center;height:12px;cursor:pointer}
+#meter{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 60px 30px 32px;gap:6px;align-items:center;height:12px;cursor:pointer;position:relative}
+#note{position:absolute;left:0;top:50%;width:calc(100% - 140px);height:22px;margin-top:-11px;z-index:5;display:flex;align-items:center;gap:7px;padding:0 9px;box-sizing:border-box;border-radius:5px;background:linear-gradient(180deg,#1d1d21,#131316);border:1px solid var(--edge);box-shadow:0 3px 10px rgba(0,0,0,.5);
+  font:600 11.5px var(--font-ui);color:var(--ink);white-space:nowrap;overflow:hidden;opacity:0;transform:translateX(-14px);pointer-events:none;transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .15s}
+#note.show{opacity:1;transform:none;pointer-events:auto} #note::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)} #note .clip{flex:1;min-width:0;overflow:hidden;display:block} #note .run{display:inline-block;white-space:nowrap}
 #meter .bars{display:flex;flex-direction:column;gap:2px}
 #meter .bar{height:3px;border-radius:2px;background:#0b0b0c;overflow:hidden}
 #meter .bar i{display:block;height:100%;width:100%;transform:scaleX(0);background:var(--play);transform-origin:left;will-change:transform}   /* its own layer: moving it repaints nothing */
@@ -335,7 +338,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .slot .mini{display:block;width:56px;height:18px;border-radius:2px;margin-top:4px}
 .slot.empty .mini{opacity:.5}
 .slot.add{opacity:.55;display:flex;align-items:center;justify-content:center}
-.slot .lbl{font-size:10.5px;min-width:0;font-weight:500;color:var(--print);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;height:13px;line-height:13px}
+.slot .lbl{font-size:10px;min-width:0;font-weight:500;color:var(--print);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;height:13px;line-height:13px}
 .slot .meta{font:400 9.5px/10px var(--font-lcd);color:var(--dim);white-space:nowrap}
 .slot .led{position:absolute;right:6px;top:7px;width:6px;height:6px;border-radius:50%;background:var(--led-off)}
 .slot.filled .led{background:var(--accent);box-shadow:0 0 5px var(--accent)}
@@ -418,7 +421,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
   box-shadow:0 3px 0 #050506,inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.4);display:flex;flex-direction:column;justify-content:space-between;padding:7px 8px 15px;position:relative;touch-action:none;min-width:0;min-height:0;overflow:hidden}
 .pad::after{content:"";position:absolute;left:7px;right:7px;bottom:6px;height:3px;border-radius:1px;background:color-mix(in srgb,var(--pc) 38%,#101012);transition:background .25s steps(3,end),box-shadow .25s steps(3,end)}   /* the glow fades in three steps: a fade to the eye, three repaints instead of fifteen */
 .pad .pn{font:400 10.5px var(--font-lcd);color:var(--print);position:relative;white-space:nowrap;overflow:hidden}
-.pad .nm{font:600 13px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;height:15px;line-height:15px}
+.pad .nm{font:600 11px var(--font-ui);position:relative;max-height:26px;line-height:13px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}   /* one size on every pad; a long name takes a second line upwards */
 .pad.empty{background:linear-gradient(180deg,#2a2a2e,#232326)} .pad.empty::after{background:#17171a}
 .pad.empty .nm{color:var(--dim)}
 .pad.sel{border-color:#070708;box-shadow:0 3px 0 #050506,inset 0 0 0 1px var(--accent-ring)} .pad.sel .pn{color:var(--accent)}
@@ -483,7 +486,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 #view.tiny .padsView .chopwave{flex-basis:20%;min-height:44px}
 #view.tiny .padsView.chopping .pad{padding:4px 7px 9px}
 #view.tiny .padsView.chopping .pad .pn{display:none}
-#view.tiny .padsView.chopping .pad .nm{font-size:12px} #view.tiny .pad.kchord .nm{font-size:11.5px;letter-spacing:-.02em}
+#view.tiny .pad.kchord .nm{letter-spacing:-.02em} #view.tiny .pad .nm{font-size:10px;line-height:11px;max-height:22px}
 #view.short .detail .dk{grid-template-columns:repeat(3,52px)}
 #view.short .detail .knob .kval{font-size:9px} #view.short .detail .kgrid{--kvh:11px}
 #view.short .strip .knob.mini svg{width:22px;height:22px}
@@ -494,7 +497,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 #view.tiny .detail .knob .klab{display:none}
 #view.tiny .detail .dbtns{flex-direction:row}
 #view.tiny .detail .dbtns>*{flex:1 1 0;min-width:0}
-#view.tiny .sname em{display:none}
+#view.tiny .sname em{visibility:hidden}
 .console.slideL{animation:slideL .14s ease-out}.console.slideR{animation:slideR .14s ease-out}
 @keyframes slideL{from{transform:translateX(18px);opacity:.4}}@keyframes slideR{from{transform:translateX(-18px);opacity:.4}}
 .tlwrap.slideU{animation:slideU .14s ease-out}.tlwrap.slideD{animation:slideD .14s ease-out} @keyframes slideU{from{transform:translateY(18px);opacity:.4}}@keyframes slideD{from{transform:translateY(-18px);opacity:.4}}
@@ -545,13 +548,13 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .strip.sel{border-color:var(--line);background:var(--panel)}
 .strip.sel .sname b{color:var(--accent)}
 .strip.empty{opacity:.4}
-.sname{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-width:0;height:34px;line-height:12px}
+/* a strip's name: its number on one line, the name in a fixed two-line space (centred), the colour bar under that: every strip lines up */
+.sname{display:grid;grid-template-rows:11px 22px 3px;justify-items:center;align-items:center;width:100%;min-width:0;height:36px;gap:0}
 .sname em{font:400 9.5px/11px var(--font-lcd);font-style:normal;color:var(--mute)}
-.sname b{font:600 11.5px "Barlow Semi Condensed",var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.sname b{font:600 10px/11px var(--font-ui);max-width:100%;width:100%;text-align:center;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere;word-break:normal;max-height:22px}
 .fxn{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nar{font-family:"Barlow Semi Condensed",var(--font-ui)!important}
-.sname b.two{white-space:normal;line-height:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-align:center;font-size:10px}
-.sname i{display:block;width:70%;height:2px;border-radius:1px;margin-top:1px}
+.sname i{display:block;width:70%;height:2px;border-radius:1px;align-self:end}
 .ms2{display:flex;gap:2px;width:100%;justify-content:center}
 .ms2 button{width:19px;height:19px;border-radius:2px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #050506;font:700 9px var(--font-ui);color:var(--print)}
 .ms2 button.m.on{background:var(--rec);color:#2b0707} .ms2 button.s.on{background:var(--accent);color:var(--accent-ink)}
@@ -587,7 +590,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .fxli .sdot{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.6)} .fxli.off{opacity:.45} .fxPanel>.list{margin-bottom:4px}
 .li.on{border-color:var(--accent)} .li .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none}
 .tgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-.tgrid button{height:44px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);font:700 12px var(--font-ui);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
+.tgrid button{height:44px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);font:700 11px/13px var(--font-ui);overflow:hidden;white-space:normal;overflow-wrap:anywhere;padding:0 4px}
 .tgrid button.on{background:linear-gradient(180deg,var(--on1),var(--on2));color:var(--accent);border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .brItem{display:flex;align-items:center;gap:10px}.brItem .lt{flex:1;min-width:0}.brItem .lt span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}.brPv{width:56px;height:24px;flex:none;background:var(--scr,#0a0a0b);border-radius:3px}
@@ -614,7 +617,6 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 /* ---------- precision panel ---------- */
 #panel{flex:none;height:168px;background:linear-gradient(180deg,var(--body2),var(--body));border:1px solid var(--edge);border-radius:6px;padding:8px 10px 10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
 .pinfo{height:22px;margin-bottom:8px;font-size:10.5px;margin-right:62px;position:relative}
-#panel.mini{height:auto;padding:5px 6px} #panel.mini .pbody,#panel.mini .pstrip,#panel.mini #pStrip{display:none!important} #panel.mini .pinfo{margin:0;height:24px}   /* the d-pad closed: only the info window, full width */
 .pinfo.msg{color:var(--ink);text-overflow:clip} .pinfo.msg::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);margin-right:7px}   /* a message: the dot that toasts had */
 .pinfo .clip{flex:1;min-width:0;overflow:hidden;display:block} .pinfo .run{display:inline-block;white-space:nowrap}   /* a message too long for the window runs past, like an LCD */
 #pStrip{position:absolute;top:8px;right:10px;width:56px;height:22px;font-size:11px;border-radius:3px} #panel{position:relative}
@@ -708,10 +710,10 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
     <button class="tb ic" id="bPanel" aria-label="Precision controls"><svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" opacity=".95"/></svg></button>
     <button class="tb ic" id="bMenu" aria-label="Project menu"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="2.2" rx="1.1"/><rect x="4" y="11" width="16" height="2.2" rx="1.1"/><rect x="4" y="16" width="16" height="2.2" rx="1.1"/></svg></button>
   </header>
-  <div id="meter" title="Output level. Tap for the master analyzer (and to reset the clip light)."><div class="bars"><div class="bar"><i></i></div><div class="bar"><i></i></div></div><span class="cpu lcd">CPU —</span><span class="mon" id="bMon" title="Monitoring: speakers or crossfeed on headphones">MON</span><span class="clip">CLIP</span></div>
+  <div id="meter" title="Output level. Tap for the master analyzer (and to reset the clip light)."><div class="bars"><div class="bar"><i></i></div><div class="bar"><i></i></div></div><span class="cpu lcd">CPU —</span><span class="mon" id="bMon" title="Monitoring: speakers or crossfeed on headphones">MON</span><span class="clip">CLIP</span><div id="note" role="status" aria-live="polite"></div></div>
   <nav id="scenes" aria-label="Scenes"></nav>
   <main id="view"></main>
-  <section id="panel" class="mini" aria-label="Precision controls">
+  <section id="panel" hidden aria-label="Precision controls">
     <div class="pinfo lcdbox" id="pinfo" role="status" aria-live="polite"></div><button class="pk" id="pStrip" aria-label="Show pads in the panel">Pads</button>
     <div class="pbody">
       <div class="dpad">
@@ -3861,7 +3863,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // text that doesn't fit its box: a little smaller (down to 85%), else the narrow face at its size (shrunk again if it must, never below 9 px);
 // then a shorter form if it has one (data-alt), or two lines for a name in a mixer strip; past that, the ellipsis
-const FIT_SEL = '.slot .lbl, .sname b, .lanebox b, .klab, .key, .lsub, .li > span, .shTitle > span, .synInfo, .sw > span, .fxn, .blurb, .pad .nm, .lcdbox, .scopebox > span, #sheet .btn, .chip, .tgrid > button, .pls > b';
+const FIT_SEL = '.lanebox b, .klab, .key, .lsub, .li > span, .shTitle > span, .synInfo, .sw > span, .fxn, .blurb, .lcdbox, .scopebox > span, #sheet .btn, .chip, .pls > b';
 function fitFonts(root) { if (!root) return; const els = [...(root.matches && root.matches(FIT_SEL) ? [root] : []), ...root.querySelectorAll(FIT_SEL)], fz = el => parseFloat(getComputedStyle(el).fontSize);
   for (const el of els) if (el.style.fontSize || el.classList.contains('nar') || el.classList.contains('two')) { el.style.fontSize = ''; el.classList.remove('two', 'nar'); }
   const RG = document.createRange(), over = list => list.filter(el => { const w = el.clientWidth; if (!w || el.scrollWidth < w) return false;   // all reads, then all writes: one layout per round
@@ -3870,10 +3872,9 @@ function fitFonts(root) { if (!root) return; const els = [...(root.matches && ro
   for (let round = 0; round < 6 && todo.length; round++) {
     const plan = todo.map(el => { const q = st.get(el), f = fz(el), want = Math.floor(f * el.clientWidth / (el.scrollWidth + 1) * 4) / 4 - (round ? .25 : 0); return [el, q, f, want]; });
     for (const [el, q, f, want] of plan) {
-      if (q.step === 0 && want >= q.f0 * .85) el.style.fontSize = want + 'px';   // 1: a little smaller
-      else if (q.step === 0) { q.step = 1; el.style.fontSize = ''; el.classList.add('nar'); }   // 2: the narrow face
-      else if (q.step === 1 && want >= 9) el.style.fontSize = want + 'px';
-      else if (q.step === 1) { q.step = 2; el.style.fontSize = '9px'; if (el.dataset.alt) { el.textContent = el.dataset.alt; el.classList.remove('nar'); el.style.fontSize = ''; q.step = 0; if (el.dataset.alt2) { el.dataset.alt = el.dataset.alt2; delete el.dataset.alt2; } else delete el.dataset.alt; } else if (el.matches('.sname b')) el.classList.add('two'); } }   // 3: its short form, or two lines
+      if (want >= q.f0 * .85) el.style.fontSize = want + 'px';   // 1: a little smaller (never another typeface)
+      else if (el.dataset.alt) { el.textContent = el.dataset.alt; el.style.fontSize = ''; if (el.dataset.alt2) { el.dataset.alt = el.dataset.alt2; delete el.dataset.alt2; } else delete el.dataset.alt; }   // 2: its short form
+      else if (q.step === 0) { q.step = 1; el.style.fontSize = Math.max(8.5, Math.round(q.f0 * .85 * 4) / 4) + 'px'; } else { el.style.fontSize = Math.max(8.5, Math.round(q.f0 * .75 * 4) / 4) + 'px'; q.step = 2; } }   // 3: down to three quarters; past that, the ellipsis
     todo = over(todo.filter(el => st.get(el).step < 2)); } }
 function h(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
 const noteName = p => NOTE_NAMES[((p % 12) + 12) % 12] + (3 + Math.floor(p / 12));
@@ -3932,12 +3933,16 @@ function applyTheme() {
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = th.body ? th.body[0] : '#1c1c1f';
 }
 // messages go to the info window (above the tabs, or the d-pad's): shown for a while, a long one runs past, then the window goes back to what it shows
-const INFO = { msg: '', until: 0, t: 0, last: '' };
-function toast(msg) { msg = String(msg); INFO.msg = INFO.last = msg; clearTimeout(INFO.t); const el = $('#pinfo'); el.classList.add('msg'); el.textContent = '';
-  const box = h('span', 'clip'), run = h('span', 'run'); run.textContent = msg; box.append(run); el.append(box); const over = Math.ceil(run.getBoundingClientRect().width - box.getBoundingClientRect().width);
-  let ms = 2400 + Math.max(0, msg.length - 40) * 45;
+const INFO = { msg: '', until: 0, t: 0, last: '', el: null };
+// messages: with the d-pad open they show in its window; otherwise they slide in over the level meter, top left. A long one runs past; a tap puts it away.
+function toast(msg) { msg = String(msg); INFO.last = msg; clearTimeout(INFO.t); if (INFO.el && INFO.el.id === 'pinfo') { INFO.msg = ''; INFO.el.classList.remove('msg'); }
+  const inPanel = UI.panel, el = inPanel ? $('#pinfo') : $('#note'); INFO.el = el; INFO.msg = inPanel ? msg : '';
+  el.classList.add('msg'); el.textContent = ''; const box = h('span', 'clip'), run = h('span', 'run'); run.textContent = msg; box.append(run); el.append(box);
+  if (!inPanel) { el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }
+  const over = Math.ceil(run.getBoundingClientRect().width - box.getBoundingClientRect().width); let ms = 2400 + Math.max(0, msg.length - 40) * 45;
   if (over > 0) { const sec = over / 40; run.style.transition = `transform ${sec.toFixed(2)}s linear 1s`; requestAnimationFrame(() => requestAnimationFrame(() => { run.style.transform = `translateX(${-over}px)`; })); ms = Math.max(ms, 1000 + sec * 1000 + 1500); }
-  INFO.until = Date.now() + ms; INFO.t = setTimeout(() => { INFO.msg = ''; el.classList.remove('msg'); updatePanel(); }, ms); }
+  INFO.until = Date.now() + ms; INFO.t = setTimeout(noteDone, ms); }
+function noteDone() { clearTimeout(INFO.t); const el = INFO.el; INFO.el = null; if (!el) return; if (el.id === 'pinfo') { INFO.msg = ''; el.classList.remove('msg'); updatePanel(); } else el.classList.remove('show'); }
 function setInfo(txt) { if (INFO.msg) return; const el = $('#pinfo'); if (el.textContent !== txt) el.textContent = txt; }
 function btn(label, fn, cls = 'btn') { const b = h('button', cls, label); b.onclick = fn; return b; }
 function seg(labels, active, fn) { const s = h('div', 'keys'); labels.forEach((l, i) => { const b = h('button', 'key sm' + (i === active ? ' on' : ''), l); b.onclick = () => fn(i); s.append(b); }); return s; }
@@ -7727,12 +7732,12 @@ function openEdit() {
    so the d-pad, Map mode, automation and saved patches work exactly as before.
    Switch rule: a lever, paddle or slider points at the setting that's on, and that setting's label lights. */
 const SKINS = {
-  analog: { tag: 'Three oscillator', knob: 'skirt', sw: 'paddle', sel: 'rotary', screen: { bg: '#140a02', ink: '#ffc261', trace: '#ffcf86', mute: '#c98a32', dim: '#6e4510', line: 'rgba(255,181,71,.17)', accent: '#ffc261', font: 'VT323', fs: 1.55, glow: 5, glowCol: 'rgba(255,166,48,.85)' } },
+  analog: { tag: 'Three oscillator', knob: 'skirt', sw: 'paddle', sel: 'rotary', screen: { bg: '#140a02', ink: '#ffc261', trace: '#ffcf86', mute: '#e6a54a', dim: '#6e4510', line: 'rgba(255,181,71,.17)', accent: '#ffc261', font: 'VT323', fs: 1.6, glow: 3, glowCol: 'rgba(255,166,48,.85)' } },
   fm: { tag: 'Four operator', knob: 'encoder', sw: 'box', screen: { bg: '#adbd6c', ink: '#1f2a0c', trace: '#1f2a0c', mute: '#3c4a1c', dim: '#7d8d45', line: 'rgba(31,42,12,.16)', accent: '#1f2a0c', font: 'Silkscreen', fs: .78, pixel: true } },
   wt: { tag: 'Morphing VA', knob: 'ledring', sw: 'box', screen: { bg: '#1c48d9', bg2: '#0f2b98', ink: '#eef3ff', trace: '#ffffff', mute: '#b7c8ff', dim: '#7390ea', line: 'rgba(255,255,255,.13)', accent: '#ffffff', font: 'DotGothic16', fs: 1.15, glow: 4, glowCol: 'rgba(255,255,255,.7)' } },
   gr: { tag: 'Cloud processor', knob: 'knurl', sw: 'lever', jacks: ['pos cv', 'size cv', 'gate', 'out'], screen: { bg: '#000000', ink: '#e8fffb', trace: '#2fe0b0', mute: '#8fb9b2', dim: '#3b4a48', line: '#17211f', accent: '#2fe0b0', font: 'Space Mono', fs: .95 } },
-  sub: { tag: 'Bass voice', knob: 'cap', sw: 'slide', screen: { bg: '#0a0505', ink: '#ff3b24', trace: '#ff3b24', mute: '#b8402a', dim: '#4a1510', line: '#2a0d0a', accent: '#ffb02e', font: 'Share Tech Mono', fs: 1.1, glow: 5, glowCol: 'rgba(255,42,16,.9)' } },
-  ins: { tag: 'Sound module', knob: 'alu', sw: 'box', cats: true, screen: { bg: '#041a19', bg2: '#021010', ink: '#6ff7e6', trace: '#6ff7e6', mute: '#43b3a4', dim: '#1f5a53', line: 'rgba(111,247,230,.12)', accent: '#6ff7e6', font: 'Iceland', fs: 1.45, glow: 5, glowCol: 'rgba(63,240,220,.8)' } },
+  sub: { tag: 'Bass voice', knob: 'cap', sw: 'slide', screen: { bg: '#0a0505', ink: '#ff3b24', trace: '#ff3b24', mute: '#ec5a40', dim: '#4a1510', line: '#2a0d0a', accent: '#ffb02e', font: 'Share Tech Mono', fs: 1.15, glow: 3, glowCol: 'rgba(255,42,16,.9)' } },
+  ins: { tag: 'Sound module', knob: 'alu', sw: 'box', cats: true, screen: { bg: '#041a19', bg2: '#021010', ink: '#6ff7e6', trace: '#6ff7e6', mute: '#62d8c8', dim: '#1f5a53', line: 'rgba(111,247,230,.12)', accent: '#6ff7e6', font: 'Iceland', fs: 1.5, glow: 3, glowCol: 'rgba(63,240,220,.8)' } },
   sfx: { tag: 'Sweep generator', knob: 'flat', sw: 'slide', play: true, screen: { bg: '#000000', ink: '#ffffff', trace: '#2d6bff', mute: '#9c9c9c', dim: '#4a4a4a', line: '#1a1a1a', accent: '#ff5a1f', font: '"Press Start 2P"', fs: .72, pixel: true } } };
 const synSkin = pi => SKINS[engOf(pi)] || null;
 let CTL_SKIN = null;   // while a faceplate builds its controls, every knob on it takes its knob
@@ -7941,6 +7946,7 @@ function synCtl(pi, id) {
       get: () => tfSynNorm(p, cur()), set: n => { let v = tfSynPhys(p, n); if (intish) v = Math.round(v); synSet(pi, id, v); if (T.playing && T.rec) recAuto(pi + '.-3.' + p.i, tfSynNorm(p, v)); },
       onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); send({ t: 'live', key: pi + '.-3.' + p.i, on: true }); }, onEnd: () => { send({ t: 'live', key: pi + '.-3.' + p.i, on: false }); UI.autoRec = null; } }, 'knob');
   }
+  const SHORT = { 'Noise → filter': 'Noise → flt', 'Sub → filter': 'Sub → flt' }, kl = el.querySelector('.klab'); if (kl && SHORT[kl.textContent]) kl.dataset.alt = SHORT[kl.textContent];   // cramped: the short name
   el.dataset.syn = id; return el;
 }
 function synSpecial(pi, what) {
@@ -8098,7 +8104,7 @@ function drawSynDisp0(cv, sc) {
   const fs = sc ? sc.fs : 1, v = id => S.p[id] ?? TFSYN_ID[id].d, tab = synTab(), col = sc ? sc.trace : PAD_COLORS[P.pads[pi].color];
   const txt = (t, x, y, c = COL.mute, al = 'left') => { g.fillStyle = c; let sz = 10.5 * fs; g.font = `${sc ? 400 : 500} ${sz.toFixed(1)}px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle';
     const room = al === 'left' ? W - x - 4 : al === 'right' ? x - 4 : W - 8, tw = g.measureText(t).width; if (tw > room && room > 20) { sz = Math.max(6, sz * room / tw); g.font = `${sc ? 400 : 500} ${sz.toFixed(1)}px ${FONT_LCD}`; }   // a long line gets smaller rather than running off the screen
-    g.fillText(t, x, y); g.textAlign = 'left'; };
+    const sb = g.shadowBlur; if (sb > 1.5) g.shadowBlur = 1.5; g.fillText(t, x, y); g.shadowBlur = sb; g.textAlign = 'left'; };   // text keeps only a faint glow, so it stays crisp
   const grid = () => { g.fillStyle = COL.line; for (let k = 1; k < 4; k++) g.fillRect(Math.round(W * k / 4), 0, 1, H); g.fillRect(0, Math.round(H / 2), W, 1); };
   const line = (fn, c = col, lw = 2) => { g.beginPath(); for (let x = 0; x <= W; x++) { const y = fn(x / W); x ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = c; g.lineWidth = lw; g.stroke(); };
   const wave = (w, ph, pw) => { ph -= Math.floor(ph); switch (w) { case 'Sine': return Math.sin(ph * 2 * Math.PI); case 'Triangle': return ph < .5 ? 4 * ph - 1 : 3 - 4 * ph; case 'Saw': return 2 * ph - 1; case 'Square': return ph < .5 ? 1 : -1; default: return ph < pw ? 1 : -1; } };
@@ -8508,7 +8514,7 @@ function mapBar(pi) {
 // every source in one sheet, grouped and coloured (no scrolling rows); with no control picked it arms the source instead
 function openSourcePicker(pi) {
   const M = UI.map, S = synOf(pi), t = M.target;
-  openSheet(t ? 'Modulate ' + TFSYN_ID[t].l + ' with…' : 'Pick a source, then tap controls', card => { const st = h('div', 'stack');
+  openSheet(t ? 'Modulate ' + TFSYN_ID[t].l + ' with…' : 'Pick a source', card => { const st = h('div', 'stack');
     for (const [title, ids] of [['Envelopes', [0, 1, 2]], ['LFOs', [3, 4, 5, 6, 11]], ['Playing', [7, 8, 9, 10, 16]], ['Macros', [12, 13, 14, 15]]]) {
       st.append(h('div', 'sec', title)); const g = h('div', 'g3');
       for (const s of ids) { const used = t && routesFor(pi, t).some(([q]) => q.s === s);
@@ -9388,7 +9394,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-03', ['Synth pages tidied: knobs in a block, selectors and switches in a column on the right, everything lined up. Analog picks waves and modes with a pointer knob; the page keys are each synth\'s own buttons.', 'Fix: text cut off with the d-pad open.', 'Each synth engine is now its own instrument: its own knobs, switches, keys and screen. Every control and patch works as before.', 'FX synth: a Play key. Instrument: keys to jump between kinds of instrument.', 'Messages now show in the info window above the tabs (the d-pad\'s when it\'s open), not in pop-ups.', 'Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
+  ['2026-11-03', ['Messages slide in over the level meter (or show in the d-pad\'s window when it\'s open); the bar above the tabs is gone.', 'One typeface everywhere; pad and mixer names at one size, longer ones on two lines; mixer numbers and colour bars line up.', 'Clearer Analog, Sub and Instrument screens.', 'Synth pages tidied: knobs in a block, selectors and switches in a column on the right, everything lined up. Analog picks waves and modes with a pointer knob; the page keys are each synth\'s own buttons.', 'Fix: text cut off with the d-pad open.', 'Each synth engine is now its own instrument: its own knobs, switches, keys and screen. Every control and patch works as before.', 'FX synth: a Play key. Instrument: keys to jump between kinds of instrument.', 'Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
@@ -9563,7 +9569,8 @@ function navMove(dir) {
   const cur = navEnsure(); if (!cur) return; const c = navCenter(cur), items = navItems().filter(it => it !== cur).map(it => ({ it, o: navCenter(it) }));
   if (dir === 'left' || dir === 'right') {
     const sameRow = ({ o }) => { const ov = Math.min(o.r.bottom, c.r.bottom) - Math.max(o.r.top, c.r.top); return ov >= Math.min(o.r.height, c.r.height) * .4 || (c.y > o.r.top && c.y < o.r.bottom) || (o.y > c.r.top && o.y < c.r.bottom); };   // (a control that spans two rows sits in both)
-    const row = items.filter(sameRow); if (!row.length) return;
+    const vis = x => { const b2 = navScroller(x.it); if (!b2 || b2.contains(cur)) return true; const q = b2.getBoundingClientRect(); return x.o.r.bottom > q.top + 2 && x.o.r.top < q.bottom - 2; };   // a control scrolled out of its panel isn't beside you
+    const row = items.filter(x => sameRow(x) && vis(x)); if (!row.length) return;
     const sgn = dir === 'right' ? 1 : -1, ahead = row.filter(({ o }) => (o.x - c.x) * sgn > 2);
     const pick = ahead.length ? ahead.reduce((a, b) => ((a.o.x - c.x) * sgn <= (b.o.x - c.x) * sgn ? a : b))   // the next one along
       : row.reduce((a, b) => ((a.o.x - c.x) * sgn <= (b.o.x - c.x) * sgn ? a : b));                                  // wrap: the far end of the row
@@ -9644,7 +9651,7 @@ function navInfo() {
   const t = (el.getAttribute('aria-label') || el.value || el.textContent || '').trim().replace(/\s+/g, ' ');
   return `${t || 'Key'} · OK to press`;
 }
-function updatePanel() { if (!UI.panel) { setInfo(padStatus()); return; } if (UI.strip) { refreshStrip(); return; } navEnsure(); setInfo(navInfo()); }
+function updatePanel() { if (!UI.panel) return; if (UI.strip) { refreshStrip(); return; } navEnsure(); setInfo(navInfo()); }
 function padStatus() { const pi = UI.pad, pad = P.pads[pi], chop = withKeys(() => padChop()); return `${padLabel(pi)} ${pad.name || ''} · ${padUsed(pad) ? (pad.src === 'audio' ? 'audio track' : chop ? 'slices' : keysStatus(pi)) : 'empty pad'}`; }
 /* the panel's pad strip: 16 pads that play the selected pad the way Keys view does (notes, scale, chords, arpeggiator), so you can play while you design */
 function buildStrip() {
@@ -9677,7 +9684,7 @@ function refreshStrip() {
 }
 function toggleStrip() { UI.strip = !UI.strip; $('#panel').classList.toggle('padsOn', UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; if (UI.strip) refreshStrip(); else updatePanel(); savePrefs(); }
 function togglePanel() {
-  UI.panel = !UI.panel; $('#panel').classList.toggle('mini', !UI.panel); $('#bPanel').classList.toggle('on', UI.panel);
+  UI.panel = !UI.panel; $('#panel').hidden = !UI.panel; if (INFO.el) noteDone(); $('#bPanel').classList.toggle('on', UI.panel);
   if (!UI.panel) { if (NAV.mode === 'edit') navEndEdit(true); NAV.mode = 'nav'; if (NAV.el) NAV.el.classList.remove('nf', 'ne'); if (UI.view === 'seq') drawTL(); else drawChop(); updatePanel(); }
   else requestAnimationFrame(() => { navEnsure(); NAV.el && NAV.el.classList.add('nf'); updatePanel(); });
   savePrefs();
@@ -9770,7 +9777,8 @@ document.querySelectorAll('.dpad .pk[data-k]').forEach(b => holdBtn(b, () => nav
   holdBtn($('#pDel'), () => { if (!dup) navDel(); }); }
 $('#pBack').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); navBack(); updatePanel(); });
 $('#pStrip').addEventListener('click', toggleStrip);
-$('#pinfo').addEventListener('click', () => { if (!INFO.msg) return; clearTimeout(INFO.t); INFO.msg = ''; $('#pinfo').classList.remove('msg'); updatePanel(); });   // a tap puts a message away
+$('#pinfo').addEventListener('click', () => { if (INFO.el && INFO.el.id === 'pinfo') noteDone(); });
+$('#note').addEventListener('click', e => { e.stopPropagation(); noteDone(); });   // a tap puts a message away
 $('#pShift').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); UI.shift = !UI.shift; $('#pShift').classList.toggle('on', UI.shift); updatePanel(); });
 function setFine(v) { UI.fine = v; const b = $('#pFine'); b.textContent = ['Fine', '1/64', '1 ms'][v]; b.classList.toggle('on', v > 0); }
 $('#pFine').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); setFine((UI.fine + 1) % 3); updatePanel(); toast(['Normal steps', 'Fine: 1/64 notes, smallest value steps', 'Extra fine: 1 ms nudges'][UI.fine]); });
@@ -9865,7 +9873,7 @@ async function boot() {
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark'; UI.font = pr.font2 === 'narrow' ? 'narrow' : 'rounded';
     UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null;
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: pr.mon.phones && !TF_PHONES[pr.mon.phones] ? 'Wired earbuds' : TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
-  applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').classList.toggle('mini', !UI.panel); $('#bPanel').classList.toggle('on', UI.panel);
+  applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
   await abLoad(); brLoad(); setTimeout(abTick, 15000); setTimeout(refCleanup, 60000); setInterval(abTick, 5 * 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(abTick, 4000); });
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
