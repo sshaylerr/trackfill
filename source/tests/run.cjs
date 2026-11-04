@@ -775,8 +775,10 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok((await rend(none)).h === base.h, 'with no console, console settings left in a project do nothing');
     const hot = Object.assign(cp(), { console: 'clean' }); boost(hot); hot.chans.forEach(C => { C.drv = 1; if (C.bus) { C.bus.on = true; C.bus.p[0] = 0; C.bus.p[1] = 1; } }); const hs = await rend(hot);
     ok(hs.bad === 0 && hs.pk <= 1, `every band at +15 dB, full drive and every bus compressor slammed: still clean and under 0 dBFS (peak ${(20 * Math.log10(hs.pk)).toFixed(2)} dBFS)`);
-    const drv = Object.assign(cp(), { console: 'clean' }); drv.chans.forEach(C => { C.drv = .3; }); const ds = await rend(drv), dd = 20 * Math.log10(ds.rms / base.rms);
-    ok(ds.h !== base.h && Math.abs(dd) < 1, `drive is subtle and level-matched (30% on every channel: ${dd >= 0 ? '+' : ''}${dd.toFixed(2)} dB)`);
+    { const lv = []; for (const d of [.3, 1]) { const q = Object.assign(cp(), { console: 'clean' }); q.chans.forEach(C => { C.drv = d; }); const r = await H.tfRenderOffline(wasm, q, kit, { order: [{ scene: sc, reps: 1 }], tail: 1 }), s2 = stats(r.L, r.R);
+        const b0 = await H.tfRenderOffline(wasm, cp(), kit, { order: [{ scene: sc, reps: 1 }], tail: 1 }); let e = 0, t = 0; for (let i = 0; i < r.L.length; i++) { e += (r.L[i] - b0.L[i]) ** 2; t += b0.L[i] ** 2; }
+        lv.push([d, 20 * Math.log10(s2.rms / base.rms), 10 * Math.log10(e / t)]); }
+      ok(lv.every(([, g]) => Math.abs(g) < 1) && lv[1][2] > -30 && lv[0][2] < lv[1][2], `drive is level-matched and you can hear it: ${lv.map(([d, g, x]) => `${d * 100}%: ${g >= 0 ? '+' : ''}${g.toFixed(2)} dB, change ${x.toFixed(0)} dB`).join('; ')}`); }
     const post = Object.assign(cp(), { console: 'clean' }); post.chans[M.MASTER].eq.p[0] = .6; const pre = await rend(post); post.chans[M.MASTER].eq.post = true; const ps = await rend(post);
     ok(pre.rms < base.rms && ps.rms < base.rms && pre.bad === 0, 'the EQ works before and after the effects');
     const bc = Object.assign(cp(), { console: 'clean' }); bc.chans[M.MASTER].bus.on = true; bc.chans[M.MASTER].bus.p[0] = .3; const bs = await rend(bc);

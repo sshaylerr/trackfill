@@ -255,7 +255,7 @@ struct Chan {
   float cv, cp, ca, cb, cm, ccut, cres;        // smoothed
   float fz1[2], fz2[2];                        // pad filter state
   i32 out; u32 quiet, tail, oq, gap; Fx fx[NSLOTX];
-  i32 eqPost; float drv, cdrv;   // the console: channel EQ before or after the inserts; the console's character (0 = none)   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
+  i32 eqPost; float drv, cdrv, cdx[2], cdy[2], cei, ceo, cmk;   // the console: channel EQ before or after the inserts; the console's character (0 = none)   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
 };
 static Chan chs[NCH];
 static float dirL[MAXN], dirR[MAXN]; static i32 dirMute = 0;   // channels routed to the speaker; exports leave them out
@@ -288,7 +288,7 @@ EX void tf_init(float sr) {
     Chan* C = &chs[c];
     C->vol = C->cv = 0.98f; C->pan = C->cp = 0; C->sa = C->ca = 0; C->sb = C->cb = 0; C->mute = C->cm = 1;
     C->cut = C->ccut = 20000.f; C->res = C->cres = 0.707f; C->out = defaultOut(c); C->tail = (u32)(0.3f * SR); C->gap = (u32)(0.1f * SR); C->quiet = 0; C->oq = 0;
-    for (i32 s = 0; s < NSLOTX; s++) C->fx[s].type = -1; C->eqPost = 0; C->drv = C->cdrv = 0;
+    for (i32 s = 0; s < NSLOTX; s++) C->fx[s].type = -1; C->eqPost = 0; C->drv = C->cdrv = 0; C->cdx[0] = C->cdx[1] = C->cdy[0] = C->cdy[1] = 0; C->cei = C->ceo = 0; C->cmk = 1;
   }
 }
 EX void tf_set_bpm(float b) { BPM = sane(b, 20.f, 400.f, 120.f); }
@@ -680,12 +680,20 @@ static void fx_ceq(Fx* f, float* L, float* R, i32 n) {
       for (i32 b = 0; b < 6; b++) if (e->on[b]) y = bq2(&e->q[b], c, y);
       x[i] = y; } }
 }
-// the console's character: the desk's electronics pushed a little. Level-matched (unity for small signals); it rounds the peaks and adds
-// low-order odd harmonics as it's turned up. Off at 0, and never more than gentle.
+// the console's character: the desk's electronics pushed. The signal is driven harder into a slightly lopsided soft curve, which rounds
+// the peaks and adds mostly second harmonic (warmth), some third as it's turned up. Unity for small signals; a slow level match (RMS in
+// against RMS out, within 0 to +3 dB) makes up what the rounding takes, so turning it up adds colour, not loudness. Off at 0.
 static void consoleChar(Chan* C, float* L, float* R, i32 n) {
-  C->cdrv += (C->drv - C->cdrv) * 0.2f; if (C->cdrv < 1e-4f) { C->cdrv = C->drv < 1e-4f ? 0.f : C->cdrv; if (C->cdrv == 0.f) return; }
-  const float d = C->cdrv, k = 1.f + 2.5f * d, ik = 1.f / k, mix = 0.65f * d;
-  for (i32 i = 0; i < n; i++) { const float l = L[i], r = R[i]; L[i] = l + (fsat(l * k) * ik - l) * mix; R[i] = r + (fsat(r * k) * ik - r) * mix; }
+  C->cdrv += (C->drv - C->cdrv) * 0.2f; if (C->cdrv < 1e-4f) { C->cdrv = C->drv < 1e-4f ? 0.f : C->cdrv; if (C->cdrv == 0.f) { C->cmk = 1.f; C->cei = C->ceo = 0.f; return; } }
+  const float d = C->cdrv, k = 1.f + 4.f * d, b = 0.35f * d, z = fsat(b), g0 = (fsat(b + 1e-3f) - fsat(b - 1e-3f)) * 500.f, ig = 1.f / (k * g0);
+  const float rdc = 1.f - 6.28318531f * 8.f / SR, ae = 1.f - fexp(-1.f / (0.3f * SR));   // DC from the lopsided curve removed below 8 Hz; level match over 0.3 s
+  float ei = C->cei, eo = C->ceo, mk = C->cmk;
+  for (i32 i = 0; i < n; i++) { float io[2] = { L[i], R[i] };
+    for (i32 c = 0; c < 2; c++) { const float x = io[c], s = (fsat(x * k + b) - z) * ig, y = s - C->cdx[c] + rdc * C->cdy[c]; C->cdx[c] = s; C->cdy[c] = y;
+      ei += (x * x - ei) * ae; const float w = x + (y - x) * d; eo += (w * w - eo) * ae; io[c] = w * mk; }
+    L[i] = io[0]; R[i] = io[1];
+    if ((i & 31) == 31) { const float t = eo > 1e-9f ? sqrtf_(ei / eo) : 1.f; mk += ((t < 1.f ? 1.f : t > 1.4125f ? 1.4125f : t) - mk) * 0.05f; } }
+  C->cei = ei + 1e-18f; C->ceo = eo + 1e-18f; C->cmk = mk;
 }
 static u32 fxStateBytes(i32 t, i32 m) {
   if (m == 0 && t < FX_LIMIT) return fxStateBytes0(t);
