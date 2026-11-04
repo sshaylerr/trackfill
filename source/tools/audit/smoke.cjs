@@ -60,7 +60,8 @@ const crawl = async () => {
   P.chans[0].fx = []; fxChanged(0); setView('mix');
   // the console: each view, on a pad page and on the groups page (a bus compressor of its own), then back to the plain mixer
   for (const con of ['clean', 'punchy', 'warm']) { setConsole(con);
-    for (const [pg, sel] of [[0, 0], [8, G0]]) for (const m of ['faders', 'eq', 'bus']) await at(`console ${con} ${m} ${pg ? 'groups' : 'pads'}`, () => { UI.mixPage = pg; UI.mixSel = sel; UI.mixFollow = UI.pad; UI.mixMode = m; setView('mix'); renderView(); }); }
+    for (const [pg, sel] of [[0, 0], [8, G0]]) for (const m of ['faders', 'eq', 'bus']) await at(`console ${con} ${m} ${pg ? 'groups' : 'pads'}`, () => { UI.mixPage = pg; UI.mixSel = sel; UI.mixFollow = UI.pad; UI.mixMode = m; setView('mix'); renderView();
+      const b = document.querySelector('.cwin') && document.querySelector('.cwin').lastElementChild; if (b && b.scrollHeight > b.clientHeight + 1) throw new Error(`the ${con} ${m} view needs scrolling (${b.scrollHeight} > ${b.clientHeight})`); }); }   // nothing scrolls, d-pad open or not
   setConsole('none'); UI.mixMode = 'faders'; setView('mix');
   // menus
   const menus = { openProjects, openLibrary, openMenu, openAppearance, openFilterLfo: () => { P.chans[0].fx = [newFx(2, null, 1)]; syncChan(0); openFilterLfo(0, 0); }, openSceneSheet: () => openSceneSheet(0), openSoundTools: () => openSoundTools(samplePad), openChopTools: () => openChopTools(samplePad), openEdit, openExport,

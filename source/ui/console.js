@@ -51,12 +51,17 @@ function drawCeq(cv, C) { if (!cv || !cv.isConnected) return; const { g, W, H } 
   else for (const [t, f0] of S.B) { if (t === 'hp2' || t === 'lp2') continue; const x = ceqX(f0, W), y = Y(ceqDb(S, f0)); g.beginPath(); g.arc(x, y, 3.5, 0, 7); g.fillStyle = K.bg; g.fill(); g.strokeStyle = K.ink; g.lineWidth = 1.5; g.stroke(); }
   vText(g, (C.eq.post ? 'after' : 'before') + ' the effects', 8, 11, K.mute, 'left', 10); vText(g, C.eq.on ? 'IN' : 'OUT', W - 8, 11, C.eq.on ? K.on : '#6b7178', 'right', 10); }
 
-/* the window: its own top bar (the console's name, the three views) over the view */
+/* the window: one top row (the console's name; in the EQ and Comp views the channel, ‹ name ›; the three views), then the view.
+   Layout (the same for every console, and the pattern for the redesigns): a display that takes what room is left, up to a third of the
+   window; the controls in a grid of fixed cells, each cell the control's whole touch area (never under 44 px), the knob drawn smaller
+   inside it; when the window is short (the d-pad open on a small phone) the cells tighten, values move to the display (and the d-pad's
+   window), and if there's still no room the EQ's picture steps aside. Nothing scrolls. */
 function consoleWin(V, chs) {
   const win = h('div', 'cwin'), top = h('div', 'ctop'), seg = h('div', 'cseg'), mode = UI.mixMode || 'faders';
   const badge = btn(`${esc(conName().toUpperCase())}<small>CONSOLE</small>`, openConsolePicker, 'cbadge'); badge.setAttribute('aria-label', 'Console: ' + conName());
   for (const [id, name] of CON_MODES) seg.append(btn(name.toUpperCase(), () => { UI.mixMode = id; renderView(); }, 'cbtn' + (mode === id ? ' on' : '')));
-  top.append(badge, seg); win.append(top); skinDefs(); CON_VU.length = 0;
+  top.append(badge); if (mode !== 'faders') { const sel = UI.mixSel, bc = hasBusComp(sel) ? sel : MASTER; top.classList.add('pick'); top.append(conPick(sel, mode === 'eq' ? conTape(sel) : bc === sel ? conTape(sel) + ' BUS' : 'MASTER BUS')); }
+  top.append(seg); win.append(top); skinDefs(); CON_VU.length = 0;
   if (mode === 'eq') win.append(conEq(UI.mixSel)); else if (mode === 'bus') win.append(conBus(UI.mixSel));
   else { const con = h('div', 'scr console' + (UI.mixSlide ? ' slide' + UI.mixSlide : '')); UI.mixSlide = 0; bindSwipe(con);
     for (let k = 0; k < 8; k++) { const c = chs[k]; con.append(c == null ? h('div', 'strip empty') : stripEl(c)); }
@@ -67,6 +72,15 @@ function consoleWin(V, chs) {
     win.append(con); }
   return win;
 }
+// once the window is on the page: the display gets up to a third of it; short of room, the cells tighten and the EQ's picture can go
+function conFit(root) { const win = root.querySelector('.cwin'), d = win && win.querySelector('.cdisp'); if (!d) return;
+  win.classList.remove('tight', 'tighter'); d.hidden = false; d.style.maxHeight = Math.floor(win.clientHeight / 3) + 'px';
+  const body = win.lastElementChild, over = () => body.scrollHeight > body.clientHeight + 1;
+  if (d.clientHeight < 60 || over()) { win.classList.add('tight'); if (d.clientHeight < 40 && d.dataset.drop) d.hidden = true; }
+  if (over()) { win.classList.add('tighter'); if (d.dataset.drop) d.hidden = true; } }   // the smallest phone with the d-pad open
+// the display's readout: the control you're turning, big, for a moment
+let CON_HOT_T = 0;
+function conHot(lab, val) { const el = document.querySelector('.cx .chot'); if (!el) return; el.innerHTML = `<small>${esc(lab)}</small>${esc(val)}`; el.classList.add('on'); clearTimeout(CON_HOT_T); CON_HOT_T = setTimeout(() => el.classList.remove('on'), 1600); }
 const conTape = c => (c === MASTER ? 'MASTER' : chanLabel(c) + ' ' + (c < G0 ? (P.pads[c].name || '—') : chanName(c))).toUpperCase();
 // a channel picker for the EQ and Bus views: the previous and next channel in mixer order, the selected one's name on tape between
 function conPick(c, label) {
@@ -77,82 +91,84 @@ function conPick(c, label) {
   const tape = h('span', 'ctape', esc(label)); tape.dataset.alt = label.replace(/^[A-D]\d\d |^[A-Z]\d |^(GROUP|BUS|RETURN) /, ''); row.append(prev, tape, next); return row;
 }
 const capLight = c => { const m = /^#([0-9a-f]{6})$/i.exec(c || ''); if (!m) return false; const n = parseInt(m[1], 16); return ((n >> 16) * .3 + ((n >> 8) & 255) * .59 + (n & 255) * .11) > 150; };
-function conKnob(key, cap, o = {}) { const k = keyParam(key, Object.assign({ skin: conSkin() }, o)); k.style.setProperty('--kc', cap); if (capLight(cap)) k.style.setProperty('--km', '#26272a'); return k; }   // a light cap gets a dark line
+function conKnob(key, cap, o = {}) { const meta = keyMeta(key), hot = o.hot || meta.label, after = o.after;
+  const k = keyParam(key, Object.assign({ skin: conSkin() }, o, { after: v => { if (after) after(v); conHot(hot, meta.fmt(v)); } })); k.style.setProperty('--kc', cap); if (capLight(cap)) k.style.setProperty('--km', '#26272a'); return k; }   // a light cap gets a dark line
 function conToggle(label, on, fn, lit) { const b = btn((lit ? '<i></i>' : '') + label, fn, 'cbtn' + (on ? (lit ? ' lit' : ' on') : '')); return b; }
 // a stepped setting as a pointer knob with its settings printed round it (ratio, attack, release)
-function conRotary(key, f, i, prm, after, cap) { const n = prm.opts.length;
-  const el = selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (n - 1)), k => { pushUndo('chan:' + tfParseKey(key).c); f.p[i] = optVal(k, n); sendParam(key, f.p[i]); markDirty(); if (after) after(); }, { paint: P.console === 'clean' ? skinRotary(prm.opts) : conRot(prm.opts, cap) });
-  el.classList.add('swk', 'sw-rotary'); el.setAttribute('aria-label', prm.n); return el; }
-// Punchy's and Warm's selector knobs: their own knob, its settings printed round it
-function conRot(opts, cap, style) { const n = opts.length, span = n <= 2 ? 120 : n <= 4 ? 200 : 250, ang = k => -span / 2 + k * span / (n - 1), pk = (style || P.console) === 'punchy';
+function conRotary(key, f, i, prm, after, cap, hot) { const n = prm.opts.length;
+  const el = selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (n - 1)), k => { pushUndo('chan:' + tfParseKey(key).c); f.p[i] = optVal(k, n); sendParam(key, f.p[i]); markDirty(); if (after) after(); conHot(hot || prm.n, prm.opts[k]); }, { paint: conRot(prm.opts, cap) });
+  el.classList.add('swk', 'sw-rotary'); el.setAttribute('aria-label', hot || prm.n); return el; }
+// the consoles' selector knobs: their own knob, the settings printed round it; in a tight window just the knob and its setting
+function conRot(opts, cap, style) { const n = opts.length, span = n <= 2 ? 120 : n <= 4 ? 200 : 250, ang = k => -span / 2 + k * span / (n - 1), st = style || P.console;
   return (sw, i) => { const lab = opts.map((o, k) => { const t = ang(k) * Math.PI / 180; return `<text x="${(46 + 36 * Math.sin(t)).toFixed(1)}" y="${(35 - 23 * Math.cos(t)).toFixed(1)}" text-anchor="middle" class="${k === i ? 'on' : ''}">${esc(o)}</text>`; }).join('');
-    const body = pk ? `<circle cx="46" cy="34.5" r="13" fill="rgba(0,0,0,.5)"/><g transform="rotate(${ang(i)} 46 33)"><path d="M46 14.5 L51.4 21 A12.6 12.6 0 1 1 40.6 21 Z" fill="url(#kAluF)" stroke="#4a4e53" stroke-width=".6"/></g><circle cx="46" cy="33" r="7.6" fill="${cap || '#c3c7cb'}"/><circle cx="44.2" cy="31" r="2.8" fill="rgba(255,255,255,.32)"/>`
+    const body = st === 'punchy' ? `<circle cx="46" cy="34.5" r="13" fill="rgba(0,0,0,.5)"/><g transform="rotate(${ang(i)} 46 33)"><path d="M46 14.5 L51.4 21 A12.6 12.6 0 1 1 40.6 21 Z" fill="url(#kAluF)" stroke="#4a4e53" stroke-width=".6"/></g><circle cx="46" cy="33" r="7.6" fill="${cap || '#c3c7cb'}"/><circle cx="44.2" cy="31" r="2.8" fill="rgba(255,255,255,.32)"/>`
+      : st === 'clean' ? `<circle cx="46" cy="34.5" r="13" fill="rgba(0,0,0,.45)"/><circle cx="46" cy="33" r="12.6" fill="url(#kDesk)" stroke="#55534e" stroke-width=".7"/><circle cx="46" cy="33" r="8.8" fill="${cap || '#d8d7d1'}"/><g transform="rotate(${ang(i)} 46 33)"><rect x="45" y="23.4" width="2" height="8" rx="1" fill="#26272a"/></g>`
       : `<circle cx="46" cy="34" r="14" fill="#24221e" stroke="#0e0d0b"/><circle cx="46" cy="33" r="10" fill="${cap || '#8f918c'}"/><circle cx="46" cy="33" r="10" fill="url(#kWm)"/><g transform="rotate(${ang(i)} 46 33)"><path d="M46 17 L49 21 L43 21 Z" fill="#e8e1cf"/><rect x="45.1" y="23" width="1.8" height="7" rx=".9" fill="#f3ecdc"/></g>`;
-    sw.innerHTML = `<svg class="rot" viewBox="0 0 92 52" aria-hidden="true">${lab}${body}</svg>`; }; }
+    sw.innerHTML = `<svg class="rot" viewBox="0 0 92 52" aria-hidden="true">${lab}${body}</svg><svg class="rotk" viewBox="30 17 32 32" aria-hidden="true">${body}</svg><span class="rv">${esc(opts[i])}</span>`; }; }
+// a grid cell holding one button, or two side by side (each still a full-height target)
+function conCell(...btns) { const d = h('div', 'cbc' + (btns.length > 1 ? ' two' : '')); d.append(...btns); return d; }
 
 function conEq(c) {
-  const C = P.chans[c], f = C.eq, w = h('div', 'ceq'), hd = h('div', 'chead'), cv = h('canvas'), scr = h('div', 'ceqscr'), redraw = () => drawCeq(cv, C);
+  const C = P.chans[c], f = C.eq, w = h('div', 'ceq'), cv = h('canvas'), scr = h('div', 'ceqscr cdisp'), redraw = () => drawCeq(cv, C);
   const frz = () => { if (c < G0 && P.pads[c].frz) touchPad(c); };
   const flip = (fn, msg) => () => { pushUndo('chan:' + c); frz(); fn(); syncChan(c); markDirty(); renderView(); if (msg) toast(msg()); };
-  hd.append(conPick(c, conTape(c))); if (f.type !== 42) hd.append(conToggle('EQ IN', f.on, flip(() => { f.on = !f.on; }, () => 'EQ ' + (f.on ? 'in' : 'out')), true));
-  hd.append(conToggle('PRE', !f.post, flip(() => { f.post = false; }, () => 'EQ before the effects')), conToggle('POST', f.post, flip(() => { f.post = true; }, () => 'EQ after the effects')));
-  scr.append(cv); w.append(hd, scr);
-  if (f.type !== CEQ_TYPE) { w.append(f.type === 42 ? peqRows(c, f, redraw, frz, w) : weqRows(c, f, redraw, frz, w)); requestAnimationFrame(redraw); return w; }
-  const opt = i => { const key = `${c}.8.${i}`, prm = CEQ_P[i], v = () => f.p[i] >= .5;
-    return [key, prm, v, () => { pushUndo('chan:' + c); frz(); f.p[i] = v() ? 0 : 1; sendParam(key, f.p[i]); markDirty(); renderView(); }]; };
-  const rows = h('div', 'cbands');
-  for (const [name, col, idx] of CEQ_BANDS) { const r = h('div', 'cband'), lab = h('div', 'cbl', `${name}<small>${name === 'FILT' ? 'HP · LP' : name === 'HF' || name === 'LF' ? (f.p[idx[2]] >= .5 ? 'BELL' : 'SHELF') : 'BELL'}</small>`);
-    lab.style.setProperty('--bc', col); if (name === 'FILT') lab.classList.add('lite'); r.append(lab);
-    const cap = col, short = { 'High-pass': 'HPF', 'Low-pass': 'LPF' };
-    const knob = i => { const prm = CEQ_P[i], k = conKnob(`${c}.8.${i}`, cap, { label: short[prm.n] || prm.n.replace(/^(HF|HMF|LMF|LF) /, '').toUpperCase(), after: () => { frz(); redraw(); refreshThumb(c); if (i === 7 || i === 10 || i === 14) w.querySelectorAll('.knob').forEach(k => k._upd && k._upd()); } });
-      k.setAttribute('aria-label', 'EQ ' + prm.n); return k; };
-    if (name === 'HMF' || name === 'LMF') r.append(knob(idx[0]), knob(idx[1]), knob(idx[2]), h('div', 'ctg'));
-    else if (name === 'FILT') { const [, , , tog] = opt(14), tg = h('div', 'ctg'); tg.append(conToggle('CLASSIC', f.p[14] < .5, () => { if (f.p[14] >= .5) tog(); }), conToggle('MODERN', f.p[14] >= .5, () => { if (f.p[14] < .5) tog(); })); r.append(knob(0), knob(1), h('div', 'knob blank cgap'), tg); }
-    else { const [, , v, tog] = opt(idx[2]), tg = h('div', 'ctg'); tg.append(conToggle('BELL', v(), tog)); r.append(knob(idx[0]), knob(idx[1]), h('div', 'knob blank cgap'), tg); }
-    rows.append(r); }
-  w.append(rows); requestAnimationFrame(redraw); return w;
+  const tg = { in: () => conToggle('IN', f.on, flip(() => { f.on = !f.on; }, () => 'EQ ' + (f.on ? 'in' : 'out')), true),
+    pre: () => conToggle('PRE', !f.post, flip(() => { f.post = false; }, () => 'EQ before the effects')), post: () => conToggle('POST', f.post, flip(() => { f.post = true; }, () => 'EQ after the effects')) };
+  scr.dataset.drop = 1; scr.append(cv, h('div', 'chot')); w.append(scr);
+  w.append(f.type === 42 ? peqRows(c, f, redraw, frz, tg) : f.type === 43 ? weqRows(c, f, redraw, frz, tg) : ceqGrid(c, f, redraw, frz, tg)); requestAnimationFrame(redraw); return w;
 }
-// Punchy's EQ as its three-band module: black plate, blue legends; each band's stepped frequency (aluminium knob, its points printed in
-// blue) beside its stepped gain (the blue knob); along the bottom the filter lever and its lamp (lit while the EQ is in) and the latching
-// white buttons: LF shelf, HF shelf, IN
-function peqRows(c, f, redraw, frz, w) {
-  const plate = h('div', 'cplate api'), ch = () => { frz(); redraw(); refreshThumb(c); };
+// Clean: the four bands as columns (pink, green, blue, black caps): gain, frequency, then Q or the shelf's Bell; the filters and the switches below
+function ceqGrid(c, f, redraw, frz, tg) {
+  const g = h('div', 'cgrid'), ch = () => { frz(); redraw(); refreshThumb(c); }; g.style.setProperty('--cols', 4);
+  const K = (i, cap, lab) => { const k = conKnob(`${c}.8.${i}`, cap, { label: lab, hot: 'EQ ' + CEQ_P[i].n, after: () => { ch(); if (i === 7 || i === 10) g.querySelectorAll('.knob').forEach(k => k._upd && k._upd()); } }); k.setAttribute('aria-label', 'EQ ' + CEQ_P[i].n); return k; };
+  const sw = (i, on, lab, aria) => { const b = conToggle(lab, on, () => { pushUndo('chan:' + c); frz(); f.p[i] = f.p[i] >= .5 ? 0 : 1; sendParam(`${c}.8.${i}`, f.p[i]); markDirty(); renderView(); }); b.setAttribute('aria-label', aria); return b; };
+  const [hf, hmf, lmf, lf] = CEQ_BANDS.map(b => b[1]), grey = CEQ_BANDS[4][1];
+  for (const [n] of CEQ_BANDS.slice(0, 4)) g.append(h('div', 'cbh', n));
+  g.append(K(2, hf, 'GAIN'), K(5, hmf, 'GAIN'), K(8, lmf, 'GAIN'), K(11, lf, 'GAIN'), K(3, hf, 'FREQ'), K(6, hmf, 'FREQ'), K(9, lmf, 'FREQ'), K(12, lf, 'FREQ'),
+    conCell(sw(4, f.p[4] >= .5, 'BELL', 'HF bell')), K(7, hmf, 'Q'), K(10, lmf, 'Q'), conCell(sw(13, f.p[13] >= .5, 'BELL', 'LF bell')),
+    K(0, grey, 'HPF'), K(1, grey, 'LPF'), conCell(tg.in(), sw(14, f.p[14] >= .5, f.p[14] >= .5 ? 'MOD' : 'CLAS', 'Curve: ' + (f.p[14] >= .5 ? 'Modern' : 'Classic'))), conCell(tg.pre(), tg.post()));
+  return g;
+}
+// Punchy's EQ as its three-band module: black plate, blue legends; each band a column, its stepped frequency (aluminium knob, points
+// printed in blue) over its stepped gain (the blue knob); along the bottom the filter lever and its lamp (lit while the EQ is in), the
+// latching white buttons (LF shelf, HF shelf, IN) and PRE/POST
+function peqRows(c, f, redraw, frz, tg) {
+  const plate = h('div', 'cplate api'), g = h('div', 'cgrid'), ch = () => { frz(); redraw(); refreshThumb(c); }; g.style.setProperty('--cols', 3);
   const set = (i, v) => { pushUndo('chan:' + c); frz(); f.p[i] = v; sendParam(`${c}.8.${i}`, v); markDirty(); renderView(); };
-  const gain = i => { const k = conKnob(`${c}.8.${i}`, '#e3e5e7', { label: 'GAIN', after: ch }); k.style.setProperty('--kb', '#3a78d4'); k.setAttribute('aria-label', 'EQ ' + PEQ_P[i].n); return k; };
-  const row = (name, fi, gi) => { const r = h('div', 'cband apiB'); r.append(h('div', 'apiL', name), conRotary(`${c}.8.${fi}`, f, fi, { n: name === 'MF' ? 'kHz' : name === 'HF' ? 'kHz' : 'Hz', opts: PEQ_P[fi].opts }, ch), gain(gi)); return r; };
-  plate.append(row('HF', 0, 1), row('MF', 3, 4), row('LF', 5, 6));
+  const gain = (i, b) => { const k = conKnob(`${c}.8.${i}`, '#e3e5e7', { label: 'GAIN', hot: b + ' gain', after: ch }); k.style.setProperty('--kb', '#3a78d4'); k.setAttribute('aria-label', b + ' gain'); return k; };
+  const fr = (i, b, u) => conRotary(`${c}.8.${i}`, f, i, { n: u, opts: PEQ_P[i].opts }, ch, null, b + ' freq');
+  g.append(h('div', 'cbh', 'HF'), h('div', 'cbh', 'MF'), h('div', 'cbh', 'LF'), fr(0, 'HF', 'kHz'), fr(3, 'MF', 'Hz'), fr(5, 'LF', 'Hz'), gain(1, 'HF'), gain(4, 'MF'), gain(6, 'LF'));
   const bot = h('div', 'apiBot'), lever = btn(`<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="10" fill="#2a2c30" stroke="#0e0f11"/><circle cx="20" cy="20" r="6.5" fill="#cfd2d5" stroke="#6f7377"/><g transform="rotate(${f.p[8] >= .5 ? 0 : 180} 20 20)"><rect x="17.5" y="2" width="5" height="18" rx="2.5" fill="url(#kAluF)" stroke="#55595e" stroke-width=".6"/></g></svg><span>FLTR</span>`, () => set(8, f.p[8] >= .5 ? 0 : 1), 'apiLever' + (f.p[8] >= .5 ? ' on' : ''));
   lever.setAttribute('aria-label', 'Band-pass filter ' + (f.p[8] >= .5 ? 'on' : 'off'));
   const lamp = h('i', 'apiLamp' + (f.on ? ' on' : '')); lamp.setAttribute('aria-hidden', 'true');
   const wb = (lab, on, fn, aria) => { const b = btn(lab, fn, 'apiBtn' + (on ? ' on' : '')); b.setAttribute('aria-label', aria); return b; };
   bot.append(lever, lamp, wb('L/F', f.p[7] >= .5, () => set(7, f.p[7] >= .5 ? 0 : 1), 'LF shelf'), wb('H/F', f.p[2] >= .5, () => set(2, f.p[2] >= .5 ? 0 : 1), 'HF shelf'),
-    wb('IN', f.on, () => { pushUndo('chan:' + c); frz(); f.on = !f.on; syncChan(c); markDirty(); renderView(); toast('EQ ' + (f.on ? 'in' : 'out')); }, 'EQ in'));
-  plate.append(bot); return plate;
+    wb('IN', f.on, () => { pushUndo('chan:' + c); frz(); f.on = !f.on; syncChan(c); markDirty(); renderView(); toast('EQ ' + (f.on ? 'in' : 'out')); }, 'EQ in'), h('i', 'apiGap'),
+    wb('PRE', !f.post, () => { if (!f.post) return; pushUndo('chan:' + c); frz(); f.post = false; syncChan(c); markDirty(); renderView(); }, 'EQ before the effects'), wb('POST', f.post, () => { if (f.post) return; pushUndo('chan:' + c); frz(); f.post = true; syncChan(c); markDirty(); renderView(); }, 'EQ after the effects'));
+  plate.append(g, bot); return plate;
 }
-// Warm's module: a gentle 12 kHz shelf, the mid bell (Hi-Q narrows it), the low shelf, the high-pass
-function weqRows(c, f, redraw, frz, w) {
-  const box = h('div', 'cbands'), ch = () => { frz(); redraw(); refreshThumb(c); }, RED = '#c22f26';
-  const gain = (i, lab) => { const k = conKnob(`${c}.8.${i}`, RED, { label: 'GAIN', after: ch }); k.setAttribute('aria-label', 'EQ ' + WEQ_P[i].n); return k; };
-  const rot = (i, lab, cap) => conRotary(`${c}.8.${i}`, f, i, { n: lab, opts: WEQ_P[i].opts }, ch, cap);
-  const row = (name, sub, cells) => { const r = h('div', 'cband p3'); r.append(h('div', 'cbl', `${name}<small>${sub}</small>`), ...cells); return r; };
-  const hq = h('div', 'ctg'); hq.append(conToggle('HI-Q', f.p[5] >= .5, () => { pushUndo('chan:' + c); frz(); f.p[5] = f.p[5] >= .5 ? 0 : 1; sendParam(`${c}.8.5`, f.p[5]); markDirty(); renderView(); }));
-  box.append(row('HIGH', '12 kHz', [h('div', 'cnote', 'SHELF · 12 kHz'), gain(6), h('div', 'ctg')]), row('MID', 'BELL', [rot(3, 'Hz'), gain(4), hq]), row('LOW', 'SHELF', [rot(1, 'Hz'), gain(2), h('div', 'ctg')]),
-    row('HPF', '18 dB', [rot(0, 'Hz', '#3f6f9f'), h('div', ''), h('div', 'ctg')]));
-  return box;
+// Warm's module, as columns: the 12 kHz shelf, the mid bell (Hi-Q narrows it), the low shelf, the high-pass; gains on top, the fixed
+// points below (its own redesign from photos is next)
+function weqRows(c, f, redraw, frz, tg) {
+  const g = h('div', 'cgrid'), ch = () => { frz(); redraw(); refreshThumb(c); }, RED = '#c22f26'; g.style.setProperty('--cols', 4);
+  const gain = (i, b) => { const k = conKnob(`${c}.8.${i}`, RED, { label: 'GAIN', hot: b + ' gain', after: ch }); k.setAttribute('aria-label', 'EQ ' + WEQ_P[i].n); return k; };
+  const rot = (i, lab, cap) => conRotary(`${c}.8.${i}`, f, i, { n: lab, opts: WEQ_P[i].opts }, ch, cap, WEQ_P[i].n);
+  const hq = conToggle('HI-Q', f.p[5] >= .5, () => { pushUndo('chan:' + c); frz(); f.p[5] = f.p[5] >= .5 ? 0 : 1; sendParam(`${c}.8.5`, f.p[5]); markDirty(); renderView(); });
+  g.append(h('div', 'cbh', 'HIGH'), h('div', 'cbh', 'MID'), h('div', 'cbh', 'LOW'), h('div', 'cbh', 'HPF'),
+    gain(6, 'High'), gain(4, 'Mid'), gain(2, 'Low'), rot(0, 'Hz', '#3f6f9f'), conCell(tg.in(), hq), rot(3, 'Hz'), rot(1, 'Hz'), conCell(tg.pre(), tg.post()));
+  return g;
 }
 function refreshThumb(c) { const t = document.querySelector(`.cx .eqt[data-c="${c}"]`); if (t) t.innerHTML = ceqThumb(P.chans[c]); }
 
 function conBus(sel) {
   if (P.console !== 'clean') return conBus2(sel);
-  const c = hasBusComp(sel) ? sel : MASTER, C = P.chans[c], f = C.bus, w = h('div', 'cbus'), hd = h('div', 'chead'), vu = h('div', 'cvu'), cv = h('canvas');
+  const c = hasBusComp(sel) ? sel : MASTER, C = P.chans[c], f = C.bus, w = h('div', 'cbus'), vu = h('div', 'cvu cdisp'), cv = h('canvas');
   const ps = fxParams(f);   // Threshold, Ratio, Attack, Release, Makeup, Mix, Key HPF
-  hd.append(conPick(sel, c === sel ? conTape(c) + ' BUS' : 'MASTER BUS'),
-    conToggle('COMP IN', f.on, () => { pushUndo('chan:' + c); f.on = !f.on; syncChan(c); markDirty(); renderView(); toast('Bus compressor ' + (f.on ? 'in' : 'out')); }, true));
-  vu.append(cv); scopeView(cv, () => drawVu(cv, c));
-  const g = h('div', 'cbgrid'), K = i => { const k = conKnob(`${c}.9.${i}`, '#d8d7d1', { label: ps[i].n.toUpperCase() }); k.setAttribute('aria-label', 'Bus ' + ps[i].n); return k; };
-  g.append(K(0), conRotary(`${c}.9.1`, f, 1, ps[1]), K(4), conRotary(`${c}.9.2`, f, 2, { n: 'Attack ms', opts: ps[2].opts }), conRotary(`${c}.9.3`, f, 3, { n: 'Release s', opts: ps[3].opts }), K(5));
-  const ft = h('div', 'cbfoot'); ft.append(K(6)); g.append(ft);
-  w.append(hd, vu, g); if (!f.on) w.classList.add('off'); requestAnimationFrame(() => drawVu(cv, c)); return w;
+  vu.append(cv, h('div', 'chot')); scopeView(cv, () => drawVu(cv, c));
+  const g = h('div', 'cgrid'), K = i => { const k = conKnob(`${c}.9.${i}`, '#d8d7d1', { label: ps[i].n.toUpperCase(), hot: 'Bus ' + ps[i].n }); k.setAttribute('aria-label', 'Bus ' + ps[i].n); return k; }; g.style.setProperty('--cols', 4);
+  const R = (i, lab) => conRotary(`${c}.9.${i}`, f, i, { n: lab, opts: ps[i].opts }, null, null, 'Bus ' + ps[i].n);
+  g.append(K(0), R(1, 'Ratio'), R(2, 'Attack ms'), R(3, 'Release s'), K(4), K(5), K(6), conCell(conToggle('COMP IN', f.on, () => { pushUndo('chan:' + c); f.on = !f.on; syncChan(c); markDirty(); renderView(); toast('Bus compressor ' + (f.on ? 'in' : 'out')); }, true)));
+  w.append(vu, g); if (!f.on) w.classList.add('off'); requestAnimationFrame(() => drawVu(cv, c)); return w;
 }
 // the gain reduction meter: a moving-coil needle on a cream face, 0 to 20 dB
 function drawVu(cv, c) { const { g, W, H } = prepCanvas(cv), live = SCOPE.fc === c && SCOPE.fs === NSLOTS + 1, db = live ? Math.min(0, SCOPE.visD) : 0; if (W < 40 || H < 24) return;   // not laid out yet
@@ -168,17 +184,17 @@ function drawVu(cv, c) { const { g, W, H } = prepCanvas(cv), live = SCOPE.fc ===
 
 // Punchy's and Warm's compressors: their own meters and controls
 function conBus2(sel) {
-  const c = hasBusComp(sel) ? sel : MASTER, C = P.chans[c], f = C.bus, pk = P.console === 'punchy', ps = conBusP(f), w = h('div', 'cbus'), hd = h('div', 'chead'), vu = h('div', 'cvu2');
+  const c = hasBusComp(sel) ? sel : MASTER, C = P.chans[c], f = C.bus, pk = P.console === 'punchy', ps = conBusP(f), w = h('div', 'cbus'), vu = h('div', 'cvu2 cdisp');
   const flip = (fn, msg) => () => { pushUndo('chan:' + c); fn(); syncChan(c); markDirty(); renderView(); toast(msg()); };
-  hd.append(conPick(sel, c === sel ? conTape(c) + ' BUS' : 'MASTER BUS'), conToggle('COMP IN', f.on, flip(() => { f.on = !f.on; }, () => 'Bus compressor ' + (f.on ? 'in' : 'out')), true));
-  if (!pk) hd.append(conToggle('LIMIT', f.p[5] >= .5, () => { pushUndo('chan:' + c); f.p[5] = f.p[5] >= .5 ? 0 : 1; sendParam(`${c}.9.5`, f.p[5]); markDirty(); renderView(); }, true));
   if (pk) { for (const [k, lab] of [['in', 'IN'], ['gr', 'GR']]) { const m = h('div', 'cvf'); m.innerHTML = vuSvg('Y', lab); vu.append(m); CON_VU.push({ el: m.querySelector('.ndl'), src: k, c, vk: 'Y', vd: k === 'gr' ? VU_REST_GR : 0 }); } }
   else { const m = h('div', 'cvf'); m.innerHTML = vuSvg('W', 'GAIN REDUCTION'); vu.append(m); CON_VU.push({ el: m.querySelector('.ndl'), src: 'gr', c, vk: 'W', vd: 1 }); }
-  const K = (i, cap) => { const k = conKnob(`${c}.9.${i}`, cap || '#8f918c', { label: ps[i].n.toUpperCase() }); k.setAttribute('aria-label', 'Bus ' + ps[i].n); return k; }, R = (i, lab, cap) => conRotary(`${c}.9.${i}`, f, i, { n: lab || ps[i].n, opts: ps[i].opts }, null, cap);
-  const g = h('div', 'cbgrid');
-  if (pk) g.append(K(0, '#d63b2f'), R(1), K(7, '#e3e5e7'), R(2, 'Attack ms'), R(3, 'Release s'), K(8, '#4a4d52'), R(4), R(5), R(6));
-  else g.append(K(0), R(1), K(4, '#c22f26'), R(2), R(3, 'Recovery'), K(9), K(6, '#2f5f8f'), R(7, 'Lim attack'), R(8, 'Lim recovery'));
-  w.append(hd, vu, g); if (!f.on) w.classList.add('off'); return w;
+  vu.append(h('div', 'chot'));
+  const K = (i, cap) => { const k = conKnob(`${c}.9.${i}`, cap || '#8f918c', { label: ps[i].n.toUpperCase(), hot: 'Bus ' + ps[i].n }); k.setAttribute('aria-label', 'Bus ' + ps[i].n); return k; }, R = (i, lab, cap) => conRotary(`${c}.9.${i}`, f, i, { n: lab || ps[i].n, opts: ps[i].opts }, null, cap, 'Bus ' + ps[i].n);
+  const g = h('div', 'cgrid'), cin = conCell(conToggle('COMP IN', f.on, flip(() => { f.on = !f.on; }, () => 'Bus compressor ' + (f.on ? 'in' : 'out')), true)); g.style.setProperty('--cols', 4);
+  if (pk) g.append(K(0, '#d63b2f'), R(1), R(2, 'Attack ms'), R(3, 'Release s'), K(7, '#e3e5e7'), K(8, '#4a4d52'), R(4), R(5), R(6), cin, blankCell(), blankCell());
+  else g.append(K(0), R(1), R(2), R(3, 'Recovery'), K(4, '#c22f26'), K(9), K(6, '#2f5f8f'), R(7, 'Lim attack'), R(8, 'Lim recovery'), cin,
+    conCell(conToggle('LIMIT', f.p[5] >= .5, () => { pushUndo('chan:' + c); f.p[5] = f.p[5] >= .5 ? 0 : 1; sendParam(`${c}.9.5`, f.p[5]); markDirty(); renderView(); }, true)), blankCell());
+  w.append(vu, g); if (!f.on) w.classList.add('off'); return w;
 }
 
 /* the moving-coil meters: Punchy's lit yellow VUs (y: the bridge, Y: the compressor's), Warm's amber strip meters (a) and its black

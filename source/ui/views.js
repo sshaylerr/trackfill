@@ -228,7 +228,7 @@ function renderMix(V) {
   MIX_PAGES.forEach((l, i) => pages.append(btn(l, () => { UI.mixPage = i; UI.mixSel = mixChans(i)[0]; renderView(); }, 'key' + (UI.mixPage === i ? ' on' : ''))));
   if (!chs.includes(UI.mixSel)) UI.mixSel = chs.includes(UI.pad) ? UI.pad : chs[0];
   STRIP_METERS.length = 0;
-  if (conOn()) { w.classList.add('cx'); w.dataset.con = P.console; w.append(pages, consoleWin(V, chs), detailEl(UI.mixSel)); }   // a console's own window (ui/console.js)
+  if (conOn()) { w.classList.add('cx'); w.dataset.con = P.console; w.append(pages, consoleWin(V, chs), detailEl(UI.mixSel, (UI.mixMode || 'faders') !== 'faders')); V.append(w); conFit(w); requestAnimationFrame(() => UI.regs.forEach(f => f.upd && f.upd())); return; }   // a console's own window (ui/console.js), fitted once it's on the page
   else { const con = h('div', 'scr console' + (UI.mixSlide ? ' slide' + UI.mixSlide : '')); UI.mixSlide = 0; bindSwipe(con);
     for (let k = 0; k < 8; k++) { const c = chs[k]; if (c == null) { con.append(h('div', 'strip empty')); continue; } con.append(stripEl(c)); }
     w.append(pages, con, detailEl(UI.mixSel)); } V.append(w); requestAnimationFrame(() => UI.regs.forEach(f => f.upd && f.upd()));
@@ -253,11 +253,12 @@ function stripEl(c) {
   else if (cx) { const t = btn(ceqThumb(C), () => { UI.mixSel = c; if (isPad) UI.pad = c; UI.mixFollow = UI.pad; UI.mixMode = 'eq'; renderView(); }, 'eqt'); t.dataset.c = c; t.setAttribute('aria-label', chanLabel(c) + ' EQ'); el.append(nm, t, fd, pan, ms); }
   else el.append(nm, fd, pan, ms); return el;
 }
-function detailEl(c) {
-  const C = P.chans[c], d = h('div', 'detail'), bt = h('div', 'dbtns'), dk = h('div', 'dk');
+function detailEl(c, slim) {   // slim (a console's EQ and Comp views): the analyzer, output and effects in one row; sends, pan and drive are on the Faders view
+  const C = P.chans[c], d = h('div', 'detail' + (slim ? ' slim' : '')), bt = h('div', 'dbtns'), dk = h('div', 'dk');
   bt.append(scopeBox(c));
   if (c < R0) bt.append(btn('→ ' + esc(destName(c)), () => openOutputPicker(c), 'key sm'));
   { const fb = btn(`FX ${C.fx.length} · ` + (C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'none'), () => openFx(c, 'mix'), 'key sm' + (C.fx.length ? ' on' : '')); fb.dataset.alt = 'FX ' + C.fx.length; bt.append(fb); }
+  if (slim) { d.append(bt); return d; }
   const cx = conOn(), pk = P.console === 'punchy', cl = P.console === 'clean', cap = P.console === 'warm' ? '#8f918c' : '#d8d7d1', K = (key, label) => cx ? conKnob(key, pk ? (label === 'Pan' ? '#4a4d52' : '#2fae4a') : cl && label === 'Pan' ? '#5a86e0' : cap, { label }) : keyParam(key, { label });   // Punchy: the sends' green caps, the pan's grey   // on a console the desk's knobs, and its drive
   if (c < R0) { dk.append(K(c + '.-1.2', 'Send A'), K(c + '.-1.3', 'Send B')); }
   else { dk.append(blankCell(), blankCell()); }
