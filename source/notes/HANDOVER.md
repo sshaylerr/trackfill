@@ -23,7 +23,7 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 - `app.html`: the page. CSS, the shell, state (`P` project, `UI`, `T` transport), the engine link, storage (IndexedDB through `DB`),
   pads, timeline, transport, sheets, backups, What's new (`CHANGES`) and the frame loop (`frameBody`).
 - `ui/*.js`: page modules, inlined after app.html's script. Each starts with a comment saying what it does.
-  - views: the pages.
+  - views: the pages. skins: the synth faceplates.
   - synth, drums, chop, audio (the audio-track editor), browser (wavetables), scope (meters and analyzers), fxvis and devices (effect
     faceplates), controls (knobs and the d-pad), edit (the clipboard), keys, midi, stretch.
 - `assemble.py`: inlines everything into `dist/trackfill.html` and `dist/web/` (what GitHub Pages serves).
@@ -92,6 +92,12 @@ all inlined, so it asks no other site for anything and works offline as a home-s
   - each view in `scopeFrame` and each part of `frameBody` is guarded on its own (`guarded`), so one broken drawing can't freeze the
     meters.
 - Messages: `toast(msg)` writes to the info window (`#pinfo`), which is always on screen: a slim bar above the tabs when the d-pad is closed (`#panel.mini`), the d-pad's own window when open. A long message runs past; a tap puts it away. Otherwise the window shows the d-pad's focus (open) or the selected pad (closed, `padStatus`). Only "Tap to turn on sound" stays a shade over the page.
+- Synth faceplates (`ui/skins.js`): each engine has a skin.
+  - A skin sets the knob SVG (`KNOBS`, chosen for every knob built while `CTL_SKIN` is set) and the switch (`skinSwitch`: paddle, lever or slide, for options that fit `SW_FITS`, else the usual box).
+  - It also sets the screen palette and face (`drawSynDisp` lends `COL`/`FONT_LCD` for the draw; `glow`, `pixel`), and extras: FX Play, Instrument categories, Granular jacks.
+  - The CSS per engine is the `synDev[data-eng=…]` block in app.html. Faces come from fonts/faces (OFL, LICENSES.txt).
+  - Only looks change: same controls, same order, same d-pad path.
+  - Switch rule: the second option is up (or right), and the lit label is the one that's on.
 - Text that doesn't fit: `fitFonts(root)` (app.html) runs after a page, sheet or scene strip renders.
   - First it shrinks the text slightly (down to 85%), then switches to the narrow face, then uses a short form (`data-alt`) or two lines
     (mixer names).

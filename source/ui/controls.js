@@ -29,11 +29,13 @@ function makeCtl(o, kind) {
   const q = v => { v = clamp(v, mn, mx); return Number((Math.round(v / step) * step).toFixed(6)); };
   let el, upd, track;
   if (kind === 'knob') {
-    el = h('div', 'knob' + (o.cls ? ' ' + o.cls : ''));
-    el.innerHTML = '<svg viewBox="0 0 48 48" aria-hidden="true"><circle class="kr" cx="24" cy="24" r="20" pathLength="100" transform="rotate(135 24 24)"/><circle class="kv" cx="24" cy="24" r="20" pathLength="100" transform="rotate(135 24 24)"/><circle class="kb" cx="24" cy="24" r="14.5"/><line class="ki" x1="24" y1="22" x2="24" y2="12"/></svg><div class="kval lcd"></div><div class="klab"></div>';
-    const kv = el.querySelector('.kv'), ki = el.querySelector('.ki'), val = el.querySelector('.kval'); el.querySelector('.klab').textContent = o.label;
+    const skn = o.skin || (typeof CTL_SKIN !== 'undefined' ? CTL_SKIN : null), skin = skn && typeof KNOBS !== 'undefined' && KNOBS[skn];   // a synth faceplate's own knob (ui/skins.js), else the standard one
+    el = h('div', 'knob' + (o.cls ? ' ' + o.cls : '') + (skin ? ' sk sk-' + skn : ''));
+    el.innerHTML = '<svg viewBox="0 0 48 48" aria-hidden="true">' + (skin || '<circle class="kr" cx="24" cy="24" r="20" pathLength="100" transform="rotate(135 24 24)"/><circle class="kv" cx="24" cy="24" r="20" pathLength="100" transform="rotate(135 24 24)"/><circle class="kb" cx="24" cy="24" r="14.5"/><line class="ki" x1="24" y1="22" x2="24" y2="12"/>') + '</svg><div class="kval lcd"></div><div class="klab"></div>';
+    const kv = el.querySelector('.kv'), ki = el.querySelector('.ki'), val = el.querySelector('.kval'), dots = [...el.querySelectorAll('.kd')]; el.querySelector('.klab').textContent = o.label;
     upd = () => { const v = o.get(), f = clamp((v - mn) / (mx - mn), 0, 1), a = o.bipolar ? 75 * Math.min(f, .5) : 0, len = o.bipolar ? 75 * Math.abs(f - .5) : 75 * f;
-      kv.style.strokeDasharray = `${Math.max(.01, len)} 100`; kv.style.strokeDashoffset = String(-a); ki.setAttribute('transform', `rotate(${-135 + 270 * f} 24 24)`); val.textContent = o.fmt(v); };
+      if (kv) { kv.style.strokeDasharray = `${Math.max(.01, len)} 100`; kv.style.strokeDashoffset = String(-a); } ki.setAttribute('transform', `rotate(${-135 + 270 * f} 24 24)`); val.textContent = o.fmt(v);
+      if (dots.length) dots.forEach((d, i) => { const q = i / (dots.length - 1), lo = o.bipolar ? Math.min(f, .5) : 0, hi = o.bipolar ? Math.max(f, .5) : f; d.classList.toggle('on', q >= lo - .05 && q <= hi + .05); }); };
   } else if (kind === 'fader') {
     el = h('div', 'fader'); el.innerHTML = '<div class="fval"></div><div class="ftrack"><div class="fmeter"><i></i></div><div class="fmeter"><i></i></div><div class="funity"></div><div class="fcap"></div></div>';
     track = el.querySelector('.ftrack'); const cap = el.querySelector('.fcap'), val = el.querySelector('.fval'), un = el.querySelector('.funity');

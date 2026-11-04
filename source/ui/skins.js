@@ -1,0 +1,57 @@
+/* ---------- synth faceplates: each engine is its own instrument ----------
+   A skin changes only the look: the knob (its cap, scale and pointer), two- and three-way switches, the keys, the screen (palette,
+   typeface, glow, scanlines or pixels) and a few touches of the case. Every control is still the same control, in the same order,
+   so the d-pad, Map mode, automation and saved patches work exactly as before.
+   Switch rule: a lever, paddle or slider points at the setting that's on, and that setting's label lights. */
+const SKINS = {
+  analog: { tag: 'Three oscillator', knob: 'skirt', sw: 'paddle', screen: { bg: '#140a02', ink: '#ffc261', trace: '#ffcf86', mute: '#c98a32', dim: '#6e4510', line: 'rgba(255,181,71,.17)', accent: '#ffc261', font: 'VT323', fs: 1.55, glow: 5, glowCol: 'rgba(255,166,48,.85)' } },
+  fm: { tag: 'Four operator', knob: 'encoder', sw: 'box', screen: { bg: '#adbd6c', ink: '#1f2a0c', trace: '#1f2a0c', mute: '#3c4a1c', dim: '#7d8d45', line: 'rgba(31,42,12,.16)', accent: '#1f2a0c', font: 'Silkscreen', fs: .78, pixel: true } },
+  wt: { tag: 'Morphing VA', knob: 'ledring', sw: 'box', screen: { bg: '#1c48d9', bg2: '#0f2b98', ink: '#eef3ff', trace: '#ffffff', mute: '#b7c8ff', dim: '#7390ea', line: 'rgba(255,255,255,.13)', accent: '#ffffff', font: 'DotGothic16', fs: 1.15, glow: 4, glowCol: 'rgba(255,255,255,.7)' } },
+  gr: { tag: 'Cloud processor', knob: 'knurl', sw: 'lever', jacks: ['pos cv', 'size cv', 'gate', 'out'], screen: { bg: '#000000', ink: '#e8fffb', trace: '#2fe0b0', mute: '#8fb9b2', dim: '#3b4a48', line: '#17211f', accent: '#2fe0b0', font: 'Space Mono', fs: .95 } },
+  sub: { tag: 'Bass voice', knob: 'cap', sw: 'slide', screen: { bg: '#0a0505', ink: '#ff3b24', trace: '#ff3b24', mute: '#b8402a', dim: '#4a1510', line: '#2a0d0a', accent: '#ffb02e', font: 'Share Tech Mono', fs: 1.1, glow: 5, glowCol: 'rgba(255,42,16,.9)' } },
+  ins: { tag: 'Sound module', knob: 'alu', sw: 'box', cats: true, screen: { bg: '#041a19', bg2: '#021010', ink: '#6ff7e6', trace: '#6ff7e6', mute: '#43b3a4', dim: '#1f5a53', line: 'rgba(111,247,230,.12)', accent: '#6ff7e6', font: 'Iceland', fs: 1.45, glow: 5, glowCol: 'rgba(63,240,220,.8)' } },
+  sfx: { tag: 'Sweep generator', knob: 'flat', sw: 'slide', play: true, screen: { bg: '#000000', ink: '#ffffff', trace: '#2d6bff', mute: '#9c9c9c', dim: '#4a4a4a', line: '#1a1a1a', accent: '#ff5a1f', font: '"Press Start 2P"', fs: .72, pixel: true } } };
+const synSkin = pi => SKINS[engOf(pi)] || null;
+let CTL_SKIN = null;   // while a faceplate builds its controls, every knob on it takes its knob
+
+/* knobs, drawn in a 48-unit box. .ki turns with the value; .kr/.kv are a value arc and .kd the dots of an LED ring, where a knob has them */
+const KN_TICKS = (r0, r1, n = 7) => { let s = ''; for (let i = 0; i < n; i++) { const a = (-135 + i * 270 / (n - 1)) * Math.PI / 180, sn = Math.sin(a), cs = -Math.cos(a);
+  s += `<line x1="${(24 + r0 * sn).toFixed(2)}" y1="${(24 + r0 * cs).toFixed(2)}" x2="${(24 + r1 * sn).toFixed(2)}" y2="${(24 + r1 * cs).toFixed(2)}"/>`; } return s; };
+const KN_DOTS = (r, n = 11) => { let s = ''; for (let i = 0; i < n; i++) { const a = (-135 + i * 27) * Math.PI / 180; s += `<circle class="kd" cx="${(24 + r * Math.sin(a)).toFixed(2)}" cy="${(24 - r * Math.cos(a)).toFixed(2)}" r="1.7"/>`; } return s; };
+const ARC = '<circle class="kr" cx="24" cy="24" r="21" pathLength="100" transform="rotate(135 24 24)"/><circle class="kv" cx="24" cy="24" r="21" pathLength="100" transform="rotate(135 24 24)"/>';
+const KNOBS = {
+  skirt: `<g class="kt">${KN_TICKS(21, 23.6)}</g><circle cx="24" cy="25" r="17" fill="#0a0908"/><g class="ki"><circle cx="24" cy="24" r="16.5" fill="#2b2926" stroke="#000"/><line x1="24" y1="8.5" x2="24" y2="14.5" stroke="#f3ecdc" stroke-width="2.3" stroke-linecap="round"/></g><circle cx="24" cy="24" r="10.5" fill="url(#kCream)" stroke="#9c9380" stroke-width=".8"/>`,
+  encoder: `<circle cx="24" cy="25.5" r="19" fill="#141210"/><circle cx="24" cy="24" r="19" fill="#3a3632" stroke="#151311" stroke-width="1.2"/><circle cx="24" cy="24" r="18.2" fill="none" stroke="#2a2724" stroke-width="2.6" stroke-dasharray="1.4 2"/><circle cx="24" cy="24" r="13.5" fill="#4a4540"/><g class="ki"><circle class="kdot" cx="24" cy="14.2" r="2.1"/></g>`,
+  ledring: `${KN_DOTS(21.6)}<circle cx="24" cy="25.5" r="15.5" fill="rgba(0,0,0,.45)"/><circle cx="24" cy="24" r="15" fill="#18181a"/><circle cx="24" cy="24" r="11" fill="#2a2a2e" stroke="#0b0b0c"/><circle cx="21" cy="20.5" r="4.5" fill="rgba(255,255,255,.07)"/><g class="ki"><rect x="23" y="10" width="2" height="7.5" rx="1" fill="#fff"/></g>`,
+  knurl: `<circle cx="24" cy="24" r="22" fill="none" stroke="#2b2e32" stroke-width=".8" stroke-dasharray=".9 3.6"/><circle cx="24" cy="25.5" r="15.5" fill="rgba(0,0,0,.25)"/><circle cx="24" cy="24" r="15" fill="#16171a"/><circle cx="24" cy="24" r="14.6" fill="none" stroke="#2d2f33" stroke-width="2.4" stroke-dasharray="1 1.4"/><circle cx="24" cy="24" r="8" fill="#d7dadd" stroke="#7c8086" stroke-width=".8"/><g class="ki"><line x1="24" y1="16.5" x2="24" y2="9.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="24" y1="23" x2="24" y2="17.5" stroke="#1d1f22" stroke-width="1.5" stroke-linecap="round"/></g>`,
+  cap: `<g class="kt">${KN_TICKS(20.5, 23.4)}</g><circle cx="24" cy="25.5" r="17" fill="rgba(0,0,0,.55)"/><circle cx="24" cy="24" r="16.5" fill="#3a3a38" stroke="#0d0d0d"/><circle cx="24" cy="24" r="16.5" fill="none" stroke="#262624" stroke-width="2.4" stroke-dasharray="1.6 1.6"/><circle class="kcap" cx="24" cy="24" r="10.5"/><circle cx="21.5" cy="21" r="4.5" fill="rgba(255,255,255,.2)"/><g class="ki"><rect x="22.9" y="8" width="2.2" height="11" rx="1.1" fill="#141414"/></g>`,
+  alu: `${ARC}<circle cx="24" cy="25.5" r="14" fill="rgba(0,0,0,.6)"/><circle cx="24" cy="24" r="14" fill="url(#kAlu)"/><circle cx="24" cy="24" r="13.4" fill="none" stroke="#6d7278" stroke-width="1.8" stroke-dasharray=".9 1.2"/><g class="ki"><circle cx="24" cy="14.2" r="1.9" fill="#16171a"/></g>`,
+  flat: `<circle cx="24" cy="26" r="19" fill="rgba(0,0,0,.18)"/><circle class="kcap" cx="24" cy="24" r="19"/><circle cx="24" cy="24" r="19" fill="none" stroke="rgba(0,0,0,.12)"/><circle cx="24" cy="24" r="14" fill="none" stroke="rgba(255,255,255,.2)"/><g class="ki"><rect class="kmark" x="22" y="7" width="4" height="9.5" rx="2"/></g>` };
+const KNOB_DEFS = '<radialGradient id="kCream" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#fbf6ea"/><stop offset=".7" stop-color="#e3d9c2"/><stop offset="1" stop-color="#b9ae94"/></radialGradient>'
+  + '<radialGradient id="kAlu" cx=".38" cy=".3" r=".9"><stop offset="0" stop-color="#f1f3f5"/><stop offset=".55" stop-color="#a7acb2"/><stop offset="1" stop-color="#5d6268"/></radialGradient>';
+// the screens draw on canvases, which don't fetch a typeface by themselves: load them all once, then draw again
+let SKIN_FONTS = null;
+const SKIN_FACES = ['700 12px "Archivo Narrow"', '400 12px Michroma', '700 12px "Space Grotesk"', '700 12px Archivo', '800 12px Archivo', '400 12px "Archivo Black"', '700 12px Rajdhani', '600 12px "Work Sans"', '700 12px "Work Sans"'];
+function skinFonts() { if (SKIN_FONTS || typeof document === 'undefined' || !document.fonts) return;
+  SKIN_FONTS = Promise.all(Object.values(SKINS).map(s => '400 16px ' + s.screen.font).concat(SKIN_FACES).map(f => document.fonts.load(f).catch(() => {})))
+    .then(() => { if (typeof drawSynDisp === 'function') drawSynDisp(); const v = document.getElementById('view'); if (v && v.querySelector('.synDev')) fitFonts(v); }); }   // labels measured again in their own faces
+function skinDefs() { skinFonts(); const d = document.querySelector('svg defs'); if (d && !document.getElementById('kCream')) d.insertAdjacentHTML('beforeend', KNOB_DEFS); }
+
+/* switches for two and three settings: a paddle (up/down), a bat lever (up/down) or a slide (left to right) */
+const SW_FITS = (kind, opts) => kind === 'slide' ? opts.length >= 2 && opts.length <= 3 && opts.every(o => String(o).length <= (opts.length === 3 ? 4 : 7)) : (kind === 'paddle' || kind === 'lever') && opts.length === 2 && opts.every(o => String(o).length <= 8);
+function skinSwitch(kind, opts) {   // returns selEl's paint(sw, i)
+  return (sw, i) => {
+    if (kind === 'slide') { const n = opts.length; sw.innerHTML = `<span class="track"><i style="left:calc(${(i / n * 100).toFixed(3)}% + 3px);width:calc(${(100 / n).toFixed(3)}% - 6px)"></i></span><span class="pls">${opts.map((o, k) => `<b${k === i ? ' class="on"' : ''}>${esc(o)}</b>`).join('')}</span>`; return; }
+    const up = i === 1;   // the second setting (On, Sync, LFO…) is up, the first down
+    const body = kind === 'paddle' ? `<span class="slot"><i class="${up ? 'up' : 'dn'}"></i></span>`
+      : `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="11" fill="#2a2c30" stroke="#0e0f11" stroke-width="1.2"/><circle cx="20" cy="20" r="7" fill="#141518" stroke="#3a3d42"/><g transform="rotate(${up ? 0 : 180} 20 20)"><rect x="17" y="1" width="6" height="20" rx="3" fill="#1b1c1f" stroke="#050506"/><rect x="18.2" y="2.5" width="1.6" height="14" rx=".8" fill="#4a4d53"/></g></svg>`;
+    sw.innerHTML = `<b class="${up ? 'on' : ''}">${esc(opts[1])}</b>${body}<b class="${up ? '' : 'on'}">${esc(opts[0])}</b>`; };
+}
+
+/* the extras */
+function skinJacks(sk) { const j = h('div', 'jacks'); j.setAttribute('aria-hidden', 'true'); j.innerHTML = sk.jacks.map(n => `<span><i></i>${esc(n)}</span>`).join(''); return j; }
+function insCats(pi) {   // jump between kinds of instrument: a tap moves to the next one of that kind
+  const S = synOf(pi), cur = (insList().find(x => x.key === S.ins) || {}).g, row = h('div', 'keys insCats');
+  for (const grp of INS_GROUPS) row.append(btn(esc(grp), () => { const items = insList().filter(x => x.g === grp); if (!items.length) return; const at = items.findIndex(x => x.key === S.ins), it = items[(at + 1) % items.length];
+    const pr = IN_PRESETS.find(p => p.ins === it.key); if (pr) applySynthPreset(pi, pr); else { pushUndo('pad:' + pi); touchPad(pi); S.ins = it.key; syncPad(pi); markDirty(); renderView(); audition(pi); } }, 'key sm' + (grp === cur ? ' on' : '')));
+  return row; }

@@ -115,12 +115,14 @@ function synCtl(pi, id) {
     p = Object.assign({}, p0, { l: lab }); }
   if (/^f\dl$/.test(id) && synTab() === 'fa') p = Object.assign({}, p0, { l: 'Op ' + id[1] });
   const cur = () => S.p[id] ?? p.d;
+  const sk = synSkin(pi), swk = sk && p.k === 'opt' && SW_FITS(sk.sw, p.a) ? sk.sw : null;   // the faceplate's own switch where the settings fit one
   if (p.k === 'opt') {
-    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || /^[a23]y$/.test(id) || id === 'xsm' || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); });
+    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || /^[a23]y$/.test(id) || id === 'xsm' || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); }, swk ? { paint: skinSwitch(swk, p.a) } : {});
+    if (swk) el.classList.add('swk', 'sw-' + swk);
   } else {
     const intish = p.k === 'int' || /^o\ds$/.test(id) || /^w[ab]s$/.test(id), step = intish ? 1 / (p.b - p.a) : .001;
     el = makeCtl({ label: p.l, min: 0, max: 1, step, coarse: intish ? step : .02, big: intish ? step * 4 : .1, def: tfSynNorm(p, p.d), bipolar: p.k === 'bip' || id === 'gsc' || /^o\d[sf]$/.test(id) || /^w[ab][sf]$/.test(id) || id === 'pit' || id === 'gan',
-      key: 'syn:' + pi + ':' + id, scope: 'pad:' + pi, fmt: n => { const v = tfSynPhys(p, n); if (/^[a23][adr]$/.test(id) && S.p[id[0] + 'y'] === 'Sync') { const k = tfEnvDiv(v); if (k >= 0) return TF_ENV_DIVS[k][0]; } return synFmt(p, v); },
+      key: 'syn:' + pi + ':' + id, scope: 'pad:' + pi, skin: sk && sk.knob, fmt: n => { const v = tfSynPhys(p, n); if (/^[a23][adr]$/.test(id) && S.p[id[0] + 'y'] === 'Sync') { const k = tfEnvDiv(v); if (k >= 0) return TF_ENV_DIVS[k][0]; } return synFmt(p, v); },
       get: () => tfSynNorm(p, cur()), set: n => { let v = tfSynPhys(p, n); if (intish) v = Math.round(v); synSet(pi, id, v); if (T.playing && T.rec) recAuto(pi + '.-3.' + p.i, tfSynNorm(p, v)); },
       onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); send({ t: 'live', key: pi + '.-3.' + p.i, on: true }); }, onEnd: () => { send({ t: 'live', key: pi + '.-3.' + p.i, on: false }); UI.autoRec = null; } }, 'knob');
   }
@@ -170,32 +172,35 @@ function setEngine(pi, id) { const S = synOf(pi); if ((S.eng || 'analog') === id
 function renderSynthSound(w, pi, head) {
   synEngPages(pi); const pad = P.pads[pi], pg = SYN_PAGES[SYN_ST.pg], tab = synTab(), eng = SYN_ENGINES.find(e => e.id === (synOf(pi).eng || 'analog')) || SYN_ENGINES[0];
   // the faceplate: engine logo and selector, then tabs, screen and controls (page keys and the Map bar sit above it)
-  const dev = h('div', 'dev synDev'); applyLook(dev, Object.assign({}, LOOK_BASE, eng.look)); dev.dataset.eng = eng.id;
+  const dev = h('div', 'dev synDev'), sk = synSkin(pi); applyLook(dev, Object.assign({}, LOOK_BASE, eng.look)); dev.dataset.eng = eng.id; skinDefs();
+  // the whole instrument is one faceplate (ui/skins.js): its name, the page keys, tabs, screen and controls; Map's rows take the place of the first two
   const mb = UI.map ? mapBar(pi) : null;
   if (mb) dev.append(mb[1]); else { const S = synOf(pi), dh = h('div', 'devHead'), changed = S.sig != null && patchSig(S) !== S.sig;
     const lcd = btn(`<span>${esc(S.name || 'Init')}</span>${changed ? '<i>edited</i>' : ''}`, () => openPresetBrowser(pi), 'presetLcd');
-    dh.append(btn(`<b>${eng.n}</b><span class="car">▾</span>`, () => openEnginePicker(pi), 'engKey'), btn(IC.left, () => stepPreset(pi, -1), 'key sm ic pstep'), lcd, btn(IC.right, () => stepPreset(pi, 1), 'key sm ic pstep')); dev.append(dh); }
-  if (mb) w.append(head, mb[0]);
-  else {
-    const pages = seg(SYN_PAGES.map(x => x.n), SYN_ST.pg, i => { SYN_ST.pg = i; renderView(); }); pages.classList.add('synPages');
-    w.append(head, pages);
-  }
+    const ek = btn(`<b>${eng.n}</b>${sk ? `<small>${esc(sk.tag)}</small>` : ''}<span class="car">▾</span>`, () => openEnginePicker(pi), 'engKey'); ek.setAttribute('aria-label', 'Synth engine: ' + eng.n);
+    dh.append(ek, btn(IC.left, () => stepPreset(pi, -1), 'key sm ic pstep'), lcd, btn(IC.right, () => stepPreset(pi, 1), 'key sm ic pstep'));
+    if (sk && sk.play) { const pb = btn('Play', () => audition(pi), 'key sm playKey'); pb.setAttribute('aria-label', 'Play the sound'); dh.append(pb); }
+    dev.append(dh); }
+  w.append(head);
+  if (mb) dev.append(mb[0]);
+  else { const pages = seg(SYN_PAGES.map(x => x.n), SYN_ST.pg, i => { SYN_ST.pg = i; renderView(); }); pages.classList.add('synPages'); [...pages.children].forEach(k => { const alt = { 'Sub·Noise': 'Sub·Nz', Instrument: 'Instr' }[k.textContent]; if (alt) k.dataset.alt = alt; }); dev.append(pages); }
   const tabs = h('div', 'keys synTabs'); for (const [id, l] of pg.tabs) { const b = btn(l, () => { SYN_ST.tab[SYN_ST.pg] = id; renderView(); }, 'key sm' + (id === tab ? ' on' : '')); tabs.append(b); }
   if (pg.n === 'Filter' || pg.n === 'Mix') { tabs.innerHTML = ''; tabs.append(h('div', 'lcdbox synInfo', pg.n === 'Filter' ? 'Filter · ' + esc(synOf(pi).p.flt ?? 'Ladder') + ' · after the oscillators' : 'Channel · level, pan, sends and effects')); }
-  dev.append(tabs);
-  const disp = h('div', 'scr disp'), cv = h('canvas', tab[0] === 'l' && tab !== 'l' ? 'navc' : ''); disp.append(cv); synCv = cv;
+  dev.append(tabs); if (sk && sk.cats && tab === 'in') dev.append(insCats(pi));
+  const disp = h('div', 'scr disp' + (sk && sk.screen.pixel ? ' pix' : '')), cv = h('canvas', tab[0] === 'l' && tab !== 'l' ? 'navc' : ''); disp.append(cv); synCv = cv;
   if (/^l\d$/.test(tab)) { cv.classList.add('navc'); cv.setAttribute('aria-label', 'LFO shape'); cv._ctl = lfoCtl; cv._draw = drawSynDisp; bindLfo(cv, lfoSynSrc(pi)); }
   if (isGrPad(pi) && (tab === 'gr' || tab === 'g2')) { cv.classList.add('navc'); cv.setAttribute('aria-label', 'Grain position and spray'); cv._ctl = grCtl; cv._draw = drawSynDisp; bindGrain(cv, pi); }
-  const g = h('div', 'kgrid synGrid');
+  const g = h('div', 'kgrid synGrid'); CTL_SKIN = sk ? sk.knob : null; try {
   if (tab === 'mx') { const C = P.chans[pi], redraw = { after: () => {} };
-    for (let i = 0; i < 4; i++) g.append(keyParam(pi + '.-1.' + i, Object.assign({ label: STRIP[i].label }, redraw)));
+    for (let i = 0; i < 4; i++) { const el = keyParam(pi + '.-1.' + i, Object.assign({ label: STRIP[i].label }, redraw)); el.dataset.col = i; g.append(el); }
     g.append(cellBtn('Output', destName(pi), () => openOutputPicker(pi)), cellBtn('Effects', C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'None', () => openFx(pi, 'sound')),
       cellBtn('Freeze', pad.frz ? 'Frozen' : 'Off', () => { if (pad.frz) { unfreeze(pi); renderView(); toast('Unfrozen'); } else freezePad(pi); }), cellBtn('Preset', synOf(pi).name || 'Init', () => openSynthSource(pi)));
   } else { const rows = synRows(tab); g.classList.add('k8');   // two rows; a short row sits in the middle (Env 2 and 3 keep the Amp tab's columns)
-    rows.forEach(r => { if (!r.length) r = ['', '', '', '']; r.forEach((id, k) => { const el = id ? synCtl(pi, id) : blankCell(); el.style.gridColumn = (k ? 'auto' : (4 - r.length + 1)) + ' / span 2'; g.append(el); }); }); }
+    rows.forEach(r => { if (!r.length) r = ['', '', '', '']; r.forEach((id, k) => { const el = id ? synCtl(pi, id) : blankCell(); el.style.gridColumn = (k ? 'auto' : (4 - r.length + 1)) + ' / span 2'; el.dataset.col = k + (4 - r.length); g.append(el); }); }); }
+  } finally { CTL_SKIN = null; }
   g.addEventListener('pointerdown', e => { if (!UI.map) return; const c = e.target.closest('[data-syn]'); if (!c) return; e.preventDefault(); e.stopPropagation(); mapPick(pi, c.dataset.syn); }, true);
   g.addEventListener('click', e => { if (UI.map && e.target.closest('[data-syn]')) { e.stopPropagation(); e.preventDefault(); } }, true);
-  dev.append(disp, g); w.append(dev); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
+  dev.append(disp, g); if (sk && sk.jacks) dev.append(skinJacks(sk)); w.append(dev); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
 }
 function synHeadKey(pi) { const pad = P.pads[pi], k = btn(pad.src === 'synth' ? 'Synth' : pad.src === 'drum' ? 'Drum' : pad.src === 'audio' ? 'Audio' : 'Sample', () => openSynthSource(pi), 'key sm srcKey' + (pad.src !== 'sample' ? ' on' : '')); return k; }
 function mapKey(pi) { return btn('Map', () => { UI.map = UI.map ? null : { target: null, route: -1, armed: -1 }; renderView(); }, 'key sm mapKey' + (UI.map ? ' on' : '')); }
@@ -261,14 +266,24 @@ function openPresetBrowser(pi) {
     draw(); });
 }
 /* ----- the screen ----- */
-function drawSynDisp() {
-  const cv = synCv; if (!cv || !cv.isConnected) return; const pi = UI.pad, S = synOf(pi); if (!S) return;
-  const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
+// each engine's screen has its own palette and typeface (ui/skins.js): the drawings below read COL and FONT_LCD, so they're lent the screen's for the draw;
+// a glowing screen gets a soft glow on everything, a pixel screen draws at one point per pixel and is shown blocky
+function drawSynDisp() { const cv = synCv; if (!cv || !cv.isConnected) return; const S = synOf(UI.pad); if (!S) return;
+  const sk = synSkin(UI.pad), sc = sk && sk.screen; if (!sc) return drawSynDisp0(cv, null);
+  const keep = [COL, FONT_LCD]; COL = Object.assign({}, COL, { bg: sc.bg, ink: sc.ink, mute: sc.mute, dim: sc.dim, line: sc.line, accent: sc.accent }); FONT_LCD = sc.font;
+  try { drawSynDisp0(cv, sc); } finally { COL = keep[0]; FONT_LCD = keep[1]; } }
+function drawSynDisp0(cv, sc) {
+  const pi = UI.pad, S = synOf(pi);
+  const r = innerBox(cv.parentNode), dpr = sc && sc.pixel ? 1 : window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
   cv.parentNode.classList.toggle('gone', H < 34); if (H < 34) return;   // too small to read: the screen steps aside until there's room
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
-  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
-  const v = id => S.p[id] ?? TFSYN_ID[id].d, tab = synTab(), col = PAD_COLORS[P.pads[pi].color];
-  const txt = (t, x, y, c = COL.mute, al = 'left') => { g.fillStyle = c; g.font = `500 10.5px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle'; g.fillText(t, x, y); g.textAlign = 'left'; };
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.shadowBlur = 0; g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
+  if (sc && sc.bg2) { const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, sc.bg); gr.addColorStop(1, sc.bg2); g.fillStyle = gr; g.fillRect(0, 0, W, H); }
+  if (sc && sc.glow) { g.shadowColor = sc.glowCol; g.shadowBlur = sc.glow; }
+  const fs = sc ? sc.fs : 1, v = id => S.p[id] ?? TFSYN_ID[id].d, tab = synTab(), col = sc ? sc.trace : PAD_COLORS[P.pads[pi].color];
+  const txt = (t, x, y, c = COL.mute, al = 'left') => { g.fillStyle = c; let sz = 10.5 * fs; g.font = `${sc ? 400 : 500} ${sz.toFixed(1)}px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle';
+    const room = al === 'left' ? W - x - 4 : al === 'right' ? x - 4 : W - 8, tw = g.measureText(t).width; if (tw > room && room > 20) { sz = Math.max(6, sz * room / tw); g.font = `${sc ? 400 : 500} ${sz.toFixed(1)}px ${FONT_LCD}`; }   // a long line gets smaller rather than running off the screen
+    g.fillText(t, x, y); g.textAlign = 'left'; };
   const grid = () => { g.fillStyle = COL.line; for (let k = 1; k < 4; k++) g.fillRect(Math.round(W * k / 4), 0, 1, H); g.fillRect(0, Math.round(H / 2), W, 1); };
   const line = (fn, c = col, lw = 2) => { g.beginPath(); for (let x = 0; x <= W; x++) { const y = fn(x / W); x ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = c; g.lineWidth = lw; g.stroke(); };
   const wave = (w, ph, pw) => { ph -= Math.floor(ph); switch (w) { case 'Sine': return Math.sin(ph * 2 * Math.PI); case 'Triangle': return ph < .5 ? 4 * ph - 1 : 3 - 4 * ph; case 'Saw': return 2 * ph - 1; case 'Square': return ph < .5 ? 1 : -1; default: return ph < pw ? 1 : -1; } };

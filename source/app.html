@@ -108,6 +108,137 @@ body{font-variant-numeric:tabular-nums}
 .knob .km{fill:none;stroke-width:2.2;stroke-linecap:round;opacity:.95}
 .synGrid .modded .klab::after{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:1px}
 .synGrid .maptgt{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px}
+/* ---------- synth faceplates (ui/skins.js): each engine its own instrument. Shapes are shared; only looks differ ---------- */
+.synDev>.synPages{height:28px} .synDev>.synPages .key{height:28px}
+.engKey{flex-direction:column;gap:1px;align-items:flex-start} .engKey small{font-size:7.5px;line-height:1;letter-spacing:.24em;text-transform:uppercase;opacity:.75;white-space:nowrap;display:block} .engKey .car{position:absolute;opacity:0}
+.synDev .engKey{position:relative;padding-right:10px} .synDev .engKey::after{content:'▾';position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:9px;opacity:.6}
+.knob.sk .kt line{stroke:var(--d-ink2);stroke-width:1.1;stroke-linecap:round} .knob.sk .kd{fill:var(--d-track)} .knob.sk .kd.on{fill:var(--d-ring)}
+.knob.sk .kr{fill:none;stroke:var(--d-track);stroke-width:3;stroke-dasharray:75 100;stroke-linecap:round} .knob.sk .kv{fill:none;stroke:var(--d-ring);stroke-width:3;stroke-linecap:round}
+.knob.sk .kdot{fill:var(--kc,var(--d-ring))} .knob.sk .kcap{fill:var(--kc,var(--d-ring))} .knob.sk .kmark{fill:var(--km,#fff)}
+.synDev .disp{position:relative} .synDev .disp::after{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit}
+.synDev .disp.pix canvas{image-rendering:pixelated;image-rendering:crisp-edges}
+/* switches: the second setting up (or right), its label lit */
+.selr.swk .sw{background:none!important;border:0!important;box-shadow:none!important;max-width:none;height:auto;flex-direction:column;gap:1px;overflow:visible} #view.short .selr.swk .sw{height:auto;margin-top:0} .selr.swk{padding-top:2px} #view.short .selr.swk{padding-top:0;gap:1px} .selr.swk .klab{margin-top:0}
+.swk .sw>b{font:700 8px/9px var(--sw-font,var(--font-ui));letter-spacing:.08em;text-transform:uppercase;color:var(--d-ink2);opacity:.75;white-space:nowrap} .swk .sw>b.on{color:var(--d-ring);opacity:1}
+.selr .sw>.slot{flex:none;overflow:visible} .sw-paddle .slot{width:20px;height:26px;border-radius:3px;background:#0a0908;box-shadow:inset 0 2px 4px #000;display:block;position:relative}
+.sw-paddle .slot i{position:absolute;left:3px;right:3px;height:12px;border-radius:2px;background:linear-gradient(180deg,#f2ead6,#a99f86);box-shadow:0 2px 0 #3b362c} .sw-paddle .slot i.up{top:3px} .sw-paddle .slot i.dn{bottom:3px;box-shadow:0 -1px 0 #3b362c;background:linear-gradient(0deg,#f2ead6,#a99f86)}
+.sw-lever svg{width:28px;height:28px;display:block}
+.selr.sw-slide .sw{width:100%;gap:3px} .sw-slide .track{position:relative;display:block;width:100%;max-width:84px;height:22px;border-radius:11px;background:var(--sl-bg,#0b0b0b);box-shadow:inset 0 2px 3px rgba(0,0,0,.6)}
+.sw-slide .track i{position:absolute;top:3px;height:16px;border-radius:8px;background:var(--sl-th,#efe9d6);box-shadow:0 1px 2px rgba(0,0,0,.5)}
+.selr .sw>.pls{display:flex;gap:2px;width:100%;max-width:84px;overflow:visible;line-height:10px} .sw-slide .pls b:first-child:nth-last-child(2){text-align:left;padding-left:3px} .sw-slide .pls b:last-child:nth-child(2){text-align:right;padding-right:3px} .sw-slide .pls b{flex:1;text-align:center;font:700 7.5px/10px var(--sw-font,var(--font-ui));text-transform:uppercase;letter-spacing:.02em;color:var(--d-ink2);opacity:.8;white-space:nowrap;overflow:hidden} .sw-slide .pls b.on{color:var(--d-ring);opacity:1}
+#view.short .sw-paddle .slot{height:18px;width:18px} #view.short .sw-paddle .slot i{height:8px;left:2px;right:2px} #view.short .sw-paddle .slot i.up{top:2px} #view.short .sw-paddle .slot i.dn{bottom:2px} #view.short .sw-lever svg{width:22px;height:22px} #view.short .swk .sw>b{font-size:7.5px;line-height:8px} #view.short .selr.swk .sw{gap:0}
+.jacks{display:flex;justify-content:space-around;flex:none;height:26px;align-items:center;border-top:1px solid rgba(0,0,0,.15);padding-top:4px} .jacks span{display:flex;flex-direction:column;align-items:center;gap:1px;font:400 7.5px var(--font-lcd);color:#3d4146}
+.jacks i{width:13px;height:13px;border-radius:50%;background:radial-gradient(circle,#050505 0 3px,#9ca0a5 3.4px 4.4px,#e6e8ea 4.8px 5.6px,#6c7075 6px)} #view.short .jacks{display:none}
+.insCats{display:flex;gap:4px;height:26px;flex:none} .insCats .key{flex:1;min-width:0;height:26px;padding:0 3px;font-size:11px}
+.playKey{flex:none;width:40px;height:28px;padding:0;border-radius:14px}
+
+/* Analog: walnut cheeks, black panel, cream skirted knobs, amber oscilloscope */
+.synDev[data-eng="analog"]{background:linear-gradient(180deg,#232120,#161514);--sw-font:"Archivo Narrow"}
+.synDev[data-eng="analog"] .klab{font:700 10.5px "Archivo Narrow",var(--font-ui);letter-spacing:.05em;text-transform:uppercase;color:#efe6d2}
+.synDev[data-eng="analog"] .knob .kval{font:400 14px/13px VT323,var(--font-lcd);color:#ffb547}
+.synDev[data-eng="analog"] .engKey b{font:700 16px/1 "Archivo Narrow",var(--font-ui);letter-spacing:.14em;color:#efe6d2} .synDev[data-eng="analog"] .engKey small{font-family:"Archivo Narrow";color:#c8b994}
+.synDev[data-eng="analog"] .presetLcd{background:#0c0a06;box-shadow:inset 0 0 8px rgba(255,160,40,.22)} .synDev[data-eng="analog"] .presetLcd span{font:400 19px VT323,monospace;color:#ffb547;text-shadow:0 0 6px rgba(255,170,60,.7)}
+.synDev[data-eng="analog"] .synPages .key{background:linear-gradient(180deg,#e9e2d0,#bfb59c);color:#1a1714;font:700 11px "Archivo Narrow",var(--font-ui);letter-spacing:.06em;text-transform:uppercase;box-shadow:0 2px 0 #4d473a,inset 0 1px 0 #fff;gap:4px}
+.synDev[data-eng="analog"] .synPages .key::before{content:'';width:5px;height:5px;border-radius:50%;background:#5a1a12;flex:none} .synDev[data-eng="analog"] .synPages .key.on::before{background:#ff3b2a;box-shadow:0 0 6px #ff3b2a}
+.synDev[data-eng="analog"] .synTabs .key{background:#22201d;color:#d8cdb2;font:700 11px "Archivo Narrow",var(--font-ui);letter-spacing:.08em;text-transform:uppercase} .synDev[data-eng="analog"] .synTabs .key.on{background:linear-gradient(180deg,#f1e9d4,#c9bfa5);color:#1a1714}
+.synDev[data-eng="analog"] .disp{border-radius:12px;padding:6px;background:linear-gradient(180deg,#0b0b0b,#2a2826);box-shadow:inset 0 2px 4px rgba(0,0,0,.9)} .synDev[data-eng="analog"] .disp canvas{border-radius:8px}
+.synDev[data-eng="analog"] .disp::after{inset:6px;border-radius:8px;background:repeating-linear-gradient(180deg,rgba(0,0,0,.28) 0 1px,transparent 1px 3px),radial-gradient(120% 100% at 50% 45%,transparent 60%,rgba(0,0,0,.45))}
+.synDev[data-eng="analog"] .selr:not(.swk) .sw{background:#0c0a06} .synDev[data-eng="analog"] .selr .sw>span{font:400 17px VT323,monospace;color:#ffb547;text-shadow:0 0 5px rgba(255,170,60,.6)}
+.synDev[data-eng="analog"] .nf{outline-color:#ffb547!important}
+
+/* FM: 80s digital, warm grey plastic, membrane keys under colour bands, ridged dials, a yellow-green LCD */
+.synDev[data-eng="fm"]{background:linear-gradient(180deg,#45403b,#2f2b28);--sw-font:"Barlow Semi Condensed"}
+.synDev[data-eng="fm"] .klab{font:600 11.5px "Barlow Semi Condensed",var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:#d9d2c6}
+.synDev[data-eng="fm"] .knob .kval{font:400 8px/13px Silkscreen,var(--font-lcd);color:#c7d58a}
+.synDev[data-eng="fm"] .engKey b{font:italic 700 19px/1 "Barlow Semi Condensed",var(--font-ui);letter-spacing:.02em;color:#f4efe6} .synDev[data-eng="fm"] .engKey small{font-family:"Barlow Semi Condensed";color:#bdb5a9}
+.synDev[data-eng="fm"] .presetLcd{background:#adbd6c;border-color:#1a1816} .synDev[data-eng="fm"] .presetLcd span{font:400 10px Silkscreen,monospace;color:#1f2a0c} .synDev[data-eng="fm"] .presetLcd i{color:#3c4a1c}
+.synDev[data-eng="fm"] .synPages .key{background:#5a544e;color:#efe9e0;font:600 12px "Barlow Semi Condensed",var(--font-ui);letter-spacing:.06em;text-transform:uppercase;border-radius:2px;box-shadow:inset 0 3px 0 var(--band),inset 0 -2px 0 rgba(0,0,0,.35)}
+.synDev[data-eng="fm"] .synPages .key:nth-child(-n+2){--band:#e86b3a} .synDev[data-eng="fm"] .synPages .key:nth-child(n+3):nth-child(-n+4){--band:#e8b23a} .synDev[data-eng="fm"] .synPages .key:nth-child(n+5){--band:#3ab0a4}
+.synDev[data-eng="fm"] .synPages .key.on{background:#e9e4dc;color:#23201e}
+.synDev[data-eng="fm"] .synTabs .key{background:#23201e;color:#e9e4dc;font:600 12px "Barlow Semi Condensed",var(--font-ui);border-radius:2px;gap:5px;box-shadow:inset 0 -2px 0 #111}
+.synDev[data-eng="fm"] .synTabs .key::before{content:'';width:5px;height:5px;border-radius:1px;background:#3b1a12;flex:none} .synDev[data-eng="fm"] .synTabs .key.on{color:#fff} .synDev[data-eng="fm"] .synTabs .key.on::before{background:#ff4b2a;box-shadow:0 0 5px #ff4b2a}
+.synDev[data-eng="fm"] .disp{border-radius:3px;padding:6px;background:#1a1816;box-shadow:inset 0 2px 6px #000} .synDev[data-eng="fm"] .disp::after{inset:6px;background-image:linear-gradient(rgba(31,42,12,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(31,42,12,.07) 1px,transparent 1px);background-size:3px 3px;box-shadow:inset 0 0 14px rgba(40,60,0,.4)}
+.synDev[data-eng="fm"] [data-col="0"]{--kc:#e86b3a} .synDev[data-eng="fm"] [data-col="1"]{--kc:#e8b23a} .synDev[data-eng="fm"] [data-col="2"]{--kc:#3ab0a4} .synDev[data-eng="fm"] [data-col="3"]{--kc:#e9e4dc}
+.synDev[data-eng="fm"] .selr .sw{background:#5a544e;border-color:#1c1a18;box-shadow:inset 0 -2px 0 rgba(0,0,0,.35);border-radius:2px} .synDev[data-eng="fm"] .selr .sw>span{font:600 13px "Barlow Semi Condensed",var(--font-ui);color:#efe9e0}
+.synDev[data-eng="fm"] .nf{outline-color:#c7d58a!important}
+
+/* Wavetable: red metal case with black end caps, rubber knobs in LED rings, a blue dot-matrix screen */
+.synDev[data-eng="wt"]{background:radial-gradient(140% 70% at 30% 0%,#c4202c 0%,#8e0f1a 55%,#5e0a12 100%);border-left:9px solid #1d1c20;border-right:9px solid #1d1c20;--d-track:#4a0c12;--d-ring:#ff3341;--sw-font:Archivo}
+.synDev[data-eng="wt"] .klab{font:700 10.5px Archivo,var(--font-ui);letter-spacing:.05em;text-transform:uppercase;color:#fff}
+.synDev[data-eng="wt"] .knob .kval{font:400 11.5px/13px DotGothic16,var(--font-lcd);color:#ffd0d4} .synDev[data-eng="wt"] .knob .kd.on{filter:drop-shadow(0 0 2px #ff3341)}
+.synDev[data-eng="wt"] .engKey b{font:400 14px/1 Michroma,var(--font-ui);letter-spacing:.1em;color:#fff} .synDev[data-eng="wt"] .engKey small{font-family:Archivo;font-weight:700;color:#ffc9cd}
+.synDev[data-eng="wt"] .presetLcd{background:linear-gradient(180deg,#2f6cff,#1a46d8);border-color:#1a0306} .synDev[data-eng="wt"] .presetLcd span{font:400 14px DotGothic16,monospace;color:#eef3ff;text-shadow:0 0 4px rgba(255,255,255,.5)} .synDev[data-eng="wt"] .presetLcd i{color:#b7c8ff}
+.synDev[data-eng="wt"] .pstep{background:radial-gradient(70% 70% at 50% 30%,#3a3a3e,#131315);border-radius:14px;color:#fff}
+.synDev[data-eng="wt"] .synPages .key{background:radial-gradient(70% 70% at 50% 30%,#3a3a3e,#131315);border-radius:14px;color:#fff;font:700 10.5px Archivo,var(--font-ui);text-transform:uppercase;gap:4px;border:0;box-shadow:0 2px 2px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.15)}
+.synDev[data-eng="wt"] .synPages .key::before{content:'';width:5px;height:5px;border-radius:50%;background:#3b0a0e;flex:none} .synDev[data-eng="wt"] .synPages .key.on::before{background:#ff3341;box-shadow:0 0 6px #ff3341}
+.synDev[data-eng="wt"] .synTabs{background:rgba(0,0,0,.35);border-radius:16px;padding:2px;gap:2px} .synDev[data-eng="wt"] .synTabs .key{height:26px;background:transparent;border:0;box-shadow:none;border-radius:13px;color:#ffd6d9;font:700 11.5px Archivo,var(--font-ui)} .synDev[data-eng="wt"] .synTabs .key.on{background:#fff;color:#8e0f1a}
+.synDev[data-eng="wt"] .disp{border-radius:10px;padding:5px;background:#1a0306;box-shadow:inset 0 2px 5px #000,0 1px 0 rgba(255,255,255,.2)} .synDev[data-eng="wt"] .disp canvas{border-radius:6px}
+.synDev[data-eng="wt"] .disp::after{inset:5px;border-radius:6px;background-image:radial-gradient(rgba(255,255,255,.08) 1px,transparent 1.2px);background-size:3px 3px}
+.synDev[data-eng="wt"] .selr:not(.swk) .sw{background:linear-gradient(180deg,#2f6cff,#1a46d8);border-color:#1a0306} .synDev[data-eng="wt"] .selr .sw>span{font:400 12px DotGothic16,monospace;color:#fff}
+.synDev[data-eng="wt"] .lcdbox.synInfo{background:#1a46d8;color:#eef3ff;font-family:DotGothic16} .synDev[data-eng="wt"] .nf{outline-color:#fff!important}
+
+/* Granular: an aluminium module between rails, knurled knobs, bat levers, a black-and-teal display, its patch points */
+.synDev[data-eng="gr"]{background:repeating-linear-gradient(90deg,rgba(255,255,255,.18) 0 1px,rgba(0,0,0,.03) 1px 3px),linear-gradient(180deg,#e1e4e7,#c3c7cb);color:#141618;padding-top:16px;padding-bottom:16px;--d-ink2:#3d4146;--d-ring:#0c8f6b;--sw-font:"Space Mono"}
+.synDev[data-eng="gr"]::before,.synDev[data-eng="gr"]::after{display:block;left:0;right:0;width:auto;height:10px;border-radius:0;box-shadow:none;background:radial-gradient(circle at 12px 50%,#f4f5f6 0 2.4px,#6f7378 2.8px 3.4px,transparent 3.8px),radial-gradient(circle at calc(100% - 12px) 50%,#f4f5f6 0 2.4px,#6f7378 2.8px 3.4px,transparent 3.8px),linear-gradient(180deg,#d9dcdf,#8d9196)}
+.synDev[data-eng="gr"]::before{top:0} .synDev[data-eng="gr"]::after{top:auto;bottom:0}
+#view.short .synDev[data-eng="gr"] .knob .klab{font-size:10px;line-height:11px;height:12px;padding-bottom:1px} .synDev[data-eng="gr"] .klab{font:700 11px/12px "Space Grotesk",var(--font-ui);letter-spacing:.01em;text-transform:lowercase;color:#141618}
+.synDev[data-eng="gr"] .knob .kval{font:400 9.5px/13px "Space Mono",var(--font-lcd);color:#3d4146}
+.synDev[data-eng="gr"] .engKey b{font:700 18px/1 "Space Grotesk",var(--font-ui);text-transform:lowercase;letter-spacing:-.01em;color:#141618} .synDev[data-eng="gr"] .engKey small{font-family:"Space Mono";color:#3d4146;letter-spacing:.08em}
+.synDev[data-eng="gr"] .presetLcd{background:#000;border-color:#1b1d20} .synDev[data-eng="gr"] .presetLcd span{font:400 12px "Space Mono",monospace;color:#e8fffb} .synDev[data-eng="gr"] .presetLcd i{color:#2fe0b0}
+.synDev[data-eng="gr"] .pstep,.synDev[data-eng="gr"] .synTabs .key{background:linear-gradient(180deg,#c9cdd1,#a9adb2);color:#141618;border-color:#7c8086;box-shadow:0 1px 0 #fff inset}
+.synDev[data-eng="gr"] .synPages .key{background:radial-gradient(circle at 40% 35%,#3b3f44,#0d0e10);color:#e8fffb;font:400 10px "Space Mono",var(--font-ui);text-transform:lowercase;gap:4px;box-shadow:0 0 0 1px #8f9398}
+.synDev[data-eng="gr"] .synPages .key::before{content:'';width:5px;height:5px;border-radius:50%;background:#1d3a33;flex:none} .synDev[data-eng="gr"] .synPages .key.on::before{background:#2fe0b0;box-shadow:0 0 6px #2fe0b0}
+.synDev[data-eng="gr"] .synTabs .key{font:700 11.5px "Space Grotesk",var(--font-ui);text-transform:lowercase} .synDev[data-eng="gr"] .synTabs .key.on{background:#16171a;color:#2fe0b0}
+.synDev[data-eng="gr"] .disp{border-radius:3px;padding:4px;background:#1b1d20;box-shadow:inset 0 1px 3px #000,0 1px 0 #fff}
+.synDev[data-eng="gr"] .selr:not(.swk) .sw{background:#000;border-color:#1b1d20} .synDev[data-eng="gr"] .selr .sw>span{font:400 11px "Space Mono",monospace;color:#e8fffb}
+.synDev[data-eng="gr"] .lcdbox.synInfo{background:#000;color:#e8fffb;font-family:"Space Mono"} .synDev[data-eng="gr"] .nf{outline-color:#0c8f6b!important}
+
+/* Sub: drum-machine panel with its colour band, ridged knobs with coloured caps, slide switches, a red LED matrix */
+.synDev[data-eng="sub"]{background:linear-gradient(180deg,#2c2c2b,#1d1d1c);--d-ring:#ff7a1a;--d-ink2:#b9b7ae;--sw-font:Archivo}
+.synDev[data-eng="sub"] .klab{font:800 10.5px Archivo,var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:#ecebe6}
+.synDev[data-eng="sub"] .knob .kval{font:400 12px/13px "Share Tech Mono",var(--font-lcd);color:#ff6a4f}
+.synDev[data-eng="sub"] .engKey b{font:400 19px/1 "Archivo Black",var(--font-ui);letter-spacing:-.01em;color:#ff7a1a} .synDev[data-eng="sub"] .engKey small{font-family:Archivo;font-weight:800;color:#9b9a94}
+.synDev[data-eng="sub"] .presetLcd{background:#0a0505} .synDev[data-eng="sub"] .presetLcd span{font:400 15px "Share Tech Mono",monospace;color:#ff3b24;text-shadow:0 0 6px rgba(255,59,36,.7)} .synDev[data-eng="sub"] .presetLcd i{color:#a8321f}
+.synDev[data-eng="sub"] .synPages{border-top:6px solid;border-image:linear-gradient(90deg,#e8331f 0 25%,#ff7a1a 25% 50%,#f5c400 50% 75%,#efe9d6 75%) 1;padding-top:6px;height:auto}
+.synDev[data-eng="sub"] .synPages .key{color:#1a1a1a;font:800 10.5px Archivo,var(--font-ui);text-transform:uppercase;letter-spacing:.04em;border-radius:3px;box-shadow:0 2px 0 rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.3);background:var(--pk)}
+.synDev[data-eng="sub"] .synPages .key:nth-child(-n+2){--pk:#e8331f} .synDev[data-eng="sub"] .synPages .key:nth-child(n+3):nth-child(-n+4){--pk:#ff7a1a} .synDev[data-eng="sub"] .synPages .key:nth-child(5){--pk:#f5c400} .synDev[data-eng="sub"] .synPages .key:nth-child(6){--pk:#efe9d6}
+.synDev[data-eng="sub"] .synPages .key.on{box-shadow:inset 0 2px 3px rgba(0,0,0,.45);transform:translateY(1px);outline:2px solid #fff;outline-offset:-2px}
+.synDev[data-eng="sub"] .synTabs .key{background:#161615;color:#d9d7cf;font:800 11px Archivo,var(--font-ui);text-transform:uppercase} .synDev[data-eng="sub"] .synTabs .key.on{color:#ff7a1a;box-shadow:inset 0 -3px 0 #ff7a1a}
+.synDev[data-eng="sub"] .disp{border-radius:3px;padding:4px;background:#0a0505;box-shadow:inset 0 2px 5px #000} .synDev[data-eng="sub"] .disp::after{inset:4px;background:radial-gradient(circle,transparent 1.1px,rgba(10,5,5,.82) 1.6px) 0 0/3px 3px}
+.synDev[data-eng="sub"] [data-col="0"]{--kc:#efe9d6} .synDev[data-eng="sub"] [data-col="1"]{--kc:#ff7a1a} .synDev[data-eng="sub"] [data-col="2"]{--kc:#e8331f} .synDev[data-eng="sub"] [data-col="3"]{--kc:#f5c400}
+.synDev[data-eng="sub"] .selr:not(.swk) .sw{background:#0a0505} .synDev[data-eng="sub"] .selr .sw>span{font:400 13px "Share Tech Mono",monospace;color:#ff3b24}
+.synDev[data-eng="sub"] .lcdbox.synInfo{background:#0a0505;color:#ff3b24;font-family:"Share Tech Mono"} .synDev[data-eng="sub"] .nf{outline-color:#ff7a1a!important}
+
+/* Instrument: a brushed-black sound module, aluminium knobs in teal rings, rubber keys, a teal vacuum-fluorescent screen */
+.synDev[data-eng="ins"]{background:repeating-linear-gradient(90deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px),linear-gradient(180deg,#232427,#141517);--d-track:#2c2f33;--d-ring:#6ff7e6;--sw-font:Rajdhani}
+.synDev[data-eng="ins"] .klab{font:700 11.5px Rajdhani,var(--font-ui);letter-spacing:.1em;text-transform:uppercase;color:#d9dde2}
+.synDev[data-eng="ins"] .knob .kval{font:400 14px/13px Iceland,var(--font-lcd);color:#6ff7e6}
+.synDev[data-eng="ins"] .engKey b{font:700 13px/1 Rajdhani,var(--font-ui);letter-spacing:.08em;color:#16171a;background:linear-gradient(180deg,#e5e8eb,#9ea3a8);padding:2px 6px;border-radius:2px;text-transform:uppercase} .synDev[data-eng="ins"] .engKey small{font-family:Rajdhani;font-weight:700;color:#9aa0a7;margin-top:2px}
+.synDev[data-eng="ins"] .presetLcd{background:linear-gradient(180deg,#06201f,#031312)} .synDev[data-eng="ins"] .presetLcd span{font:400 18px Iceland,monospace;color:#6ff7e6;text-shadow:0 0 6px rgba(111,247,230,.75)} .synDev[data-eng="ins"] .presetLcd i{color:#43b3a4}
+.synDev[data-eng="ins"] .pstep,.synDev[data-eng="ins"] .synPages .key,.synDev[data-eng="ins"] .synTabs .key,.synDev[data-eng="ins"] .insCats .key{background:linear-gradient(180deg,#5b5f65,#3c3f44);color:#c4c9cf;box-shadow:0 2px 0 #08090a,inset 0 1px 0 rgba(255,255,255,.18);border-color:#08090a}
+.synDev[data-eng="ins"] .synPages .key,.synDev[data-eng="ins"] .synTabs .key,.synDev[data-eng="ins"] .insCats .key{font:700 11px Rajdhani,var(--font-ui);letter-spacing:.06em;text-transform:uppercase;flex-direction:column;gap:2px}
+.synDev[data-eng="ins"] .synPages .key::before,.synDev[data-eng="ins"] .synTabs .key::before{content:'';width:12px;height:3px;border-radius:1px;background:#1c3633;flex:none} .synDev[data-eng="ins"] .synPages .key.on::before,.synDev[data-eng="ins"] .synTabs .key.on::before{background:#6ff7e6;box-shadow:0 0 6px #6ff7e6}
+.synDev[data-eng="ins"] .synPages .key.on,.synDev[data-eng="ins"] .synTabs .key.on{color:#fff} .synDev[data-eng="ins"] .insCats .key{background:#0d0e10;color:#8f969e;box-shadow:inset 0 1px 2px #000} .synDev[data-eng="ins"] .insCats .key.on{background:#6ff7e6;color:#031312}
+.synDev[data-eng="ins"] .disp{border-radius:3px;padding:5px;background:#050607;box-shadow:inset 0 2px 5px #000} .synDev[data-eng="ins"] .disp::after{inset:5px;background-image:linear-gradient(90deg,rgba(0,0,0,.35) 1px,transparent 1px);background-size:3px 100%}
+.synDev[data-eng="ins"] .selr:not(.swk) .sw{background:#031312} .synDev[data-eng="ins"] .selr .sw>span{font:400 15px Iceland,monospace;color:#6ff7e6;text-shadow:0 0 5px rgba(111,247,230,.6)}
+.synDev[data-eng="ins"] .lcdbox.synInfo{background:#031312;color:#6ff7e6;font-family:Iceland;font-size:14px} .synDev[data-eng="ins"] .nf{outline-color:#6ff7e6!important}
+
+/* FX: an off-white pocket device, big flat coloured knobs, rounded keys, an 8-bit pixel screen, a Play key */
+.synDev[data-eng="sfx"]{background:linear-gradient(180deg,#ecebe7,#d9d7d1);color:#1c1c1e;--d-ink2:#6d6c68;--d-ring:#1c1c1e;--sl-bg:#c9c7c0;--sl-th:#1c1c1e;--sw-font:"Work Sans"}
+.synDev[data-eng="sfx"]::before,.synDev[data-eng="sfx"]::after{display:none}
+.synDev[data-eng="sfx"] .klab{font:700 11px "Work Sans",var(--font-ui);text-transform:lowercase;color:#1c1c1e}
+.synDev[data-eng="sfx"] .knob .kval{font:600 10.5px/13px "Work Sans",var(--font-ui);color:#55544f}
+.synDev[data-eng="sfx"] .engKey b{font:700 18px/1 "Work Sans",var(--font-ui);text-transform:lowercase;letter-spacing:-.02em;color:#1c1c1e} .synDev[data-eng="sfx"] .engKey small{font-family:"Work Sans";font-weight:600;color:#6d6c68;letter-spacing:.04em;text-transform:lowercase}
+.synDev[data-eng="sfx"] .presetLcd{background:#1c1c1e;border-color:#000} .synDev[data-eng="sfx"] .presetLcd span{font:400 8px "Press Start 2P",monospace;color:#fff} .synDev[data-eng="sfx"] .presetLcd i{font-family:"Press Start 2P";font-size:7px;color:#ff5a1f}
+.synDev[data-eng="sfx"] .pstep,.synDev[data-eng="sfx"] .synPages .key,.synDev[data-eng="sfx"] .synTabs .key{background:#f4f3ef;color:#6d6c68;border:0;border-radius:7px;box-shadow:0 2px 0 #a9a7a1,inset 0 1px 0 rgba(255,255,255,.7);font:600 11px "Work Sans",var(--font-ui);text-transform:lowercase}
+.synDev[data-eng="sfx"] .synPages .key.on,.synDev[data-eng="sfx"] .synTabs .key.on{background:#1c1c1e;color:#fff}
+.synDev[data-eng="sfx"] .playKey{background:#ff5a1f;color:#fff;border:0;box-shadow:0 2px 0 #b8400f,inset 0 1px 0 rgba(255,255,255,.4);font:700 11px "Work Sans",var(--font-ui);text-transform:lowercase}
+.synDev[data-eng="sfx"] .disp{border-radius:10px;padding:6px;background:#1c1c1e} .synDev[data-eng="sfx"] .disp canvas{border-radius:3px}
+.synDev[data-eng="sfx"] [data-col="0"]{--kc:#2d6bff} .synDev[data-eng="sfx"] [data-col="1"]{--kc:#3fbf6a} .synDev[data-eng="sfx"] [data-col="2"]{--kc:#f4f3ef;--km:#1c1c1e} .synDev[data-eng="sfx"] [data-col="3"]{--kc:#ff5a1f}
+.synDev[data-eng="sfx"] .selr:not(.swk) .sw{background:#f4f3ef;border:0;border-radius:7px;box-shadow:0 2px 0 #a9a7a1} .synDev[data-eng="sfx"] .selr .sw>span{font:600 12px "Work Sans",var(--font-ui);color:#1c1c1e;text-transform:lowercase}
+.synDev[data-eng="sfx"] .swk .sw>b.on,.synDev[data-eng="sfx"] .sw-slide .pls b.on{color:#1c1c1e} .synDev[data-eng="sfx"] .sw-slide .pls b{text-transform:lowercase}
+.synDev[data-eng="sfx"] .lcdbox.synInfo{background:#1c1c1e;color:#fff;font:400 8px "Press Start 2P"} .synDev[data-eng="sfx"] .nf{outline-color:#1c1c1e!important}
+.synDev[data-eng="sub"] .sw-slide .pls b.on{color:#ff7a1a}
 .g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px} .g4 .btn{padding:0 6px;min-width:0}
 .g5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px} .g5 .btn{padding:0 4px;min-width:0}
 .btn.theme{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px} .btn.theme.on{background:linear-gradient(180deg,var(--on1),var(--on2));color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-ring)}
@@ -635,7 +766,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // text that doesn't fit its box: a little smaller (down to 85%), else the narrow face at its size (shrunk again if it must, never below 9 px);
 // then a shorter form if it has one (data-alt), or two lines for a name in a mixer strip; past that, the ellipsis
-const FIT_SEL = '.slot .lbl, .sname b, .lanebox b, .klab, .key, .lsub, .li > span, .shTitle > span, .synInfo, .sw > span, .fxn, .blurb, .pad .nm, .lcdbox, .scopebox > span, #sheet .btn, .chip, .tgrid > button';
+const FIT_SEL = '.slot .lbl, .sname b, .lanebox b, .klab, .key, .lsub, .li > span, .shTitle > span, .synInfo, .sw > span, .fxn, .blurb, .pad .nm, .lcdbox, .scopebox > span, #sheet .btn, .chip, .tgrid > button, .pls > b';
 function fitFonts(root) { if (!root) return; const els = [...(root.matches && root.matches(FIT_SEL) ? [root] : []), ...root.querySelectorAll(FIT_SEL)], fz = el => parseFloat(getComputedStyle(el).fontSize);
   for (const el of els) if (el.style.fontSize || el.classList.contains('nar') || el.classList.contains('two')) { el.style.fontSize = ''; el.classList.remove('two', 'nar'); }
   const RG = document.createRange(), over = list => list.filter(el => { const w = el.clientWidth; if (!w || el.scrollWidth < w) return false;   // all reads, then all writes: one layout per round
@@ -2072,7 +2203,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-03', ['Messages now show in the info window above the tabs (the d-pad\'s when it\'s open), not in pop-ups.', 'Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
+  ['2026-11-03', ['Each synth engine is now its own instrument: its own knobs, switches, keys and screen. Every control and patch works as before.', 'FX synth: a Play key. Instrument: keys to jump between kinds of instrument.', 'Messages now show in the info window above the tabs (the d-pad\'s when it\'s open), not in pop-ups.', 'Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
@@ -2091,7 +2222,7 @@ function openChanges() {
     for (const [d, items] of CHANGES) { st.append(h('div', 'sec', fmtDay(d))); const ul = h('ul', 'log'); for (const t of items) ul.append(h('li', '', esc(t))); st.append(ul); } }); }
 function openAbout() { openSheet('About', card => { const st = h('div', 'stack'); card.append(st);
   st.append(h('div', 'sec', 'Your work'), h('p', 'note', 'Everything stays on this device. Trackfill never sends your work or anything about you anywhere: no accounts, no tracking, no ads. Back up from Projects.'));
-  st.append(h('div', 'sec', 'Built with'), h('p', 'note', 'MP3 encoding: lamejs (LGPL-3.0), unmodified · Time stretch: Signalsmith Stretch (MIT) · Fonts: Nunito and Barlow Semi Condensed (SIL Open Font License) · Sampled instruments: VCSL and VSCO 2 Community Edition (CC0) · Source and licences: github.com/sshaylerr/trackfill')); }); }
+  st.append(h('div', 'sec', 'Built with'), h('p', 'note', 'MP3 encoding: lamejs (LGPL-3.0), unmodified · Time stretch: Signalsmith Stretch (MIT) · Fonts: Nunito and Barlow Semi Condensed; on the synths, Archivo, Archivo Narrow, Archivo Black, VT323, Silkscreen, Michroma, DotGothic16, Space Grotesk, Space Mono, Share Tech Mono, Rajdhani, Iceland, Work Sans and Press Start 2P (all SIL Open Font License) · Sampled instruments: VCSL and VSCO 2 Community Edition (CC0) · Source and licences: github.com/sshaylerr/trackfill')); }); }
 function openDiag() {
   openSheet('Engine check', async card => { const box = h('div', 'diag'); box.append(h('p', 'note', 'Checking this device…')); card.append(box);
     const draw = async () => { const rows = await runChecks(); box.innerHTML = ''; const sym = { ok: '✓', warn: '!', fail: '×' };
