@@ -8,7 +8,7 @@
 const conOn = () => tfConsoleOn(P);
 const conName = () => (CONSOLES.find(k => k[0] === P.console) || CONSOLES[0])[1];
 const CON_MODES = [['faders', 'Faders'], ['eq', 'EQ'], ['bus', 'Comp']];
-const CEQ_BANDS = [['HF', '#c8352a', [2, 3, 4]], ['HMF', '#2ea05a', [5, 6, 7]], ['LMF', '#2e6fd8', [8, 9, 10]], ['LF', '#4a3a2e', [11, 12, 13]], ['FILT', '#e9ecef', [0, 1, 14]]];
+const CEQ_BANDS = [['HF', '#e0478d', [2, 3, 4]], ['HMF', '#2c9a6c', [5, 6, 7]], ['LMF', '#4d74d6', [8, 9, 10]], ['LF', '#2b2a29', [11, 12, 13]], ['FILT', '#d8d7d1', [0, 1, 14]]];   // the desk's cap colours: pink, green, blue, black; the filters plain grey
 const MIX_ORDER = () => MIX_PAGES.flatMap((_, i) => mixChans(i));
 const CON_KNOB = { clean: 'desk', punchy: 'pk', warm: 'wm' }, conSkin = () => CON_KNOB[P.console] || 'desk';
 // another console's settings in, this one's set aside (each channel's EQ and compressor, and the automation of slots 8 and 9)
@@ -76,7 +76,8 @@ function conPick(c, label) {
   if (i <= 0) prev.disabled = true; if (i >= order.length - 1) next.disabled = true;
   const tape = h('span', 'ctape', esc(label)); tape.dataset.alt = label.replace(/^[A-D]\d\d |^[A-Z]\d |^(GROUP|BUS|RETURN) /, ''); row.append(prev, tape, next); return row;
 }
-function conKnob(key, cap, o = {}) { const k = keyParam(key, Object.assign({ skin: conSkin() }, o)); k.style.setProperty('--kc', cap); return k; }
+const capLight = c => { const m = /^#([0-9a-f]{6})$/i.exec(c || ''); if (!m) return false; const n = parseInt(m[1], 16); return ((n >> 16) * .3 + ((n >> 8) & 255) * .59 + (n & 255) * .11) > 150; };
+function conKnob(key, cap, o = {}) { const k = keyParam(key, Object.assign({ skin: conSkin() }, o)); k.style.setProperty('--kc', cap); if (capLight(cap)) k.style.setProperty('--km', '#26272a'); return k; }   // a light cap gets a dark line
 function conToggle(label, on, fn, lit) { const b = btn((lit ? '<i></i>' : '') + label, fn, 'cbtn' + (on ? (lit ? ' lit' : ' on') : '')); return b; }
 // a stepped setting as a pointer knob with its settings printed round it (ratio, attack, release)
 function conRotary(key, f, i, prm, after, cap) { const n = prm.opts.length;
@@ -102,7 +103,7 @@ function conEq(c) {
   const rows = h('div', 'cbands');
   for (const [name, col, idx] of CEQ_BANDS) { const r = h('div', 'cband'), lab = h('div', 'cbl', `${name}<small>${name === 'FILT' ? 'HP · LP' : name === 'HF' || name === 'LF' ? (f.p[idx[2]] >= .5 ? 'BELL' : 'SHELF') : 'BELL'}</small>`);
     lab.style.setProperty('--bc', col); if (name === 'FILT') lab.classList.add('lite'); r.append(lab);
-    const cap = name === 'FILT' ? '#e9ecef' : col, short = { 'High-pass': 'HPF', 'Low-pass': 'LPF' };
+    const cap = col, short = { 'High-pass': 'HPF', 'Low-pass': 'LPF' };
     const knob = i => { const prm = CEQ_P[i], k = conKnob(`${c}.8.${i}`, cap, { label: short[prm.n] || prm.n.replace(/^(HF|HMF|LMF|LF) /, '').toUpperCase(), after: () => { frz(); redraw(); refreshThumb(c); if (i === 7 || i === 10 || i === 14) w.querySelectorAll('.knob').forEach(k => k._upd && k._upd()); } });
       k.setAttribute('aria-label', 'EQ ' + prm.n); return k; };
     if (name === 'HMF' || name === 'LMF') r.append(knob(idx[0]), knob(idx[1]), knob(idx[2]), h('div', 'ctg'));
@@ -148,24 +149,22 @@ function conBus(sel) {
   hd.append(conPick(sel, c === sel ? conTape(c) + ' BUS' : 'MASTER BUS'),
     conToggle('COMP IN', f.on, () => { pushUndo('chan:' + c); f.on = !f.on; syncChan(c); markDirty(); renderView(); toast('Bus compressor ' + (f.on ? 'in' : 'out')); }, true));
   vu.append(cv); scopeView(cv, () => drawVu(cv, c));
-  const g = h('div', 'cbgrid'), K = i => { const k = conKnob(`${c}.9.${i}`, '#e9ecef', { label: ps[i].n.toUpperCase() }); k.setAttribute('aria-label', 'Bus ' + ps[i].n); return k; };
+  const g = h('div', 'cbgrid'), K = i => { const k = conKnob(`${c}.9.${i}`, '#d8d7d1', { label: ps[i].n.toUpperCase() }); k.setAttribute('aria-label', 'Bus ' + ps[i].n); return k; };
   g.append(K(0), conRotary(`${c}.9.1`, f, 1, ps[1]), K(4), conRotary(`${c}.9.2`, f, 2, { n: 'Attack ms', opts: ps[2].opts }), conRotary(`${c}.9.3`, f, 3, { n: 'Release s', opts: ps[3].opts }), K(5));
   const ft = h('div', 'cbfoot'); ft.append(K(6)); g.append(ft);
   w.append(hd, vu, g); if (!f.on) w.classList.add('off'); requestAnimationFrame(() => drawVu(cv, c)); return w;
 }
 // the gain reduction meter: a moving-coil needle on a cream face, 0 to 20 dB
 function drawVu(cv, c) { const { g, W, H } = prepCanvas(cv), live = SCOPE.fc === c && SCOPE.fs === NSLOTS + 1, db = live ? Math.min(0, SCOPE.visD) : 0; if (W < 40 || H < 24) return;   // not laid out yet
-  const gr = g.createRadialGradient(W / 2, H * 1.1, 10, W / 2, H, Math.max(W, H)); gr.addColorStop(0, '#fff6dc'); gr.addColorStop(.6, '#efe2b4'); gr.addColorStop(1, '#d8c487');
-  g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#121314'; g.fillRect(0, 0, W, H);   // the desk's compression meter: a black face, a white scale
   const cx = W / 2, cy = H * 1.18, R = Math.min(W * .46, H * 1.02), a0 = -Math.PI * .5 - .62, a1 = -Math.PI * .5 + .62, ang = v => a1 - (a1 - a0) * Math.sqrt(Math.min(20, Math.max(0, v)) / 20);   // spread at the top, as a real meter's scale
-  g.strokeStyle = '#2a2116'; g.lineWidth = 1.3; g.beginPath(); g.arc(cx, cy, R, a0, a1); g.stroke();
-  g.strokeStyle = '#b3261e'; g.lineWidth = 4; g.beginPath(); g.arc(cx, cy, R - 3, a0, ang(10)); g.stroke();
-  g.font = `700 9px "Archivo Narrow", ${FONT_LCD}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#2a2116'; g.strokeStyle = '#2a2116'; g.lineWidth = 1.3;
+  g.strokeStyle = '#e9e7df'; g.lineWidth = 1.2; g.beginPath(); g.arc(cx, cy, R, a0, a1); g.stroke();
+  g.font = `700 9px "Archivo Narrow", ${FONT_LCD}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#e9e7df'; g.strokeStyle = '#e9e7df'; g.lineWidth = 1.3;
   for (const v of [0, 2, 4, 6, 10, 14, 20]) { const a = ang(v); g.beginPath(); g.moveTo(cx + Math.cos(a) * (R - 8), cy + Math.sin(a) * (R - 8)); g.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); g.stroke();
     g.fillText(String(v), cx + Math.cos(a) * (R - 18), cy + Math.sin(a) * (R - 18)); }
-  g.font = `700 9.5px "Archivo Narrow", ${FONT_LCD}`; g.fillText('GAIN REDUCTION', cx, cy - R * .52);
-  const a = ang(-db); g.strokeStyle = '#111'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * (R + 2), cy + Math.sin(a) * (R + 2)); g.stroke();
-  g.fillStyle = '#2a2116'; g.beginPath(); g.arc(cx, cy, R * .3, 0, 7); g.fill(); g.textAlign = 'left'; }
+  g.font = `700 9px "Archivo Narrow", ${FONT_LCD}`; g.fillStyle = '#9fa3a8'; g.fillText('COMPRESSION', cx, cy - R * .5);
+  const a = ang(-db); g.strokeStyle = '#f2efe6'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx + Math.cos(a) * R * .3, cy + Math.sin(a) * R * .3); g.lineTo(cx + Math.cos(a) * (R + 2), cy + Math.sin(a) * (R + 2)); g.stroke();
+  g.fillStyle = '#26282b'; g.beginPath(); g.arc(cx, cy, R * .3, 0, 7); g.fill(); g.textAlign = 'left'; }
 
 // Punchy's and Warm's compressors: their own meters and controls
 function conBus2(sel) {

@@ -10,7 +10,7 @@ const LOOKS = {
   '0:0': { ring: '#5ec8e0', alt: '#5ec8e0' },
   '0:1': Object.assign({}, LIGHT, { face: '#c9ced2', face2: '#b4bac0', cap: '#17181a', ring: '#b8402d', tex: BRUSHED, scr: '#1d2a22', scrInk: '#cfe8c9', scrMute: '#86a383', scrLine: '#2c3d31', alt: '#8fd18b', swInk: '#f0c35a' }),
   '0:2': { face: '#1f2022', face2: '#17181a', ink: '#ffffff', ink2: '#2fa4f0', cap: '#3b5a86', ring: '#2fa4f0', alt: '#2fa4f0', scr: '#08090a', scrInk: '#eef4fa', scrMute: '#6f8ea8', scrLine: '#162230', knob: 'pk', rot: 'punchy' },   // after the three-band discrete module: black plate, blue legends, aluminium fin knobs
-  '0:3': { face: '#3a3d42', face2: '#303338', cap: '#2a2b2e', ring: '#e8e2d6', alt: '#9fd18b', console: true },
+  '0:3': { face: '#50555d', face2: '#454950', ink: '#ffffff', ink2: '#d4d6d9', cap: '#2a2b2e', ring: '#e8e2d6', alt: '#f2f4f6', scr: '#0d1012', scrInk: '#f2f4f6', scrMute: '#a9b0b8', scrLine: '#1f2427', console: true, knob: 'desk' },   // after the large-format desk: grey-blue, light knobs with the band colours on their caps
   '1:0': { ring: '#6fcac1', alt: '#6fcac1' },
   '1:1': Object.assign({}, LIGHT, { face: '#d9d3c4', face2: '#c9c1ae', cap: '#1d1c1a', ring: '#9c3b2a', tex: BRUSHED, scr: '#f3e6b9', scrInk: '#2c2416', scrMute: '#6d5f3c', scrLine: '#d9c995', alt: '#9c3b2a', swInk: '#f0c35a' }),
   '1:2': { face: '#141416', face2: '#0d0d0f', cap: '#c3c7cc', ind: '#141416', ring: '#6aa8ff', scr: '#f1ead2', scrInk: '#1f1b13', scrMute: '#655c47', scrLine: '#d8cfb2', alt: '#2f6fd6' },

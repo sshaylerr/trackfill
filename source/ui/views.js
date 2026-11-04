@@ -244,7 +244,7 @@ function stripEl(c) {
   nm.onclick = () => { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); };
   const fd = keyParam(c + '.-1.0', { kind: 'fader', label: chanLabel(c) + ' volume', fmt: shortDb, unity: .85, onSwipe: mixSwipe, onTap: () => { if (UI.mixSel !== c) { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); } } });
   STRIP_METERS.push({ c, el: fd._meter, v: [0, 0] });
-  const pan = keyParam(c + '.-1.1', Object.assign({ cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe }, conOn() ? { skin: conSkin() } : {})); pan.style.setProperty('--kc', P.console === 'warm' ? '#8f918c' : P.console === 'punchy' ? '#4a4d52' : '#e9ecef');
+  const pan = keyParam(c + '.-1.1', Object.assign({ cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe }, conOn() ? { skin: conSkin() } : {})); pan.style.setProperty('--kc', P.console === 'warm' ? '#8f918c' : P.console === 'punchy' ? '#4a4d52' : '#5a86e0');
   const ms = h('div', 'ms2'), cx = conOn();
   if (c !== MASTER) { const mb = btn(cx ? 'CUT' : 'M', () => { pushUndo('chan:' + c); C.mute = !C.mute; mb.classList.toggle('on', C.mute); syncChan(c); markDirty(); }, 'm' + (C.mute ? ' on' : ''));
     const sb = btn(cx ? 'SOLO' : 'S', () => { pushUndo('chan:' + c); C.solo = !C.solo; sb.classList.toggle('on', C.solo); syncChan(c); markDirty(); }, 's' + (C.solo ? ' on' : '')); ms.append(mb, sb); }
@@ -258,11 +258,11 @@ function detailEl(c) {
   bt.append(scopeBox(c));
   if (c < R0) bt.append(btn('→ ' + esc(destName(c)), () => openOutputPicker(c), 'key sm'));
   { const fb = btn(`FX ${C.fx.length} · ` + (C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'none'), () => openFx(c, 'mix'), 'key sm' + (C.fx.length ? ' on' : '')); fb.dataset.alt = 'FX ' + C.fx.length; bt.append(fb); }
-  const cx = conOn(), pk = P.console === 'punchy', cap = P.console === 'warm' ? '#8f918c' : '#e9ecef', K = (key, label) => cx ? conKnob(key, pk ? (label === 'Pan' ? '#4a4d52' : '#2fae4a') : cap, { label }) : keyParam(key, { label });   // Punchy: the sends' green caps, the pan's grey   // on a console the desk's knobs, and its drive
+  const cx = conOn(), pk = P.console === 'punchy', cl = P.console === 'clean', cap = P.console === 'warm' ? '#8f918c' : '#d8d7d1', K = (key, label) => cx ? conKnob(key, pk ? (label === 'Pan' ? '#4a4d52' : '#2fae4a') : cl && label === 'Pan' ? '#5a86e0' : cap, { label }) : keyParam(key, { label });   // Punchy: the sends' green caps, the pan's grey   // on a console the desk's knobs, and its drive
   if (c < R0) { dk.append(K(c + '.-1.2', 'Send A'), K(c + '.-1.3', 'Send B')); }
   else { dk.append(blankCell(), blankCell()); }
   dk.append(K(c + '.-1.1', 'Pan'));
-  if (cx) dk.append(conKnob(c + '.-1.4', P.console === 'warm' ? '#c22f26' : pk ? '#3a78d4' : '#c8352a', { label: 'Drive' }));
+  if (cx) dk.append(conKnob(c + '.-1.4', P.console === 'warm' ? '#c22f26' : pk ? '#3a78d4' : '#d6332a', { label: 'Drive' }));
   d.append(bt, dk); return d;
 }
 function openOutputPicker(c) {

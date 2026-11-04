@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-NVHtLEyvZ4qtb5L054h/J63/yZVm2Mx3kxwVVMLQvjk=' 'sha256-JNCYkEkWulfkIr5Utj9XFY4zHbfB+NKixD+r4HieQQw=' 'sha256-C7/poO/CX9/XlY/EuLh9acSy5jyjEdeHS6EHHHpEWBU=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-NVHtLEyvZ4qtb5L054h/J63/yZVm2Mx3kxwVVMLQvjk=' 'sha256-JNCYkEkWulfkIr5Utj9XFY4zHbfB+NKixD+r4HieQQw=' 'sha256-lQPCNFGd5taDBm469y6TW7STliBbAc2AF05Y9cUQpU4=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -675,6 +675,40 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .dev[data-t="0"][data-m="2"] .sw-rotary .rot text{font:700 8px "Archivo Narrow",var(--font-ui);fill:#2fa4f0} .dev[data-t="0"][data-m="2"] .sw-rotary .rot text.on{fill:#fff}
 .dev[data-t="0"][data-m="2"] .logo b{font-family:Archivo,var(--font-ui);font-weight:800} .dev[data-t="0"][data-m="2"] .logo i{color:#2fa4f0;font-family:"Archivo Narrow",var(--font-ui)}
 .dev[data-t="0"][data-m="2"] .selr:not(.swk) .sw{background:linear-gradient(180deg,#fbfaf6,#dcdad3);border:1px solid #0a0a0b;border-radius:8px;box-shadow:0 2px 0 #6b6a66,inset 0 1px 0 #fff} .dev[data-t="0"][data-m="2"] .selr:not(.swk) .sw span{color:#1d1d1d;font:800 12px "Archivo Narrow",var(--font-ui);letter-spacing:.04em}
+/* Clean, after the British large-format desk in the photos: grey-blue modules with white silkscreen lines and dotted scales, light grey
+   knobs with coloured caps (pink, green, blue, black), cream square buttons that light, red channel tiles, white scribble strips, cream
+   fader caps on a silver fader panel, orange LED meters, a black compression meter */
+.mixView.cx[data-con="clean"]{--pn:#50555d;--pn2:#454950;--cink:#f1f0ec;--cink2:#d4d6d9;--d-ink2:#d4d6d9;--d-ring:#fff;--sw-font:"Archivo Narrow"}
+.knob.sk .dsd{fill:#f1f0ec} .knob.sk .kmk{fill:var(--km,#fff)}
+.cx[data-con="clean"] .cwin{border:1px solid #22252a;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 0 0 2px #9da2a8,0 0 0 3px #2c2f33}
+.cx[data-con="clean"] .cbadge{color:#fff} .cx[data-con="clean"] .cbadge small{color:#c9cdd1}
+.cx[data-con="clean"] .cbtn{border-radius:2px;background:linear-gradient(180deg,#efeadb,#d5cfbb);border:1px solid #1d1f22;color:#2a2924;font:700 9.5px "Archivo Narrow",var(--font-ui);letter-spacing:.06em;box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 1px 0 #2a2c30}
+.cx[data-con="clean"] .cbtn.on{background:linear-gradient(180deg,#fff7d6,#f4df92);color:#2a2105;box-shadow:inset 0 1px 0 #fff,0 0 8px rgba(255,220,120,.55)}
+.cx[data-con="clean"] .cbtn.lit{background:linear-gradient(180deg,#ff6a5c,#d8281d);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 0 8px rgba(255,60,40,.55)} .cx[data-con="clean"] .cbtn i{display:none}
+.cx[data-con="clean"] .cbtn:disabled{opacity:.45}
+.cx[data-con="clean"] .console{background:transparent;box-shadow:none}
+.cx[data-con="clean"] .strip{background:transparent;border-radius:0;border-left:1px solid #2c2f34;box-shadow:inset 1px 0 0 rgba(255,255,255,.07);padding:4px 2px}
+.cx[data-con="clean"] .strip.sel{background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1.5px #f1f0ec}
+.cx[data-con="clean"] .sname{grid-template-rows:11px 24px 0;height:38px;gap:3px}
+.cx[data-con="clean"] .sname em{display:block;width:100%;box-sizing:border-box;height:11px;border-radius:2px;background:linear-gradient(180deg,#e2463a,#b5231b);color:#fff;font:700 8px/11px "Archivo Narrow",var(--font-ui);text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.cx[data-con="clean"] .sname b{background:#f4f3ef;color:#1b1b1a;box-shadow:inset 0 0 0 1px #a9a9a4;border-radius:1px;padding:1px 0} .cx[data-con="clean"] .strip.sel .sname b{color:#1b1b1a}
+.cx[data-con="clean"] .eqt{background:#1c1e21}
+.cx[data-con="clean"] .fader{background:linear-gradient(90deg,#cfd2d5,#b9bcc0);border-radius:2px;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 0 0 1px #2c2f34}
+.cx[data-con="clean"] .fader .fval{color:#1d1e20} .cx[data-con="clean"] .fader .funity{background:#55585c}
+.cx[data-con="clean"] .fader .fmeter{background:repeating-linear-gradient(0deg,#2a0e08 0 3px,#000 3px 4px);background-position:bottom}
+.cx[data-con="clean"] .fader .fmeter i{background:linear-gradient(0deg,#ff8a2a 0%,#ff8a2a 69%,#ff5a1a 70.5%,#ff5a1a 84%,#ff2a1a 85.5%);background-size:100% var(--mh,100px);background-position:bottom}
+.cx[data-con="clean"] .fader .fcap{width:22px;height:28px;margin-left:-11px;border-radius:2px;background:linear-gradient(180deg,#faf5e6,#ebe3cb 42%,#cfc4a6 52%,#efe7d1);border:1px solid #6d6754;box-shadow:0 2px 3px rgba(0,0,0,.55)} .cx[data-con="clean"] .fader .fcap::after{background:#1b1b1a}
+.cx[data-con="clean"] .ms2 button{border-radius:2px;background:linear-gradient(180deg,#efeadb,#d5cfbb);border:1px solid #1d1f22;color:#2a2924}
+.cx[data-con="clean"] .ms2 button.m.on{background:linear-gradient(180deg,#ff6a5c,#d8281d);color:#fff;box-shadow:0 0 6px rgba(255,60,40,.55)} .cx[data-con="clean"] .ms2 button.s.on{background:linear-gradient(180deg,#fff6a8,#f2dc4a);color:#2a2405;box-shadow:0 0 6px rgba(255,230,80,.6)}
+.cx[data-con="clean"] .knob .kval{color:#fff} .cx[data-con="clean"] .knob .klab,.cx[data-con="clean"] .selr .klab{color:#e3e4e6}
+.cx[data-con="clean"] .ctape{background:#f4f3ef;color:#1b1b1a;border:1px solid #a9a9a4;box-shadow:none}
+.cx[data-con="clean"] .cbl{background:transparent!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.55);color:#fff;border-radius:2px}
+.cx[data-con="clean"] .cband{border-top:1px solid rgba(255,255,255,.4);box-shadow:none}
+.cx[data-con="clean"] .cvu{background:#121314;border-color:#121314}
+.cx[data-con="clean"] .cbus.off .cbgrid{opacity:.6}
+.dev[data-t="0"][data-m="3"] .knob{--kc:#d8d7d1;--km:#26272a} .dev[data-t="0"][data-m="3"] .knob[data-p^="HF"]{--kc:#e0478d;--km:#fff} .dev[data-t="0"][data-m="3"] .knob[data-p^="HMF"]{--kc:#2c9a6c;--km:#fff}
+.dev[data-t="0"][data-m="3"] .knob[data-p^="LMF"]{--kc:#4d74d6;--km:#fff} .dev[data-t="0"][data-m="3"] .knob[data-p^="LF"]{--kc:#2b2a29;--km:#fff}
+.dev[data-t="0"][data-m="3"] .klab{font:700 9px/10px "Archivo Narrow",var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:#e3e4e6}
 .cx .cband.p3{grid-template-columns:44px minmax(0,1.25fr) minmax(0,1fr) 56px;padding:2px 0}
 .cx .cnote{font:700 9px var(--sw-font),var(--font-ui);color:var(--cink2);text-align:center;letter-spacing:.06em}
 .cx .cplate{display:flex;flex-direction:column;flex:none;border-radius:2px;padding:0 6px;background:linear-gradient(180deg,#7a8ca0,#66788c);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(0,0,0,.6);position:relative;--d-ink2:#2a323b;--d-ring:#0b0d0f}
@@ -6513,7 +6547,7 @@ function stripEl(c) {
   nm.onclick = () => { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); };
   const fd = keyParam(c + '.-1.0', { kind: 'fader', label: chanLabel(c) + ' volume', fmt: shortDb, unity: .85, onSwipe: mixSwipe, onTap: () => { if (UI.mixSel !== c) { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); } } });
   STRIP_METERS.push({ c, el: fd._meter, v: [0, 0] });
-  const pan = keyParam(c + '.-1.1', Object.assign({ cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe }, conOn() ? { skin: conSkin() } : {})); pan.style.setProperty('--kc', P.console === 'warm' ? '#8f918c' : P.console === 'punchy' ? '#4a4d52' : '#e9ecef');
+  const pan = keyParam(c + '.-1.1', Object.assign({ cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe }, conOn() ? { skin: conSkin() } : {})); pan.style.setProperty('--kc', P.console === 'warm' ? '#8f918c' : P.console === 'punchy' ? '#4a4d52' : '#5a86e0');
   const ms = h('div', 'ms2'), cx = conOn();
   if (c !== MASTER) { const mb = btn(cx ? 'CUT' : 'M', () => { pushUndo('chan:' + c); C.mute = !C.mute; mb.classList.toggle('on', C.mute); syncChan(c); markDirty(); }, 'm' + (C.mute ? ' on' : ''));
     const sb = btn(cx ? 'SOLO' : 'S', () => { pushUndo('chan:' + c); C.solo = !C.solo; sb.classList.toggle('on', C.solo); syncChan(c); markDirty(); }, 's' + (C.solo ? ' on' : '')); ms.append(mb, sb); }
@@ -6527,11 +6561,11 @@ function detailEl(c) {
   bt.append(scopeBox(c));
   if (c < R0) bt.append(btn('→ ' + esc(destName(c)), () => openOutputPicker(c), 'key sm'));
   { const fb = btn(`FX ${C.fx.length} · ` + (C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'none'), () => openFx(c, 'mix'), 'key sm' + (C.fx.length ? ' on' : '')); fb.dataset.alt = 'FX ' + C.fx.length; bt.append(fb); }
-  const cx = conOn(), pk = P.console === 'punchy', cap = P.console === 'warm' ? '#8f918c' : '#e9ecef', K = (key, label) => cx ? conKnob(key, pk ? (label === 'Pan' ? '#4a4d52' : '#2fae4a') : cap, { label }) : keyParam(key, { label });   // Punchy: the sends' green caps, the pan's grey   // on a console the desk's knobs, and its drive
+  const cx = conOn(), pk = P.console === 'punchy', cl = P.console === 'clean', cap = P.console === 'warm' ? '#8f918c' : '#d8d7d1', K = (key, label) => cx ? conKnob(key, pk ? (label === 'Pan' ? '#4a4d52' : '#2fae4a') : cl && label === 'Pan' ? '#5a86e0' : cap, { label }) : keyParam(key, { label });   // Punchy: the sends' green caps, the pan's grey   // on a console the desk's knobs, and its drive
   if (c < R0) { dk.append(K(c + '.-1.2', 'Send A'), K(c + '.-1.3', 'Send B')); }
   else { dk.append(blankCell(), blankCell()); }
   dk.append(K(c + '.-1.1', 'Pan'));
-  if (cx) dk.append(conKnob(c + '.-1.4', P.console === 'warm' ? '#c22f26' : pk ? '#3a78d4' : '#c8352a', { label: 'Drive' }));
+  if (cx) dk.append(conKnob(c + '.-1.4', P.console === 'warm' ? '#c22f26' : pk ? '#3a78d4' : '#d6332a', { label: 'Drive' }));
   d.append(bt, dk); return d;
 }
 function openOutputPicker(c) {
@@ -7514,7 +7548,7 @@ const LOOKS = {
   '0:0': { ring: '#5ec8e0', alt: '#5ec8e0' },
   '0:1': Object.assign({}, LIGHT, { face: '#c9ced2', face2: '#b4bac0', cap: '#17181a', ring: '#b8402d', tex: BRUSHED, scr: '#1d2a22', scrInk: '#cfe8c9', scrMute: '#86a383', scrLine: '#2c3d31', alt: '#8fd18b', swInk: '#f0c35a' }),
   '0:2': { face: '#1f2022', face2: '#17181a', ink: '#ffffff', ink2: '#2fa4f0', cap: '#3b5a86', ring: '#2fa4f0', alt: '#2fa4f0', scr: '#08090a', scrInk: '#eef4fa', scrMute: '#6f8ea8', scrLine: '#162230', knob: 'pk', rot: 'punchy' },   // after the three-band discrete module: black plate, blue legends, aluminium fin knobs
-  '0:3': { face: '#3a3d42', face2: '#303338', cap: '#2a2b2e', ring: '#e8e2d6', alt: '#9fd18b', console: true },
+  '0:3': { face: '#50555d', face2: '#454950', ink: '#ffffff', ink2: '#d4d6d9', cap: '#2a2b2e', ring: '#e8e2d6', alt: '#f2f4f6', scr: '#0d1012', scrInk: '#f2f4f6', scrMute: '#a9b0b8', scrLine: '#1f2427', console: true, knob: 'desk' },   // after the large-format desk: grey-blue, light knobs with the band colours on their caps
   '1:0': { ring: '#6fcac1', alt: '#6fcac1' },
   '1:1': Object.assign({}, LIGHT, { face: '#d9d3c4', face2: '#c9c1ae', cap: '#1d1c1a', ring: '#9c3b2a', tex: BRUSHED, scr: '#f3e6b9', scrInk: '#2c2416', scrMute: '#6d5f3c', scrLine: '#d9c995', alt: '#9c3b2a', swInk: '#f0c35a' }),
   '1:2': { face: '#141416', face2: '#0d0d0f', cap: '#c3c7cc', ind: '#141416', ring: '#6aa8ff', scr: '#f1ead2', scrInk: '#1f1b13', scrMute: '#655c47', scrLine: '#d8cfb2', alt: '#2f6fd6' },
@@ -7992,9 +8026,9 @@ const KNOBS = {
   alu: `${ARC}<circle cx="24" cy="25.5" r="14" fill="rgba(0,0,0,.6)"/><circle cx="24" cy="24" r="14" fill="url(#kAlu)"/><circle cx="24" cy="24" r="13.4" fill="none" stroke="#6d7278" stroke-width="1.8" stroke-dasharray=".9 1.2"/><g class="ki"><circle cx="24" cy="14.2" r="1.9" fill="#16171a"/></g>`,
   pk: `${[...Array(11)].map((_, i) => { const a = (-135 + i * 27) * Math.PI / 180; return `<circle class="apd" cx="${(24 + 21.6 * Math.sin(a)).toFixed(2)}" cy="${(24 - 21.6 * Math.cos(a)).toFixed(2)}" r="1.05"/>`; }).join('')}<circle cx="24" cy="25.6" r="15" fill="rgba(0,0,0,.5)"/><g class="ki"><path class="kbody" d="M24 4.2 L29.9 11.3 A14 14 0 1 1 18.1 11.3 Z" stroke="#4a4e53" stroke-width=".6"/><path d="M24 4.2 L29.9 11.3 A14 14 0 0 1 32.5 14" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/></g><circle class="kcap" cx="24" cy="24" r="8.6"/><circle cx="22" cy="21.8" r="3.2" fill="rgba(255,255,255,.3)"/>`,   // Punchy: an aluminium knob with a fin (its pointer), a coloured cap, a dotted blue scale
   wm: `<g class="dkt">${KN_TICKS(20.5, 23.2, 11)}</g><circle cx="24" cy="26" r="17" fill="rgba(0,0,0,.45)"/><circle cx="24" cy="24" r="16.5" fill="#24221e" stroke="#0e0d0b"/><circle class="kcap" cx="24" cy="24" r="12"/><circle cx="24" cy="24" r="12" fill="url(#kWm)"/><g class="ki"><path d="M24 6.5 L27 10 L21 10 Z" fill="#e8e1cf"/><rect x="23.1" y="12.5" width="1.8" height="8" rx=".9" fill="#f3ecdc"/></g>`,   // Warm: a coloured cap on a dark skirt, its pointer on the skirt
-  desk: `<g class="dkt">${KN_TICKS(21, 23.2, 11)}</g><circle cx="24" cy="25.5" r="17" fill="rgba(0,0,0,.5)"/><circle cx="24" cy="24" r="16.5" fill="#202326" stroke="#0b0c0d"/><circle cx="24" cy="24" r="16" fill="none" stroke="#2c3035" stroke-width="2" stroke-dasharray="1.2 1.6"/><circle class="kcap" cx="24" cy="24" r="10.5"/><circle cx="21.5" cy="21" r="4.5" fill="rgba(255,255,255,.22)"/><g class="ki"><rect x="23" y="8.5" width="2" height="11" rx="1" fill="#fff"/></g>`,   // the console's: a coloured cap on a black skirt
+  desk: `${[...Array(11)].map((_, i) => { const a = (-135 + i * 27) * Math.PI / 180; return `<circle class="dsd" cx="${(24 + 21.4 * Math.sin(a)).toFixed(2)}" cy="${(24 - 21.4 * Math.cos(a)).toFixed(2)}" r="1"/>`; }).join('')}<circle cx="24" cy="25.8" r="16.6" fill="rgba(0,0,0,.5)"/><circle cx="24" cy="24" r="16.4" fill="url(#kDesk)" stroke="#55534e" stroke-width=".7"/><circle cx="24" cy="24" r="15.6" fill="none" stroke="rgba(0,0,0,.18)" stroke-width="1.6" stroke-dasharray=".8 1.4"/><circle class="kcap" cx="24" cy="24" r="11.6"/><circle cx="24" cy="24" r="11.6" fill="url(#kWm)" opacity=".7"/><g class="ki"><rect class="kmk" x="23" y="12.6" width="2" height="10" rx="1"/></g>`,   // Clean: a light grey knob, its coloured cap and a white line on it, a dotted white scale
   flat: `<circle cx="24" cy="26" r="19" fill="rgba(0,0,0,.18)"/><circle class="kcap" cx="24" cy="24" r="19"/><circle cx="24" cy="24" r="19" fill="none" stroke="rgba(0,0,0,.12)"/><circle cx="24" cy="24" r="14" fill="none" stroke="rgba(255,255,255,.2)"/><g class="ki"><rect class="kmark" x="22" y="7" width="4" height="9.5" rx="2"/></g>` };
-const KNOB_DEFS = '<linearGradient id="kAluF" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e2e5e8"/><stop offset=".45" stop-color="#a9adb2"/><stop offset="1" stop-color="#6f7378"/></linearGradient>' + '<radialGradient id="kPk" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#3a4048"/><stop offset="1" stop-color="#0b0d10"/></radialGradient><radialGradient id="kWm" cx=".38" cy=".32" r=".85"><stop offset="0" stop-color="rgba(255,255,255,.32)"/><stop offset=".5" stop-color="rgba(255,255,255,0)"/><stop offset="1" stop-color="rgba(0,0,0,.28)"/></radialGradient>' + '<radialGradient id="kCream" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#fbf6ea"/><stop offset=".7" stop-color="#e3d9c2"/><stop offset="1" stop-color="#b9ae94"/></radialGradient>'
+const KNOB_DEFS = '<linearGradient id="kDesk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2e1dc"/><stop offset=".55" stop-color="#bebdb7"/><stop offset="1" stop-color="#8f8e89"/></linearGradient>' + '<linearGradient id="kAluF" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e2e5e8"/><stop offset=".45" stop-color="#a9adb2"/><stop offset="1" stop-color="#6f7378"/></linearGradient>' + '<radialGradient id="kPk" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#3a4048"/><stop offset="1" stop-color="#0b0d10"/></radialGradient><radialGradient id="kWm" cx=".38" cy=".32" r=".85"><stop offset="0" stop-color="rgba(255,255,255,.32)"/><stop offset=".5" stop-color="rgba(255,255,255,0)"/><stop offset="1" stop-color="rgba(0,0,0,.28)"/></radialGradient>' + '<radialGradient id="kCream" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#fbf6ea"/><stop offset=".7" stop-color="#e3d9c2"/><stop offset="1" stop-color="#b9ae94"/></radialGradient>'
   + '<radialGradient id="kAlu" cx=".38" cy=".3" r=".9"><stop offset="0" stop-color="#f1f3f5"/><stop offset=".55" stop-color="#a7acb2"/><stop offset="1" stop-color="#5d6268"/></radialGradient>';
 // the screens draw on canvases, which don't fetch a typeface by themselves: load them all once, then draw again
 let SKIN_FONTS = null;
@@ -8041,7 +8075,7 @@ function insCats(pi) {   // jump between kinds of instrument: a tap moves to the
 const conOn = () => tfConsoleOn(P);
 const conName = () => (CONSOLES.find(k => k[0] === P.console) || CONSOLES[0])[1];
 const CON_MODES = [['faders', 'Faders'], ['eq', 'EQ'], ['bus', 'Comp']];
-const CEQ_BANDS = [['HF', '#c8352a', [2, 3, 4]], ['HMF', '#2ea05a', [5, 6, 7]], ['LMF', '#2e6fd8', [8, 9, 10]], ['LF', '#4a3a2e', [11, 12, 13]], ['FILT', '#e9ecef', [0, 1, 14]]];
+const CEQ_BANDS = [['HF', '#e0478d', [2, 3, 4]], ['HMF', '#2c9a6c', [5, 6, 7]], ['LMF', '#4d74d6', [8, 9, 10]], ['LF', '#2b2a29', [11, 12, 13]], ['FILT', '#d8d7d1', [0, 1, 14]]];   // the desk's cap colours: pink, green, blue, black; the filters plain grey
 const MIX_ORDER = () => MIX_PAGES.flatMap((_, i) => mixChans(i));
 const CON_KNOB = { clean: 'desk', punchy: 'pk', warm: 'wm' }, conSkin = () => CON_KNOB[P.console] || 'desk';
 // another console's settings in, this one's set aside (each channel's EQ and compressor, and the automation of slots 8 and 9)
@@ -8109,7 +8143,8 @@ function conPick(c, label) {
   if (i <= 0) prev.disabled = true; if (i >= order.length - 1) next.disabled = true;
   const tape = h('span', 'ctape', esc(label)); tape.dataset.alt = label.replace(/^[A-D]\d\d |^[A-Z]\d |^(GROUP|BUS|RETURN) /, ''); row.append(prev, tape, next); return row;
 }
-function conKnob(key, cap, o = {}) { const k = keyParam(key, Object.assign({ skin: conSkin() }, o)); k.style.setProperty('--kc', cap); return k; }
+const capLight = c => { const m = /^#([0-9a-f]{6})$/i.exec(c || ''); if (!m) return false; const n = parseInt(m[1], 16); return ((n >> 16) * .3 + ((n >> 8) & 255) * .59 + (n & 255) * .11) > 150; };
+function conKnob(key, cap, o = {}) { const k = keyParam(key, Object.assign({ skin: conSkin() }, o)); k.style.setProperty('--kc', cap); if (capLight(cap)) k.style.setProperty('--km', '#26272a'); return k; }   // a light cap gets a dark line
 function conToggle(label, on, fn, lit) { const b = btn((lit ? '<i></i>' : '') + label, fn, 'cbtn' + (on ? (lit ? ' lit' : ' on') : '')); return b; }
 // a stepped setting as a pointer knob with its settings printed round it (ratio, attack, release)
 function conRotary(key, f, i, prm, after, cap) { const n = prm.opts.length;
@@ -8135,7 +8170,7 @@ function conEq(c) {
   const rows = h('div', 'cbands');
   for (const [name, col, idx] of CEQ_BANDS) { const r = h('div', 'cband'), lab = h('div', 'cbl', `${name}<small>${name === 'FILT' ? 'HP · LP' : name === 'HF' || name === 'LF' ? (f.p[idx[2]] >= .5 ? 'BELL' : 'SHELF') : 'BELL'}</small>`);
     lab.style.setProperty('--bc', col); if (name === 'FILT') lab.classList.add('lite'); r.append(lab);
-    const cap = name === 'FILT' ? '#e9ecef' : col, short = { 'High-pass': 'HPF', 'Low-pass': 'LPF' };
+    const cap = col, short = { 'High-pass': 'HPF', 'Low-pass': 'LPF' };
     const knob = i => { const prm = CEQ_P[i], k = conKnob(`${c}.8.${i}`, cap, { label: short[prm.n] || prm.n.replace(/^(HF|HMF|LMF|LF) /, '').toUpperCase(), after: () => { frz(); redraw(); refreshThumb(c); if (i === 7 || i === 10 || i === 14) w.querySelectorAll('.knob').forEach(k => k._upd && k._upd()); } });
       k.setAttribute('aria-label', 'EQ ' + prm.n); return k; };
     if (name === 'HMF' || name === 'LMF') r.append(knob(idx[0]), knob(idx[1]), knob(idx[2]), h('div', 'ctg'));
@@ -8181,24 +8216,22 @@ function conBus(sel) {
   hd.append(conPick(sel, c === sel ? conTape(c) + ' BUS' : 'MASTER BUS'),
     conToggle('COMP IN', f.on, () => { pushUndo('chan:' + c); f.on = !f.on; syncChan(c); markDirty(); renderView(); toast('Bus compressor ' + (f.on ? 'in' : 'out')); }, true));
   vu.append(cv); scopeView(cv, () => drawVu(cv, c));
-  const g = h('div', 'cbgrid'), K = i => { const k = conKnob(`${c}.9.${i}`, '#e9ecef', { label: ps[i].n.toUpperCase() }); k.setAttribute('aria-label', 'Bus ' + ps[i].n); return k; };
+  const g = h('div', 'cbgrid'), K = i => { const k = conKnob(`${c}.9.${i}`, '#d8d7d1', { label: ps[i].n.toUpperCase() }); k.setAttribute('aria-label', 'Bus ' + ps[i].n); return k; };
   g.append(K(0), conRotary(`${c}.9.1`, f, 1, ps[1]), K(4), conRotary(`${c}.9.2`, f, 2, { n: 'Attack ms', opts: ps[2].opts }), conRotary(`${c}.9.3`, f, 3, { n: 'Release s', opts: ps[3].opts }), K(5));
   const ft = h('div', 'cbfoot'); ft.append(K(6)); g.append(ft);
   w.append(hd, vu, g); if (!f.on) w.classList.add('off'); requestAnimationFrame(() => drawVu(cv, c)); return w;
 }
 // the gain reduction meter: a moving-coil needle on a cream face, 0 to 20 dB
 function drawVu(cv, c) { const { g, W, H } = prepCanvas(cv), live = SCOPE.fc === c && SCOPE.fs === NSLOTS + 1, db = live ? Math.min(0, SCOPE.visD) : 0; if (W < 40 || H < 24) return;   // not laid out yet
-  const gr = g.createRadialGradient(W / 2, H * 1.1, 10, W / 2, H, Math.max(W, H)); gr.addColorStop(0, '#fff6dc'); gr.addColorStop(.6, '#efe2b4'); gr.addColorStop(1, '#d8c487');
-  g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#121314'; g.fillRect(0, 0, W, H);   // the desk's compression meter: a black face, a white scale
   const cx = W / 2, cy = H * 1.18, R = Math.min(W * .46, H * 1.02), a0 = -Math.PI * .5 - .62, a1 = -Math.PI * .5 + .62, ang = v => a1 - (a1 - a0) * Math.sqrt(Math.min(20, Math.max(0, v)) / 20);   // spread at the top, as a real meter's scale
-  g.strokeStyle = '#2a2116'; g.lineWidth = 1.3; g.beginPath(); g.arc(cx, cy, R, a0, a1); g.stroke();
-  g.strokeStyle = '#b3261e'; g.lineWidth = 4; g.beginPath(); g.arc(cx, cy, R - 3, a0, ang(10)); g.stroke();
-  g.font = `700 9px "Archivo Narrow", ${FONT_LCD}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#2a2116'; g.strokeStyle = '#2a2116'; g.lineWidth = 1.3;
+  g.strokeStyle = '#e9e7df'; g.lineWidth = 1.2; g.beginPath(); g.arc(cx, cy, R, a0, a1); g.stroke();
+  g.font = `700 9px "Archivo Narrow", ${FONT_LCD}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#e9e7df'; g.strokeStyle = '#e9e7df'; g.lineWidth = 1.3;
   for (const v of [0, 2, 4, 6, 10, 14, 20]) { const a = ang(v); g.beginPath(); g.moveTo(cx + Math.cos(a) * (R - 8), cy + Math.sin(a) * (R - 8)); g.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); g.stroke();
     g.fillText(String(v), cx + Math.cos(a) * (R - 18), cy + Math.sin(a) * (R - 18)); }
-  g.font = `700 9.5px "Archivo Narrow", ${FONT_LCD}`; g.fillText('GAIN REDUCTION', cx, cy - R * .52);
-  const a = ang(-db); g.strokeStyle = '#111'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * (R + 2), cy + Math.sin(a) * (R + 2)); g.stroke();
-  g.fillStyle = '#2a2116'; g.beginPath(); g.arc(cx, cy, R * .3, 0, 7); g.fill(); g.textAlign = 'left'; }
+  g.font = `700 9px "Archivo Narrow", ${FONT_LCD}`; g.fillStyle = '#9fa3a8'; g.fillText('COMPRESSION', cx, cy - R * .5);
+  const a = ang(-db); g.strokeStyle = '#f2efe6'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx + Math.cos(a) * R * .3, cy + Math.sin(a) * R * .3); g.lineTo(cx + Math.cos(a) * (R + 2), cy + Math.sin(a) * (R + 2)); g.stroke();
+  g.fillStyle = '#26282b'; g.beginPath(); g.arc(cx, cy, R * .3, 0, 7); g.fill(); g.textAlign = 'left'; }
 
 // Punchy's and Warm's compressors: their own meters and controls
 function conBus2(sel) {
@@ -9840,7 +9873,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-04', ['Punchy console redone after the classic discrete desk: black modules, blue legends, peach-lit buttons, aluminium fin knobs with coloured caps, chrome faders, warm-lit meters; its EQ is laid out as the three-band module. The EQ insert\'s Punch mode matches.', 'Fix: console meters (Punchy, Warm) move on every phone.', 'Two more consoles: Punchy (stepped three-band EQ, a meter bridge, a bus compressor with knee, Thrust and Old/New) and Warm (fixed-point EQ, a meter on every strip, a compressor with two Auto recoveries and a limiter). Each has its own drive colour; switching keeps each one\'s settings.', 'Console EQ: Classic and Modern curves, wider Q (0.1–3.5), mids that reach further as they narrow, Modern shelves with their dip and bump, and an accurate top end up to 20 kHz.', 'Console compressor (now COMP): feedback-style glue, linked sides, two-stage Auto release; ratio changes keep the level.', 'Drive lifts the top gently as it pushes, like a hot desk; LED meters on the console\'s faders.']],
+  ['2026-11-04', ['Clean console refreshed after the large-format desk: grey-blue modules with silkscreen lines, light grey knobs with pink, green, blue and black caps, cream buttons that light, red channel tiles, white scribble strips, cream fader caps, orange LED meters, a black compression meter. The EQ insert\'s Console mode matches.', 'Punchy console redone after the classic discrete desk: black modules, blue legends, peach-lit buttons, aluminium fin knobs with coloured caps, chrome faders, warm-lit meters; its EQ is laid out as the three-band module. The EQ insert\'s Punch mode matches.', 'Fix: console meters (Punchy, Warm) move on every phone.', 'Two more consoles: Punchy (stepped three-band EQ, a meter bridge, a bus compressor with knee, Thrust and Old/New) and Warm (fixed-point EQ, a meter on every strip, a compressor with two Auto recoveries and a limiter). Each has its own drive colour; switching keeps each one\'s settings.', 'Console EQ: Classic and Modern curves, wider Q (0.1–3.5), mids that reach further as they narrow, Modern shelves with their dip and bump, and an accurate top end up to 20 kHz.', 'Console compressor (now COMP): feedback-style glue, linked sides, two-stage Auto release; ratio changes keep the level.', 'Drive lifts the top gently as it pushes, like a hot desk; LED meters on the console\'s faders.']],
   ['2026-11-03', ['Console drive has more to it: warmer (mostly second harmonic), clearly there when turned up, and level-matched so it never just gets louder.', 'Consoles (Menu › Console): Clean, a large-format desk with a four-band EQ on every channel, a bus compressor on groups, buses and the master, and drive. None keeps the plain mixer.', 'The ANLZ button by the level meter opens the master analyzer; the monitoring options are gone.', 'Messages slide in over the level meter (or show in the d-pad\'s window when it\'s open); the bar above the tabs is gone.', 'One typeface everywhere; pad and mixer names at one size, longer ones on two lines; mixer numbers and colour bars line up.', 'Clearer Analog, Sub and Instrument screens.', 'Synth pages tidied: knobs in a block, selectors and switches in a column on the right, everything lined up. Analog picks waves and modes with a pointer knob; the page keys are each synth\'s own buttons.', 'Fix: text cut off with the d-pad open.', 'Each synth engine is now its own instrument: its own knobs, switches, keys and screen. Every control and patch works as before.', 'FX synth: a Play key. Instrument: keys to jump between kinds of instrument.', 'Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
