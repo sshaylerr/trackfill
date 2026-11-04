@@ -455,9 +455,27 @@ function chanDefaultName(c) { const k = chanKind(c); return k === 'group' ? 'Gro
 const CONSOLES = [['none', 'None', 'The plain mixer'], ['clean', 'Clean', 'Large-format desk: four-band EQ, bus compressor']];
 const CEQ_P = [P_('High-pass', 0, v => v <= .001 ? 'Off' : fHz(expmap(v, 16, 350))), P_('Low-pass', 1, v => v >= .999 ? 'Off' : fHz(expmap(v, 3000, 22000))),
   P_('HF gain', .5, v => fSign(v, -15, 15)), P_('HF freq', .706, v => fHz(expmap(v, 1500, 16000))), P_('HF shape', 0, null, ['Shelf', 'Bell']),
-  P_('HMF gain', .5, v => fSign(v, -15, 15)), P_('HMF freq', .654, v => fHz(expmap(v, 600, 7000))), P_('HMF Q', .431, v => expmap(v, .5, 2.5).toFixed(2)),
-  P_('LMF gain', .5, v => fSign(v, -15, 15)), P_('LMF freq', .435, v => fHz(expmap(v, 200, 2500))), P_('LMF Q', .431, v => expmap(v, .5, 2.5).toFixed(2)),
-  P_('LF gain', .5, v => fSign(v, -15, 15)), P_('LF freq', .445, v => fHz(expmap(v, 30, 450))), P_('LF shape', 0, null, ['Shelf', 'Bell']), P_('Curve', 0, null, ['Brown', 'Black'])];
+  P_('HMF gain', .5, v => fSign(v, -15, 15)), P_('HMF freq', .654, v => fHz(expmap(v, 600, 7000))), P_('HMF Q', .6476, v => expmap(v, .1, 3.5).toFixed(2)),
+  P_('LMF gain', .5, v => fSign(v, -15, 15)), P_('LMF freq', .435, v => fHz(expmap(v, 200, 2500))), P_('LMF Q', .6476, v => expmap(v, .1, 3.5).toFixed(2)),
+  P_('LF gain', .5, v => fSign(v, -15, 15)), P_('LF freq', .445, v => fHz(expmap(v, 30, 450))), P_('LF shape', 0, null, ['Shelf', 'Bell']), P_('Curve', 0, null, ['Classic', 'Modern'])];
+// the EQ's curve as the desk draws it (the engine's filters follow it to within about a dB right up to 20 kHz): dB at f for parameters p
+const ceqMidMax = (v, modern) => 15 + (modern ? 5 : 3) * v;   // the mids reach further as they narrow
+function ceqBands(p) { const ex = (v, a, b) => a * Math.pow(b / a, v), ln = (v, a, b) => a + (b - a) * v, mod = p[14] >= .5, B = [];
+  const gh = ln(p[2], -15, 15), gb = ln(p[11], -15, 15), mm = ceqMidMax(p[7], mod), ml = ceqMidMax(p[10], mod), gm = (p[5] * 2 - 1) * mm, gl = (p[8] * 2 - 1) * ml;
+  if (Math.abs(gh) > .05) B.push(p[4] >= .5 ? ['pk', ex(p[3], 1500, 16000), mod ? .5 + Math.abs(gh) / 15 : .9, gh] : [mod ? 'hs' : 'hs1', ex(p[3], 1500, 16000), 1.1, gh]);
+  if (Math.abs(gm) > .05) B.push(['pk', ex(p[6], 600, 7000), ex(p[7], .1, 3.5) * (mod ? .6 + 1.2 * Math.abs(gm) / mm : 1), gm]);
+  if (Math.abs(gl) > .05) B.push(['pk', ex(p[9], 200, 2500), ex(p[10], .1, 3.5) * (mod ? .6 + 1.2 * Math.abs(gl) / ml : 1), gl]);
+  if (Math.abs(gb) > .05) B.push(p[13] >= .5 ? ['pk', ex(p[12], 30, 450), mod ? .5 + Math.abs(gb) / 15 : .9, gb] : [mod ? 'ls' : 'ls1', ex(p[12], 30, 450), 1.1, gb]);
+  return { B, hp: p[0] > .001 ? ex(p[0], 16, 350) : 0, lp: p[1] < .999 ? ex(p[1], 3000, 22000) : 0 }; }
+function ceqDb(S, f) { let d = 0;
+  for (const [t, f0, Q, g] of S.B) { const A = Math.pow(10, g / 40), w = f / f0, w2 = w * w; let m;
+    if (t === 'pk') { const nr = 1 - w2, ni = w * A / Q, di = w / (A * Q); m = (nr * nr + ni * ni) / (nr * nr + di * di); }
+    else if (t === 'hs' || t === 'ls') { const sq = Math.sqrt(A) / Q * w, nr = t === 'hs' ? 1 - A * w2 : A - w2, dr = t === 'hs' ? A - w2 : 1 - A * w2; m = A * A * (nr * nr + sq * sq) / (dr * dr + sq * sq); }
+    else { const a2 = A * A; m = t === 'hs1' ? a2 * (a2 * w2 + 1) / (w2 + a2) : a2 * (w2 + a2) / (a2 * w2 + 1); }
+    d += 10 * Math.log10(m); }
+  if (S.hp) { const x = f / S.hp; d += 10 * Math.log10(x ** 4 / ((1 - x * x) ** 2 + x * x)) + 10 * Math.log10(x * x / (1 + x * x)); }   // 12 dB (Q 1) and a 6 dB pole: 18 dB an octave
+  if (S.lp) { const x = f / S.lp; d += 10 * Math.log10(1 / ((1 - x * x) ** 2 + 2 * x * x)); }
+  return d; }
 const CEQ_TYPE = 40, hasBusComp = c => c >= G0;
 const newCeq = () => ({ type: CEQ_TYPE, mode: 0, on: true, post: false, p: CEQ_P.map(q => q.d) });
 const newBusComp = () => Object.assign(newFx(FX_TYPES.COMP, null, 3), { on: false });
@@ -725,5 +743,5 @@ function stress2V2() {
   for (const s of [0, 1]) { S[s].auto['8.-2.0'] = lane([[0, .35], [4 * BAR, 1], [8 * BAR - 24, .5]]);     S[s].auto['31.-1.3'] = lane([[4 * BAR, 0], [8 * BAR - 24, .45]]); S[s].auto[G.bass + '.-1.0'] = lane([[0, .3], [BAR, .45], [8 * BAR - 24, .45]]); }
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { CONSOLES, CEQ_P, CEQ_TYPE, hasBusComp, newCeq, newBusComp, clipsClean, MAX_SCENES, fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
+if (typeof module !== 'undefined') module.exports = { ceqBands, ceqDb, ceqMidMax, CONSOLES, CEQ_P, CEQ_TYPE, hasBusComp, newCeq, newBusComp, clipsClean, MAX_SCENES, fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
   buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };

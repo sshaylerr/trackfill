@@ -17,7 +17,7 @@ typedef short i16;
 enum { NCH = 83, SPEAKER = 83, NPAD = 64, G0 = 64, B0 = 72, R0 = 80, MASTER = 82, NSLOT = 8, MAXN = 128,
        NVOICE = 96, VOICECAP = 80, NSAMP = 1024, NPARAM = 16 };
 // the console: every channel has a channel EQ in slot NSLOT and (groups, buses, master) a bus compressor in slot NSLOT + 1, outside the inserts
-enum { SL_EQ = 8, SL_BUS = 9, NSLOTX = 10, FX_CEQ = 40 };
+enum { SL_EQ = 8, SL_BUS = 9, NSLOTX = 10, FX_CEQ = 40, FX_CBUS = 41 };
 enum { FX_EQ = 0, FX_COMP, FX_FILTER, FX_SAT, FX_DELAY, FX_REVERB, FX_DUCK, FX_UTIL, FX_CHORUS, FX_CLIP, FX_CRUSH, FX_TRANS, FX_PHASER,
        FX_LIMIT, FX_MBAND, FX_TAPE, FX_GATE, FX_DISP, FX_APAN, FX_LFOT, FX_VINYL, FX_STEP, FX_GRIN, FX_DIST, FX_INFL, FX_RESO, FX_PITCH, FX_FSHIFT, FX_RING, FX_IMAGER, FX_DEESS, FX_COUNT };
 
@@ -255,7 +255,7 @@ struct Chan {
   float cv, cp, ca, cb, cm, ccut, cres;        // smoothed
   float fz1[2], fz2[2];                        // pad filter state
   i32 out; u32 quiet, tail, oq, gap; Fx fx[NSLOTX];
-  i32 eqPost; float drv, cdrv, cdx[2], cdy[2], cei, ceo, cmk;   // the console: channel EQ before or after the inserts; the console's character (0 = none)   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
+  i32 eqPost; float drv, cdrv, cdx[2], cdy[2], cei, ceo, cmk, chx[2], chy[2];   // the console: channel EQ before or after the inserts; the console's character (0 = none)   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
 };
 static Chan chs[NCH];
 static float dirL[MAXN], dirR[MAXN]; static i32 dirMute = 0;   // channels routed to the speaker; exports leave them out
@@ -288,7 +288,7 @@ EX void tf_init(float sr) {
     Chan* C = &chs[c];
     C->vol = C->cv = 0.98f; C->pan = C->cp = 0; C->sa = C->ca = 0; C->sb = C->cb = 0; C->mute = C->cm = 1;
     C->cut = C->ccut = 20000.f; C->res = C->cres = 0.707f; C->out = defaultOut(c); C->tail = (u32)(0.3f * SR); C->gap = (u32)(0.1f * SR); C->quiet = 0; C->oq = 0;
-    for (i32 s = 0; s < NSLOTX; s++) C->fx[s].type = -1; C->eqPost = 0; C->drv = C->cdrv = 0; C->cdx[0] = C->cdx[1] = C->cdy[0] = C->cdy[1] = 0; C->cei = C->ceo = 0; C->cmk = 1;
+    for (i32 s = 0; s < NSLOTX; s++) C->fx[s].type = -1; C->eqPost = 0; C->drv = C->cdrv = 0; C->cdx[0] = C->cdx[1] = C->cdy[0] = C->cdy[1] = 0; C->cei = C->ceo = 0; C->cmk = 1; C->chx[0] = C->chx[1] = C->chy[0] = C->chy[1] = 0;
   }
 }
 EX void tf_set_bpm(float b) { BPM = sane(b, 20.f, 400.f, 120.f); }
@@ -327,7 +327,7 @@ static u32 discMask(i32 t, i32 m) {
     case FX_PHASER: return m == 1 ? B2 : 0;
     case FX_LIMIT: return B3 | B4;
     case FX_APAN: return B0 | B1 | B4; case FX_LFOT: return B0 | B1; case FX_VINYL: return B4; case FX_STEP: return B0 | B1; case FX_GRIN: return B1;
-    case FX_CEQ: return B4 | (1u << 13) | (1u << 14); case FX_INFL: return B3 | B4; case FX_RESO: return B0 | B1 | B2 | B6; case FX_PITCH: return m == 1 ? B0 | B1 : 0; case FX_RING: return B1; case FX_DEESS: return B3 | B4;
+    case FX_CEQ: return B4 | (1u << 13) | (1u << 14); case FX_CBUS: return B1 | B2 | B3; case FX_INFL: return B3 | B4; case FX_RESO: return B0 | B1 | B2 | B6; case FX_PITCH: return m == 1 ? B0 | B1 : 0; case FX_RING: return B1; case FX_DEESS: return B3 | B4;
     default: return 0;
   }
 }
@@ -403,7 +403,7 @@ static void fxReset(Fx* f) { f->vis[0] = f->vis[1] = f->vis[2] = f->vis[3] = 0.f
 static Fx* fxAt(i32 c, i32 s) { return (c >= 0 && c < NCH && s >= 0 && s < NSLOTX) ? &chs[c].fx[s] : 0; }
 EX i32 tf_fx_type(i32 c, i32 s, i32 type) {
   Fx* f = fxAt(c, s); if (!f) return 0;
-  if (type < -1 || (type >= FX_COUNT && type != FX_CEQ)) type = -1;
+  if (type < -1 || (type >= FX_COUNT && type != FX_CEQ && type != FX_CBUS)) type = -1;
   if (f->st) { tf_free(f->st); f->st = 0; f->stBytes = 0; }
   f->type = type; f->mode = 0; f->on = 1; f->key = -1; f->fresh = 1; f->ntrig = 0;
   if (type >= 0) { f->stBytes = fxStateBytes(type, 0); f->st = tf_malloc(f->stBytes); if (!f->st) { f->type = -1; return 0; } fxReset(f); }
@@ -652,22 +652,74 @@ static float noiseGate(float* g, const float* L, const float* R, i32 n) {
 #include "synth.inc"
 /* ================= the console: channel EQ and character =================
    Clean (a large-format British desk, the E/G channel): high-pass 16–350 Hz at 18 dB/oct and low-pass 3–22 kHz at 12 dB/oct (each off at its end),
-   HF shelf 1.5–16 kHz and LF shelf 30–450 Hz (either a bell), HMF 600 Hz–7 kHz and LMF 200 Hz–2.5 kHz bells with Q 0.5–2.5, ±15 dB.
-   Brown: constant Q and plain shelves. Black: the bells narrow as they're pushed (proportional Q) and the shelves overshoot a little.
+   HF shelf 1.5–16 kHz and LF shelf 30–450 Hz (either a bell), HMF 600 Hz–7 kHz and LMF 200 Hz–2.5 kHz bells with Q 0.1–3.5. Shelves ±15 dB;
+   the mids reach further as they narrow (±15 dB at Q 0.1 up to ±18, or ±20 on Modern, at Q 3.5), as on the desk.
+   Classic: bells of constant width, gentle first-order (6 dB an octave) shelves. Modern: the bells narrow as they're pushed (proportional Q) and
+   the shelves are second-order with the small dip and bump either side of the turnover (about 1.3 dB at full boost).
+   The upper bands are "matched" filters: their curves keep the analogue shape right up to 20 kHz instead of squashing towards the top.
    Params: 0 HPF, 1 LPF, 2–4 HF gain/freq/bell, 5–7 HMF gain/freq/Q, 8–10 LMF gain/freq/Q, 11–13 LF gain/freq/bell, 14 curve. A flat band costs nothing. */
 struct CeqSt { BQ2 q[6]; i32 on[6]; float hx[2], hy[2], ha; i32 h1; };
+// double-precision helpers for the coefficient maths (run only when a control moves)
+static double dexp_(double x) { if (x < -700) return 0; i32 k = (i32)(x * 1.4426950408889634 + (x < 0 ? -0.5 : 0.5)); double r = x - k * 0.6931471805599453, t = 1, sum = 1;
+  for (i32 i = 1; i < 18; i++) { t *= r / i; sum += t; } double p2 = 1; if (k > 0) for (i32 i = 0; i < k; i++) p2 *= 2; else for (i32 i = 0; i < -k; i++) p2 *= 0.5; return sum * p2; }
+static double dcos_(double x) { while (x > 3.141592653589793) x -= 6.283185307179586; while (x < -3.141592653589793) x += 6.283185307179586; double x2 = x * x, t = 1, sum = 1; for (i32 i = 1; i < 14; i++) { t *= -x2 / ((2 * i - 1) * (2 * i)); sum += t; } return sum; }
+static inline double dsqrt_(double x) { return x > 0 ? __builtin_sqrt(x) : 0; }
+static inline double dsin2h_(double w) { const double c = dcos_(w); return 0.5 * (1 - c); }   // sin²(w/2)
+// the analogue curves, |H|² at f (5: the low-pass): 0 bell, 1 high shelf, 2 low shelf (second order, Q), 3 high shelf, 4 low shelf (first order)
+static double anMag2(i32 t, double f, double f0, double Q, double gdb) {
+  const double A = dexp_(gdb * 0.05756462732485115), w = f / f0, w2 = w * w;   // A = 10^(g/40)
+  if (t == 5) { const double nr = 1 - w2, ni = w / Q; return 1 / (nr * nr + ni * ni); }   // 5: low-pass
+  if (t == 0) { const double nr = 1 - w2, ni = w * A / Q, di = w / (A * Q); return (nr * nr + ni * ni) / (nr * nr + di * di); }
+  if (t == 1 || t == 2) { const double sq = dsqrt_(A) / Q * w, nr = t == 1 ? 1 - A * w2 : A - w2, dr = t == 1 ? A - w2 : 1 - A * w2; return A * A * (nr * nr + sq * sq) / (dr * dr + sq * sq); }
+  const double a = A, a2 = a * a; return t == 3 ? a2 * (a2 * w2 + 1) / (w2 + a2) : a2 * (w2 + a2) / (a2 * w2 + 1);
+}
+struct C5 { double b0, b1, b2, a1, a2; };
+static void bqFrom(BQ2* q, C5 c) { q->b0 = (float)c.b0; q->b1 = (float)c.b1; q->b2 = (float)c.b2; q->a1 = (float)c.a1; q->a2 = (float)c.a2; }
+static C5 c5inv(C5 c) { C5 r; r.b0 = 1 / c.b0; r.b1 = c.a1 / c.b0; r.b2 = c.a2 / c.b0; r.a1 = c.b1 / c.b0; r.a2 = c.b2 / c.b0; return r; }
+// poles by impulse invariance (exact), the zeros chosen so the magnitude matches the analogue curve at DC, at Nyquist and at fm
+static C5 m2fit(double fp, double Qp, i32 t, double f0, double Q, double gdb, double fm) {
+  if (fp > 0.49 * SR) fp = 0.49 * SR; const double w0 = 6.283185307179586 * fp / SR, q = 1 / (2 * Qp); C5 c;
+  if (q <= 1) c.a1 = -2 * dexp_(-q * w0) * dcos_(dsqrt_(1 - q * q) * w0); else { const double y = dsqrt_(q * q - 1) * w0; c.a1 = -dexp_(-q * w0) * (dexp_(y) + dexp_(-y)); }
+  c.a2 = dexp_(-2 * q * w0);
+  if (fm > 0.45 * SR) fm = 0.45 * SR; const double wm = 6.283185307179586 * fm / SR, p1 = dsin2h_(wm), p0 = 1 - p1, p2 = 4 * p0 * p1;
+  const double A0 = (1 + c.a1 + c.a2) * (1 + c.a1 + c.a2), A1 = (1 - c.a1 + c.a2) * (1 - c.a1 + c.a2), A2 = -4 * c.a2;
+  const double B0 = A0 * anMag2(t, 0, f0, Q, gdb), B1 = A1 * anMag2(t, 0.5 * SR, f0, Q, gdb), B2 = (anMag2(t, fm, f0, Q, gdb) * (A0 * p0 + A1 * p1 + A2 * p2) - B0 * p0 - B1 * p1) / p2;
+  const double r0 = dsqrt_(B0), r1 = dsqrt_(B1), W = 0.5 * (r0 + r1); c.b1 = 0.5 * (r0 - r1); c.b0 = 0.5 * (W + dsqrt_(W * W + B2)); c.b2 = W - c.b0; return c;
+}
+static C5 m1fit(double fp, i32 t, double f0, double gdb) {   // first order: the pole matched, the gain at DC and Nyquist matched
+  if (fp > 0.49 * SR) fp = 0.49 * SR; const double d1 = -dexp_(-6.283185307179586 * fp / SR), h0 = dsqrt_(anMag2(t, 0, f0, 1, gdb)) * (1 + d1), hn = dsqrt_(anMag2(t, 0.5 * SR, f0, 1, gdb)) * (1 - d1);
+  C5 c; c.b0 = 0.5 * (h0 + hn); c.b1 = 0.5 * (h0 - hn); c.b2 = 0; c.a1 = d1; c.a2 = 0; return c;
+}
+// a matched bell (after Vicanek's matched second-order filters): the symmetric bell is s² + s·A/Q + 1 over s² + s/(A·Q) + 1
+static C5 mPeak(double f0, double Q, double gdb) {
+  const double A = dexp_(gdb * 0.05756462732485115), G = A * A, w0 = 6.283185307179586 * f0 / SR, q = 1 / (2 * A * Q); C5 c;
+  if (q <= 1) c.a1 = -2 * dexp_(-q * w0) * dcos_(dsqrt_(1 - q * q) * w0); else { const double y = dsqrt_(q * q - 1) * w0; c.a1 = -dexp_(-q * w0) * (dexp_(y) + dexp_(-y)); }
+  c.a2 = dexp_(-2 * q * w0);
+  const double A0 = (1 + c.a1 + c.a2) * (1 + c.a1 + c.a2), A1 = (1 - c.a1 + c.a2) * (1 - c.a1 + c.a2), A2 = -4 * c.a2, p1 = dsin2h_(w0), p0 = 1 - p1, p2 = 4 * p0 * p1;
+  const double R1 = (A0 * p0 + A1 * p1 + A2 * p2) * G * G, R2 = (-A0 + A1 + 4 * (p0 - p1) * A2) * G * G, B0 = A0, B2 = (R1 - R2 * p1 - B0) / (4 * p1 * p1), B1 = R2 + B0 + 4 * (p1 - p0) * B2;
+  const double W = 0.5 * (dsqrt_(B0) + dsqrt_(B1)); c.b0 = 0.5 * (W + dsqrt_(W * W + B2)); c.b1 = 0.5 * (dsqrt_(B0) - dsqrt_(B1)); c.b2 = -B2 / (4 * c.b0); return c;
+}
+// shelves: designed as a cut (its poles sit below the turnover, safely under Nyquist) and turned over for a boost
+static C5 mShelf(i32 hi, i32 order2, double f0, double Q, double gdb) {
+  const double g = gdb < 0 ? gdb : -gdb, A = dexp_(g * 0.05756462732485115); C5 c;
+  if (order2) c = hi ? m2fit(f0 * dsqrt_(A), Q, 1, f0, Q, g, f0) : m2fit(f0 / dsqrt_(A), Q, 2, f0, Q, g, f0);
+  else c = hi ? m1fit(f0 * A, 3, f0, g) : m1fit(f0 / A, 4, f0, g);
+  return gdb < 0 ? c : c5inv(c);
+}
+static inline float ceqQ(float v) { return expmap(v, 0.1f, 3.5f); }
+static inline float ceqMidMax(float v, i32 modern) { return 15.f + (modern ? 5.f : 3.f) * v; }   // v: the Q control, 0..1
 static void ceqCoef(Fx* f, CeqSt* e) {
-  const float* s = f->s; const i32 black = s[14] >= 0.5f;
-  const float pq = 1.f / 15.f, shQ = black ? 1.05f : 0.7071f;
+  const float* s = f->s; const i32 modern = s[14] >= 0.5f;
   for (i32 b = 0; b < 6; b++) e->on[b] = 0;
   e->h1 = s[0] > 0.001f; if (e->h1) { const float fc = expmap(s[0], 16.f, 350.f); bq2Set(&e->q[0], BQ_HP, fc, 1.f, 0); e->on[0] = 1; e->ha = fexp(-6.28318531f * fc / SR); }
-  if (s[1] < 0.999f) { bq2Set(&e->q[1], BQ_LP, expmap(s[1], 3000.f, 22000.f), 0.7071f, 0); e->on[1] = 1; }
-  const float gh = linmap(s[2], -15, 15), gm = linmap(s[5], -15, 15), gl = linmap(s[8], -15, 15), gb = linmap(s[11], -15, 15);
-  const float qm = expmap(s[7], 0.5f, 2.5f) * (black ? 0.6f + 1.2f * fabsf_(gm) * pq : 1.f), ql = expmap(s[10], 0.5f, 2.5f) * (black ? 0.6f + 1.2f * fabsf_(gl) * pq : 1.f);
-  if (fabsf_(gh) > 0.05f) { const float fr = expmap(s[3], 1500.f, 16000.f); if (s[4] >= 0.5f) bq2Set(&e->q[2], BQ_PEAK, fr, black ? 0.5f + 1.f * fabsf_(gh) * pq : 0.9f, gh); else bq2Set(&e->q[2], BQ_HS, fr, shQ, gh); e->on[2] = 1; }
-  if (fabsf_(gm) > 0.05f) { bq2Set(&e->q[3], BQ_PEAK, expmap(s[6], 600.f, 7000.f), qm, gm); e->on[3] = 1; }
+  if (s[1] < 0.999f) { const double fc = expmap(s[1], 3000.f, 22000.f); bqFrom(&e->q[1], m2fit(fc, 0.7071, 5, fc, 0.7071, 0, fc)); e->on[1] = 1; }   // matched: the slope stays 12 dB an octave to the top
+  const float gh = linmap(s[2], -15, 15), gb = linmap(s[11], -15, 15), mm = ceqMidMax(s[7], modern), ml = ceqMidMax(s[10], modern);
+  const float gm = (s[5] * 2.f - 1.f) * mm, gl = (s[8] * 2.f - 1.f) * ml;
+  const float qm = ceqQ(s[7]) * (modern ? 0.6f + 1.2f * fabsf_(gm) / mm : 1.f), ql = ceqQ(s[10]) * (modern ? 0.6f + 1.2f * fabsf_(gl) / ml : 1.f);
+  if (fabsf_(gh) > 0.05f) { const double fr = expmap(s[3], 1500.f, 16000.f); bqFrom(&e->q[2], s[4] >= 0.5f ? mPeak(fr, modern ? 0.5 + fabsf_(gh) / 15.0 : 0.9, gh) : mShelf(1, modern, fr, 1.1, gh)); e->on[2] = 1; }
+  if (fabsf_(gm) > 0.05f) { bqFrom(&e->q[3], mPeak(expmap(s[6], 600.f, 7000.f), qm, gm)); e->on[3] = 1; }
   if (fabsf_(gl) > 0.05f) { bq2Set(&e->q[4], BQ_PEAK, expmap(s[9], 200.f, 2500.f), ql, gl); e->on[4] = 1; }
-  if (fabsf_(gb) > 0.05f) { const float fr = expmap(s[12], 30.f, 450.f); if (s[13] >= 0.5f) bq2Set(&e->q[5], BQ_PEAK, fr, black ? 0.5f + 1.f * fabsf_(gb) * pq : 0.9f, gb); else bq2Set(&e->q[5], BQ_LS, fr, shQ, gb); e->on[5] = 1; }
+  if (fabsf_(gb) > 0.05f) { const double fr = expmap(s[12], 30.f, 450.f); if (s[13] >= 0.5f) bq2Set(&e->q[5], BQ_PEAK, (float)fr, modern ? 0.5f + fabsf_(gb) / 15.f : 0.9f, gb); else bqFrom(&e->q[5], mShelf(0, modern, fr, 1.1, gb)); e->on[5] = 1; }
 }
 static void fx_ceq(Fx* f, float* L, float* R, i32 n) {
   CeqSt* e = (CeqSt*)f->st; i32 dirty = 0;
@@ -680,20 +732,50 @@ static void fx_ceq(Fx* f, float* L, float* R, i32 n) {
       for (i32 b = 0; b < 6; b++) if (e->on[b]) y = bq2(&e->q[b], c, y);
       x[i] = y; } }
 }
-// the console's character: the desk's electronics pushed. The signal is driven harder into a slightly lopsided soft curve, which rounds
-// the peaks and adds mostly second harmonic (warmth), some third as it's turned up. Unity for small signals; a slow level match (RMS in
-// against RMS out, within 0 to +3 dB) makes up what the rounding takes, so turning it up adds colour, not loudness. Off at 0.
+// the console's character: the desk pushed, after what's published about driving its inputs hot (and the "4K" colour switch on the maker's
+// small interfaces: a very gentle high shelf from about 1.5 kHz, +3 dB by 15 kHz, and saturation that grows with level). So: a first-order
+// lift above about 6 kHz (about +2.5 dB at 12 kHz, +3 by 15), then a slightly lopsided soft curve, which rounds the peaks and adds mostly second harmonic
+// (some third as it's turned up). Unity for small signals; a slow level match (RMS in against RMS out, within ±3 dB) makes up what the
+// rounding takes (and takes back what the lift adds), so turning it up adds colour, not loudness. Off at 0.
 static void consoleChar(Chan* C, float* L, float* R, i32 n) {
   C->cdrv += (C->drv - C->cdrv) * 0.2f; if (C->cdrv < 1e-4f) { C->cdrv = C->drv < 1e-4f ? 0.f : C->cdrv; if (C->cdrv == 0.f) { C->cmk = 1.f; C->cei = C->ceo = 0.f; return; } }
   const float d = C->cdrv, k = 1.f + 4.f * d, b = 0.35f * d, z = fsat(b), g0 = (fsat(b + 1e-3f) - fsat(b - 1e-3f)) * 500.f, ig = 1.f / (k * g0);
   const float rdc = 1.f - 6.28318531f * 8.f / SR, ae = 1.f - fexp(-1.f / (0.3f * SR));   // DC from the lopsided curve removed below 8 Hz; level match over 0.3 s
+  const float ah = 1.f / (1.f + 6.28318531f * 6000.f / SR), lift = db2lin(4.2f * d) - 1.f;   // the lift: a one-pole high-pass at 6 kHz, added back
   float ei = C->cei, eo = C->ceo, mk = C->cmk;
   for (i32 i = 0; i < n; i++) { float io[2] = { L[i], R[i] };
-    for (i32 c = 0; c < 2; c++) { const float x = io[c], s = (fsat(x * k + b) - z) * ig, y = s - C->cdx[c] + rdc * C->cdy[c]; C->cdx[c] = s; C->cdy[c] = y;
-      ei += (x * x - ei) * ae; const float w = x + (y - x) * d; eo += (w * w - eo) * ae; io[c] = w * mk; }
+    for (i32 c = 0; c < 2; c++) { const float x0 = io[c], hp = ah * (C->chy[c] + x0 - C->chx[c]); C->chx[c] = x0; C->chy[c] = hp; const float x = x0 + lift * hp, s = (fsat(x * k + b) - z) * ig, y = s - C->cdx[c] + rdc * C->cdy[c]; C->cdx[c] = s; C->cdy[c] = y;
+      ei += (x0 * x0 - ei) * ae; const float w = x + (y - x) * d; eo += (w * w - eo) * ae; io[c] = w * mk; }
     L[i] = io[0]; R[i] = io[1];
-    if ((i & 31) == 31) { const float t = eo > 1e-9f ? sqrtf_(ei / eo) : 1.f; mk += ((t < 1.f ? 1.f : t > 1.4125f ? 1.4125f : t) - mk) * 0.05f; } }
+    if ((i & 31) == 31) { const float t = eo > 1e-9f ? sqrtf_(ei / eo) : 1.f; mk += ((t < 0.7079f ? 0.7079f : t > 1.4125f ? 1.4125f : t) - mk) * 0.05f; } }
   C->cei = ei + 1e-18f; C->ceo = eo + 1e-18f; C->cmk = mk;
+}
+/* The console's bus compressor (slot 9; its controls are the VCA compressor's: Threshold, Ratio 2/4/10, Attack 0.1–30 ms, Release 0.1–1.2 s or
+   Auto, Makeup, Mix, Key HPF). Modelled on what's published about the classic desk's design:
+   - it works mostly as a feedback compressor (the detector hears the compressed signal), which is much of its glue;
+   - one detector for both sides, so the stereo image holds still;
+   - the ratio switch moves the threshold a little, so changing ratio doesn't jump the level;
+   - Auto release has two time constants (the circuit's 750k·0.47µF and 91k·6.8µF, about 0.35 s and 0.62 s): a short peak recovers on the
+     fast one, sustained compression charges the slow one and lets go more gently. */
+struct CbusSt { float fast, slow; SVF hp; };
+static void fx_cbus(Fx* f, float* L, float* R, i32 n) {
+  CbusSt* c = (CbusSt*)f->st; float* s = f->s;
+  const float ratios[3] = { 2.f, 4.f, 10.f }, shift[3] = { 0.f, 1.f, 2.5f }, atks[6] = { 0.0001f, 0.0003f, 0.001f, 0.003f, 0.01f, 0.03f }, rels[4] = { 0.1f, 0.3f, 0.6f, 1.2f };
+  const i32 ri = disc(s[1], 3), rl = disc(s[3], 5); const float thr = linmap(s[0], -40, 0) + shift[ri], t = 1.f / ratios[ri] - 1.f, fb = 0.7f, sl = t / (1.f + t * fb), knee = 4.f;
+  const float mk = db2lin(linmap(s[4], 0, 20)), mix = s[5], aA = fexp(-1.f / (atks[disc(s[2], 6)] * SR));
+  const float aR = fexp(-1.f / ((rl < 4 ? rels[rl] : 0.1f) * SR)), aSc = fexp(-1.f / (0.35f * SR)), aSr = fexp(-1.f / (0.62f * SR));
+  i32 hpOn = s[6] > 0.001f; float a1 = 0, a2 = 0, a3 = 0, k = 0; if (hpOn) svf_coef(expmap(s[6], 20, 500), 0.7071f, &a1, &a2, &a3, &k);
+  float fa = c->fast, sw = c->slow;
+  for (i32 i = 0; i < n; i++) {
+    float xl = L[i], xr = R[i];
+    if (hpOn) { float lp, bp; svf_tick(&c->hp, 0, xl, a1, a2, a3, &lp, &bp); xl = xl - k * bp - lp; svf_tick(&c->hp, 1, xr, a1, a2, a3, &lp, &bp); xr = xr - k * bp - lp; }
+    const float env = rl < 4 ? fa : minf(fa, sw), lev = lin2db(maxf(fabsf_(xl), fabsf_(xr)) + 1e-9f) + fb * env, o = lev - thr;   // the detector hears 70% of the gain change already made
+    const float gr = 2.f * fabsf_(o) <= knee ? sl * (o + knee * 0.5f) * (o + knee * 0.5f) / (2.f * knee) : o > 0.f ? sl * o : 0.f;
+    fa = gr < fa ? gr + (fa - gr) * aA : gr + (fa - gr) * aR;
+    sw = gr < sw ? gr + (sw - gr) * aSc : gr + (sw - gr) * aSr;   // the slow branch charges only from sustained compression
+    const float e2 = rl < 4 ? fa : minf(fa, sw), g = db2lin(e2) * mk, w = mix * g + (1.f - mix); L[i] *= w; R[i] *= w;
+  }
+  c->fast = fa; c->slow = sw; f->vis[0] = rl < 4 ? fa : minf(fa, sw);
 }
 static u32 fxStateBytes(i32 t, i32 m) {
   if (m == 0 && t < FX_LIMIT) return fxStateBytes0(t);
@@ -703,7 +785,7 @@ static u32 fxStateBytes(i32 t, i32 m) {
     case FX_CLIP: return sizeof(Clip2St); case FX_CRUSH: return sizeof(Crush2St); case FX_PHASER: return sizeof(PhaserSt);
     case FX_LIMIT: return sizeof(LimSt); case FX_MBAND: return sizeof(MbSt); case FX_TAPE: return sizeof(TapeSt); case FX_GATE: return sizeof(GateSt); case FX_DISP: return sizeof(DispSt);
     case FX_APAN: return sizeof(APSt); case FX_LFOT: return sizeof(LTSt); case FX_VINYL: return sizeof(VinSt); case FX_STEP: return sizeof(StepSt); case FX_GRIN: return sizeof(GrinSt);
-    case FX_DIST: return sizeof(DistSt); case FX_INFL: return sizeof(InflSt); case FX_RESO: return sizeof(ResoSt); case FX_CEQ: return sizeof(CeqSt);
+    case FX_DIST: return sizeof(DistSt); case FX_INFL: return sizeof(InflSt); case FX_RESO: return sizeof(ResoSt); case FX_CEQ: return sizeof(CeqSt); case FX_CBUS: return sizeof(CbusSt);
     case FX_PITCH: return sizeof(PitchSt); case FX_FSHIFT: return sizeof(FSh2St); case FX_RING: return sizeof(RingSt); case FX_IMAGER: return sizeof(ImgSt); case FX_DEESS: return sizeof(DeesSt);
     default: return fxStateBytes0(t);
   }
@@ -734,7 +816,7 @@ static void fx_run(i32 c, Fx* f, float* L, float* R, i32 n) {
     case FX_GATE: fx_gate(f, L, R, n, kL, kR); break; case FX_DISP: fx_disp(f, L, R, n); break;
     case FX_APAN: fx_autopan(f, L, R, n); break; case FX_LFOT: fx_lfotool(f, L, R, n); break; case FX_VINYL: fx_vinyl(f, L, R, n); break; case FX_STEP: fx_step(f, L, R, n); break; case FX_GRIN: fx_grin(f, L, R, n); break;
     case FX_DIST: fx_dist(f, L, R, n); break; case FX_INFL: fx_inflate(f, L, R, n); break; case FX_RESO: fx_reso(f, L, R, n); break;
-    case FX_PITCH: fx_pitch(f, L, R, n); break; case FX_FSHIFT: fx_fshift(f, L, R, n); break; case FX_RING: fx_ring(f, L, R, n); break; case FX_IMAGER: fx_imager(f, L, R, n); break; case FX_DEESS: fx_deess(f, L, R, n); break; case FX_CEQ: fx_ceq(f, L, R, n); break;
+    case FX_PITCH: fx_pitch(f, L, R, n); break; case FX_FSHIFT: fx_fshift(f, L, R, n); break; case FX_RING: fx_ring(f, L, R, n); break; case FX_IMAGER: fx_imager(f, L, R, n); break; case FX_DEESS: fx_deess(f, L, R, n); break; case FX_CBUS: fx_cbus(f, L, R, n); break; case FX_CEQ: fx_ceq(f, L, R, n); break;
   }
   (void)c;
 }

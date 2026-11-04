@@ -783,6 +783,27 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(pre.rms < base.rms && ps.rms < base.rms && pre.bad === 0, 'the EQ works before and after the effects');
     const bc = Object.assign(cp(), { console: 'clean' }); bc.chans[M.MASTER].bus.on = true; bc.chans[M.MASTER].bus.p[0] = .3; const bs = await rend(bc);
     ok(bs.pk < base.pk && bs.bad === 0, 'the master bus compressor, once in, holds the peaks down');
+    { // one pad, one sound, through the console: the EQ's filters against the curve it draws, and the compressor's behaviour
+      const SR = 48000, smp = fn => { const n = SR * 2, d = new Int16Array(n); for (let i = 0; i < n; i++) d[i] = Math.round(Math.max(-1, Math.min(1, fn(i / SR, i))) * 32767); return { id: 'x', data: d, frames: n, ch: 1, sr: SR }; };
+      const one = async (s, set) => { const Q = M.newProject(true); Object.assign(Q.pads[0], { sample: 'x', mode: 'one', rel: .001 }); Q.chans[0].pan = .5; Q.console = 'clean'; set(Q);
+        Q.scenes[0] = Object.assign(M.emptyScene(), { bars: 2, notes: { 0: [{ t: 0, len: 24, p: 0, v: 1 }] } }); Q.bpm = 120; return (await H.tfRenderOffline(wasm, Q, new Map([['x', s]]), { order: [{ scene: 0, reps: 1 }], tail: 1 })).L; };
+      const imp = smp((t, i) => i === 480 ? .25 : 0), dry = await one(imp, () => {}), d0 = dry.findIndex(v => Math.abs(v) > 1e-4), ref = dry.slice(d0);
+      const mag = (ir, f) => { let re = 0, im = 0; for (let i = 0; i < 24000; i++) { re += ir[i] * Math.cos(2 * Math.PI * f * i / SR); im -= ir[i] * Math.sin(2 * Math.PI * f * i / SR); } return Math.hypot(re, im); };
+      const flat = M.CEQ_P.map(q => q.d), lg = (f, a, b) => Math.log(f / a) / Math.log(b / a); let worst = 0;
+      for (const o of [{ 2: 1, 3: 1 }, { 2: 1, 3: 1, 14: 1 }, { 2: 1, 3: 1, 4: 1 }, { 5: 1, 6: 1, 7: 1 }, { 5: 0, 6: .6, 14: 1 }, { 11: 1, 12: lg(60, 30, 450) }, { 11: 0, 12: lg(200, 30, 450), 14: 1 }, { 0: lg(80, 16, 350), 1: lg(10000, 3000, 22000) }]) {
+        const p = flat.slice(); for (const k in o) p[k] = o[k]; const y = (await one(imp, Q => { Q.chans[0].eq.p = p; })).slice(d0), S = M.ceqBands(p);
+        for (const f of [30, 60, 100, 200, 500, 1000, 2000, 4000, 8000, 12000, 16000, 20000]) worst = Math.max(worst, Math.abs(20 * Math.log10(mag(y, f) / mag(ref, f)) - M.ceqDb(S, f))); }
+      ok(worst < 1.5, `the EQ sounds the way it's drawn, right up to 20 kHz (worst ${worst.toFixed(2)} dB, eight settings)`);
+      const rd = (a, i0, i1) => { let q = 0; for (let i = i0; i < i1; i++) q += a[i] * a[i]; return 10 * Math.log10(q / (i1 - i0) + 1e-20); }, ov = (k, n) => k / (n - 1);
+      const sine = smp(t => .316 * Math.sin(2 * Math.PI * 200 * t)), plain = await one(sine, () => {}), grs = [];
+      for (const r of [0, 2]) { const y = await one(sine, Q => Object.assign(Q.chans[M.MASTER].bus, { on: true, p: [.5, ov(r, 3), ov(2, 6), ov(4, 5), 0, 1, 0] })); grs.push(rd(plain, SR, 1.5 * SR) - rd(y, SR, 1.5 * SR)); }
+      ok(Math.abs(grs[0] - 5) < 1 && Math.abs(grs[1] - 6.75) < 1, `the bus compressor holds its ratios (10 dB over: ${grs[0].toFixed(1)} dB at 2:1, ${grs[1].toFixed(1)} dB at 10:1)`);
+      const rel = []; for (const dur of [.03, 1]) { const b = smp(t => (t < dur ? .5 : .02) * Math.sin(2 * Math.PI * 200 * t)), r0 = await one(b, () => {}), y = await one(b, Q => Object.assign(Q.chans[M.MASTER].bus, { on: true, p: [.4, .5, .2, 1, 0, 1, 0] }));
+        const i = Math.round((dur + .3) * SR) + 480; rel.push(rd(r0, i, i + 480) - rd(y, i, i + 480)); }
+      ok(rel[0] < 1 && rel[1] > 2.5, `Auto release follows the music: 0.3 s after a short hit ${rel[0].toFixed(1)} dB still held, after a long one ${rel[1].toFixed(1)} dB`);
+      const mix2 = smp(t => .1 * Math.sin(2 * Math.PI * 200 * t) + .02 * Math.sin(2 * Math.PI * 12000 * t)), part = (y, f) => { let re = 0, im = 0; for (let i = SR; i < 1.5 * SR; i++) { re += y[i] * Math.cos(2 * Math.PI * f * i / SR); im += y[i] * Math.sin(2 * Math.PI * f * i / SR); } return 20 * Math.log10(Math.hypot(re, im)); };
+      const y0 = await one(mix2, Q => { Q.chans[0].drv = 0; }), y1 = await one(mix2, Q => { Q.chans[0].drv = 1; }), lift = (part(y1, 12000) - part(y0, 12000)) - (part(y1, 200) - part(y0, 200));
+      ok(lift > 2 && lift < 4, `full drive lifts the top gently, as a pushed desk does (+${lift.toFixed(1)} dB at 12 kHz against 200 Hz)`); }
     const back = M.migrate(JSON.parse(JSON.stringify(Object.assign(cp(), { console: 'clean' })))), junk = M.migrate(Object.assign(cp(), { console: 'brand x', chans: P.chans.map(C => Object.assign({}, C, { eq: { p: ['x', 9, null] }, bus: 'no', drv: 7 })) }));
     ok(back.console === 'clean' && junk.console === 'none' && junk.chans[0].eq.p[0] === 0 && junk.chans[0].eq.p[1] === 1 && junk.chans[0].drv === 1 && !junk.chans[0].bus && junk.chans[M.MASTER].bus.on === false, 'console settings load safely from a file');
     const k = Object.assign(cp(), { console: 'clean' }); H.tfSetBase(k, M.MASTER + '.8.2', .9); H.tfSetBase(k, M.MASTER + '.-1.4', .4);

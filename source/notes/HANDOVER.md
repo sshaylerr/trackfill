@@ -103,6 +103,10 @@ all inlined, so it asks no other site for anything and works offline as a home-s
   - With 'none' the host leaves slots 8 and 9 empty and drive at 0 (`tfSlotFx`, `tfConsoleOn`), so the plain mixer sounds exactly as before; the tests check that, and that full boosts stay under 0 dBFS.
   - The mixer shows the console's window (FADERS / EQ / BUS, `UI.mixMode`) over the usual detail row (analyzer, output, effects, sends, pan, drive). Knob skin `desk`, coloured with `--kc`.
   - Order in a channel: EQ (pre), bus compressor, inserts, EQ (post), drive, fader.
+  - Built from published specs and circuit write-ups (no measured audio): the EQ's ranges, Q 0.1–3.5 with the mids' reach growing with Q, Classic (constant width, first-order shelves) and Modern (proportional Q, second-order shelves with the dip and bump). The upper bands and the low-pass are matched filters (`m2fit`, `mPeak` in engine.cpp) that follow the analogue curve (`ceqBands`/`ceqDb`, js/model.js) to within about a dB to 20 kHz; the tests check it.
+  - The bus compressor is its own engine type (41, `fx_cbus`), mapped by the host for slot 9: mostly feedback, one detector for both sides, the threshold moved with the ratio, two-stage Auto release (0.35 s / 0.62 s).
+  - Drive: a gentle first-order lift above 6 kHz (about +3 dB by 15 kHz) into a lopsided soft curve (mostly second harmonic), level-matched.
+  - Faders on a console show LED-segment meters (`--mh` is the track height, set on first draw).
 - Monitoring (crossfeed, headphone correction) was removed from the page; the engine is told it's off. The button by the meter (ANLZ) opens the master analyzer.
 - Text that doesn't fit: `fitFonts(root)` (app.html) runs after a page, sheet or scene strip renders.
   - First it shrinks the text slightly (down to 85%), then uses a short form (`data-alt`, then `data-alt2`), then goes down to 75% (never below 8.5 px). It never switches typeface. Pad names, mixer names and scene names are left out on purpose: one size per row, two lines (pads, mixer) or an ellipsis.
