@@ -98,7 +98,10 @@ all inlined, so it asks no other site for anything and works offline as a home-s
   - The CSS per engine is the `synDev[data-eng=…]` block in app.html. Faces come from fonts/faces (OFL, LICENSES.txt).
   - Only looks change: same controls, same order, same d-pad path.
   - Switch rule: the second option is up (or right), and the lit label is the one that's on.
-- Consoles (`ui/console.js`, `P.console`: 'none' or 'clean'; `CONSOLES` in js/model.js).
+- Consoles (`ui/console.js`, `P.console`: 'none', 'clean', 'punchy' or 'warm'; `CONSOLES` and `CON_DEF` in js/model.js).
+  - Punchy: EQ type 42 (`PEQ_P`, stepped gains), compressor 44 (`PBUS_P`: RMS detector, knee, Thrust, Old feedback / New feed-forward), lit-VU meter bridge. Warm: EQ 43 (`WEQ_P`), compressor 45 (`WBUS_P`: soft knee, A1/A2 dual recovery, limiter), an amber meter on every strip. Drive colour per console (`tf_ch_set(c, 10, kind)`).
+  - Switching console sets the old one's EQ/compressor aside in `C.cx[console]` and its slot 8/9 automation in `scene.cxa[console]` (`conSwap`); `consoleClean` validates them on load.
+  - VU needles: `vuSvg`/`conMeters` (0 VU at -14 dBFS peak), driven from the strip meters and `UI.cm`.
   - Every channel has `eq` (the channel EQ: engine slot 8, type 40, `CEQ_P`; `post` puts it after the inserts) and `drv` (the desk's character, key `c.-1.4`); groups, buses, returns and the master also have `bus` (the VCA compressor, slot 9, off until engaged).
   - With 'none' the host leaves slots 8 and 9 empty and drive at 0 (`tfSlotFx`, `tfConsoleOn`), so the plain mixer sounds exactly as before; the tests check that, and that full boosts stay under 0 dBFS.
   - The mixer shows the console's window (FADERS / EQ / BUS, `UI.mixMode`) over the usual detail row (analyzer, output, effects, sends, pan, drive). Knob skin `desk`, coloured with `--kc`.

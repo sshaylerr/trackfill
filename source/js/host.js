@@ -436,9 +436,9 @@ class TFHost {
     const ex = this.ex, C = this.P.chans[c], frz = c < TF.NPAD && this.frozen(c);
     ex.tf_ch_route(c, tfDest(this.P, c));
     for (let i = 0; i < 5; i++) this.applyKey(c + '.-1.' + i, [C.vol, C.pan, C.sa, C.sb, C.drv || 0][i]);
-    ex.tf_ch_set(c, 7, C.eq && C.eq.post ? 1 : 0);
+    ex.tf_ch_set(c, 7, C.eq && C.eq.post ? 1 : 0); ex.tf_ch_set(c, 10, ({ punchy: 1, warm: 2 })[this.P.console] || 0);   // the console's character
     for (let s = 0; s < TF.NSLOT + 2; s++) {
-      const f = tfSlotFx(this.P, C, s), bus = f && s === TF.NSLOT + 1, t = !f ? -1 : bus ? 41 : f.type, mode = f && !bus ? (f.mode | 0) : 0, id = t < 0 ? -1 : t * 16 + mode;   // an effect slot is identified by type and mode; the console's compressor is its own design (41) with the VCA's controls
+      const f = tfSlotFx(this.P, C, s), bus = f && s === TF.NSLOT + 1, t = !f ? -1 : bus && f.type === 1 ? 41 : f.type, mode = f && !bus ? (f.mode | 0) : 0, id = t < 0 ? -1 : t * 16 + mode;   // an effect slot is identified by type and mode; the console's compressor is its own design (41) with the VCA's controls
       if (id !== this.fxT[c][s]) { let ok = ex.tf_fx_type(c, s, t); if (ok && t >= 0 && mode) ok = ex.tf_fx_mode(c, s, mode);
         this.fxT[c][s] = ok ? id : -1; if (!ok && t >= 0 && this.post) this.post({ t: 'oom' }); }
       if (f && ex.tf_fx_tab && f.type === 25) this.resoKey(c, s);   // the Resonator plays in the song's key

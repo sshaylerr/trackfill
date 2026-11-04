@@ -17,7 +17,7 @@ typedef short i16;
 enum { NCH = 83, SPEAKER = 83, NPAD = 64, G0 = 64, B0 = 72, R0 = 80, MASTER = 82, NSLOT = 8, MAXN = 128,
        NVOICE = 96, VOICECAP = 80, NSAMP = 1024, NPARAM = 16 };
 // the console: every channel has a channel EQ in slot NSLOT and (groups, buses, master) a bus compressor in slot NSLOT + 1, outside the inserts
-enum { SL_EQ = 8, SL_BUS = 9, NSLOTX = 10, FX_CEQ = 40, FX_CBUS = 41 };
+enum { SL_EQ = 8, SL_BUS = 9, NSLOTX = 10, FX_CEQ = 40, FX_CBUS = 41, FX_PEQ = 42, FX_WEQ = 43, FX_PBUS = 44, FX_WBUS = 45 };
 enum { FX_EQ = 0, FX_COMP, FX_FILTER, FX_SAT, FX_DELAY, FX_REVERB, FX_DUCK, FX_UTIL, FX_CHORUS, FX_CLIP, FX_CRUSH, FX_TRANS, FX_PHASER,
        FX_LIMIT, FX_MBAND, FX_TAPE, FX_GATE, FX_DISP, FX_APAN, FX_LFOT, FX_VINYL, FX_STEP, FX_GRIN, FX_DIST, FX_INFL, FX_RESO, FX_PITCH, FX_FSHIFT, FX_RING, FX_IMAGER, FX_DEESS, FX_COUNT };
 
@@ -255,7 +255,7 @@ struct Chan {
   float cv, cp, ca, cb, cm, ccut, cres;        // smoothed
   float fz1[2], fz2[2];                        // pad filter state
   i32 out; u32 quiet, tail, oq, gap; Fx fx[NSLOTX];
-  i32 eqPost; float drv, cdrv, cdx[2], cdy[2], cei, ceo, cmk, chx[2], chy[2];   // the console: channel EQ before or after the inserts; the console's character (0 = none)   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
+  i32 eqPost; float drv, cdrv, cdx[2], cdy[2], cei, ceo, cmk, chx[2], chy[2], clp[2], cbx[2], cby[2], cbl[2]; i32 ckind;   // the console: channel EQ before or after the inserts; the console's character (0 = none)   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
 };
 static Chan chs[NCH];
 static float dirL[MAXN], dirR[MAXN]; static i32 dirMute = 0;   // channels routed to the speaker; exports leave them out
@@ -288,7 +288,7 @@ EX void tf_init(float sr) {
     Chan* C = &chs[c];
     C->vol = C->cv = 0.98f; C->pan = C->cp = 0; C->sa = C->ca = 0; C->sb = C->cb = 0; C->mute = C->cm = 1;
     C->cut = C->ccut = 20000.f; C->res = C->cres = 0.707f; C->out = defaultOut(c); C->tail = (u32)(0.3f * SR); C->gap = (u32)(0.1f * SR); C->quiet = 0; C->oq = 0;
-    for (i32 s = 0; s < NSLOTX; s++) C->fx[s].type = -1; C->eqPost = 0; C->drv = C->cdrv = 0; C->cdx[0] = C->cdx[1] = C->cdy[0] = C->cdy[1] = 0; C->cei = C->ceo = 0; C->cmk = 1; C->chx[0] = C->chx[1] = C->chy[0] = C->chy[1] = 0;
+    for (i32 s = 0; s < NSLOTX; s++) C->fx[s].type = -1; C->eqPost = 0; C->drv = C->cdrv = 0; C->cdx[0] = C->cdx[1] = C->cdy[0] = C->cdy[1] = 0; C->cei = C->ceo = 0; C->cmk = 1; C->chx[0] = C->chx[1] = C->chy[0] = C->chy[1] = 0; C->clp[0] = C->clp[1] = C->cbx[0] = C->cbx[1] = C->cby[0] = C->cby[1] = C->cbl[0] = C->cbl[1] = 0; C->ckind = 0;
   }
 }
 EX void tf_set_bpm(float b) { BPM = sane(b, 20.f, 400.f, 120.f); }
@@ -306,6 +306,7 @@ EX void tf_ch_set(i32 c, i32 what, float v) {
     case 6: C->res = sane(v, 0.5f, 25.f, 0.707f); break;
     case 7: C->eqPost = v >= 0.5f ? 1 : 0; break;
     case 9: C->drv = sane(v, 0.f, 1.f, 0.f); break;
+    case 10: C->ckind = v >= 1.5f ? 2 : v >= 0.5f ? 1 : 0; break;   // which console's character: 0 Clean, 1 Punchy, 2 Warm
   }
 }
 EX void tf_ch_route(i32 c, i32 o) { if (c >= 0 && c < NCH) chs[c].out = validOut(c, o); }
@@ -327,7 +328,8 @@ static u32 discMask(i32 t, i32 m) {
     case FX_PHASER: return m == 1 ? B2 : 0;
     case FX_LIMIT: return B3 | B4;
     case FX_APAN: return B0 | B1 | B4; case FX_LFOT: return B0 | B1; case FX_VINYL: return B4; case FX_STEP: return B0 | B1; case FX_GRIN: return B1;
-    case FX_CEQ: return B4 | (1u << 13) | (1u << 14); case FX_CBUS: return B1 | B2 | B3; case FX_INFL: return B3 | B4; case FX_RESO: return B0 | B1 | B2 | B6; case FX_PITCH: return m == 1 ? B0 | B1 : 0; case FX_RING: return B1; case FX_DEESS: return B3 | B4;
+    case FX_CEQ: return B4 | (1u << 13) | (1u << 14); case FX_CBUS: return B1 | B2 | B3; case FX_PEQ: return B0 | B2 | B3 | B5 | B7 | B8; case FX_WEQ: return B0 | B1 | B3 | B5;
+    case FX_PBUS: return B1 | B2 | B3 | B4 | B5 | B6; case FX_WBUS: return B1 | B2 | B3 | B5 | B7 | B8; case FX_INFL: return B3 | B4; case FX_RESO: return B0 | B1 | B2 | B6; case FX_PITCH: return m == 1 ? B0 | B1 : 0; case FX_RING: return B1; case FX_DEESS: return B3 | B4;
     default: return 0;
   }
 }
@@ -403,7 +405,7 @@ static void fxReset(Fx* f) { f->vis[0] = f->vis[1] = f->vis[2] = f->vis[3] = 0.f
 static Fx* fxAt(i32 c, i32 s) { return (c >= 0 && c < NCH && s >= 0 && s < NSLOTX) ? &chs[c].fx[s] : 0; }
 EX i32 tf_fx_type(i32 c, i32 s, i32 type) {
   Fx* f = fxAt(c, s); if (!f) return 0;
-  if (type < -1 || (type >= FX_COUNT && type != FX_CEQ && type != FX_CBUS)) type = -1;
+  if (type < -1 || (type >= FX_COUNT && (type < FX_CEQ || type > FX_WBUS))) type = -1;
   if (f->st) { tf_free(f->st); f->st = 0; f->stBytes = 0; }
   f->type = type; f->mode = 0; f->on = 1; f->key = -1; f->fresh = 1; f->ntrig = 0;
   if (type >= 0) { f->stBytes = fxStateBytes(type, 0); f->st = tf_malloc(f->stBytes); if (!f->st) { f->type = -1; return 0; } fxReset(f); }
@@ -721,10 +723,35 @@ static void ceqCoef(Fx* f, CeqSt* e) {
   if (fabsf_(gl) > 0.05f) { bq2Set(&e->q[4], BQ_PEAK, expmap(s[9], 200.f, 2500.f), ql, gl); e->on[4] = 1; }
   if (fabsf_(gb) > 0.05f) { const double fr = expmap(s[12], 30.f, 450.f); if (s[13] >= 0.5f) bq2Set(&e->q[5], BQ_PEAK, (float)fr, modern ? 0.5f + fabsf_(gb) / 15.f : 0.9f, gb); else bqFrom(&e->q[5], mShelf(0, modern, fr, 1.1, gb)); e->on[5] = 1; }
 }
+/* Punchy's EQ (type 42): params 0 HF freq, 1 HF gain, 2 HF shape (peak/shelf), 3 MF freq, 4 MF gain, 5 LF freq, 6 LF gain, 7 LF shape, 8 filter.
+   Gains in steps; the bells narrow as they're pushed (Q 0.4 + 0.12 per dB); the band-pass filter is 50 Hz to 15 kHz, 12 dB an octave each side. */
+static const float PEQ_G[11] = { -12, -9, -6, -4, -2, 0, 2, 4, 6, 9, 12 };
+static const float PEQ_F[3][5] = { { 5000, 7000, 10000, 12500, 15000 }, { 400, 800, 1500, 3000, 5000 }, { 50, 100, 200, 300, 400 } };
+static void peqCoef(Fx* f, CeqSt* e) {
+  const float* s = f->s; for (i32 b = 0; b < 6; b++) e->on[b] = 0; e->h1 = 0;
+  const float gh = PEQ_G[disc(s[1], 11)], gm = PEQ_G[disc(s[4], 11)], gl = PEQ_G[disc(s[6], 11)];
+  const double fh = PEQ_F[0][disc(s[0], 5)], fm = PEQ_F[1][disc(s[3], 5)], fl = PEQ_F[2][disc(s[5], 5)];
+  if (s[8] >= 0.5f) { bq2Set(&e->q[0], BQ_HP, 50.f, 0.7071f, 0); e->on[0] = 1; bqFrom(&e->q[1], m2fit(15000, 0.7071, 5, 15000, 0.7071, 0, 15000)); e->on[1] = 1; }
+  if (gh != 0.f) { bqFrom(&e->q[2], s[2] >= 0.5f ? mShelf(1, 1, fh, 0.7071, gh) : mPeak(fh, 0.4 + 0.12 * fabsf_(gh), gh)); e->on[2] = 1; }
+  if (gm != 0.f) { bqFrom(&e->q[3], mPeak(fm, 0.4 + 0.12 * fabsf_(gm), gm)); e->on[3] = 1; }
+  if (gl != 0.f) { if (s[7] >= 0.5f) bqFrom(&e->q[5], mShelf(0, 1, fl, 0.7071, gl)); else bq2Set(&e->q[5], BQ_PEAK, (float)fl, 0.4f + 0.12f * fabsf_(gl), gl); e->on[5] = 1; }
+}
+/* Warm's EQ (type 43): params 0 high-pass (off, 50, 80, 160, 300 Hz: 18 dB an octave), 1 LF freq (off, 35, 60, 110, 220 Hz), 2 LF gain ±16,
+   3 mid freq (360 Hz–7.2 kHz), 4 mid gain ±18, 5 Hi-Q, 6 HF gain ±16 (a gentle shelf at 12 kHz). The low shelf has the bump and dip of its
+   inductor design (a second-order shelf with Q 1). */
+static const float WEQ_HP[5] = { 0, 50, 80, 160, 300 }, WEQ_LF[5] = { 0, 35, 60, 110, 220 }, WEQ_MID[6] = { 360, 700, 1600, 3200, 4800, 7200 };
+static void weqCoef(Fx* f, CeqSt* e) {
+  const float* s = f->s; for (i32 b = 0; b < 6; b++) e->on[b] = 0;
+  const float hp = WEQ_HP[disc(s[0], 5)], lf = WEQ_LF[disc(s[1], 5)], gl = linmap(s[2], -16, 16), gm = linmap(s[4], -18, 18), gh = linmap(s[6], -16, 16);
+  e->h1 = hp > 0; if (e->h1) { bq2Set(&e->q[0], BQ_HP, hp, 1.f, 0); e->on[0] = 1; e->ha = fexp(-6.28318531f * hp / SR); }
+  if (lf > 0 && fabsf_(gl) > 0.05f) { bqFrom(&e->q[5], mShelf(0, 1, lf, 1.0, gl)); e->on[5] = 1; }
+  if (fabsf_(gm) > 0.05f) { bqFrom(&e->q[3], mPeak(WEQ_MID[disc(s[3], 6)], s[5] >= 0.5f ? 2.0 : 0.7, gm)); e->on[3] = 1; }
+  if (fabsf_(gh) > 0.05f) { bqFrom(&e->q[2], mShelf(1, 0, 12000, 1, gh)); e->on[2] = 1; }
+}
 static void fx_ceq(Fx* f, float* L, float* R, i32 n) {
   CeqSt* e = (CeqSt*)f->st; i32 dirty = 0;
   for (i32 i = 0; i < 15; i++) if (f->s[i] != f->last[i]) { dirty = 1; f->last[i] = f->s[i]; }
-  if (dirty) ceqCoef(f, e);
+  if (dirty) { if (f->type == FX_PEQ) peqCoef(f, e); else if (f->type == FX_WEQ) weqCoef(f, e); else ceqCoef(f, e); }
   i32 any = e->h1; for (i32 b = 1; b < 6; b++) any |= e->on[b]; if (!any) return;
   for (i32 c = 0; c < 2; c++) { float* x = c ? R : L;
     for (i32 i = 0; i < n; i++) { float y = x[i];
@@ -739,12 +766,17 @@ static void fx_ceq(Fx* f, float* L, float* R, i32 n) {
 // rounding takes (and takes back what the lift adds), so turning it up adds colour, not loudness. Off at 0.
 static void consoleChar(Chan* C, float* L, float* R, i32 n) {
   C->cdrv += (C->drv - C->cdrv) * 0.2f; if (C->cdrv < 1e-4f) { C->cdrv = C->drv < 1e-4f ? 0.f : C->cdrv; if (C->cdrv == 0.f) { C->cmk = 1.f; C->cei = C->ceo = 0.f; return; } }
-  const float d = C->cdrv, k = 1.f + 4.f * d, b = 0.35f * d, z = fsat(b), g0 = (fsat(b + 1e-3f) - fsat(b - 1e-3f)) * 500.f, ig = 1.f / (k * g0);
+  const float d = C->cdrv, k = 1.f + (C->ckind == 1 ? 5.f : C->ckind == 2 ? 4.5f : 4.f) * d, b = (C->ckind == 1 ? 0.15f : C->ckind == 2 ? 0.5f : 0.35f) * d, z = fsat(b), g0 = (fsat(b + 1e-3f) - fsat(b - 1e-3f)) * 500.f, ig = 1.f / (k * g0);
   const float rdc = 1.f - 6.28318531f * 8.f / SR, ae = 1.f - fexp(-1.f / (0.3f * SR));   // DC from the lopsided curve removed below 8 Hz; level match over 0.3 s
-  const float ah = 1.f / (1.f + 6.28318531f * 6000.f / SR), lift = db2lin(4.2f * d) - 1.f;   // the lift: a one-pole high-pass at 6 kHz, added back
+  // the colour before the curve, by console: Clean lifts the top (from 6 kHz); Punchy pushes the upper mids (1.2–5 kHz); Warm adds body below
+  // about 120 Hz and softens the very top (above 9 kHz)
+  const i32 kd = C->ckind; const float fH = kd == 2 ? 9000.f : 6000.f, gH = kd == 0 ? 4.2f : kd == 2 ? -2.5f : 0.f, gL = kd == 2 ? 3.f : 0.f, gB = kd == 1 ? 3.5f : 0.f;
+  const float ah = 1.f / (1.f + 6.28318531f * fH / SR), lift = db2lin(gH * d) - 1.f, aL = 1.f - fexp(-6.28318531f * 120.f / SR), body = db2lin(gL * d) - 1.f;
+  const float ab = 1.f / (1.f + 6.28318531f * 1200.f / SR), aB2 = 1.f - fexp(-6.28318531f * 5000.f / SR), push = db2lin(gB * d) - 1.f;
   float ei = C->cei, eo = C->ceo, mk = C->cmk;
   for (i32 i = 0; i < n; i++) { float io[2] = { L[i], R[i] };
-    for (i32 c = 0; c < 2; c++) { const float x0 = io[c], hp = ah * (C->chy[c] + x0 - C->chx[c]); C->chx[c] = x0; C->chy[c] = hp; const float x = x0 + lift * hp, s = (fsat(x * k + b) - z) * ig, y = s - C->cdx[c] + rdc * C->cdy[c]; C->cdx[c] = s; C->cdy[c] = y;
+    for (i32 c = 0; c < 2; c++) { const float x0 = io[c], hp = ah * (C->chy[c] + x0 - C->chx[c]); C->chx[c] = x0; C->chy[c] = hp; C->clp[c] += aL * (x0 - C->clp[c]); const float bh = ab * (C->cby[c] + x0 - C->cbx[c]); C->cbx[c] = x0; C->cby[c] = bh; C->cbl[c] += aB2 * (bh - C->cbl[c]);
+      const float x = x0 + lift * hp + body * C->clp[c] + push * C->cbl[c], s = (fsat(x * k + b) - z) * ig, y = s - C->cdx[c] + rdc * C->cdy[c]; C->cdx[c] = s; C->cdy[c] = y;
       ei += (x0 * x0 - ei) * ae; const float w = x + (y - x) * d; eo += (w * w - eo) * ae; io[c] = w * mk; }
     L[i] = io[0]; R[i] = io[1];
     if ((i & 31) == 31) { const float t = eo > 1e-9f ? sqrtf_(ei / eo) : 1.f; mk += ((t < 0.7079f ? 0.7079f : t > 1.4125f ? 1.4125f : t) - mk) * 0.05f; } }
@@ -777,6 +809,61 @@ static void fx_cbus(Fx* f, float* L, float* R, i32 n) {
   }
   c->fast = fa; c->slow = sw; f->vis[0] = rl < 4 ? fa : minf(fa, sw);
 }
+/* Punchy's bus compressor (type 44), after the classic American stereo bus compressor: an RMS detector, stepped ratio (1.5 to ∞), attack
+   (0.03–30 ms) and release (0.05–2 s); Knee soft, medium or hard; Thrust puts a low cut before the detector (Med: half of it, Loud: all),
+   so the low end pushes it less and the mix keeps its punch; Old is feedback (the detector hears the output; its strongest ratio comes out
+   near 8:1, as a feedback design's does), New feed-forward. Params 0 threshold, 1 ratio, 2 attack, 3 release, 4 knee, 5 thrust, 6 type, 7 makeup, 8 mix. */
+struct PbusSt { float env, rms, lp[2]; };
+static void fx_pbus(Fx* f, float* L, float* R, i32 n) {
+  PbusSt* c = (PbusSt*)f->st; float* s = f->s;
+  const float rt[7] = { 1.5f, 2, 3, 4, 6, 10, 1e9f }, at[7] = { 0.00003f, 0.0001f, 0.0003f, 0.001f, 0.003f, 0.01f, 0.03f }, rl[6] = { 0.05f, 0.1f, 0.2f, 0.5f, 1.f, 2.f }, kn[3] = { 10.f, 5.f, 0.5f };
+  const i32 old = s[6] < 0.5f, th = disc(s[5], 3); const float thr = linmap(s[0], -30, 0), t = 1.f / rt[disc(s[1], 7)] - 1.f;
+  const float r = rt[disc(s[1], 7)], sl = old ? (1.f - r < -7.f ? -7.f : 1.f - r) : t, knee = kn[disc(s[4], 3)];   // feedback: the detector hears the output, so its slope is (1 - ratio)
+  const float aA = fexp(-1.f / (maxf(at[disc(s[2], 7)], old ? 0.0001f : 0.f) * SR)), aR = fexp(-1.f / (rl[disc(s[3], 6)] * SR)), aRms = fexp(-1.f / (0.004f * SR)), aLp = 1.f - fexp(-6.28318531f * 200.f / SR);
+  const float tw = th == 0 ? 0.f : th == 1 ? 0.5f : 1.f, mk = db2lin(linmap(s[7], 0, 20)), mix = s[8];
+  float env = c->env, ms = c->rms;
+  for (i32 i = 0; i < n; i++) {
+    const float g0 = db2lin(env); float xl = old ? L[i] * g0 : L[i], xr = old ? R[i] * g0 : R[i];
+    c->lp[0] += aLp * (xl - c->lp[0]); c->lp[1] += aLp * (xr - c->lp[1]); xl -= tw * c->lp[0]; xr -= tw * c->lp[1];   // Thrust
+    ms = (xl * xl + xr * xr) * 0.5f + (ms - (xl * xl + xr * xr) * 0.5f) * aRms;
+    const float lev = lin2db(sqrtf_(ms) * 1.4142f + 1e-9f), o = lev - thr;
+    const float gr = 2.f * fabsf_(o) <= knee ? sl * (o + knee * 0.5f) * (o + knee * 0.5f) / (2.f * knee) : o > 0.f ? sl * o : 0.f;
+    env = gr < env ? gr + (env - gr) * aA : gr + (env - gr) * aR;
+    const float g = db2lin(env) * mk, w = mix * g + (1.f - mix); L[i] *= w; R[i] *= w;
+  }
+  c->env = env; c->rms = ms + 1e-18f; f->vis[0] = env;
+}
+/* Warm's bus compressor (type 45), after the classic British stereo compressor/limiter: a gentle knee (the ratio is only fully there 5 dB
+   past the threshold), ratio 1.5–6, attack fast (about 3 ms) or slow (6 ms, and less moved by the lows); recovery 0.1–1.5 s or Auto: A1 (fast
+   100 ms, slow 2 s) and A2 (50 ms, 5 s), fast for peaks and slow for sustained levels; a limiter beside it (attack 2 or 4 ms, near-flat above
+   its level). Params 0 threshold, 1 ratio, 2 attack, 3 recovery, 4 gain, 5 limit on, 6 limit level, 7 limit attack, 8 limit recovery, 9 mix. */
+struct WbusSt { float fa, sw, lf, lsw, lp[2]; };
+static void fx_wbus(Fx* f, float* L, float* R, i32 n) {
+  WbusSt* c = (WbusSt*)f->st; float* s = f->s;
+  const float rt[5] = { 1.5f, 2, 3, 4, 6 }, rc[4] = { 0.1f, 0.4f, 0.8f, 1.5f }, lrc[4] = { 0.05f, 0.1f, 0.2f, 0.8f };
+  const i32 ri = disc(s[3], 6), li = disc(s[8], 6), slow = s[2] >= 0.5f, lim = s[5] >= 0.5f;
+  const float thr = linmap(s[0], -30, 0), sl = 1.f / rt[disc(s[1], 5)] - 1.f, lthr = linmap(s[6], -12, 0), mk = db2lin(linmap(s[4], 0, 20)), mix = s[9];
+  const float aA = fexp(-1.f / ((slow ? 0.006f : 0.003f) * SR)), aLA = fexp(-1.f / ((s[7] >= 0.5f ? 0.004f : 0.002f) * SR)), aHp = 1.f - fexp(-6.28318531f * 100.f / SR);
+  // recovery: one time constant, or Auto's two (the slow branch charges only while compression is held)
+  const float fR = ri < 4 ? rc[ri] : ri == 4 ? 0.1f : 0.05f, sR = ri == 4 ? 2.f : 5.f, lfR = li < 4 ? lrc[li] : li == 4 ? 0.1f : 0.05f, lsR = li == 4 ? 2.f : 5.f;
+  const float aR = fexp(-1.f / (fR * SR)), aSr = fexp(-1.f / (sR * SR)), aSc = fexp(-1.f / (0.5f * SR)), aLR = fexp(-1.f / (lfR * SR)), aLSr = fexp(-1.f / (lsR * SR));
+  float fa = c->fa, sw = c->sw, lf = c->lf, lsw = c->lsw;
+  for (i32 i = 0; i < n; i++) {
+    float xl = L[i], xr = R[i];
+    if (slow) { c->lp[0] += aHp * (xl - c->lp[0]); c->lp[1] += aHp * (xr - c->lp[1]); xl -= 0.7f * c->lp[0]; xr -= 0.7f * c->lp[1]; }
+    const float lev = lin2db(maxf(fabsf_(xl), fabsf_(xr)) + 1e-9f), o = lev - thr, kn = 10.f;
+    const float gr = 2.f * fabsf_(o) <= kn ? sl * (o + kn * 0.5f) * (o + kn * 0.5f) / (2.f * kn) : o > 0.f ? sl * o : 0.f;
+    fa = gr < fa ? gr + (fa - gr) * aA : gr + (fa - gr) * aR;
+    if (ri >= 4) { sw = gr < sw ? gr + (sw - gr) * aSc : gr + (sw - gr) * aSr; }
+    const float cg = ri >= 4 ? minf(fa, sw) : fa;
+    float lg = 0.f;
+    if (lim) { const float lv = lin2db(maxf(fabsf_(L[i]), fabsf_(R[i])) + 1e-9f) + cg - lthr, lr = lv > 0.f ? -0.97f * lv : 0.f;   // near-flat above its level
+      lf = lr < lf ? lr + (lf - lr) * aLA : lr + (lf - lr) * aLR; if (li >= 4) lsw = lr < lsw ? lr + (lsw - lr) * aSc : lr + (lsw - lr) * aLSr; lg = li >= 4 ? minf(lf, lsw) : lf; }
+    const float g = db2lin(cg + lg) * mk, w = mix * g + (1.f - mix); L[i] *= w; R[i] *= w;
+    f->vis[0] = cg + lg;
+  }
+  c->fa = fa; c->sw = sw; c->lf = lf; c->lsw = lsw;
+}
 static u32 fxStateBytes(i32 t, i32 m) {
   if (m == 0 && t < FX_LIMIT) return fxStateBytes0(t);
   switch (t) {
@@ -785,7 +872,7 @@ static u32 fxStateBytes(i32 t, i32 m) {
     case FX_CLIP: return sizeof(Clip2St); case FX_CRUSH: return sizeof(Crush2St); case FX_PHASER: return sizeof(PhaserSt);
     case FX_LIMIT: return sizeof(LimSt); case FX_MBAND: return sizeof(MbSt); case FX_TAPE: return sizeof(TapeSt); case FX_GATE: return sizeof(GateSt); case FX_DISP: return sizeof(DispSt);
     case FX_APAN: return sizeof(APSt); case FX_LFOT: return sizeof(LTSt); case FX_VINYL: return sizeof(VinSt); case FX_STEP: return sizeof(StepSt); case FX_GRIN: return sizeof(GrinSt);
-    case FX_DIST: return sizeof(DistSt); case FX_INFL: return sizeof(InflSt); case FX_RESO: return sizeof(ResoSt); case FX_CEQ: return sizeof(CeqSt); case FX_CBUS: return sizeof(CbusSt);
+    case FX_DIST: return sizeof(DistSt); case FX_INFL: return sizeof(InflSt); case FX_RESO: return sizeof(ResoSt); case FX_CEQ: return sizeof(CeqSt); case FX_CBUS: return sizeof(CbusSt); case FX_PEQ: case FX_WEQ: return sizeof(CeqSt); case FX_PBUS: return sizeof(PbusSt); case FX_WBUS: return sizeof(WbusSt);
     case FX_PITCH: return sizeof(PitchSt); case FX_FSHIFT: return sizeof(FSh2St); case FX_RING: return sizeof(RingSt); case FX_IMAGER: return sizeof(ImgSt); case FX_DEESS: return sizeof(DeesSt);
     default: return fxStateBytes0(t);
   }
@@ -816,7 +903,7 @@ static void fx_run(i32 c, Fx* f, float* L, float* R, i32 n) {
     case FX_GATE: fx_gate(f, L, R, n, kL, kR); break; case FX_DISP: fx_disp(f, L, R, n); break;
     case FX_APAN: fx_autopan(f, L, R, n); break; case FX_LFOT: fx_lfotool(f, L, R, n); break; case FX_VINYL: fx_vinyl(f, L, R, n); break; case FX_STEP: fx_step(f, L, R, n); break; case FX_GRIN: fx_grin(f, L, R, n); break;
     case FX_DIST: fx_dist(f, L, R, n); break; case FX_INFL: fx_inflate(f, L, R, n); break; case FX_RESO: fx_reso(f, L, R, n); break;
-    case FX_PITCH: fx_pitch(f, L, R, n); break; case FX_FSHIFT: fx_fshift(f, L, R, n); break; case FX_RING: fx_ring(f, L, R, n); break; case FX_IMAGER: fx_imager(f, L, R, n); break; case FX_DEESS: fx_deess(f, L, R, n); break; case FX_CBUS: fx_cbus(f, L, R, n); break; case FX_CEQ: fx_ceq(f, L, R, n); break;
+    case FX_PITCH: fx_pitch(f, L, R, n); break; case FX_FSHIFT: fx_fshift(f, L, R, n); break; case FX_RING: fx_ring(f, L, R, n); break; case FX_IMAGER: fx_imager(f, L, R, n); break; case FX_DEESS: fx_deess(f, L, R, n); break; case FX_CBUS: fx_cbus(f, L, R, n); break; case FX_PBUS: fx_pbus(f, L, R, n); break; case FX_WBUS: fx_wbus(f, L, R, n); break; case FX_PEQ: case FX_WEQ: case FX_CEQ: fx_ceq(f, L, R, n); break;
   }
   (void)c;
 }

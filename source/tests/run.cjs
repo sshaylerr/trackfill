@@ -804,6 +804,19 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       const mix2 = smp(t => .1 * Math.sin(2 * Math.PI * 200 * t) + .02 * Math.sin(2 * Math.PI * 12000 * t)), part = (y, f) => { let re = 0, im = 0; for (let i = SR; i < 1.5 * SR; i++) { re += y[i] * Math.cos(2 * Math.PI * f * i / SR); im += y[i] * Math.sin(2 * Math.PI * f * i / SR); } return 20 * Math.log10(Math.hypot(re, im)); };
       const y0 = await one(mix2, Q => { Q.chans[0].drv = 0; }), y1 = await one(mix2, Q => { Q.chans[0].drv = 1; }), lift = (part(y1, 12000) - part(y0, 12000)) - (part(y1, 200) - part(y0, 200));
       ok(lift > 2 && lift < 4, `full drive lifts the top gently, as a pushed desk does (+${lift.toFixed(1)} dB at 12 kHz against 200 Hz)`); }
+    for (const con of ['punchy', 'warm']) {   // the other two desks: flat is the plain mixer; everything pushed stays safe; switching keeps each one's settings
+      const flatP = M.migrate(Object.assign(cp(), { console: con })), fs = await rend(flatP);
+      const hot = M.migrate(Object.assign(cp(), { console: con })); hot.chans.forEach(C => { C.eq.p = C.eq.p.map((v, i) => (con === 'punchy' ? [1, 4, 6] : [2, 4, 6]).includes(i) ? 1 : v); C.drv = 1; if (C.bus) { C.bus.on = true; C.bus.p[0] = 0; C.bus.p[1] = 1; } });
+      const hs2 = await rend(hot), drv = M.migrate(Object.assign(cp(), { console: con })); drv.chans.forEach(C => { C.drv = 1; }); const dl = 20 * Math.log10((await rend(drv)).rms / base.rms);
+      ok(fs.h === base.h && hs2.bad === 0 && hs2.pk <= 1 && Math.abs(dl) < 1, `${con}: flat sounds exactly like the plain mixer; every gain up, full drive, every compressor slammed stays under 0 dBFS (peak ${(20 * Math.log10(hs2.pk)).toFixed(2)} dBFS); full drive keeps the level (${dl >= 0 ? '+' : ''}${dl.toFixed(2)} dB)`); }
+    { const Q = M.migrate(Object.assign(cp(), { console: 'clean' })); Q.chans[0].eq.p[2] = .9; Q.scenes[0].auto['0.8.2'] = [{ t: 0, v: .2, c: 0 }];
+      const C = Q.chans[0], own = M.conOfEq(C.eq.type);
+      // what setConsole does (ui/console.js conSwap), here by hand: Clean set aside, Punchy in, then back
+      const swap = (from, to) => { Q.chans.forEach((C, c) => { const cx = C.cx || {}; cx[from] = { eq: C.eq, bus: C.bus }; const r = cx[to] || {}; delete cx[to]; C.eq = r.eq || M.newCeq(to); if (M.hasBusComp(c)) C.bus = r.bus || M.newBusComp(to); C.cx = cx; });
+        for (const sc of Q.scenes) { const a = sc.cxa || {}, keep = {}, mine = {}; for (const k in sc.auto) (H.tfParseKey(k).s >= 8 ? mine : keep)[k] = sc.auto[k]; if (Object.keys(mine).length) a[from] = mine; Object.assign(keep, a[to] || {}); delete a[to]; sc.auto = keep; sc.cxa = a; } };
+      swap(own, 'punchy'); Q.console = 'punchy'; const mid = M.migrate(JSON.parse(JSON.stringify(Q))); swap('punchy', 'clean'); Q.console = 'clean'; const back2 = M.migrate(JSON.parse(JSON.stringify(Q)));
+      ok(mid.chans[0].eq.type === 42 && mid.chans[0].cx.clean.eq.p[2] === .9 && !mid.scenes[0].auto['0.8.2'] && back2.chans[0].eq.type === 40 && back2.chans[0].eq.p[2] === .9 && back2.scenes[0].auto['0.8.2'] && back2.chans[70].bus.type === 1,
+        'switching console keeps each one\'s settings and automation, through saving and loading'); }
     const back = M.migrate(JSON.parse(JSON.stringify(Object.assign(cp(), { console: 'clean' })))), junk = M.migrate(Object.assign(cp(), { console: 'brand x', chans: P.chans.map(C => Object.assign({}, C, { eq: { p: ['x', 9, null] }, bus: 'no', drv: 7 })) }));
     ok(back.console === 'clean' && junk.console === 'none' && junk.chans[0].eq.p[0] === 0 && junk.chans[0].eq.p[1] === 1 && junk.chans[0].drv === 1 && !junk.chans[0].bus && junk.chans[M.MASTER].bus.on === false, 'console settings load safely from a file');
     const k = Object.assign(cp(), { console: 'clean' }); H.tfSetBase(k, M.MASTER + '.8.2', .9); H.tfSetBase(k, M.MASTER + '.-1.4', .4);

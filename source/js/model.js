@@ -452,7 +452,8 @@ function chanDefaultName(c) { const k = chanKind(c); return k === 'group' ? 'Gro
 /* ---------- the console (a project's mixer can be a console; None keeps the plain mixer) ----------
    Every channel has a channel EQ (eq: before or after its inserts) and the console's character (drv); groups, buses and the master
    also have a bus compressor (bus: the stepped VCA design). Engine slots 8 and 9, so their automation keys are "c.8.i" and "c.9.i". */
-const CONSOLES = [['none', 'None', 'The plain mixer'], ['clean', 'Clean', 'Large-format desk: four-band EQ, bus compressor']];
+const CONSOLES = [['none', 'None', 'The plain mixer'], ['clean', 'Clean', 'Large-format desk: four-band EQ, bus compressor'],
+  ['punchy', 'Punchy', 'Discrete desk: stepped EQ, punchy compressor'], ['warm', 'Warm', 'Classic module: fixed-point EQ, smooth compressor']];
 const CEQ_P = [P_('High-pass', 0, v => v <= .001 ? 'Off' : fHz(expmap(v, 16, 350))), P_('Low-pass', 1, v => v >= .999 ? 'Off' : fHz(expmap(v, 3000, 22000))),
   P_('HF gain', .5, v => fSign(v, -15, 15)), P_('HF freq', .706, v => fHz(expmap(v, 1500, 16000))), P_('HF shape', 0, null, ['Shelf', 'Bell']),
   P_('HMF gain', .5, v => fSign(v, -15, 15)), P_('HMF freq', .654, v => fHz(expmap(v, 600, 7000))), P_('HMF Q', .6476, v => expmap(v, .1, 3.5).toFixed(2)),
@@ -467,22 +468,68 @@ function ceqBands(p) { const ex = (v, a, b) => a * Math.pow(b / a, v), ln = (v, 
   if (Math.abs(gl) > .05) B.push(['pk', ex(p[9], 200, 2500), ex(p[10], .1, 3.5) * (mod ? .6 + 1.2 * Math.abs(gl) / ml : 1), gl]);
   if (Math.abs(gb) > .05) B.push(p[13] >= .5 ? ['pk', ex(p[12], 30, 450), mod ? .5 + Math.abs(gb) / 15 : .9, gb] : [mod ? 'ls' : 'ls1', ex(p[12], 30, 450), 1.1, gb]);
   return { B, hp: p[0] > .001 ? ex(p[0], 16, 350) : 0, lp: p[1] < .999 ? ex(p[1], 3000, 22000) : 0 }; }
+function conBands(eq) {   // the curve of whichever console's EQ this is
+  const p = eq.p; if (eq.type === 40) return ceqBands(p); const B = [], ix = (v, n) => Math.max(0, Math.min(n - 1, Math.round(v * (n - 1))));
+  if (eq.type === 42) { const g = i => PEQ_GAINS[ix(p[i], 11)], pq = g0 => .4 + .12 * Math.abs(g0);
+    const gh = g(1), gm = g(4), gl = g(6), fh = PEQ_HZ[0][ix(p[0], 5)], fm = PEQ_HZ[1][ix(p[3], 5)], fl = PEQ_HZ[2][ix(p[5], 5)];
+    if (gh) B.push(p[2] >= .5 ? ['hs', fh, .7071, gh] : ['pk', fh, pq(gh), gh]); if (gm) B.push(['pk', fm, pq(gm), gm]); if (gl) B.push(p[7] >= .5 ? ['ls', fl, .7071, gl] : ['pk', fl, pq(gl), gl]);
+    if (p[8] >= .5) B.push(['hp2', 50, .7071, 0], ['lp2', 15000, .7071, 0]);
+    return { B, hp: 0, lp: 0 }; }
+  const hp = WEQ_HZ.hp[ix(p[0], 5)], lf = WEQ_HZ.lf[ix(p[1], 5)], gl = (p[2] * 2 - 1) * 16, fm = WEQ_HZ.mid[ix(p[3], 6)], gm = (p[4] * 2 - 1) * 18, gh = (p[6] * 2 - 1) * 16;
+  if (lf && Math.abs(gl) > .05) B.push(['ls', lf, 1, gl]); if (Math.abs(gm) > .05) B.push(['pk', fm, p[5] >= .5 ? 2 : .7, gm]); if (Math.abs(gh) > .05) B.push(['hs1', 12000, 1, gh]);
+  return { B, hp, lp: 0 }; }
 function ceqDb(S, f) { let d = 0;
   for (const [t, f0, Q, g] of S.B) { const A = Math.pow(10, g / 40), w = f / f0, w2 = w * w; let m;
     if (t === 'pk') { const nr = 1 - w2, ni = w * A / Q, di = w / (A * Q); m = (nr * nr + ni * ni) / (nr * nr + di * di); }
     else if (t === 'hs' || t === 'ls') { const sq = Math.sqrt(A) / Q * w, nr = t === 'hs' ? 1 - A * w2 : A - w2, dr = t === 'hs' ? A - w2 : 1 - A * w2; m = A * A * (nr * nr + sq * sq) / (dr * dr + sq * sq); }
+    else if (t === 'hp2' || t === 'lp2') { const nr = 1 - w2, ni = w / Q; m = t === 'hp2' ? w2 * w2 / (nr * nr + ni * ni) : 1 / (nr * nr + ni * ni); }
     else { const a2 = A * A; m = t === 'hs1' ? a2 * (a2 * w2 + 1) / (w2 + a2) : a2 * (w2 + a2) / (a2 * w2 + 1); }
     d += 10 * Math.log10(m); }
   if (S.hp) { const x = f / S.hp; d += 10 * Math.log10(x ** 4 / ((1 - x * x) ** 2 + x * x)) + 10 * Math.log10(x * x / (1 + x * x)); }   // 12 dB (Q 1) and a 6 dB pole: 18 dB an octave
   if (S.lp) { const x = f / S.lp; d += 10 * Math.log10(1 / ((1 - x * x) ** 2 + 2 * x * x)); }
   return d; }
+/* Punchy (after the classic American discrete desk and its three-band EQ module): three bands at stepped frequencies, gain in steps
+   (±2, 4, 6, 9, 12 dB) that narrows as it's pushed (proportional Q); the outer bands peak or shelf; a band-pass filter (50 Hz–15 kHz) */
+const PEQ_GAINS = [-12, -9, -6, -4, -2, 0, 2, 4, 6, 9, 12], fStep = v => { const g = PEQ_GAINS[Math.round(v * 10)]; return (g > 0 ? '+' : '') + g + ' dB'; };
+const PEQ_P = [P_('HF freq', .5, null, ['5K', '7K', '10K', '12.5K', '15K']), P_('HF gain', .5, fStep), P_('HF shape', 0, null, ['Peak', 'Shelf']),
+  P_('MF freq', .5, null, ['400', '800', '1.5K', '3K', '5K']), P_('MF gain', .5, fStep),
+  P_('LF freq', .25, null, ['50', '100', '200', '300', '400']), P_('LF gain', .5, fStep), P_('LF shape', 0, null, ['Peak', 'Shelf']), P_('Filter', 0, null, ['Off', 'On'])];
+for (const i of [1, 4, 6]) PEQ_P[i].steps = 11;   // the gains click through their steps
+/* Warm (after the classic British channel module): a high-pass at fixed points (18 dB an octave), a low shelf at 35–220 Hz with its bump,
+   a mid bell at fixed points (Hi-Q narrows it), a gentle high shelf at 12 kHz */
+const WEQ_P = [P_('High-pass', 0, null, ['Off', '50', '80', '160', '300']), P_('LF freq', 0, null, ['Off', '35', '60', '110', '220']), P_('LF gain', .5, v => fSign(v, -16, 16)),
+  P_('Mid freq', .6, null, ['360', '700', '1.6K', '3.2K', '4.8K', '7.2K']), P_('Mid gain', .5, v => fSign(v, -18, 18)), P_('Hi-Q', 0, null, ['Off', 'On']), P_('HF gain', .5, v => fSign(v, -16, 16))];
+const PEQ_HZ = [[5000, 7000, 10000, 12500, 15000], [400, 800, 1500, 3000, 5000], [50, 100, 200, 300, 400]], WEQ_HZ = { hp: [0, 50, 80, 160, 300], lf: [0, 35, 60, 110, 220], mid: [360, 700, 1600, 3200, 4800, 7200] };
+// the two other bus compressors. Punchy: threshold, stepped ratio, attack and release, knee, Thrust (a low cut before the detector, so the
+// low end drives it less), feedback (Old) or feed-forward (New). Warm: ratio 1.5–6, fast or slow attack, recovery including two Autos,
+// and a limiter beside it.
+const PBUS_P = [P_('Threshold', .6, v => fDb(linmap(v, -30, 0))), P_('Ratio', .333, null, ['1.5', '2', '3', '4', '6', '10', '∞']), P_('Attack', .5, null, ['.03', '.1', '.3', '1', '3', '10', '30']),
+  P_('Release', .4, null, ['.05', '.1', '.2', '.5', '1', '2']), P_('Knee', .5, null, ['Soft', 'Med', 'Hard']), P_('Thrust', 0, null, ['Norm', 'Med', 'Loud']), P_('Type', 0, null, ['Old', 'New']),
+  P_('Makeup', 0, v => '+' + linmap(v, 0, 20).toFixed(1) + ' dB'), P_('Mix', 1, fPct)];
+const WBUS_P = [P_('Threshold', .6, v => fDb(linmap(v, -30, 0))), P_('Ratio', .25, null, ['1.5', '2', '3', '4', '6']), P_('Attack', 0, null, ['Fast', 'Slow']),
+  P_('Recovery', .8, null, ['100', '400', '800', '1.5K', 'A1', 'A2']), P_('Gain', 0, v => '+' + linmap(v, 0, 20).toFixed(1) + ' dB'), P_('Limit', 0, null, ['Off', 'On']),
+  P_('Limit at', .75, v => fDb(linmap(v, -12, 0))), P_('Limit attack', 0, null, ['Fast', 'Slow']), P_('Limit recovery', .8, null, ['50', '100', '200', '800', 'A1', 'A2']), P_('Mix', 1, fPct)];
+// each console's parts: its EQ (engine type) and its bus compressor (the Clean one is the VCA compressor's controls, run as its own design)
+const CON_DEF = { clean: { eq: 40, eqP: CEQ_P, bus: 'vca' }, punchy: { eq: 42, eqP: PEQ_P, bus: 44, busP: PBUS_P }, warm: { eq: 43, eqP: WEQ_P, bus: 45, busP: WBUS_P } };
+const conOfEq = t => t === 42 ? 'punchy' : t === 43 ? 'warm' : 'clean';
+const conEqP = f => f.type === 42 ? PEQ_P : f.type === 43 ? WEQ_P : CEQ_P;
+function conBusP(f) { return f.type === 44 ? PBUS_P : f.type === 45 ? WBUS_P : FX_DEFS[FX_TYPES.COMP].modes[3].params; }
 const CEQ_TYPE = 40, hasBusComp = c => c >= G0;
-const newCeq = () => ({ type: CEQ_TYPE, mode: 0, on: true, post: false, p: CEQ_P.map(q => q.d) });
-const newBusComp = () => Object.assign(newFx(FX_TYPES.COMP, null, 3), { on: false });
-function consoleClean(C, c, s) {   // a channel's console parts from a file: known shapes only
-  const e = s && s.eq, b = s && s.bus, d = newCeq();
-  C.eq = Object.assign(d, { on: e ? e.on !== false : true, post: !!(e && e.post), p: d.p.map((v, i) => e && Array.isArray(e.p) && e.p[i] != null && isFinite(+e.p[i]) ? clamp01(+e.p[i]) : v) });
-  if (hasBusComp(c)) { const nb = newBusComp(); C.bus = Object.assign(nb, { on: !!(b && b.on), p: nb.p.map((v, i) => b && Array.isArray(b.p) && b.p[i] != null && isFinite(+b.p[i]) ? clamp01(+b.p[i]) : v) }); } else delete C.bus;
+const newCeq = (con = 'clean') => { const D = CON_DEF[con] || CON_DEF.clean; return { type: D.eq, mode: 0, on: true, post: false, p: D.eqP.map(q => q.d) }; };
+const newBusComp = (con = 'clean') => { const D = CON_DEF[con] || CON_DEF.clean; return D.bus === 'vca' ? Object.assign(newFx(FX_TYPES.COMP, null, 3), { on: false }) : { type: D.bus, mode: 0, on: false, p: D.busP.map(q => q.d) }; };
+const pClean = (d, s) => d.map((v, i) => s && Array.isArray(s.p) && s.p[i] != null && isFinite(+s.p[i]) ? clamp01(+s.p[i]) : v);
+function conParts(con, c, e, b) {   // one console's EQ and compressor from a file: known shapes only
+  const eq = newCeq(con), ok = (x, t) => x && typeof x === 'object' && x.type === t; const out = {};
+  out.eq = ok(e, eq.type) ? Object.assign(eq, { on: e.on !== false, post: !!e.post, p: pClean(eq.p, e) }) : eq;
+  if (hasBusComp(c)) { const nb = newBusComp(con); out.bus = ok(b, nb.type) && (nb.type !== FX_TYPES.COMP || b.mode === 3) ? Object.assign(nb, { on: !!b.on, p: pClean(nb.p, b) }) : nb; }
+  return out; }
+function consoleClean(C, c, s, con) {   // a channel's console parts from a file. eq/bus are the console in use (or the last one used); cx keeps the others' settings
+  const own = s && s.eq && typeof s.eq === 'object' ? conOfEq(s.eq.type) : 'clean', cur = con && con !== 'none' ? con : own;
+  const src = cur === own ? s : s && s.cx && s.cx[cur], parts = conParts(cur, c, src && src.eq, src && src.bus);
+  C.eq = parts.eq; if (parts.bus) C.bus = parts.bus; else delete C.bus;
+  const cx = {}; if (s && s.cx && typeof s.cx === 'object') for (const k of Object.keys(CON_DEF)) if (k !== cur && s.cx[k]) cx[k] = conParts(k, c, s.cx[k].eq, s.cx[k].bus);
+  if (s && own !== cur && s.eq) cx[own] = conParts(own, c, s.eq, s.bus);
+  if (Object.keys(cx).length) C.cx = cx; else delete C.cx;
   C.drv = clamp01(+(s && s.drv) || 0); return C; }
 function defaultChan(c) {
   const ch = { name: chanDefaultName(c), vol: .85, pan: .5, sa: 0, sb: 0, mute: false, solo: false, out: MASTER, fx: [] }; consoleClean(ch, c, null);
@@ -605,7 +652,7 @@ function normalize(p) {
       if (o.type === 19) o.lfo = Array.isArray(f.lfo) && f.lfo.length >= 2 ? f.lfo.slice(0, 40).map(q => ({ x: clamp01(+q.x || 0), y: clamp01(+q.y || 0), c: Math.max(-.97, Math.min(.97, +q.c || 0)) })) : def.lfo;
       if (o.type === 21) o.steps = Array.from({ length: 16 }, (_, i) => Math.max(0, Math.min(6, (Array.isArray(f.steps) ? f.steps[i] : 0) | 0)));
       return o; });
-    return consoleClean(o, c, s); });
+    return consoleClean(o, c, s, CONSOLES.some(k => k[0] === p.console) ? p.console : 'none'); });
   n.scenes = Array.from({ length: Array.isArray(p.scenes) && p.scenes.length ? Math.min(MAX_SCENES, p.scenes.length) : NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.name = tfName(s.name, 14); s.notes = s.notes && typeof s.notes === 'object' ? s.notes : {}; s.auto = s.auto && typeof s.auto === 'object' ? s.auto : {}; s.clips = clipsClean(s.clips); return s; });
   n.console = CONSOLES.some(k => k[0] === p.console) ? p.console : 'none';
   n.bpm = Math.min(220, Math.max(40, +n.bpm || 96)); n.swing = clamp01(+n.swing || 0); n.swq = [48, 24, 12].includes(+n.swq) ? +n.swq : 24;   // the swing grid: 1/8, 1/16 (the default) or 1/32
@@ -743,5 +790,5 @@ function stress2V2() {
   for (const s of [0, 1]) { S[s].auto['8.-2.0'] = lane([[0, .35], [4 * BAR, 1], [8 * BAR - 24, .5]]);     S[s].auto['31.-1.3'] = lane([[4 * BAR, 0], [8 * BAR - 24, .45]]); S[s].auto[G.bass + '.-1.0'] = lane([[0, .3], [BAR, .45], [8 * BAR - 24, .45]]); }
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { ceqBands, ceqDb, ceqMidMax, CONSOLES, CEQ_P, CEQ_TYPE, hasBusComp, newCeq, newBusComp, clipsClean, MAX_SCENES, fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
+if (typeof module !== 'undefined') module.exports = { conEqP, PEQ_P, WEQ_P, PBUS_P, WBUS_P, PEQ_GAINS, PEQ_HZ, WEQ_HZ, CON_DEF, conOfEq, conBusP, conBands, ceqBands, ceqDb, ceqMidMax, CONSOLES, CEQ_P, CEQ_TYPE, hasBusComp, newCeq, newBusComp, clipsClean, MAX_SCENES, fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
   buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };

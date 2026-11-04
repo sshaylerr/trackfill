@@ -566,6 +566,48 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .cx .cbgrid>.knob{padding-top:18px}   /* level with the pointer knobs, whose settings are printed above them */
 .cx .cbfoot{grid-column:1/-1;display:flex;justify-content:center} .cx .cbfoot .knob{width:33%}
 .cx .cbus.off .cbgrid{opacity:.55}
+/* Punchy and Warm (ui/console.js): the same window, their own panels, names, caps, meters */
+.mixView.cx[data-con="punchy"]{--pn:#2e3033;--pn2:#222427;--cink:#f4f5f6;--cink2:#b5bac0;--d-ink2:#b5bac0;--d-ring:#fff;--sw-font:Archivo}
+.mixView.cx[data-con="warm"]{--pn:#5f7178;--pn2:#4d5d63;--cink:#f1ece0;--cink2:#c9c3b4;--d-ink2:#d6cfbd;--d-ring:#fff;--sw-font:"Work Sans"}
+.cx[data-con="punchy"] .cwin{border-radius:3px} .cx[data-con="warm"] .cwin{border-radius:7px;position:relative}
+.cx[data-con="warm"] .cwin::before,.cx[data-con="warm"] .cwin::after{content:"";position:absolute;top:8px;width:7px;height:7px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#d9dcd6,#7d817c);box-shadow:inset 0 0 0 1px rgba(0,0,0,.4);pointer-events:none} .cx[data-con="warm"] .cwin::before{left:6px} .cx[data-con="warm"] .cwin::after{right:6px}
+.cx[data-con="warm"] .ctop{padding:0 10px} .cx[data-con="warm"] .chead{padding:0 4px}
+.cx[data-con="punchy"] .cbadge{font:800 12px Archivo,var(--font-ui);letter-spacing:.06em} .cx[data-con="warm"] .cbadge{font:700 12px "Work Sans",var(--font-ui);letter-spacing:.22em}
+.cx[data-con="punchy"] .cbtn{border-radius:1px;background:#1d242c;border-color:#0b0f13;font-family:Archivo,var(--font-ui)} .cx[data-con="punchy"] .cbtn.on{background:#f4f6f8;color:#161b20} .cx[data-con="punchy"] .cbtn.lit i{background:#ffc83a;box-shadow:0 0 6px #ffc83a} .cx[data-con="punchy"] .cbtn i{border-radius:1px;background:#4a3a10}
+.cx[data-con="warm"] .cbtn{border-radius:3px;background:#2b3236;border-color:#0b0f13;font-family:"Work Sans",var(--font-ui)} .cx[data-con="warm"] .cbtn.on{background:#efe6d2;color:#161b20} .cx[data-con="warm"] .cbtn.lit i{background:#e0362b;box-shadow:0 0 6px #e0362b}
+.cx[data-con="punchy"] .sname b{background:#fbfbf8;color:#111} .cx[data-con="punchy"] .strip.sel .sname b{color:#111}
+.cx[data-con="warm"] .sname b{background:#22292c;color:#efe6d2;box-shadow:inset 0 1px 2px #000,0 1px 0 rgba(255,255,255,.08);border-radius:2px} .cx[data-con="warm"] .strip.sel .sname b{color:#efe6d2}
+.cx[data-con="punchy"] .ctape{background:#fbfbf8;color:#111} .cx[data-con="warm"] .ctape{background:#22292c;color:#efe6d2}
+.cx[data-con="punchy"] .strip.sel{box-shadow:0 0 0 1.5px #f4f6f8 inset} .cx[data-con="warm"] .strip.sel{box-shadow:0 0 0 1.5px #efe6d2 inset}
+.cx[data-con="punchy"] .fader .fmeter,.cx[data-con="warm"] .fader .fmeter{visibility:hidden}
+.cx[data-con="punchy"] .fader .fcap{background:linear-gradient(180deg,#3a3f45,#16191c 50%,#0c0e10 55%,#2a2e33);border-color:#000} .cx[data-con="punchy"] .fader .fcap::after{background:#fff}
+.cx[data-con="warm"] .fader .fcap{width:24px;margin-left:-12px;border-radius:3px;background:linear-gradient(180deg,#8d8a80,#5b5850 48%,#4a4740 52%,#7a776d);border-color:#1b1a17} .cx[data-con="warm"] .fader .fcap::after{background:#e0362b}
+.cx[data-con="punchy"] .ms2 button{border-radius:1px} .cx[data-con="punchy"] .ms2 button.m.on{background:#ffc83a;color:#111} .cx[data-con="warm"] .ms2 button{border-radius:3px;background:#2b3236} .cx[data-con="warm"] .ms2 button.m.on{background:#e0362b;color:#fff}
+.cx[data-con="punchy"] .knob .klab{font-family:Archivo,var(--font-ui)} .cx[data-con="warm"] .knob .klab{font-family:"Work Sans",var(--font-ui)}
+.cx[data-con="punchy"] .cbl{background:#1c1e21;border-radius:1px;font-family:Archivo,var(--font-ui);font-weight:800} .cx[data-con="warm"] .cbl{background:#7c8c92;border-radius:3px;font-family:"Work Sans",var(--font-ui)}
+.cx[data-con="warm"] .cband:last-child .cbl{background:#2f5f8f}
+.cx[data-con="punchy"] .console,.cx[data-con="warm"] .console{background:transparent;box-shadow:none}
+.cx[data-con="punchy"] .sname b,.cx[data-con="warm"] .sname b{font-family:"Archivo Narrow",var(--font-ui);font-weight:700}
+.cx[data-con="punchy"] .detail .knob .klab,.cx[data-con="warm"] .detail .knob .klab{font-family:var(--font-ui)}
+.cx .cband .selr .klab{font:700 8px/9px var(--sw-font,"Archivo Narrow"),var(--font-ui);letter-spacing:.1em;color:var(--cink2);text-transform:uppercase}
+.cx .cband.p3{grid-template-columns:44px minmax(0,1.25fr) minmax(0,1fr) 56px;padding:2px 0}
+.cx .cnote{font:700 9px var(--sw-font),var(--font-ui);color:var(--cink2);text-align:center;letter-spacing:.06em}
+.cx .cplate{display:flex;flex-direction:column;flex:none;border-radius:2px;padding:0 6px;background:linear-gradient(180deg,#7a8ca0,#66788c);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(0,0,0,.6);position:relative;--d-ink2:#2a323b;--d-ring:#0b0d0f}
+.cx .cplate::before,.cx .cplate::after{content:"";position:absolute;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e5e8ea,#8a8f93);box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)} .cx .cplate::before{top:3px} .cx .cplate::after{bottom:3px}
+.cx .cplate .cband{border-top-color:rgba(0,0,0,.25);box-shadow:none} .cx .cplate .cband:first-child{border-top:0;padding-top:10px} .cx .cplate .cband:last-child{padding-bottom:10px}
+.cx .cplate .knob .klab,.cx .cplate .selr .klab,.cx .cplate .cnote{color:#14181c} .cx .cplate .knob .kval{color:#0b0d0f}
+.cx .cbridge{flex:none;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:3px;padding:4px 3px;border-radius:2px;background:#0d0e10;box-shadow:inset 0 1px 3px #000,0 1px 0 rgba(255,255,255,.06)}
+.cx .cbv{height:30px;min-width:0} .cx .cbv svg{border-radius:1px;box-shadow:0 0 0 1px #000}
+.cx .cstripvu{flex:none;width:100%;height:24px;padding:2px;border-radius:2px;background:#0d0f0f;border:0;box-shadow:inset 0 1px 3px #000;display:block}
+.cx .cvu2{flex:none;height:clamp(70px,15vh,112px);display:flex;gap:5px;padding:5px;border-radius:4px;background:#0c0e10;box-shadow:inset 0 2px 5px #000;box-sizing:border-box} .cx[data-con="warm"] .cvu2{background:#060606}
+.cx .cvf{flex:1;min-width:0;border-radius:3px;overflow:hidden}
+.vu{display:block;width:100%;height:100%} .vu line,.vu path{fill:none} .vu text{text-anchor:middle}
+.vuy,.vuY{background:radial-gradient(100% 100% at 50% 100%,#fff2a8,#f2cf52 65%,#b88a1c)} .vuy .face,.vuY .face,.vua .face{fill:transparent}
+.vuy .sc,.vuY .sc{stroke:#1a1405;stroke-width:1.6} .vuY .sc{stroke-width:.9} .vuy .red,.vuY .red{stroke:#c0221a;stroke-width:4} .vuY .red{stroke-width:3}
+.vuy line,.vuY line{stroke:#1a1405;stroke-width:2.2} .vuY line{stroke-width:1.4} .vuy line.r,.vuY line.r{stroke:#c0221a} .vuy text,.vuY text{font:800 11px Archivo,sans-serif;fill:#1a1405;letter-spacing:1px} .vuY text{font-size:7px} .vuY text.r{fill:#c0221a}
+.vuy .ndl,.vuY .ndl{stroke:#111;stroke-width:1.8} .vuY .ndl{stroke-width:1}
+.vua{background:radial-gradient(110% 110% at 50% 110%,#ffd58a,#e9a24a 70%,#7a4a1c);border-radius:1.5px} .vua .sc{stroke:#2a1606;stroke-width:.7} .vua .red{stroke:#b3261e;stroke-width:1.6} .vua .ndl{stroke:#1a0e04;stroke-width:.9}
+.vuW .face{fill:#141210} .vuW .sc{stroke:#efe6d2;stroke-width:1.2} .vuW line{stroke:#efe6d2;stroke-width:2} .vuW text{font:700 11px "Work Sans",sans-serif;fill:#efe6d2} .vuW .lab{font-size:9px;letter-spacing:3px;fill:#b8ad96} .vuW .ndl{stroke:#ff9d3a;stroke-width:1.8}
 .scopebox{position:relative;display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;text-align:left;padding:0 8px;cursor:pointer;overflow:hidden}
 .scopebox span,.scopebox i{position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .scopebox i{flex:none;display:flex;color:var(--mute)} .scopebox i svg{width:14px;height:14px;fill:currentColor}
@@ -834,7 +876,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // text that doesn't fit its box: a little smaller (down to 85%), else the narrow face at its size (shrunk again if it must, never below 9 px);
 // then a shorter form if it has one (data-alt), or two lines for a name in a mixer strip; past that, the ellipsis
-const FIT_SEL = '.lanebox b, .klab, .key, .lsub, .li > span, .shTitle > span, .synInfo, .sw > span, .fxn, .blurb, .lcdbox, .scopebox > span, #sheet .btn, .chip, .pls > b';
+const FIT_SEL = '.lanebox b, .klab, .key, .lsub, .li > span, .shTitle > span, .synInfo, .sw > span, .fxn, .blurb, .lcdbox, .scopebox > span, #sheet .btn, .chip, .pls > b, .ctape';
 function fitFonts(root) { if (!root) return; const els = [...(root.matches && root.matches(FIT_SEL) ? [root] : []), ...root.querySelectorAll(FIT_SEL)], fz = el => parseFloat(getComputedStyle(el).fontSize);
   for (const el of els) if (el.style.fontSize || el.classList.contains('nar') || el.classList.contains('two')) { el.style.fontSize = ''; el.classList.remove('two', 'nar'); }
   const RG = document.createRange(), over = list => list.filter(el => { const w = el.clientWidth; if (!w || el.scrollWidth < w) return false;   // all reads, then all writes: one layout per round
@@ -1417,9 +1459,9 @@ function keyMeta(key) {
   const f = tfSlotFx(P, P.chans[c], s); if (!f) return { label: 'Missing effect', short: '?', def: 0, fmt: pct };
   const con = s >= NSLOTS, name = s === NSLOTS ? 'EQ' : con ? 'Bus comp' : FX_DEFS[f.type].name, tag = s === NSLOTS ? 'EQ' : con ? 'Bus' : s + 1;   // slots past the inserts are the console's
   if (i === -1) return { label: `${name} on`, short: `${tag}·On`, def: f.on ? 1 : 0, toggle: true, fmt: v => v >= .5 ? 'On' : 'Off', step: 1, coarse: 1 };
-  let prm = s === NSLOTS ? CEQ_P[i] : fxParams(f)[i]; if (!prm) return { label: '?', short: '?', def: 0, fmt: pct };
-  if (s === NSLOTS && (i === 5 || i === 8)) prm = Object.assign({}, prm, { f: v => { const d = (v * 2 - 1) * ceqMidMax(f.p[i + 2], f.p[14] >= .5); return (d > .05 ? '+' : '') + d.toFixed(1) + ' dB'; } });   // the mids' reach depends on their Q
-  return { label: `${name} ${prm.n}`, short: `${tag}·${prm.n}`, def: prm.d, fmt: prm.opts ? v => prm.opts[Math.round(v * (prm.opts.length - 1))] : prm.f, step: prm.opts ? 1 / (prm.opts.length - 1) : .002, coarse: prm.opts ? 1 / (prm.opts.length - 1) : .02 };
+  let prm = s === NSLOTS ? conEqP(f)[i] : s > NSLOTS ? conBusP(f)[i] : fxParams(f)[i]; if (!prm) return { label: '?', short: '?', def: 0, fmt: pct };
+  if (s === NSLOTS && f.type === CEQ_TYPE && (i === 5 || i === 8)) prm = Object.assign({}, prm, { f: v => { const d = (v * 2 - 1) * ceqMidMax(f.p[i + 2], f.p[14] >= .5); return (d > .05 ? '+' : '') + d.toFixed(1) + ' dB'; } });   // the mids' reach depends on their Q
+  return { label: `${name} ${prm.n}`, short: `${tag}·${prm.n}`, def: prm.d, fmt: prm.opts ? v => prm.opts[Math.round(v * (prm.opts.length - 1))] : prm.f, step: prm.opts ? 1 / (prm.opts.length - 1) : prm.steps ? 1 / (prm.steps - 1) : .002, coarse: prm.opts ? 1 / (prm.opts.length - 1) : prm.steps ? 1 / (prm.steps - 1) : .02, dragStep: prm.steps ? 1 / (prm.steps - 1) : undefined };
 }
 
 /* ================= rendering ================= */
@@ -2267,7 +2309,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-04', ['Console EQ: Classic and Modern curves, wider Q (0.1–3.5), mids that reach further as they narrow, Modern shelves with their dip and bump, and an accurate top end up to 20 kHz.', 'Console compressor (now COMP): feedback-style glue, linked sides, two-stage Auto release; ratio changes keep the level.', 'Drive lifts the top gently as it pushes, like a hot desk; LED meters on the console\'s faders.']],
+  ['2026-11-04', ['Two more consoles: Punchy (stepped three-band EQ, a meter bridge, a bus compressor with knee, Thrust and Old/New) and Warm (fixed-point EQ, a meter on every strip, a compressor with two Auto recoveries and a limiter). Each has its own drive colour; switching keeps each one\'s settings.', 'Console EQ: Classic and Modern curves, wider Q (0.1–3.5), mids that reach further as they narrow, Modern shelves with their dip and bump, and an accurate top end up to 20 kHz.', 'Console compressor (now COMP): feedback-style glue, linked sides, two-stage Auto release; ratio changes keep the level.', 'Drive lifts the top gently as it pushes, like a hot desk; LED meters on the console\'s faders.']],
   ['2026-11-03', ['Console drive has more to it: warmer (mostly second harmonic), clearly there when turned up, and level-matched so it never just gets louder.', 'Consoles (Menu › Console): Clean, a large-format desk with a four-band EQ on every channel, a bus compressor on groups, buses and the master, and drive. None keeps the plain mixer.', 'The ANLZ button by the level meter opens the master analyzer; the monitoring options are gone.', 'Messages slide in over the level meter (or show in the d-pad\'s window when it\'s open); the bar above the tabs is gone.', 'One typeface everywhere; pad and mixer names at one size, longer ones on two lines; mixer numbers and colour bars line up.', 'Clearer Analog, Sub and Instrument screens.', 'Synth pages tidied: knobs in a block, selectors and switches in a column on the right, everything lined up. Analog picks waves and modes with a pointer knob; the page keys are each synth\'s own buttons.', 'Fix: text cut off with the d-pad open.', 'Each synth engine is now its own instrument: its own knobs, switches, keys and screen. Every control and patch works as before.', 'FX synth: a Play key. Instrument: keys to jump between kinds of instrument.', 'Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
@@ -2678,7 +2720,7 @@ const METQ = [], METER_FALL = 24;
 const FLQ = [], flashOne = f => flashPad(f.v & 255, (f.v >> 8) - 1);
 function meterTake(r) { try { meterTake0(r); } catch (e) { appError('meter report: ' + (e && e.message || e)); } }
 function meterTake0(r) { METER.l = Math.max(METER.l, r.pk[0]); METER.r = Math.max(METER.r, r.pk[1]); if (r.pk[0] > 1 || r.pk[1] > 1) METER.clip = true;
-  const cm = r.cm || []; if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) m.v[k] = Math.max(m.v[k], cm[m.c * 2 + k] || 0);
+  const cm = r.cm || []; if (r.cm) UI.cm = r.cm; if (UI.view === 'mix') for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) m.v[k] = Math.max(m.v[k], cm[m.c * 2 + k] || 0);
   if (r.sc) onScope(r.sc); }
 function meterFeed(dt) { const live = ctx && ctx.state === 'running', heard = live ? heardTime() + DISP_LEAD : Infinity;
   while (METQ.length && (METQ[0].at <= heard || METQ[0].at - heard > .5)) meterTake(METQ.shift());
@@ -2721,13 +2763,14 @@ function frameBody(ts) {
   const fdt = Math.min(.1, (ts - (lastFrame || ts)) / 1000); lastFrame = ts;   // ~60 fps is plenty for meters and playheads, even on a 120 Hz screen
   guarded('meters', () => meterFeed(fdt)); guarded('meter', drawMeter); if (FLASH.size) guarded('pads', () => flashExpire(performance.now()));
   let scoping = false; guarded('scope', () => { scoping = scopeMoving(); if (scoping) scopeFrame(Math.min(.1, (ts - (frame.prev || ts)) / 1000)); }); frame.prev = ts;
-  const busy = scoping || T.playing || METQ.length || FLQ.length || FLASH.size || METER.l > 0 || METER.r > 0 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && STRIP_METERS.some(m => m.v[0] > 0 || m.v[1] > 0));
+  const busy = scoping || T.playing || METQ.length || FLQ.length || FLASH.size || METER.l > 0 || METER.r > 0 || REP.voices > 0 || performance.now() - wakeAt < 1500 || (UI.view === 'mix' && (STRIP_METERS.some(m => m.v[0] > 0 || m.v[1] > 0) || conMetersBusy()));
   if (busy) nextFrame(); else { frameOn = false; return; }   // nothing moving: stop drawing until woken
   if (!ctx) return;
   if (UI.view === 'mix') guarded('mixer meters', () => { for (const m of STRIP_METERS) for (let k = 0; k < 2; k++) { const db = m.v[k] > 1e-5 ? 20 * Math.log10(m.v[k]) : -99, f = tfFaderPos(m.v[k]);   // stereo, on the fader's own scale: 0 dBFS sits on the unity mark
     const el = m.el[k]; el.style.height = (f * 100).toFixed(1) + '%';
     if (el._seg == null) { el._seg = !!el.closest(".cx"); if (el._seg) el.style.setProperty('--mh', el.parentElement.clientHeight + 'px'); }   // a console's meter: segments coloured by where they sit on the scale
     if (!el._seg) el.style.background = db > 0 ? COL.rec : db > -6 ? COL.accent : COL.play; } });
+  if (UI.view === 'mix') guarded('console meters', conMeters);
   const pos = heardPos(DISP_LEAD); VIS.pos = pos;
   if (pos) {
     if (pos.scene !== lastHeard) { lastHeard = pos.scene; if (pos.scene !== UI.scene && !TL.drag && (UI.view !== 'seq' || tlFollowing())) { UI.scene = pos.scene; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.sx = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else if (UI.view === 'seq') renderView(); } }

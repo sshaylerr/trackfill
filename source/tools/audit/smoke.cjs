@@ -59,9 +59,9 @@ const crawl = async () => {
   for (let t = 0; t < FX_DEFS.length; t++) for (let m = 0; m < FX_DEFS[t].modes.length; m++) await at(`fx ${FX_DEFS[t].short || t}/${m}`, () => { P.chans[0].fx = [newFx(t, null, m)]; fxChanged(0); UI.fxCh = 0; UI.fxSlot = 0; UI.fxBack = 'mix'; setView('fx'); renderView(); }, m === 0);
   P.chans[0].fx = []; fxChanged(0); setView('mix');
   // the console: each view, on a pad page and on the groups page (a bus compressor of its own), then back to the plain mixer
-  P.console = 'clean'; syncProject();
-  for (const [pg, sel] of [[0, 0], [8, G0]]) for (const m of ['faders', 'eq', 'bus']) await at(`console ${m} ${pg ? 'groups' : 'pads'}`, () => { UI.mixPage = pg; UI.mixSel = sel; UI.mixFollow = UI.pad; UI.mixMode = m; setView('mix'); renderView(); });
-  P.console = 'none'; UI.mixMode = 'faders'; syncProject(); setView('mix');
+  for (const con of ['clean', 'punchy', 'warm']) { setConsole(con);
+    for (const [pg, sel] of [[0, 0], [8, G0]]) for (const m of ['faders', 'eq', 'bus']) await at(`console ${con} ${m} ${pg ? 'groups' : 'pads'}`, () => { UI.mixPage = pg; UI.mixSel = sel; UI.mixFollow = UI.pad; UI.mixMode = m; setView('mix'); renderView(); }); }
+  setConsole('none'); UI.mixMode = 'faders'; setView('mix');
   // menus
   const menus = { openProjects, openLibrary, openMenu, openAppearance, openFilterLfo: () => { P.chans[0].fx = [newFx(2, null, 1)]; syncChan(0); openFilterLfo(0, 0); }, openSceneSheet: () => openSceneSheet(0), openSoundTools: () => openSoundTools(samplePad), openChopTools: () => openChopTools(samplePad), openEdit, openExport,
     openDrumTypes: () => drumPad >= 0 && openDrumTypes(drumPad), openDrumMachines: () => drumPad >= 0 && openDrumMachines(drumPad), openDrumMore: () => drumPad >= 0 && openDrumMore(drumPad),
