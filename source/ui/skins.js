@@ -4,7 +4,7 @@
    so the d-pad, Map mode, automation and saved patches work exactly as before.
    Switch rule: a lever, paddle or slider points at the setting that's on, and that setting's label lights. */
 const SKINS = {
-  analog: { tag: 'Three oscillator', knob: 'skirt', sw: 'paddle', screen: { bg: '#140a02', ink: '#ffc261', trace: '#ffcf86', mute: '#c98a32', dim: '#6e4510', line: 'rgba(255,181,71,.17)', accent: '#ffc261', font: 'VT323', fs: 1.55, glow: 5, glowCol: 'rgba(255,166,48,.85)' } },
+  analog: { tag: 'Three oscillator', knob: 'skirt', sw: 'paddle', sel: 'rotary', screen: { bg: '#140a02', ink: '#ffc261', trace: '#ffcf86', mute: '#c98a32', dim: '#6e4510', line: 'rgba(255,181,71,.17)', accent: '#ffc261', font: 'VT323', fs: 1.55, glow: 5, glowCol: 'rgba(255,166,48,.85)' } },
   fm: { tag: 'Four operator', knob: 'encoder', sw: 'box', screen: { bg: '#adbd6c', ink: '#1f2a0c', trace: '#1f2a0c', mute: '#3c4a1c', dim: '#7d8d45', line: 'rgba(31,42,12,.16)', accent: '#1f2a0c', font: 'Silkscreen', fs: .78, pixel: true } },
   wt: { tag: 'Morphing VA', knob: 'ledring', sw: 'box', screen: { bg: '#1c48d9', bg2: '#0f2b98', ink: '#eef3ff', trace: '#ffffff', mute: '#b7c8ff', dim: '#7390ea', line: 'rgba(255,255,255,.13)', accent: '#ffffff', font: 'DotGothic16', fs: 1.15, glow: 4, glowCol: 'rgba(255,255,255,.7)' } },
   gr: { tag: 'Cloud processor', knob: 'knurl', sw: 'lever', jacks: ['pos cv', 'size cv', 'gate', 'out'], screen: { bg: '#000000', ink: '#e8fffb', trace: '#2fe0b0', mute: '#8fb9b2', dim: '#3b4a48', line: '#17211f', accent: '#2fe0b0', font: 'Space Mono', fs: .95 } },
@@ -38,6 +38,14 @@ function skinFonts() { if (SKIN_FONTS || typeof document === 'undefined' || !doc
 function skinDefs() { skinFonts(); const d = document.querySelector('svg defs'); if (d && !document.getElementById('kCream')) d.insertAdjacentHTML('beforeend', KNOB_DEFS); }
 
 /* switches for two and three settings: a paddle (up/down), a bat lever (up/down) or a slide (left to right) */
+// a rotary selector (Analog): a pointer knob with its settings printed around it, for three to six settings
+const SEL_ABBR = { Sine: 'SIN', Triangle: 'TRI', Saw: 'SAW', Square: 'SQR', Pulse: 'PLS', Normal: 'NORM', 'One-shot': '1SHT', Retrig: 'RTRG', Free: 'FREE', Noise: 'NOIS' };
+const selAbbr = o => { o = String(o); return SEL_ABBR[o] || (o.length <= 4 ? o.toUpperCase() : o.replace(/[^A-Za-z0-9+\-−]/g, '').slice(0, 3).toUpperCase()); };
+const SEL_FITS = (kind, opts) => kind === 'rotary' && opts.length >= 3 && opts.length <= 6;
+function skinRotary(opts) { const n = opts.length, span = n <= 3 ? 180 : 240, ang = i => -span / 2 + i * span / (n - 1);
+  return (sw, i) => { const lab = opts.map((o, k) => { const a = ang(k) * Math.PI / 180, x = 42 + 33 * Math.sin(a), y = 27 - 20 * Math.cos(a) + 3;
+      return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" class="${k === i ? 'on' : ''}">${esc(selAbbr(o))}</text>`; }).join('');
+    sw.innerHTML = `<svg class="rot" viewBox="0 0 84 50" aria-hidden="true">${lab}<circle cx="42" cy="29" r="15" fill="#0a0908"/><g transform="rotate(${ang(i)} 42 28)"><path d="M42 11 L49.5 25 A9 9 0 1 1 34.5 25 Z" fill="#1d1b19" stroke="#000"/><path d="M42 14.5 L42 24" stroke="#f3ecdc" stroke-width="2.2" stroke-linecap="round"/></g></svg>`; }; }
 const SW_FITS = (kind, opts) => kind === 'slide' ? opts.length >= 2 && opts.length <= 3 && opts.every(o => String(o).length <= (opts.length === 3 ? 4 : 7)) : (kind === 'paddle' || kind === 'lever') && opts.length === 2 && opts.every(o => String(o).length <= 8);
 function skinSwitch(kind, opts) {   // returns selEl's paint(sw, i)
   return (sw, i) => {

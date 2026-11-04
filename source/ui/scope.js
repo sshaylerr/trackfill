@@ -250,6 +250,6 @@ function openAnalyzer(c) {
 // the mixer's name box: tap it to open the full analyzer for that channel (nothing is analyzed until then)
 const IC_SCOPE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V14h3v6zm5 0V8h3v12zm5 0v-9h3v9zm5 0V5h3v15z"/></svg>';
 function scopeBox(c) {
-  const b = h('button', 'lcdbox scopebox'); b.innerHTML = `<span>${chanLabel(c)} · ${esc(chanName(c))}</span><i>${IC_SCOPE}</i>`;
+  const b = h('button', 'lcdbox scopebox'); b.innerHTML = `<span data-alt="${chanLabel(c)}">${chanLabel(c)} · ${esc(chanName(c))}</span><i>${IC_SCOPE}</i>`;
   b.setAttribute('aria-label', 'Open the analyzer for ' + chanName(c)); b.onclick = () => openAnalyzer(c); return b;
 }

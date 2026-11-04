@@ -35,7 +35,7 @@ function renderSeq(V) {
   if (tl.lane === 'notes' && tgt >= G0) tl.lane = tgt + '.-1.0';
   if (tl.lane === 'notes' && tl.mode === 'keys' && isAudioPad(UI.pad)) { renderAudioEd(V); return; }   // an audio track's Keys view is its audio editor
   const isNotes = tl.lane === 'notes', bar = h('div', 'toolbar'), lb = h('button', 'lanebox');
-  lb.innerHTML = `<b data-alt="${esc(laneTitle(true))}">${esc(laneTitle())}</b><i>▾</i>`; lb.setAttribute('aria-label', 'Choose lane'); lb.onclick = () => openLaneSheet(tgt); bar.append(lb);
+  lb.innerHTML = `<b data-alt="${esc(laneTitle(true))}"${tl.lane === 'notes' && tl.mode === 'keys' ? ` data-alt2="${padLabel(UI.pad)}"` : ''}>${esc(laneTitle())}</b><i>▾</i>`; lb.setAttribute('aria-label', 'Choose lane'); lb.onclick = () => openLaneSheet(tgt); bar.append(lb);   // cramped: the short title, then just the pad
   if (isNotes) bar.append(btn(tl.mode === 'bank' ? 'Bank' : chopOf(UI.pad) ? 'Chop' : 'Keys', () => { const k = tl.mode === 'bank'; tl.mode = k ? 'keys' : 'bank'; tl.sel = null; tl.sy = null; tl.cursor.row = k ? (chopOf(UI.pad) ? 0 : KEY_HI) : UI.pad % 16; renderView(); }, 'key sm'));
   bar.append(btn(snapName(tl.snap), openSnap, 'key sm'));
   const zoom = f => { if (UI.shift && isNotes) zoomV(f); else zoomTL(f); };   // Shift + zoom: row height

@@ -17,7 +17,7 @@ const SYN_ALL_PAGES = SYN_PAGES.slice();
 function synEngPages(pi) { const want = isXPad(pi) ? [SYN_ALL_PAGES[0], SYN_ALL_PAGES[4], SYN_ALL_PAGES[5]] : SYN_ALL_PAGES; if (SYN_PAGES.length !== want.length || SYN_PAGES.slice(1).some((x, i) => x !== want[i + 1])) { SYN_PAGES.splice(0, SYN_PAGES.length, ...want); SYN_ST.pg = Math.min(SYN_ST.pg, SYN_PAGES.length - 1); SYN_ST.tab = {}; }
   SYN_PAGES[0] = isXPad(pi) ? SYN_X_PAGE : isInPad(pi) ? SYN_IN_PAGE : isSuPad(pi) ? SYN_SU_PAGE : isFmPad(pi) ? SYN_FM_PAGE : isWtPad(pi) ? SYN_WT_PAGE : isGrPad(pi) ? SYN_GR_PAGE : SYN_OSC_PAGE; }
 const OPMODE_COL = { FM: '#4fd1c5', Ring: '#f2b544', Filter: '#7aa8ff', 'Filter FM': '#c58bff', Fold: '#ff7a7a' };
-function synCells(tab) {
+function synCells(tab) {   // (the controls of a tab, in reading order: see SYN_LAY for where they sit)
   if (/^f\d$/.test(tab)) { const f = tab; return SYN_ST.opv ? [f + 'a', f + 'd', f + 's', f + 'r', f + 'x', f + 'z', f + 'l', '#opv'] : [f + 'm', f + 'w', f + 'c', f + 'f', f + 'l', f + 't', f + 'q', '#opv']; }
   return SYN_CELLS[tab] || []; }
 const SYN_CELLS = {
@@ -32,10 +32,36 @@ for (let k = 1; k <= 4; k++) SYN_CELLS['l' + k] = ['l' + k + 'y', 'l' + k + '@',
 // colours for modulation sources: envelopes green, LFOs pink, performance sources gold, macros the theme accent
 const SRC_COL = i => i <= 2 ? '#7fd49a' : i <= 6 ? '#ff7ac8' : i <= 11 || i === 16 ? '#e6c162' : 'var(--accent)';
 const SYN_ST = { pg: 0, tab: {}, snap: 0, opv: 0 };
-// pages whose controls don't fill two rows of four are laid out by hand
-const SYN_ROWS = { xs: [['xsm', 'xs@', 'xdi', 'xsc'], ['xlv', 'xpl', 'xtt']], xn: [['xnl', 'xnf', 'xbf', 'xbt'], ['xbq', 'xnc']], xh: [['xhl', 'xht', 'xhn', 'xhd'], ['xhw']], s8: [['spa', 'spt', 'spc', '#glide'], ['ckl', 'ckt', '#bendr']], sv: [['pit', 'gan', 'vel', '#voices'], ['#follow', '#bendr']], sb: [['sbl', 'sbo', 'sbw', 'sbf'], ['spl', 'spn', 'nzf']], g2: [['gmo', 'gsh', 'grv'], ['gtl', 'gkt']] };
-function synRows(tab) { if (SYN_ROWS[tab]) return SYN_ROWS[tab]; const l = /^l(\d)$/.exec(tab); if (l) { const k = 'l' + l[1]; return [[k + 'y', k + '@', k + 'm', k + 'p'], [k + 'o', '#shape', '#snap']]; }
-  const c = synCells(tab), pad4 = r => r.concat(['', '', '', '']).slice(0, 4); return [pad4(c.slice(0, 4)), pad4(c.slice(4, 8))]; }
+/* how each tab's controls sit in the 4 × 2 grid. Knobs make a block on the left; selectors, switches and buttons a column (or two) on the right.
+   k: the knob rows (a shorter row is centred under the longer one); s: the right-hand columns, top to bottom (a lone control sits centred between the rows).
+   rows: a hand-made 4 × 2 where that reads better (a full grid, or a row that belongs together, like Attack Decay Sustain Release). */
+const SYN_LAY = {
+  o1: { k: [['o1o', 'o1s', 'o1f'], ['o1l', 'o1p', 'dri']], s: [['o1w']] }, o2: { k: [['o2o', 'o2s', 'o2f'], ['o2l', 'o2p', 'o2m']], s: [['o2w', 'o2y']] }, o3: { k: [['o3o', 'o3s', 'o3f'], ['o3l', 'o3p', 'o3r']], s: [['o3w', 'o3x']] },
+  ph: { k: [['o1h', 'o2h', 'o3h', 'rph']] }, wp: { k: [['wa9', 'wb9', 'rph']] }, fp: { k: [['f1h', 'f2h', 'f3h', 'f4h'], ['rph']] },
+  vo: { rows: [['uni', 'det', 'spr', 'pit'], ['vel', 'gan', '#glide', '#voices']] },
+  sb: { k: [['sbl'], ['spl', 'spn']], s: [['sbo', 'sbw'], ['sbf', 'nzf']] }, nz: { k: [['nzn', 'nzt', 'nzb'], ['nzd', 'nzh', 'nzl']], s: [['nzo', 'nzk']] },
+  fl: { rows: [['cut', 'res', 'drv', 'flt'], ['fen', 'key', 'shp', 'fbk']] },
+  ea: { rows: [['aa', 'ad', 'as', 'ar'], ['ac', 'ak', 'ay', 'am']] }, e2: { rows: [['2a', '2d', '2s', '2r'], ['2c', '2k', '2y', '2m']] }, e3: { rows: [['3a', '3d', '3s', '3r'], ['3c', '3k', '3y', '3m']] },
+  mc: { k: [['m1', 'm2', 'm3', 'm4']] },
+  xs: { k: [['xs@', 'xsc'], ['xlv', 'xtt']], s: [['xsm'], ['xdi', 'xpl']] }, xn: { k: [['xnl', 'xbf', 'xbt'], ['xbq', 'xnc']], s: [['xnf']] },
+  xo: { rows: [['xol', 'xpf', 'xpt', 'xwv'], ['xma', 'xru', 'xmr', 'xmo']] }, xh: { k: [['xhl'], ['xhn', 'xhd']], s: [['xht', 'xhw']] },
+  xz: { rows: [['xsz', 'xsp', 'xdr', 'xgr'], ['pit', 'gan', 'vel', '#poly']] },
+  in: { k: [['ioc', 'ise', 'ifi'], ['ist', 'ivt', 'iwd']], s: [['#ins', 'ilo']] }, su: { k: [['sul', 'suo', 'sus'], ['sxo', 'sdr', 'sto']], s: [['sup', 'sdm']] },
+  sh: { rows: [['sh2', 'sh3', 'sh4', 'sh5'], ['shm', 'sho', 'sht', 'shw']] }, s8: { k: [['spa', 'spt', 'spc'], ['ckl', 'ckt', '#glide']], s: [['#bendr']] },
+  sv: { k: [['pit', 'gan'], ['vel', '#voices']], s: [['#follow', '#bendr']] },
+  gr: { rows: [['gpo', 'gsc', 'gsz', '#grsrc'], ['gde', 'gsp', 'gps', 'gst']] }, g2: { k: [['gsh'], ['grv']], s: [['gmo', 'gtl'], ['gkt']] },
+  wa: { k: [['wap', 'wal', 'wao'], ['was', 'waf', 'wax']], s: [['#tableA', 'waw']] }, wb: { k: [['wbp', 'wbl', 'wbo'], ['wbs', 'wbf', 'wbx']], s: [['#tableB', 'wbw']] },
+  fa: { rows: [['fmd', 'ffb', 'alg'], ['f1l', 'f2l', 'f3l', 'f4l']] } };
+function synLay(tab) { const l = /^l(\d)$/.exec(tab); if (l) { const k = 'l' + l[1]; return { k: [[k + '@'], [k + 'p', k + 'o']], s: [[k + 'y', k + 'm'], ['#shape', '#snap']] }; }
+  if (/^f\d$/.test(tab)) { const f = tab; return SYN_ST.opv ? { rows: [[f + 'a', f + 'd', f + 's', f + 'r'], [f + 'l', f + 'z', f + 'x', '#opv']] } : { rows: [[f + 'c', f + 'f', f + 'l', f + 'm'], [f + 't', f + 'q', f + 'w', '#opv']] }; }
+  return SYN_LAY[tab] || { rows: [] }; }
+// where each control goes on the 8-column grid (every control spans two columns, so a short row can sit half a control in): [id, column, row, rows spanned]
+function synPlace(tab) { const L = synLay(tab), out = [];
+  if (L.rows) { L.rows.forEach((r, ri) => { const n = r.length, c0 = 1 + (4 - n); r.forEach((id, k) => { if (id) out.push([id, c0 + 2 * k, ri + 1, 1]); }); }); return out; }
+  const cs = (L.s || []).length, ka = 4 - cs;
+  (L.k || []).forEach((r, ri) => { const c0 = 1 + (ka - r.length); r.forEach((id, k) => out.push([id, c0 + 2 * k, ri + 1, 1])); });
+  (L.s || []).forEach((col, j) => { const c = (ka + j) * 2 + 1; if (col.length === 1) out.push([col[0], c, 1, 2]); else col.forEach((id, ri) => out.push([id, c, ri + 1, 1])); });
+  return out; }
 // synth controls offered as automation lanes (the timeline): macros first, then the ones most often moved in a track
 const SYN_AUTO = ['m1', 'm2', 'm3', 'm4', 'cut', 'res', 'drv', 'fen', 'pit', 'o1l', 'o2l', 'o2m', 'det', 'sbl', 'nzl', 'gan'];
 const SYN_AUTO_FM = ['m1', 'm2', 'm3', 'm4', 'fmd', 'ffb', 'f1l', 'f2l', 'f3l', 'f4l', 'f1t', 'f2t', 'cut', 'res', 'pit', 'gan'];
@@ -115,9 +141,9 @@ function synCtl(pi, id) {
     p = Object.assign({}, p0, { l: lab }); }
   if (/^f\dl$/.test(id) && synTab() === 'fa') p = Object.assign({}, p0, { l: 'Op ' + id[1] });
   const cur = () => S.p[id] ?? p.d;
-  const sk = synSkin(pi), swk = sk && p.k === 'opt' && SW_FITS(sk.sw, p.a) ? sk.sw : null;   // the faceplate's own switch where the settings fit one
+  const sk = synSkin(pi), swk = sk && p.k === 'opt' ? (SW_FITS(sk.sw, p.a) ? sk.sw : SEL_FITS(sk.sel, p.a) ? sk.sel : null) : null;   // the faceplate's own switch where the settings fit one
   if (p.k === 'opt') {
-    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || /^[a23]y$/.test(id) || id === 'xsm' || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); }, swk ? { paint: skinSwitch(swk, p.a) } : {});
+    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || /^[a23]y$/.test(id) || id === 'xsm' || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); }, swk ? { paint: swk === 'rotary' ? skinRotary(p.a) : skinSwitch(swk, p.a) } : {});
     if (swk) el.classList.add('swk', 'sw-' + swk);
   } else {
     const intish = p.k === 'int' || /^o\ds$/.test(id) || /^w[ab]s$/.test(id), step = intish ? 1 / (p.b - p.a) : .001;
@@ -183,7 +209,7 @@ function renderSynthSound(w, pi, head) {
     dev.append(dh); }
   w.append(head);
   if (mb) dev.append(mb[0]);
-  else { const pages = seg(SYN_PAGES.map(x => x.n), SYN_ST.pg, i => { SYN_ST.pg = i; renderView(); }); pages.classList.add('synPages'); [...pages.children].forEach(k => { const alt = { 'Sub·Noise': 'Sub·Nz', Instrument: 'Instr' }[k.textContent]; if (alt) k.dataset.alt = alt; }); dev.append(pages); }
+  else { const pages = seg(SYN_PAGES.map(x => x.n), SYN_ST.pg, i => { SYN_ST.pg = i; renderView(); }); pages.classList.add('synPages'); if (sk && eng.id !== 'fm') pages.classList.add('capkeys'); [...pages.children].forEach(k => { const alt = { 'Sub·Noise': 'Sub·Nz', Instrument: 'Instr' }[k.textContent]; if (alt) k.dataset.alt = alt; }); dev.append(pages); }
   const tabs = h('div', 'keys synTabs'); for (const [id, l] of pg.tabs) { const b = btn(l, () => { SYN_ST.tab[SYN_ST.pg] = id; renderView(); }, 'key sm' + (id === tab ? ' on' : '')); tabs.append(b); }
   if (pg.n === 'Filter' || pg.n === 'Mix') { tabs.innerHTML = ''; tabs.append(h('div', 'lcdbox synInfo', pg.n === 'Filter' ? 'Filter · ' + esc(synOf(pi).p.flt ?? 'Ladder') + ' · after the oscillators' : 'Channel · level, pan, sends and effects')); }
   dev.append(tabs); if (sk && sk.cats && tab === 'in') dev.append(insCats(pi));
@@ -195,8 +221,8 @@ function renderSynthSound(w, pi, head) {
     for (let i = 0; i < 4; i++) { const el = keyParam(pi + '.-1.' + i, Object.assign({ label: STRIP[i].label }, redraw)); el.dataset.col = i; g.append(el); }
     g.append(cellBtn('Output', destName(pi), () => openOutputPicker(pi)), cellBtn('Effects', C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'None', () => openFx(pi, 'sound')),
       cellBtn('Freeze', pad.frz ? 'Frozen' : 'Off', () => { if (pad.frz) { unfreeze(pi); renderView(); toast('Unfrozen'); } else freezePad(pi); }), cellBtn('Preset', synOf(pi).name || 'Init', () => openSynthSource(pi)));
-  } else { const rows = synRows(tab); g.classList.add('k8');   // two rows; a short row sits in the middle (Env 2 and 3 keep the Amp tab's columns)
-    rows.forEach(r => { if (!r.length) r = ['', '', '', '']; r.forEach((id, k) => { const el = id ? synCtl(pi, id) : blankCell(); el.style.gridColumn = (k ? 'auto' : (4 - r.length + 1)) + ' / span 2'; el.dataset.col = k + (4 - r.length); g.append(el); }); }); }
+  } else { g.classList.add('k8'); const place = synPlace(tab); g.style.gridTemplateRows = 'repeat(2, var(--synrow))';   // always two rows, so every page is the same height
+    place.sort((x, y) => x[2] - y[2] || x[1] - y[1]).forEach(([id, c, r, span]) => { const el = synCtl(pi, id); el.style.gridColumn = c + ' / span 2'; el.style.gridRow = r + ' / span ' + span; if (span > 1) el.classList.add('span2'); el.dataset.col = (c - 1) >> 1; g.append(el); }); }
   } finally { CTL_SKIN = null; }
   g.addEventListener('pointerdown', e => { if (!UI.map) return; const c = e.target.closest('[data-syn]'); if (!c) return; e.preventDefault(); e.stopPropagation(); mapPick(pi, c.dataset.syn); }, true);
   g.addEventListener('click', e => { if (UI.map && e.target.closest('[data-syn]')) { e.stopPropagation(); e.preventDefault(); } }, true);

@@ -10,7 +10,7 @@ const HTML = process.env.TF_HTML || path.join(__dirname, '../../dist/trackfill.h
 let fails = 0; const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails++; };
 const QUICK = process.argv.includes('--quick');   // deploy.sh: one phone size, no long play
 const ANDROID = { label: 'Android phone (Chrome)', userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36', dpr: 2.625, mobile: true };
-const SIZES = (QUICK ? [[390, 844]] : [[375, 667], [390, 844], [430, 932], [412, 915, ANDROID], [360, 780, Object.assign({}, ANDROID, { label: 'small Android phone (Chrome)', dpr: 3 })]]).filter(s => !process.env.TF_SIZE || String(s[0]) === process.env.TF_SIZE);   // TF_SIZE=430: one size only
+const SIZES = (QUICK ? [[390, 844]] : [[375, 667], [390, 844], [430, 932], [412, 915, ANDROID], [360, 780, Object.assign({}, ANDROID, { label: 'small Android phone (Chrome)', dpr: 3 })], [390, 844, null, true], [375, 667, null, true]]).filter(s => !process.env.TF_SIZE || String(s[0]) === process.env.TF_SIZE);   // TF_SIZE=430: one size only
 
 // runs inside the page: every state the crawl visits, as [name, setup]
 const crawl = async () => {
@@ -32,7 +32,7 @@ const crawl = async () => {
     const W = innerWidth, sw = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth); if (sw > W + 1) out.wide.push(`${name} (${sw}px)`);
     if (!UI.sheet && bars() !== base) out.moved.push(name);
     if (!UI.sheet) for (const tb of document.querySelectorAll('#view .toolbar')) { const R = tb.getBoundingClientRect(); for (const k of tb.children) { const r = k.getBoundingClientRect(); if (r.width && r.right > R.right + 1) out.cut.push(`${name}: ${(k.getAttribute('aria-label') || k.textContent || k.className).trim().slice(0, 16)}`); } }   // a toolbar key cut off at the edge
-    for (const cv of document.querySelectorAll('canvas')) { const r = cv.getBoundingClientRect(), d = devicePixelRatio; if (!r.width || !cv.width || cv.width < 8 || cv.closest('.pix')) continue;   // a pixel screen is drawn at one point per pixel on purpose   // a canvas shown at its drawn size: no stretch (overlays line up, lines stay sharp)
+    for (const cv of document.querySelectorAll('canvas')) { const r = cv.getBoundingClientRect(), d = devicePixelRatio; if (!r.width || !cv.width || cv.width < 8 || cv.closest('.pix') || cv.closest('.gone')) continue;   // a pixel screen is drawn at one point per pixel on purpose   // a canvas shown at its drawn size: no stretch (overlays line up, lines stay sharp)
       if (Math.abs(r.width * d - cv.width) > d + .5 || Math.abs(r.height * d - cv.height) > d + .5) out.blurry.push(`${name} ${cv.className || 'canvas'} ${r.width.toFixed(1)}×${r.height.toFixed(1)} drawn ${(cv.width / d).toFixed(1)}×${(cv.height / d).toFixed(1)}`); }
     if (dpad) { const u = reach(); if (u.length) out.unreached.push(`${name}: ${u.slice(0, 4).join(' | ')}${u.length > 4 ? ` (+${u.length - 4})` : ''}`); } };
   const at = async (name, f, dpad) => { try { await f(); await sl(60); check(name, dpad); } catch (e) { out.errs.push(name + ': ' + e.message); } };
@@ -71,12 +71,13 @@ const crawl = async () => {
   const srv = await new Promise(res => { const s = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); fs.createReadStream(HTML).pipe(r); }).listen(0, () => res(s)); });
   const FILE = `http://localhost:${srv.address().port}/`;
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--enable-precise-memory-info'] });
-  for (const [w, hgt, dev] of SIZES) {
-    console.log(`${w}×${hgt}${dev ? ' · ' + dev.label : ' · iPhone size'}`);
+  for (const [w, hgt, dev, dpad] of SIZES) {   // dpad: the same crawl with the d-pad panel open (every page is shorter)
+    console.log(`${w}×${hgt}${dev ? ' · ' + dev.label : ' · iPhone size'}${dpad ? ' · d-pad open' : ''}`);
     const pg = await b.newPage(Object.assign({ viewport: { width: w, height: hgt }, deviceScaleFactor: dev ? dev.dpr : 2, hasTouch: true }, dev ? { userAgent: dev.userAgent, isMobile: true } : {})), errs = [];
     pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => { if (m.type() === 'error' && !/favicon|ERR_FILE/.test(m.text())) errs.push('console: ' + m.text()); }); pg.on('dialog', d => d.dismiss());
     await pg.goto(FILE); await pg.waitForTimeout(2500); ok(!errs.length, 'starts with no errors' + (errs.length ? ': ' + errs.slice(0, 2).join(' / ') : ''));
     await pg.mouse.click(w / 2, hgt / 2); await pg.waitForTimeout(500); await pg.evaluate(() => { WAKE.off = true; const s = document.getElementById('wakeShade'); if (s) s.remove(); });
+    if (dpad) await pg.evaluate(() => { if (!UI.panel) togglePanel(); });
     const r = await pg.evaluate(crawl);
     ok(!r.errs.length && !errs.length, `${r.states} pages and ${r.menus} menus open without errors` + (r.errs.length || errs.length ? ': ' + r.errs.concat(errs).slice(0, 4).join(' / ') : ''));
     ok(!r.wide.length, 'nothing wider than the screen' + (r.wide.length ? ': ' + r.wide.slice(0, 5).join(', ') : ''));
@@ -86,13 +87,13 @@ const crawl = async () => {
     ok(!r.blurry.length, 'every canvas is shown at the size it was drawn' + (r.blurry.length ? ': ' + [...new Set(r.blurry)].slice(0, 6).join(', ') : ''));
     ok(!r.moved.length, 'transport and tabs stay put on every page' + (r.moved.length ? ': ' + r.moved.slice(0, 5).join(', ') : ''));
     ok(!r.unreached.length, `the d-pad reaches every control (${r.navd} on ${r.navs} pages and menus)` + (r.unreached.length ? ':\n      ' + r.unreached.slice(0, 12).join('\n      ') + (r.unreached.length > 12 ? `\n      (+${r.unreached.length - 12} more)` : '') : ''));
-    if (w === 390 && !QUICK) { errs.length = 0;   // a long play on the busiest page: no growing pile of elements, memory, or errors
+    if (w === 390 && !QUICK && !dpad) { errs.length = 0;   // a long play on the busiest page: no growing pile of elements, memory, or errors
       const s = await pg.evaluate(async () => { const sl = ms => new Promise(r => setTimeout(r, ms)); setView('seq'); const n0 = document.getElementsByTagName('*').length; play(); await sl(3000);
         const n1 = document.getElementsByTagName('*').length, m1 = performance.memory ? performance.memory.usedJSHeapSize : 0; await sl(20000);
         const n2 = document.getElementsByTagName('*').length, m2 = performance.memory ? performance.memory.usedJSHeapSize : 0; stop(); return { n0, n1, n2, dm: (m2 - m1) / 1e6 }; });
       ok(s.n2 - s.n1 < 20 && s.dm < 8 && !errs.length, `20 s of playback: ${s.n2 - s.n1} new elements, memory ${s.dm >= 0 ? '+' : ''}${s.dm.toFixed(1)} MB, ${errs.length} errors`); }
     await pg.evaluate(() => { window.canon = o => JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v); });   // key order doesn't matter
-    if (w === 390 && !QUICK) {   // your work comes back exactly: edit, save, reload the page, compare
+    if (w === 390 && !QUICK && !dpad) {   // your work comes back exactly: edit, save, reload the page, compare
       const before = await pg.evaluate(async () => { const pad = P.pads[3]; pad.swg = .5; pad.tim = 12.5; pad.name = 'Round trip'; P.bpm = 174.5; P.swing = .36;
         P.scenes[0].notes[3] = [{ t: 7, len: 33, p: 2, v: .55 }, { t: 384, len: 96, p: -5, v: 1 }]; P.chans[3].vol = .61; markDirty(); await projSave(); return canon(P); });
       await pg.reload(); await pg.waitForTimeout(2500); await pg.evaluate(() => { window.canon = o => JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v); }); const after = await pg.evaluate(() => canon(P));

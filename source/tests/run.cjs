@@ -182,6 +182,12 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const errs = posts.filter(p => p.t === 'err').length, meters = posts.filter(p => p.t === 'pos' && p.cm && p.cm[0] > 0).length;
     host.scopeFeed = feed; host.msg({ t: 'scope', ch: 0, fc: 0, fs: 0, full: 0 }); posts.length = 0; go(40); const back = posts.some(p => p.t === 'pos' && p.sc);
     ok(pk > .05 && errs === 1 && meters > 3 && back, `a display that fails stops only itself: sound and meters go on, one error, back when reopened (${errs} error, ${meters} meter reports, ${back ? 'back' : 'not back'})`); }
+  { // every synth tab places each of its controls exactly once (SYN_CELLS lists them; SYN_LAY places them)
+    const src = fs.readFileSync(path.join(__dirname, '../ui/synth.js'), 'utf8'), cells = eval('(' + src.match(/const SYN_CELLS = (\{[\s\S]*?\});\n/)[1] + ')'), lay = eval('(' + src.match(/const SYN_LAY = (\{[\s\S]*?\});\n/)[1] + ')');
+    const flat = L => L.rows ? L.rows.flat().filter(Boolean) : [...(L.k || []).flat(), ...(L.s || []).flat()], bad = [];
+    for (const t in cells) { if (/^l\d$/.test(t)) continue; const a = cells[t].slice().sort().join(), b = lay[t] ? flat(lay[t]).sort().join() : ''; if (a !== b) bad.push(t); }
+    for (const t in lay) { const L = lay[t]; if (L.rows ? L.rows.some(r => r.length > 4) : (L.k || []).some(r => r.length > 4 - (L.s || []).length) || (L.s || []).some(c => c.length > 2)) bad.push(t + ' (too wide)'); }
+    ok(!bad.length, 'every synth tab places each of its controls once, inside the grid' + (bad.length ? ': ' + bad.join(', ') : '')); }
   console.log('monitoring');
   { const go = (msg) => { const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.demoProject(); host.msg({ t: 'project', P: Q });
       for (const [key, sm] of kit) host.msg({ t: 'sample', key, data: sm.data, frames: sm.frames, ch: sm.ch, sr: sm.sr }); if (msg) host.msg(msg); host.msg({ t: 'play', scene: 1, loop: 'scene' });

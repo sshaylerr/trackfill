@@ -90,7 +90,7 @@ body{font-variant-numeric:tabular-nums}
 .synDev .devHead{height:26px;padding:0 2px} .synDev .disp{background:var(--d-scr)} .synDev .synTabs .key{background:linear-gradient(180deg,#2a2826,#1d1c1a)} .synDev .synTabs .key.on{color:var(--d-ring)}
 .synDev .knob .kb{stroke:#0a0908} .synDev .lcdbox.synInfo{background:var(--d-scr)}
 #view.short .synDev .devHead{display:none} #view.short .synDev{padding:4px 5px 3px;gap:3px} #view.short .synTabs,#view.short .synTabs .key{height:26px}
-#view.tiny .synDev .disp{min-height:0} .synDev .disp.gone canvas{visibility:hidden} #view.short .kgrid.synGrid{grid-auto-rows:58px;gap:2px 4px} #view.short .synGrid .knob .kval{height:11px;line-height:11px} #view.short .synGrid .knob .klab{height:12px;line-height:12px} #view.short .synGrid .knob svg{width:34px;height:34px} #view.short .synGrid .selr{padding-top:2px} #view.short .synGrid .selr .sw{height:26px} #view.tiny .soundView{gap:5px}
+#view.tiny .synDev .disp{min-height:0} .synDev .disp.gone canvas{visibility:hidden} #view.short .kgrid.synGrid{grid-auto-rows:58px;gap:2px 4px;--synrow:58px} #view.short .synGrid{--kvh:11px;--klh:12px} #view.short .synGrid .knob svg{width:34px;height:34px} #view.short .synGrid .selr{padding-top:2px} #view.short .synGrid .selr .sw{height:26px} #view.tiny .soundView{gap:5px}
 .mapRow .mchip{flex:0 1 auto;min-width:0;overflow:hidden;font-size:12px;padding:0 7px} .mapRow .madd{flex:none;padding:0 10px}
 .mapRow{display:flex;gap:4px;height:34px;align-items:stretch;min-width:0} .mapHint{flex:1;min-width:0;display:flex;align-items:center;font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
 .mchip b{font-weight:500;font-family:var(--font-lcd)} .madd{flex:none} .mapTip{flex:1;min-width:0;display:flex;align-items:center;justify-content:flex-end;font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden}
@@ -118,18 +118,19 @@ body{font-variant-numeric:tabular-nums}
 .synDev .disp{position:relative} .synDev .disp::after{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit}
 .synDev .disp.pix canvas{image-rendering:pixelated;image-rendering:crisp-edges}
 /* switches: the second setting up (or right), its label lit */
-.selr.swk .sw{background:none!important;border:0!important;box-shadow:none!important;max-width:none;height:auto;flex-direction:column;gap:1px;overflow:visible} #view.short .selr.swk .sw{height:auto;margin-top:0} .selr.swk{padding-top:2px} #view.short .selr.swk{padding-top:0;gap:1px} .selr.swk .klab{margin-top:0}
+.selr.swk .sw{background:none!important;border:0!important;box-shadow:none!important;max-width:none;height:auto;flex-direction:column;gap:1px;overflow:visible} #view.short .selr.swk .sw{height:auto;margin-top:0} .selr.swk .klab{margin-top:0}
 .swk .sw>b{font:700 8px/9px var(--sw-font,var(--font-ui));letter-spacing:.08em;text-transform:uppercase;color:var(--d-ink2);opacity:.75;white-space:nowrap} .swk .sw>b.on{color:var(--d-ring);opacity:1}
 .selr .sw>.slot{flex:none;overflow:visible} .sw-paddle .slot{width:20px;height:26px;border-radius:3px;background:#0a0908;box-shadow:inset 0 2px 4px #000;display:block;position:relative}
 .sw-paddle .slot i{position:absolute;left:3px;right:3px;height:12px;border-radius:2px;background:linear-gradient(180deg,#f2ead6,#a99f86);box-shadow:0 2px 0 #3b362c} .sw-paddle .slot i.up{top:3px} .sw-paddle .slot i.dn{bottom:3px;box-shadow:0 -1px 0 #3b362c;background:linear-gradient(0deg,#f2ead6,#a99f86)}
-.sw-lever svg{width:28px;height:28px;display:block}
-.selr.sw-slide .sw{width:100%;gap:3px} .sw-slide .track{position:relative;display:block;width:100%;max-width:84px;height:22px;border-radius:11px;background:var(--sl-bg,#0b0b0b);box-shadow:inset 0 2px 3px rgba(0,0,0,.6)}
+.sw-lever svg{width:28px;height:28px;display:block} .selr.sw-rotary .sw{width:100%;padding:0} .sw-rotary .rot{width:100%;max-width:84px;height:auto;display:block;overflow:visible} .sw-rotary .rot text{font:700 7.5px var(--sw-font,var(--font-ui));fill:var(--d-ink2);letter-spacing:.04em} .sw-rotary .rot text.on{fill:var(--d-ring)}
+#view.short .sw-rotary .rot{max-width:52px}
+.selr.sw-slide .sw{width:100%;gap:3px;padding:0;align-items:center} .sw-slide .track,.selr .sw>.pls{align-self:center} .sw-slide .track{position:relative;display:block;width:100%;max-width:84px;height:22px;border-radius:11px;background:var(--sl-bg,#0b0b0b);box-shadow:inset 0 2px 3px rgba(0,0,0,.6)}
 .sw-slide .track i{position:absolute;top:3px;height:16px;border-radius:8px;background:var(--sl-th,#efe9d6);box-shadow:0 1px 2px rgba(0,0,0,.5)}
 .selr .sw>.pls{display:flex;gap:2px;width:100%;max-width:84px;overflow:visible;line-height:10px} .sw-slide .pls b:first-child:nth-last-child(2){text-align:left;padding-left:3px} .sw-slide .pls b:last-child:nth-child(2){text-align:right;padding-right:3px} .sw-slide .pls b{flex:1;text-align:center;font:700 7.5px/10px var(--sw-font,var(--font-ui));text-transform:uppercase;letter-spacing:.02em;color:var(--d-ink2);opacity:.8;white-space:nowrap;overflow:hidden} .sw-slide .pls b.on{color:var(--d-ring);opacity:1}
-#view.short .sw-paddle .slot{height:18px;width:18px} #view.short .sw-paddle .slot i{height:8px;left:2px;right:2px} #view.short .sw-paddle .slot i.up{top:2px} #view.short .sw-paddle .slot i.dn{bottom:2px} #view.short .sw-lever svg{width:22px;height:22px} #view.short .swk .sw>b{font-size:7.5px;line-height:8px} #view.short .selr.swk .sw{gap:0}
+#view.short .sw-paddle .slot{height:18px;width:18px} #view.short .sw-paddle .slot i{height:8px;left:2px;right:2px} #view.short .sw-paddle .slot i.up{top:2px} #view.short .sw-paddle .slot i.dn{bottom:2px} #view.short .sw-lever svg{width:18px;height:18px} #view.short .swk .sw>b{font-size:7px;line-height:7px} #view.short .selr.swk .sw{gap:0}
 .jacks{display:flex;justify-content:space-around;flex:none;height:26px;align-items:center;border-top:1px solid rgba(0,0,0,.15);padding-top:4px} .jacks span{display:flex;flex-direction:column;align-items:center;gap:1px;font:400 7.5px var(--font-lcd);color:#3d4146}
 .jacks i{width:13px;height:13px;border-radius:50%;background:radial-gradient(circle,#050505 0 3px,#9ca0a5 3.4px 4.4px,#e6e8ea 4.8px 5.6px,#6c7075 6px)} #view.short .jacks{display:none}
-.insCats{display:flex;gap:4px;height:26px;flex:none} .insCats .key{flex:1;min-width:0;height:26px;padding:0 3px;font-size:11px}
+.insCats{display:flex;gap:4px;height:26px;flex:none} #view.tiny .insCats{display:none} .insCats .key{flex:1;min-width:0;height:26px;padding:0 3px;font-size:11px}
 .playKey{flex:none;width:40px;height:28px;padding:0;border-radius:14px}
 
 /* Analog: walnut cheeks, black panel, cream skirted knobs, amber oscilloscope */
@@ -163,7 +164,7 @@ body{font-variant-numeric:tabular-nums}
 .synDev[data-eng="fm"] .nf{outline-color:#c7d58a!important}
 
 /* Wavetable: red metal case with black end caps, rubber knobs in LED rings, a blue dot-matrix screen */
-.synDev[data-eng="wt"]{background:radial-gradient(140% 70% at 30% 0%,#c4202c 0%,#8e0f1a 55%,#5e0a12 100%);border-left:9px solid #1d1c20;border-right:9px solid #1d1c20;--d-track:#4a0c12;--d-ring:#ff3341;--sw-font:Archivo}
+.synDev[data-eng="wt"]{background:radial-gradient(140% 70% at 30% 0%,#c4202c 0%,#8e0f1a 55%,#5e0a12 100%);border-left:9px solid #060607;border-right:9px solid #060607;outline:1px solid #34333a;outline-offset:-1px;--d-track:#4a0c12;--d-ring:#ff3341;--sw-font:Archivo}
 .synDev[data-eng="wt"] .klab{font:700 10.5px Archivo,var(--font-ui);letter-spacing:.05em;text-transform:uppercase;color:#fff}
 .synDev[data-eng="wt"] .knob .kval{font:400 11.5px/13px DotGothic16,var(--font-lcd);color:#ffd0d4} .synDev[data-eng="wt"] .knob .kd.on{filter:drop-shadow(0 0 2px #ff3341)}
 .synDev[data-eng="wt"] .engKey b{font:400 14px/1 Michroma,var(--font-ui);letter-spacing:.1em;color:#fff} .synDev[data-eng="wt"] .engKey small{font-family:Archivo;font-weight:700;color:#ffc9cd}
@@ -181,7 +182,7 @@ body{font-variant-numeric:tabular-nums}
 .synDev[data-eng="gr"]{background:repeating-linear-gradient(90deg,rgba(255,255,255,.18) 0 1px,rgba(0,0,0,.03) 1px 3px),linear-gradient(180deg,#e1e4e7,#c3c7cb);color:#141618;padding-top:16px;padding-bottom:16px;--d-ink2:#3d4146;--d-ring:#0c8f6b;--sw-font:"Space Mono"}
 .synDev[data-eng="gr"]::before,.synDev[data-eng="gr"]::after{display:block;left:0;right:0;width:auto;height:10px;border-radius:0;box-shadow:none;background:radial-gradient(circle at 12px 50%,#f4f5f6 0 2.4px,#6f7378 2.8px 3.4px,transparent 3.8px),radial-gradient(circle at calc(100% - 12px) 50%,#f4f5f6 0 2.4px,#6f7378 2.8px 3.4px,transparent 3.8px),linear-gradient(180deg,#d9dcdf,#8d9196)}
 .synDev[data-eng="gr"]::before{top:0} .synDev[data-eng="gr"]::after{top:auto;bottom:0}
-#view.short .synDev[data-eng="gr"] .knob .klab{font-size:10px;line-height:11px;height:12px;padding-bottom:1px} .synDev[data-eng="gr"] .klab{font:700 11px/12px "Space Grotesk",var(--font-ui);letter-spacing:.01em;text-transform:lowercase;color:#141618}
+#view.short .synDev[data-eng="gr"] .klab{font-size:10px} .synDev[data-eng="gr"] .klab{font:700 11px/12px "Space Grotesk",var(--font-ui);letter-spacing:.01em;text-transform:lowercase;color:#141618}
 .synDev[data-eng="gr"] .knob .kval{font:400 9.5px/13px "Space Mono",var(--font-lcd);color:#3d4146}
 .synDev[data-eng="gr"] .engKey b{font:700 18px/1 "Space Grotesk",var(--font-ui);text-transform:lowercase;letter-spacing:-.01em;color:#141618} .synDev[data-eng="gr"] .engKey small{font-family:"Space Mono";color:#3d4146;letter-spacing:.08em}
 .synDev[data-eng="gr"] .presetLcd{background:#000;border-color:#1b1d20} .synDev[data-eng="gr"] .presetLcd span{font:400 12px "Space Mono",monospace;color:#e8fffb} .synDev[data-eng="gr"] .presetLcd i{color:#2fe0b0}
@@ -239,6 +240,22 @@ body{font-variant-numeric:tabular-nums}
 .synDev[data-eng="sfx"] .swk .sw>b.on,.synDev[data-eng="sfx"] .sw-slide .pls b.on{color:#1c1c1e} .synDev[data-eng="sfx"] .sw-slide .pls b{text-transform:lowercase}
 .synDev[data-eng="sfx"] .lcdbox.synInfo{background:#1c1c1e;color:#fff;font:400 8px "Press Start 2P"} .synDev[data-eng="sfx"] .nf{outline-color:#1c1c1e!important}
 .synDev[data-eng="sub"] .sw-slide .pls b.on{color:#ff7a1a}
+/* page keys as the faceplates' own buttons: a cap with its light, the name printed underneath (FM keeps its membrane keys with the name on them) */
+.synDev>.synPages.capkeys{height:auto} .synDev .synPages.capkeys .key{height:auto!important;min-height:0;background:none!important;border:0!important;box-shadow:none!important;outline:0!important;transform:none!important;flex-direction:column;justify-content:flex-start;gap:3px;padding:0!important;position:relative;color:var(--d-ink)!important;font-size:9.5px;line-height:11px}
+.synPages.capkeys .key::before{content:''!important;display:block;align-self:stretch;width:auto!important;height:18px!important;flex:none;margin:0!important;border-radius:3px!important;background:var(--cap)!important;box-shadow:var(--capsh,0 2px 0 rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.25))!important}
+.synPages.capkeys .key::after{content:'';position:absolute;top:6.5px;left:50%;width:var(--ledw,5px);height:5px;margin-left:calc(var(--ledw,5px) / -2);border-radius:var(--ledr,50%);background:var(--ledoff,rgba(0,0,0,.4))}
+.synPages.capkeys .key.on::after{background:var(--ledon,#ff3b2a);box-shadow:0 0 6px var(--ledon,#ff3b2a)} .synPages.capkeys .key.on{color:var(--d-ink)!important}
+#view.short .synPages.capkeys .key::before{height:12px!important} #view.short .synPages.capkeys .key::after{top:3.5px} #view.short .synDev .synPages.capkeys .key{font-size:8.5px;line-height:9px;gap:2px}
+.synDev[data-eng="analog"] .synPages.capkeys .key{--cap:linear-gradient(180deg,#e9e2d0,#bfb59c);--capsh:0 2px 0 #4d473a,inset 0 1px 0 #fff;--ledoff:#5a1a12;--ledon:#ff3b2a;color:#d8cdb2!important}
+.synDev[data-eng="wt"] .synPages.capkeys .key{--cap:radial-gradient(70% 90% at 50% 30%,#3a3a3e,#131315);--ledoff:#3b0a0e;--ledon:#ff3341;color:#fff!important} .synDev[data-eng="wt"] .synPages.capkeys .key::before{border-radius:9px!important}
+.synDev[data-eng="gr"] .synPages.capkeys .key{--cap:radial-gradient(circle at 40% 35%,#3b3f44,#0d0e10);--capsh:0 0 0 2px #8f9398,0 2px 2px rgba(0,0,0,.3);--ledoff:#1d3a33;--ledon:#2fe0b0;color:#1d2023!important}
+.synDev[data-eng="gr"] .synPages.capkeys .key::before{align-self:center;width:18px!important;border-radius:50%!important} #view.short .synDev[data-eng="gr"] .synPages.capkeys .key::before{width:12px!important}
+.synDev[data-eng="sub"] .synPages.capkeys{border-top-width:6px} .synDev[data-eng="sub"] .synPages.capkeys .key{--cap:var(--pk);--ledw:10px;--ledr:1px;--ledoff:rgba(0,0,0,.3);--ledon:#fff6e8;color:#d9d7cf!important}
+.synDev[data-eng="ins"] .synPages.capkeys .key{--cap:linear-gradient(180deg,#5b5f65,#3c3f44);--capsh:0 2px 0 #08090a,inset 0 1px 0 rgba(255,255,255,.18);--ledw:12px;--ledr:1px;--ledoff:#1c3633;--ledon:#6ff7e6;color:#c4c9cf!important}
+.synDev[data-eng="sfx"] .synPages.capkeys .key{--cap:#f4f3ef;--capsh:0 2px 0 #a9a7a1,inset 0 1px 0 rgba(255,255,255,.7);--ledoff:transparent;--ledon:transparent;color:#6d6c68!important} .synDev[data-eng="sfx"] .synPages.capkeys .key::before{border-radius:7px!important}
+.synDev[data-eng="sfx"] .synPages.capkeys .key.on{--cap:#1c1c1e;color:#1c1c1e!important}
+.synDev[data-eng="ins"] .synPages.capkeys .key::after{top:7.5px} #view.short .synDev[data-eng="ins"] .synPages.capkeys .key::after,#view.short .synDev[data-eng="sub"] .synPages.capkeys .key::after{top:4.5px;height:3px}
+.synDev[data-eng="sub"] .synPages.capkeys .key::after{top:7px;height:4px}
 .g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px} .g4 .btn{padding:0 6px;min-width:0}
 .g5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px} .g5 .btn{padding:0 4px;min-width:0}
 .btn.theme{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px} .btn.theme.on{background:linear-gradient(180deg,var(--on1),var(--on2));color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-ring)}
@@ -303,8 +320,13 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .knob .kv{fill:none;stroke:var(--accent);stroke-width:4;stroke-linecap:round;filter:drop-shadow(0 0 2px var(--accent-glow))}
 .knob .kb{fill:url(#knobFace);stroke:#060607;stroke-width:1}
 .knob .ki{stroke:var(--ink);stroke-width:2.2;stroke-linecap:round}
-.knob .kval{font:400 11px var(--font-lcd);color:var(--ink);white-space:nowrap;height:13px;line-height:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
-.knob .klab{font:500 11.5px var(--font-ui);color:var(--print);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;height:13px;line-height:13px}
+.knob .kval{font:400 11px var(--font-lcd);color:var(--ink);white-space:nowrap;height:var(--kvh,13px);line-height:var(--kvh,13px);max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.knob .klab{font:500 11.5px var(--font-ui);color:var(--print);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;height:var(--klh,13px);line-height:var(--klh,13px)}
+/* every control in a grid is built the same way: its knob, box or switch centred in what's left of the cell, then a value line, then its name, so a row lines up
+   whatever its controls are (a selector shows its value in its box, so its value line stays empty) */
+.kgrid{--kvh:13px;--klh:13px} .kgrid>.knob,.kgrid>.selr{display:grid;grid-template-rows:minmax(0,1fr) auto auto;justify-items:center;align-items:center;gap:0;padding:2px 2px 1px;align-self:stretch}
+.kgrid>.knob>svg,.kgrid>.selr>.sw{grid-row:1;align-self:center;margin:0} .kgrid>.knob>.kval{grid-row:2} .kgrid>.knob>.klab,.kgrid>.selr>.klab{grid-row:3;margin-top:0;height:var(--klh);line-height:var(--klh)}
+.kgrid>.selr::before{content:'';grid-row:2;height:var(--kvh)}
 .knob.mini svg{width:30px;height:30px}.knob.mini .kval,.knob.mini .klab{display:none}
 .nf{outline:2px solid var(--accent)!important;outline-offset:-2px}
 .ne{outline:2px solid var(--play)!important;outline-offset:-2px;background-color:rgba(83,209,141,.08)}
@@ -392,7 +414,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 
 #view.short .kgrid{grid-auto-rows:64px;gap:2px 4px}
 #view.short .knob svg{width:38px;height:38px} #view.short .knob .kval{font-size:9.5px}
-#view.short .selr .sw{height:28px;margin-top:4px}
+#view.short .selr .sw{height:28px}
 #view.short .disp{min-height:0}
 #view.tiny .disp{min-height:44px}
 .chopView{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
@@ -423,7 +445,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 #view.tiny .padsView.chopping .pad .pn{display:none}
 #view.tiny .padsView.chopping .pad .nm{font-size:12px} #view.tiny .pad.kchord .nm{font-size:11.5px;letter-spacing:-.02em}
 #view.short .detail .dk{grid-template-columns:repeat(3,52px)}
-#view.short .detail .knob .kval{font-size:9px;height:11px;line-height:11px}
+#view.short .detail .knob .kval{font-size:9px} #view.short .detail .kgrid{--kvh:11px}
 #view.short .strip .knob.mini svg{width:22px;height:22px}
 #view.short .strip .knob.mini{padding:0 2px}
 #view.short .strip{gap:3px}
@@ -462,7 +484,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .dev .knob .kb{fill:var(--d-cap)} .dev .knob .kv{stroke:var(--d-ring);filter:none} .dev .knob .kr{stroke:var(--d-track)} .dev .knob .ki{stroke:var(--d-ind)}
 .dev .knob .kval{color:var(--d-ink)} .dev .klab{color:var(--d-ink2)}
 .dev .selr .sw{background:var(--d-sw)} .dev .selr .sw>span{color:var(--d-swink)}
-.kgrid.k8{grid-template-columns:repeat(8,minmax(0,1fr))}
+.kgrid.k8{grid-template-columns:repeat(8,minmax(0,1fr))} .synGrid{--synrow:80px} .synGrid .span2{align-self:center}
 .grid .pad,.spk{touch-action:none}   /* several fingers on the pads are never a page gesture */
 .stepPal{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;margin:6px 0 2px} .stepPal .key{padding:0 2px;font-size:11px;white-space:nowrap} .stepPal i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:0}
 .dev.dconsole [data-p^="LF "] .kb{fill:#5a3b26} .dev.dconsole [data-p^="LMF "] .kb{fill:#2f5fae} .dev.dconsole [data-p^="HMF "] .kb{fill:#2f8a4a} .dev.dconsole [data-p^="HF "] .kb{fill:#b8322a}
@@ -488,7 +510,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .sname b{font:600 11.5px "Barlow Semi Condensed",var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .fxn{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nar{font-family:"Barlow Semi Condensed",var(--font-ui)!important}
-.sname b.two{white-space:normal;line-height:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-align:center;font-size:10px!important}
+.sname b.two{white-space:normal;line-height:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-align:center;font-size:10px}
 .sname i{display:block;width:70%;height:2px;border-radius:1px;margin-top:1px}
 .ms2{display:flex;gap:2px;width:100%;justify-content:center}
 .ms2 button{width:19px;height:19px;border-radius:2px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid #050506;font:700 9px var(--font-ui);color:var(--print)}
@@ -778,7 +800,7 @@ function fitFonts(root) { if (!root) return; const els = [...(root.matches && ro
       if (q.step === 0 && want >= q.f0 * .85) el.style.fontSize = want + 'px';   // 1: a little smaller
       else if (q.step === 0) { q.step = 1; el.style.fontSize = ''; el.classList.add('nar'); }   // 2: the narrow face
       else if (q.step === 1 && want >= 9) el.style.fontSize = want + 'px';
-      else if (q.step === 1) { q.step = 2; el.style.fontSize = '9px'; if (el.dataset.alt) { el.textContent = el.dataset.alt; el.classList.remove('nar'); el.style.fontSize = ''; q.step = 0; delete el.dataset.alt; } else if (el.matches('.sname b')) el.classList.add('two'); } }   // 3: its short form, or two lines
+      else if (q.step === 1) { q.step = 2; el.style.fontSize = '9px'; if (el.dataset.alt) { el.textContent = el.dataset.alt; el.classList.remove('nar'); el.style.fontSize = ''; q.step = 0; if (el.dataset.alt2) { el.dataset.alt = el.dataset.alt2; delete el.dataset.alt2; } else delete el.dataset.alt; } else if (el.matches('.sname b')) el.classList.add('two'); } }   // 3: its short form, or two lines
     todo = over(todo.filter(el => st.get(el).step < 2)); } }
 function h(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
 const noteName = p => NOTE_NAMES[((p % 12) + 12) % 12] + (3 + Math.floor(p / 12));
@@ -2203,7 +2225,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-03', ['Each synth engine is now its own instrument: its own knobs, switches, keys and screen. Every control and patch works as before.', 'FX synth: a Play key. Instrument: keys to jump between kinds of instrument.', 'Messages now show in the info window above the tabs (the d-pad\'s when it\'s open), not in pop-ups.', 'Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
+  ['2026-11-03', ['Synth pages tidied: knobs in a block, selectors and switches in a column on the right, everything lined up. Analog picks waves and modes with a pointer knob; the page keys are each synth\'s own buttons.', 'Fix: text cut off with the d-pad open.', 'Each synth engine is now its own instrument: its own knobs, switches, keys and screen. Every control and patch works as before.', 'FX synth: a Play key. Instrument: keys to jump between kinds of instrument.', 'Messages now show in the info window above the tabs (the d-pad\'s when it\'s open), not in pop-ups.', 'Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
@@ -2377,7 +2399,7 @@ function navScroller(el) { for (let e = el.parentElement; e && e.id !== 'view' &
 function navMove(dir) {
   const cur = navEnsure(); if (!cur) return; const c = navCenter(cur), items = navItems().filter(it => it !== cur).map(it => ({ it, o: navCenter(it) }));
   if (dir === 'left' || dir === 'right') {
-    const sameRow = ({ o }) => { const ov = Math.min(o.r.bottom, c.r.bottom) - Math.max(o.r.top, c.r.top); return ov >= Math.min(o.r.height, c.r.height) * .5; };
+    const sameRow = ({ o }) => { const ov = Math.min(o.r.bottom, c.r.bottom) - Math.max(o.r.top, c.r.top); return ov >= Math.min(o.r.height, c.r.height) * .4 || (c.y > o.r.top && c.y < o.r.bottom) || (o.y > c.r.top && o.y < c.r.bottom); };   // (a control that spans two rows sits in both)
     const row = items.filter(sameRow); if (!row.length) return;
     const sgn = dir === 'right' ? 1 : -1, ahead = row.filter(({ o }) => (o.x - c.x) * sgn > 2);
     const pick = ahead.length ? ahead.reduce((a, b) => ((a.o.x - c.x) * sgn <= (b.o.x - c.x) * sgn ? a : b))   // the next one along
