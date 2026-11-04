@@ -9,7 +9,7 @@ const LIGHT = { ink: '#25221d', ink2: '#5d574d', track: 'rgba(0,0,0,.28)', ind: 
 const LOOKS = {
   '0:0': { ring: '#5ec8e0', alt: '#5ec8e0' },
   '0:1': Object.assign({}, LIGHT, { face: '#c9ced2', face2: '#b4bac0', cap: '#17181a', ring: '#b8402d', tex: BRUSHED, scr: '#1d2a22', scrInk: '#cfe8c9', scrMute: '#86a383', scrLine: '#2c3d31', alt: '#8fd18b', swInk: '#f0c35a' }),
-  '0:2': { face: '#2f3846', face2: '#252d39', cap: '#3b5a86', ring: '#f2b544', alt: '#79b4ff' },
+  '0:2': { face: '#1f2022', face2: '#17181a', ink: '#ffffff', ink2: '#2fa4f0', cap: '#3b5a86', ring: '#2fa4f0', alt: '#2fa4f0', scr: '#08090a', scrInk: '#eef4fa', scrMute: '#6f8ea8', scrLine: '#162230', knob: 'pk', rot: 'punchy' },   // after the three-band discrete module: black plate, blue legends, aluminium fin knobs
   '0:3': { face: '#3a3d42', face2: '#303338', cap: '#2a2b2e', ring: '#e8e2d6', alt: '#9fd18b', console: true },
   '1:0': { ring: '#6fcac1', alt: '#6fcac1' },
   '1:1': Object.assign({}, LIGHT, { face: '#d9d3c4', face2: '#c9c1ae', cap: '#1d1c1a', ring: '#9c3b2a', tex: BRUSHED, scr: '#f3e6b9', scrInk: '#2c2416', scrMute: '#6d5f3c', scrLine: '#d9c995', alt: '#9c3b2a', swInk: '#f0c35a' }),
@@ -85,7 +85,7 @@ function applyLook(el, lk) { const st = el.style;
 
 // the device panel for one insert: logo line with the mode switch, a blurb, the screen, then the controls
 function deviceEl(c, s, f, redrawRef) {
-  const d = FX_DEFS[f.type], m = f.mode | 0, md = d.modes[m] || d.modes[0], lk = fxLook(f.type, m), dev = h('div', 'dev'); applyLook(dev, lk);
+  const d = FX_DEFS[f.type], m = f.mode | 0, md = d.modes[m] || d.modes[0], lk = fxLook(f.type, m), dev = h('div', 'dev'); applyLook(dev, lk); if (lk.knob) skinDefs();
   dev.dataset.t = f.type; dev.dataset.m = m; if (lk.console) dev.classList.add('dconsole'); if (lk.stripes) dev.classList.add('stripes'); if (!f.on) dev.classList.add('off');
   const head = h('div', 'devHead'), logo = h('div', 'logo'); logo.innerHTML = `<b>${esc(d.name)}</b>${md.n ? `<i>${esc(md.n)}</i>` : ''}`; head.append(logo);
   if (d.modes.length > 1) { const mb = btn(`${esc(md.n)} <span class="car">▾</span>`, () => openModePicker(c, s), 'key sm modeKey'); mb.setAttribute('aria-label', 'Mode: ' + md.n); head.append(mb); }

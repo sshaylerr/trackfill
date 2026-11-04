@@ -244,7 +244,7 @@ function stripEl(c) {
   nm.onclick = () => { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); };
   const fd = keyParam(c + '.-1.0', { kind: 'fader', label: chanLabel(c) + ' volume', fmt: shortDb, unity: .85, onSwipe: mixSwipe, onTap: () => { if (UI.mixSel !== c) { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); } } });
   STRIP_METERS.push({ c, el: fd._meter, v: [0, 0] });
-  const pan = keyParam(c + '.-1.1', Object.assign({ cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe }, conOn() ? { skin: conSkin() } : {})); pan.style.setProperty('--kc', P.console === 'warm' ? '#8f918c' : '#e9ecef');
+  const pan = keyParam(c + '.-1.1', Object.assign({ cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe }, conOn() ? { skin: conSkin() } : {})); pan.style.setProperty('--kc', P.console === 'warm' ? '#8f918c' : P.console === 'punchy' ? '#4a4d52' : '#e9ecef');
   const ms = h('div', 'ms2'), cx = conOn();
   if (c !== MASTER) { const mb = btn(cx ? 'CUT' : 'M', () => { pushUndo('chan:' + c); C.mute = !C.mute; mb.classList.toggle('on', C.mute); syncChan(c); markDirty(); }, 'm' + (C.mute ? ' on' : ''));
     const sb = btn(cx ? 'SOLO' : 'S', () => { pushUndo('chan:' + c); C.solo = !C.solo; sb.classList.toggle('on', C.solo); syncChan(c); markDirty(); }, 's' + (C.solo ? ' on' : '')); ms.append(mb, sb); }
@@ -258,11 +258,11 @@ function detailEl(c) {
   bt.append(scopeBox(c));
   if (c < R0) bt.append(btn('→ ' + esc(destName(c)), () => openOutputPicker(c), 'key sm'));
   { const fb = btn(`FX ${C.fx.length} · ` + (C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'none'), () => openFx(c, 'mix'), 'key sm' + (C.fx.length ? ' on' : '')); fb.dataset.alt = 'FX ' + C.fx.length; bt.append(fb); }
-  const cx = conOn(), cap = P.console === 'warm' ? '#8f918c' : '#e9ecef', K = (key, label) => cx ? conKnob(key, cap, { label }) : keyParam(key, { label });   // on a console the desk's knobs, and its drive
+  const cx = conOn(), pk = P.console === 'punchy', cap = P.console === 'warm' ? '#8f918c' : '#e9ecef', K = (key, label) => cx ? conKnob(key, pk ? (label === 'Pan' ? '#4a4d52' : '#2fae4a') : cap, { label }) : keyParam(key, { label });   // Punchy: the sends' green caps, the pan's grey   // on a console the desk's knobs, and its drive
   if (c < R0) { dk.append(K(c + '.-1.2', 'Send A'), K(c + '.-1.3', 'Send B')); }
   else { dk.append(blankCell(), blankCell()); }
   dk.append(K(c + '.-1.1', 'Pan'));
-  if (cx) dk.append(conKnob(c + '.-1.4', P.console === 'warm' ? '#c22f26' : '#c8352a', { label: 'Drive' }));
+  if (cx) dk.append(conKnob(c + '.-1.4', P.console === 'warm' ? '#c22f26' : pk ? '#3a78d4' : '#c8352a', { label: 'Drive' }));
   d.append(bt, dk); return d;
 }
 function openOutputPicker(c) {
@@ -355,8 +355,9 @@ function renderFx(V) {
       if (i === '@pattern') return cellBtn('Pattern', 'Pick', () => openStepPatterns(c, s));
       if (i === '@key') return cellBtn('Listens to', f.key == null ? 'Itself' : chanLabel(f.key) + ' ' + chanName(f.key), () => openKeyPicker(c, s));
       if (notesDuck && i === 7) return null; const prm = params[i], key = `${c}.${s}.${i}`; let el;
-      if (prm.opts) el = selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(key, f.p[i]); redrawVis(); if (f.type === FX_TYPES.DUCK && i === 0) { syncChan(c); renderView(); } markDirty(); });
-      else el = keyParam(key, { label: prm.n, after: redrawVis });
+      const lk = fxLook(f.type, f.mode | 0), rot = lk.rot && prm.opts && prm.opts.length > 2;   // a look with its own knobs (and selector knobs for three settings or more)
+      if (prm.opts) { el = selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(key, f.p[i]); redrawVis(); if (f.type === FX_TYPES.DUCK && i === 0) { syncChan(c); renderView(); } markDirty(); }, rot ? { paint: conRot(prm.opts, null, lk.rot) } : {}); if (rot) el.classList.add('swk', 'sw-rotary'); }
+      else el = keyParam(key, Object.assign({ label: prm.n, after: redrawVis }, lk.knob ? { skin: lk.knob } : {}));
       el.dataset.p = prm.n; return el; };
     if (f.type === FX_TYPES.STEP) dev.append(stepPalette(c, s));
     for (const r of fxRows(f)) { const els = r.map(cell).filter(Boolean); els.forEach((el, k) => { el.style.gridColumn = (k ? 'auto' : (4 - els.length + 1)) + ' / span 2'; g.append(el); }); }   // a short row sits in the middle

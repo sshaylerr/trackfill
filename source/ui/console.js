@@ -83,9 +83,9 @@ function conRotary(key, f, i, prm, after, cap) { const n = prm.opts.length;
   const el = selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (n - 1)), k => { pushUndo('chan:' + tfParseKey(key).c); f.p[i] = optVal(k, n); sendParam(key, f.p[i]); markDirty(); if (after) after(); }, { paint: P.console === 'clean' ? skinRotary(prm.opts) : conRot(prm.opts, cap) });
   el.classList.add('swk', 'sw-rotary'); el.setAttribute('aria-label', prm.n); return el; }
 // Punchy's and Warm's selector knobs: their own knob, its settings printed round it
-function conRot(opts, cap) { const n = opts.length, span = n <= 2 ? 120 : n <= 4 ? 200 : 250, ang = k => -span / 2 + k * span / (n - 1), pk = P.console === 'punchy';
+function conRot(opts, cap, style) { const n = opts.length, span = n <= 2 ? 120 : n <= 4 ? 200 : 250, ang = k => -span / 2 + k * span / (n - 1), pk = (style || P.console) === 'punchy';
   return (sw, i) => { const lab = opts.map((o, k) => { const t = ang(k) * Math.PI / 180; return `<text x="${(46 + 36 * Math.sin(t)).toFixed(1)}" y="${(35 - 23 * Math.cos(t)).toFixed(1)}" text-anchor="middle" class="${k === i ? 'on' : ''}">${esc(o)}</text>`; }).join('');
-    const body = pk ? `<circle cx="46" cy="33" r="14" fill="#0f1215" stroke="#8d99a6" stroke-width="1.2"/><circle cx="46" cy="33" r="9.5" fill="url(#kPk)"/><g transform="rotate(${ang(i)} 46 33)"><rect x="45" y="17" width="2" height="11" rx="1" fill="#fff"/></g>`
+    const body = pk ? `<circle cx="46" cy="34.5" r="13" fill="rgba(0,0,0,.5)"/><g transform="rotate(${ang(i)} 46 33)"><path d="M46 14.5 L51.4 21 A12.6 12.6 0 1 1 40.6 21 Z" fill="url(#kAluF)" stroke="#4a4e53" stroke-width=".6"/></g><circle cx="46" cy="33" r="7.6" fill="${cap || '#c3c7cb'}"/><circle cx="44.2" cy="31" r="2.8" fill="rgba(255,255,255,.32)"/>`
       : `<circle cx="46" cy="34" r="14" fill="#24221e" stroke="#0e0d0b"/><circle cx="46" cy="33" r="10" fill="${cap || '#8f918c'}"/><circle cx="46" cy="33" r="10" fill="url(#kWm)"/><g transform="rotate(${ang(i)} 46 33)"><path d="M46 17 L49 21 L43 21 Z" fill="#e8e1cf"/><rect x="45.1" y="23" width="1.8" height="7" rx=".9" fill="#f3ecdc"/></g>`;
     sw.innerHTML = `<svg class="rot" viewBox="0 0 92 52" aria-hidden="true">${lab}${body}</svg>`; }; }
 
@@ -93,8 +93,8 @@ function conEq(c) {
   const C = P.chans[c], f = C.eq, w = h('div', 'ceq'), hd = h('div', 'chead'), cv = h('canvas'), scr = h('div', 'ceqscr'), redraw = () => drawCeq(cv, C);
   const frz = () => { if (c < G0 && P.pads[c].frz) touchPad(c); };
   const flip = (fn, msg) => () => { pushUndo('chan:' + c); frz(); fn(); syncChan(c); markDirty(); renderView(); if (msg) toast(msg()); };
-  hd.append(conPick(c, conTape(c)), conToggle('EQ IN', f.on, flip(() => { f.on = !f.on; }, () => 'EQ ' + (f.on ? 'in' : 'out')), true),
-    conToggle('PRE', !f.post, flip(() => { f.post = false; }, () => 'EQ before the effects')), conToggle('POST', f.post, flip(() => { f.post = true; }, () => 'EQ after the effects')));
+  hd.append(conPick(c, conTape(c))); if (f.type !== 42) hd.append(conToggle('EQ IN', f.on, flip(() => { f.on = !f.on; }, () => 'EQ ' + (f.on ? 'in' : 'out')), true));
+  hd.append(conToggle('PRE', !f.post, flip(() => { f.post = false; }, () => 'EQ before the effects')), conToggle('POST', f.post, flip(() => { f.post = true; }, () => 'EQ after the effects')));
   scr.append(cv); w.append(hd, scr);
   if (f.type !== CEQ_TYPE) { w.append(f.type === 42 ? peqRows(c, f, redraw, frz, w) : weqRows(c, f, redraw, frz, w)); requestAnimationFrame(redraw); return w; }
   const opt = i => { const key = `${c}.8.${i}`, prm = CEQ_P[i], v = () => f.p[i] >= .5;
@@ -111,17 +111,22 @@ function conEq(c) {
     rows.append(r); }
   w.append(rows); requestAnimationFrame(redraw); return w;
 }
-// Punchy's three bands on a module plate: stepped frequency and gain; the outer bands peak or shelf; the band-pass filter
+// Punchy's EQ as its three-band module: black plate, blue legends; each band's stepped frequency (aluminium knob, its points printed in
+// blue) beside its stepped gain (the blue knob); along the bottom the filter lever and its lamp (lit while the EQ is in) and the latching
+// white buttons: LF shelf, HF shelf, IN
 function peqRows(c, f, redraw, frz, w) {
-  const plate = h('div', 'cplate'), ch = () => { frz(); redraw(); refreshThumb(c); };
-  const tog = (i, on, lab) => conToggle(lab, (f.p[i] >= .5) === on, () => { if ((f.p[i] >= .5) === on) return; pushUndo('chan:' + c); frz(); f.p[i] = on ? 1 : 0; sendParam(`${c}.8.${i}`, f.p[i]); markDirty(); renderView(); });
-  const gain = i => { const k = conKnob(`${c}.8.${i}`, '', { label: 'GAIN', after: ch }); k.setAttribute('aria-label', 'EQ ' + PEQ_P[i].n); return k; };
-  const row = (name, sub, fi, gi, si) => { const r = h('div', 'cband p3'), lab = h('div', 'cbl', `${name}<small>${sub}</small>`), tg = h('div', 'ctg');
-    if (si != null) tg.append(tog(si, true, 'SHELF'), tog(si, false, 'PEAK'));
-    r.append(lab, conRotary(`${c}.8.${fi}`, f, fi, { n: 'FREQ', opts: PEQ_P[fi].opts }, ch), gain(gi), tg); return r; };
-  plate.append(row('HF', f.p[2] >= .5 ? 'SHELF' : 'PEAK', 0, 1, 2), row('MF', 'PEAK', 3, 4, null), row('LF', f.p[7] >= .5 ? 'SHELF' : 'PEAK', 5, 6, 7));
-  const fr = h('div', 'cband p3'), ft = h('div', 'ctg'); ft.append(conToggle('FILT', f.p[8] >= .5, () => { pushUndo('chan:' + c); frz(); f.p[8] = f.p[8] >= .5 ? 0 : 1; sendParam(`${c}.8.8`, f.p[8]); markDirty(); renderView(); }, true));
-  fr.append(h('div', 'cbl', 'FILT<small>BAND-PASS</small>'), h('div', 'cnote', '50 Hz – 15 kHz'), h('div', ''), ft); plate.append(fr); return plate;
+  const plate = h('div', 'cplate api'), ch = () => { frz(); redraw(); refreshThumb(c); };
+  const set = (i, v) => { pushUndo('chan:' + c); frz(); f.p[i] = v; sendParam(`${c}.8.${i}`, v); markDirty(); renderView(); };
+  const gain = i => { const k = conKnob(`${c}.8.${i}`, '#e3e5e7', { label: 'GAIN', after: ch }); k.style.setProperty('--kb', '#3a78d4'); k.setAttribute('aria-label', 'EQ ' + PEQ_P[i].n); return k; };
+  const row = (name, fi, gi) => { const r = h('div', 'cband apiB'); r.append(h('div', 'apiL', name), conRotary(`${c}.8.${fi}`, f, fi, { n: name === 'MF' ? 'kHz' : name === 'HF' ? 'kHz' : 'Hz', opts: PEQ_P[fi].opts }, ch), gain(gi)); return r; };
+  plate.append(row('HF', 0, 1), row('MF', 3, 4), row('LF', 5, 6));
+  const bot = h('div', 'apiBot'), lever = btn(`<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="10" fill="#2a2c30" stroke="#0e0f11"/><circle cx="20" cy="20" r="6.5" fill="#cfd2d5" stroke="#6f7377"/><g transform="rotate(${f.p[8] >= .5 ? 0 : 180} 20 20)"><rect x="17.5" y="2" width="5" height="18" rx="2.5" fill="url(#kAluF)" stroke="#55595e" stroke-width=".6"/></g></svg><span>FLTR</span>`, () => set(8, f.p[8] >= .5 ? 0 : 1), 'apiLever' + (f.p[8] >= .5 ? ' on' : ''));
+  lever.setAttribute('aria-label', 'Band-pass filter ' + (f.p[8] >= .5 ? 'on' : 'off'));
+  const lamp = h('i', 'apiLamp' + (f.on ? ' on' : '')); lamp.setAttribute('aria-hidden', 'true');
+  const wb = (lab, on, fn, aria) => { const b = btn(lab, fn, 'apiBtn' + (on ? ' on' : '')); b.setAttribute('aria-label', aria); return b; };
+  bot.append(lever, lamp, wb('L/F', f.p[7] >= .5, () => set(7, f.p[7] >= .5 ? 0 : 1), 'LF shelf'), wb('H/F', f.p[2] >= .5, () => set(2, f.p[2] >= .5 ? 0 : 1), 'HF shelf'),
+    wb('IN', f.on, () => { pushUndo('chan:' + c); frz(); f.on = !f.on; syncChan(c); markDirty(); renderView(); toast('EQ ' + (f.on ? 'in' : 'out')); }, 'EQ in'));
+  plate.append(bot); return plate;
 }
 // Warm's module: a gentle 12 kHz shelf, the mid bell (Hi-Q narrows it), the low shelf, the high-pass
 function weqRows(c, f, redraw, frz, w) {
@@ -172,7 +177,7 @@ function conBus2(sel) {
   else { const m = h('div', 'cvf'); m.innerHTML = vuSvg('W', 'GAIN REDUCTION'); vu.append(m); CON_VU.push({ el: m.querySelector('.ndl'), src: 'gr', c, vk: 'W', vd: 1 }); }
   const K = (i, cap) => { const k = conKnob(`${c}.9.${i}`, cap || '#8f918c', { label: ps[i].n.toUpperCase() }); k.setAttribute('aria-label', 'Bus ' + ps[i].n); return k; }, R = (i, lab, cap) => conRotary(`${c}.9.${i}`, f, i, { n: lab || ps[i].n, opts: ps[i].opts }, null, cap);
   const g = h('div', 'cbgrid');
-  if (pk) g.append(K(0), R(1), K(7), R(2, 'Attack ms'), R(3, 'Release s'), K(8), R(4), R(5), R(6));
+  if (pk) g.append(K(0, '#d63b2f'), R(1), K(7, '#e3e5e7'), R(2, 'Attack ms'), R(3, 'Release s'), K(8, '#4a4d52'), R(4), R(5), R(6));
   else g.append(K(0), R(1), K(4, '#c22f26'), R(2), R(3, 'Recovery'), K(9), K(6, '#2f5f8f'), R(7, 'Lim attack'), R(8, 'Lim recovery'));
   w.append(hd, vu, g); if (!f.on) w.classList.add('off'); return w;
 }
@@ -182,19 +187,21 @@ function conBus2(sel) {
 const CON_VU = [], VU_P = [[-20, 0], [-10, .3], [-7, .42], [-5, .52], [-3, .64], [0, .78], [3, 1]], GR_P = [[0, 1], [2, .82], [4, .68], [6, .56], [10, .36], [14, .2], [20, 0]];
 const VU_REST_GR = .78;
 const vuMap = (tab, v) => { if (v <= tab[0][0]) return tab[0][1]; for (let i = 1; i < tab.length; i++) if (v <= tab[i][0]) { const [a, pa] = tab[i - 1], [b, pb] = tab[i]; return pa + (pb - pa) * (v - a) / (b - a); } return tab[tab.length - 1][1]; };
-const VU_GEO = { y: { w: 100, h: 52, cx: 50, cy: 66, r: 48, a: 44 }, Y: { w: 100, h: 60, cx: 50, cy: 66, r: 48, a: 44 }, a: { w: 40, h: 22, cx: 20, cy: 24, r: 18, a: 45 }, W: { w: 320, h: 100, cx: 160, cy: 168, r: 144, a: 34 } };
+// each meter's drawing box (its aspect is the box's, so the needle, an HTML element turned by CSS, sits exactly on the drawing's pivot)
+const VU_GEO = { y: { w: 100, h: 74, cx: 50, cy: 84, r: 66, a: 42 }, Y: { w: 100, h: 62, cx: 50, cy: 70, r: 52, a: 44 }, a: { w: 40, h: 22, cx: 20, cy: 24, r: 18, a: 45 }, W: { w: 320, h: 100, cx: 160, cy: 168, r: 144, a: 34 } };
 function vuSvg(k, lab = '') { const G = VU_GEO[k], A = p => (-G.a + 2 * G.a * p) * Math.PI / 180, xy = (p, r) => [+(G.cx + r * Math.sin(A(p))).toFixed(1), +(G.cy - r * Math.cos(A(p))).toFixed(1)];
   const arc = (p0, p1, r) => { const [x0, y0] = xy(p0, r), [x1, y1] = xy(p1, r); return `M${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1}`; };
   const tick = (p, r0, r1, cls = '') => { const [x0, y0] = xy(p, r0), [x1, y1] = xy(p, r1); return `<line class="${cls}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; };
   const label = (p, r, t, cls = '', dy = 3) => { const [x, y] = xy(p, r); return `<text class="${cls}" x="${x}" y="${y + dy}">${t}</text>`; };
-  const [nx, ny] = vuTip(G, k === 'W' ? 1 : 0), ndl = `<line class="ndl" x1="${G.cx}" y1="${G.cy}" x2="${nx}" y2="${ny}"/>`;
-  if (k === 'W') return `<svg class="vu vuW" viewBox="0 0 ${G.w} ${G.h}" preserveAspectRatio="xMidYMid meet"><rect class="face" width="${G.w}" height="${G.h}"/><path class="sc" d="${arc(0, 1, G.r - 14)}"/>${GR_P.map(([v, p]) => tick(p, G.r - 26, G.r - 14) + label(p, G.r - 38, v, '', 4)).join('')}<text class="lab" x="${G.cx}" y="90">${lab}</text>${ndl}</svg>`;
-  if (k === 'a') return `<svg class="vu vua" viewBox="0 0 ${G.w} ${G.h}" aria-hidden="true"><rect class="face" width="${G.w}" height="${G.h}" rx="1.5"/><path class="sc" d="${arc(0, .78, G.r - 1)}"/><path class="red" d="${arc(.78, 1, G.r - 1)}"/>${ndl}</svg>`;
-  const big = k === 'Y', ticks = VU_P.map(([v, p], i) => tick(p, G.r - 8, G.r - 2, p > .77 ? 'r' : '') + (big && i !== 2 ? label(p, G.r - 15, i === 6 ? '+3' : Math.abs(v), p > .77 ? 'r' : '', 2.5) : '')).join('');
-  return `<svg class="vu vu${k}" viewBox="0 0 ${G.w} ${G.h}" preserveAspectRatio="xMidYMid slice"><rect class="face" width="${G.w}" height="${G.h}"/><path class="sc" d="${arc(0, .78, G.r - 2)}"/><path class="red" d="${arc(.78, 1, G.r - 2)}"/>${ticks}<text class="lab" x="${G.cx}" y="${big ? 44 : 46}">${lab || 'VU'}</text>${ndl}</svg>`; }
-// the needle moves by its tip (its geometry, not a transform: every browser repaints that)
-function vuTip(G, p) { const a = (-G.a + 2 * G.a * p) * Math.PI / 180, r = G.r + 2; return [(G.cx + r * Math.sin(a)).toFixed(2), (G.cy - r * Math.cos(a)).toFixed(2)]; }
-const vuSet = (m, el, p) => { if (Math.abs(p - (m.vs == null ? -1 : m.vs)) < .002) return; m.vs = p; const [x, y] = vuTip(VU_GEO[m.vk], p); el.setAttribute('x2', x); el.setAttribute('y2', y); };
+  let face;
+  if (k === 'W') face = `<rect class="face" width="${G.w}" height="${G.h}"/><path class="sc" d="${arc(0, 1, G.r - 14)}"/>${GR_P.map(([v, p]) => tick(p, G.r - 26, G.r - 14) + label(p, G.r - 38, v, '', 4)).join('')}<text class="lab" x="${G.cx}" y="90">${lab}</text>`;
+  else if (k === 'a') face = `<path class="sc" d="${arc(0, .78, G.r - 1)}"/><path class="red" d="${arc(.78, 1, G.r - 1)}"/>`;
+  else { const big = k === 'Y', sc = [[-20, 0], [-10, .3], [-7, .42], [-5, .52], [-3, .64], [0, .78], [3, 1]];
+    face = `<path class="sc" d="${arc(0, .78, G.r - 4)}"/><path class="red" d="${arc(.78, 1, G.r - 4)}"/>` + sc.map(([v, p], i) => tick(p, G.r - 4, G.r + 2, p > .77 ? 'r' : '') + (i !== 2 && (big || i % 2 === 0 || i === 5) ? label(p, G.r + 8, i === 6 ? '+3' : Math.abs(v), p > .77 ? 'r' : '', 2) : '')).join('')
+      + `<text class="lab" x="${G.cx}" y="${big ? 48 : 58}">${lab || 'VU'}</text>`; }
+  const st = `left:${(G.cx / G.w * 100).toFixed(2)}%;bottom:${((G.h - G.cy) / G.h * 100).toFixed(2)}%;height:${((G.r + 2) / G.h * 100).toFixed(2)}%;transform:rotate(${k === 'W' ? G.a : -G.a}deg)`;
+  return `<div class="vu vu${k}" style="aspect-ratio:${G.w}/${G.h}" aria-hidden="true"><svg viewBox="0 0 ${G.w} ${G.h}">${face}</svg><i class="ndl" style="${st}"></i></div>`; }
+const vuSet = (m, el, p) => { if (Math.abs(p - (m.vs == null ? -1 : m.vs)) < .002) return; m.vs = p; const G = VU_GEO[m.vk]; el.style.transform = `rotate(${(-G.a + 2 * G.a * p).toFixed(2)}deg)`; };
 // the needles read the peak meters, so 0 VU sits at -14 dBFS peak (about -18 dBFS average, the usual alignment); they ease a tenth of the way each frame, about the swing of a real VU
 const VU_REF = 14;
 function conMeters() {
