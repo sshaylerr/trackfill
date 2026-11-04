@@ -27,7 +27,7 @@ const SKIP = /Export the|Export scene|Back up|Restore|Delete|Stress test|Load fi
   const log = [], t0 = Date.now(); let fail = null, base = null;
   const state = () => pg.evaluate(() => ({ playing: T.playing, repTime: REP.time, tick: REP.pos ? REP.pos.tick : null, scene: REP.pos ? REP.pos.scene : null, meter: [METER.l, METER.r], cpu: REP.cpu,
     ready: ENG.ready, appErr: APPERR.log.slice(), engErr: (ENG.errLog || []).slice(), nodes: document.getElementsByTagName('*').length, mem: performance.memory ? performance.memory.usedJSHeapSize : 0, ctx: ctx && ctx.state, undo: UNDO.length,
-    trip: (document.getElementById('toast') || {}).textContent || '' }));
+    trip: INFO.last || '' }));
   const center = el => pg.evaluate(el => { const q = el.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2, w: q.width, h: q.height, vis: q.width > 0 && q.bottom > 0 && q.top < innerHeight }; }, el);
   const tapAt = async (x, y) => { await pg.mouse.move(x, y); await pg.mouse.down(); await pg.waitForTimeout(ri(20, 90)); await pg.mouse.up(); };
   const pickEl = async sel => { const els = await pg.$$(sel); const vis = []; for (const e of els) { const c = await center(e); if (c.vis && c.w > 4) vis.push([e, c]); } return vis.length ? vis[ri(0, vis.length - 1)] : null; };

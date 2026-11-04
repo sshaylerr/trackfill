@@ -91,6 +91,7 @@ all inlined, so it asks no other site for anything and works offline as a home-s
   - the page reopens the display (`scopeWant`);
   - each view in `scopeFrame` and each part of `frameBody` is guarded on its own (`guarded`), so one broken drawing can't freeze the
     meters.
+- Messages: `toast(msg)` writes to the info window (`#pinfo`), which is always on screen: a slim bar above the tabs when the d-pad is closed (`#panel.mini`), the d-pad's own window when open. A long message runs past; a tap puts it away. Otherwise the window shows the d-pad's focus (open) or the selected pad (closed, `padStatus`). Only "Tap to turn on sound" stays a shade over the page.
 - Text that doesn't fit: `fitFonts(root)` (app.html) runs after a page, sheet or scene strip renders.
   - First it shrinks the text slightly (down to 85%), then switches to the narrow face, then uses a short form (`data-alt`) or two lines
     (mixer names).

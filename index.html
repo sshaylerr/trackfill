@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-So2oLx39H7m6duzKkTKBv1+zbOxzjdRuBvfL8g55c9E=' 'sha256-Uu4e5tNiG0+XkhqukPwnGwUA9pMg1o1JM5tteb2DgqI=' 'sha256-5xZjnOES33u/VYXEOEbgXPb2Zk1y80XXRQlgs0KMBOg=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-So2oLx39H7m6duzKkTKBv1+zbOxzjdRuBvfL8g55c9E=' 'sha256-Uu4e5tNiG0+XkhqukPwnGwUA9pMg1o1JM5tteb2DgqI=' 'sha256-uJsVZaNavU6Pb3x+rIFhi8gF6e7XhGJ4guxN8wAUuEA=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -114,7 +114,7 @@ body{font-variant-numeric:tabular-nums}
 .synDev .devHead{height:26px;padding:0 2px} .synDev .disp{background:var(--d-scr)} .synDev .synTabs .key{background:linear-gradient(180deg,#2a2826,#1d1c1a)} .synDev .synTabs .key.on{color:var(--d-ring)}
 .synDev .knob .kb{stroke:#0a0908} .synDev .lcdbox.synInfo{background:var(--d-scr)}
 #view.short .synDev .devHead{display:none} #view.short .synDev{padding:4px 5px 3px;gap:3px} #view.short .synTabs,#view.short .synTabs .key{height:26px}
-#view.tiny .synDev .disp{min-height:0} .synDev .disp.gone canvas{visibility:hidden} #view.short .kgrid.synGrid{grid-auto-rows:54px;gap:2px 4px} #view.short .synGrid .knob svg{width:34px;height:34px} #view.short .synGrid .selr{padding-top:2px} #view.short .synGrid .selr .sw{height:26px} #view.tiny .soundView{gap:5px}
+#view.tiny .synDev .disp{min-height:0} .synDev .disp.gone canvas{visibility:hidden} #view.short .kgrid.synGrid{grid-auto-rows:58px;gap:2px 4px} #view.short .synGrid .knob .kval{height:11px;line-height:11px} #view.short .synGrid .knob .klab{height:12px;line-height:12px} #view.short .synGrid .knob svg{width:34px;height:34px} #view.short .synGrid .selr{padding-top:2px} #view.short .synGrid .selr .sw{height:26px} #view.tiny .soundView{gap:5px}
 .mapRow .mchip{flex:0 1 auto;min-width:0;overflow:hidden;font-size:12px;padding:0 7px} .mapRow .madd{flex:none;padding:0 10px}
 .mapRow{display:flex;gap:4px;height:34px;align-items:stretch;min-width:0} .mapHint{flex:1;min-width:0;display:flex;align-items:center;font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
 .mchip b{font-weight:500;font-family:var(--font-lcd)} .madd{flex:none} .mapTip{flex:1;min-width:0;display:flex;align-items:center;justify-content:flex-end;font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden}
@@ -444,7 +444,10 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 
 /* ---------- precision panel ---------- */
 #panel{flex:none;height:168px;background:linear-gradient(180deg,var(--body2),var(--body));border:1px solid var(--edge);border-radius:6px;padding:8px 10px 10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-.pinfo{height:22px;margin-bottom:8px;font-size:10.5px;margin-right:62px}
+.pinfo{height:22px;margin-bottom:8px;font-size:10.5px;margin-right:62px;position:relative}
+#panel.mini{height:auto;padding:5px 6px} #panel.mini .pbody,#panel.mini .pstrip,#panel.mini #pStrip{display:none!important} #panel.mini .pinfo{margin:0;height:24px}   /* the d-pad closed: only the info window, full width */
+.pinfo.msg{color:var(--ink);text-overflow:clip} .pinfo.msg::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);margin-right:7px}   /* a message: the dot that toasts had */
+.pinfo .clip{flex:1;min-width:0;overflow:hidden;display:block} .pinfo .run{display:inline-block;white-space:nowrap}   /* a message too long for the window runs past, like an LCD */
 #pStrip{position:absolute;top:8px;right:10px;width:56px;height:22px;font-size:11px;border-radius:3px} #panel{position:relative}
 .pstrip{display:none;grid-template-columns:30px 1fr 26px;gap:5px;height:124px}
 .sbend{position:relative;border-radius:13px;background:linear-gradient(90deg,#101012,#1c1c20 50%,#101012);border:1px solid #000;box-shadow:inset 0 1px 6px rgba(0,0,0,.8);touch-action:none} .sbend::before{content:"";position:absolute;left:4px;right:4px;top:50%;height:1px;background:var(--dim)}
@@ -506,13 +509,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 #sheet .card .note{font-size:12px;color:var(--dim)} #sheet .card .param{background:var(--panel)}
 /* messages: a small readout in the bottom-left corner, just above the mode keys */
 /* messages: a small box in the bottom-left corner that slides up from behind the mode keys */
-#toast{position:fixed;left:max(16px,env(safe-area-inset-left,0px),calc(50% - 374px));bottom:calc(max(6px,env(safe-area-inset-bottom,0px)) + 50px);z-index:30;
-  max-width:min(72%,320px);display:flex;align-items:center;gap:8px;padding:6px 12px 6px 10px;min-height:30px;line-height:16px;border-radius:7px;
-  background:linear-gradient(180deg,#1d1d21,#131316);border:1px solid var(--edge);box-shadow:0 4px 14px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);
-  color:var(--ink);font-weight:600;font-size:12.5px;overflow:hidden;
-  opacity:0;transform:translateY(18px);transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .15s;pointer-events:none}
-#toast::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)}
-#toast.show{opacity:1;transform:none}
+
 /* sound asleep (or not started): the screen dims, and the first tap only wakes the sound */
 #wakeShade{position:fixed;inset:0;z-index:40;background:linear-gradient(180deg,rgba(0,0,0,.62) 0,rgba(0,0,0,.62) calc(100% - 140px),rgba(0,0,0,0) 100%);   /* fades out at the bottom: the phone's own bar below it can't be dimmed */display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
 #wakeShade>div{display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;background:linear-gradient(180deg,#1b1b1f,#121215);border:1px solid var(--edge);
@@ -545,8 +542,8 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
   <div id="meter" title="Output level. Tap for the master analyzer (and to reset the clip light)."><div class="bars"><div class="bar"><i></i></div><div class="bar"><i></i></div></div><span class="cpu lcd">CPU —</span><span class="mon" id="bMon" title="Monitoring: speakers or crossfeed on headphones">MON</span><span class="clip">CLIP</span></div>
   <nav id="scenes" aria-label="Scenes"></nav>
   <main id="view"></main>
-  <section id="panel" hidden aria-label="Precision controls">
-    <div class="pinfo lcdbox" id="pinfo"></div><button class="pk" id="pStrip" aria-label="Show pads in the panel">Pads</button>
+  <section id="panel" class="mini" aria-label="Precision controls">
+    <div class="pinfo lcdbox" id="pinfo" role="status" aria-live="polite"></div><button class="pk" id="pStrip" aria-label="Show pads in the panel">Pads</button>
     <div class="pbody">
       <div class="dpad">
         <button class="pk u" data-k="up" aria-label="Up"><svg viewBox="0 0 24 24"><path d="M12 6l7 9H5z"/></svg></button>
@@ -575,7 +572,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
   </nav>
 </div>
 <div id="sheet" hidden><div class="card"></div></div>
-<div id="toast" role="status"></div>
+
 <input type="file" id="fileAudio" accept="audio/*,.wav,.wave,.aif,.aiff,.aifc,.mp3,.m4a,.aac,.flac,.ogg,.oga,.opus,.caf,.zip,application/zip" multiple hidden>
 <input type="file" id="fileProj" accept=".json,application/json" hidden>
 
@@ -3765,7 +3762,14 @@ function applyTheme() {
   document.body.dataset.pads = UI.padStyle || 'dark'; readColors();
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = th.body ? th.body[0] : '#1c1c1f';
 }
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400 + Math.max(0, String(msg).length - 40) * 45); }   // longer messages stay longer
+// messages go to the info window (above the tabs, or the d-pad's): shown for a while, a long one runs past, then the window goes back to what it shows
+const INFO = { msg: '', until: 0, t: 0, last: '' };
+function toast(msg) { msg = String(msg); INFO.msg = INFO.last = msg; clearTimeout(INFO.t); const el = $('#pinfo'); el.classList.add('msg'); el.textContent = '';
+  const box = h('span', 'clip'), run = h('span', 'run'); run.textContent = msg; box.append(run); el.append(box); const over = Math.ceil(run.getBoundingClientRect().width - box.getBoundingClientRect().width);
+  let ms = 2400 + Math.max(0, msg.length - 40) * 45;
+  if (over > 0) { const sec = over / 40; run.style.transition = `transform ${sec.toFixed(2)}s linear 1s`; requestAnimationFrame(() => requestAnimationFrame(() => { run.style.transform = `translateX(${-over}px)`; })); ms = Math.max(ms, 1000 + sec * 1000 + 1500); }
+  INFO.until = Date.now() + ms; INFO.t = setTimeout(() => { INFO.msg = ''; el.classList.remove('msg'); updatePanel(); }, ms); }
+function setInfo(txt) { if (INFO.msg) return; const el = $('#pinfo'); if (el.textContent !== txt) el.textContent = txt; }
 function btn(label, fn, cls = 'btn') { const b = h('button', cls, label); b.onclick = fn; return b; }
 function seg(labels, active, fn) { const s = h('div', 'keys'); labels.forEach((l, i) => { const b = h('button', 'key sm' + (i === active ? ' on' : ''), l); b.onclick = () => fn(i); s.append(b); }); return s; }
 
@@ -9106,7 +9110,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-03', ['Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
+  ['2026-11-03', ['Messages now show in the info window above the tabs (the d-pad\'s when it\'s open), not in pop-ups.', 'Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
@@ -9276,6 +9280,7 @@ function navEnsure() {
 }
 // d-pad movement, the same everywhere: ←→ stay in the row (wrapping to its far end), ↑↓ go to the nearest row in that direction
 // and land on the item closest in position; at the top or bottom edge nothing moves.
+function navScroller(el) { for (let e = el.parentElement; e && e.id !== 'view' && e !== document.body; e = e.parentElement) { const oy = getComputedStyle(e).overflowY; if ((oy === 'auto' || oy === 'scroll') && e.scrollHeight > e.clientHeight + 1) return e; } return null; }
 function navMove(dir) {
   const cur = navEnsure(); if (!cur) return; const c = navCenter(cur), items = navItems().filter(it => it !== cur).map(it => ({ it, o: navCenter(it) }));
   if (dir === 'left' || dir === 'right') {
@@ -9285,7 +9290,10 @@ function navMove(dir) {
     const pick = ahead.length ? ahead.reduce((a, b) => ((a.o.x - c.x) * sgn <= (b.o.x - c.x) * sgn ? a : b))   // the next one along
       : row.reduce((a, b) => ((a.o.x - c.x) * sgn <= (b.o.x - c.x) * sgn ? a : b));                                  // wrap: the far end of the row
     setNav(pick.it); return; }
-  const sgn = dir === 'down' ? 1 : -1, ahead = items.filter(({ o }) => (sgn > 0 ? o.r.top >= c.r.bottom - 6 : o.r.bottom <= c.r.top + 6) && (o.y - c.y) * sgn > 2);
+  const sgn = dir === 'down' ? 1 : -1, all = items.filter(({ o }) => (sgn > 0 ? o.r.top >= c.r.bottom - 6 : o.r.bottom <= c.r.top + 6) && (o.y - c.y) * sgn > 2);
+  // in a part of the page that scrolls: on through it first (it scrolls along), then out; from outside, into what's on screen
+  const box = navScroller(cur), inBox = box ? all.filter(x => box.contains(x.it)) : [], shown = all.filter(x => { const b2 = navScroller(x.it); if (!b2) return true; const q = b2.getBoundingClientRect(); return x.o.r.bottom > q.top + 2 && x.o.r.top < q.bottom - 2; });
+  const ahead = inBox.length ? inBox : shown.length ? shown : all;
   if (!ahead.length) return;
   const gap = x => sgn > 0 ? x.o.r.top - c.r.bottom : c.r.top - x.o.r.bottom, near = Math.min(...ahead.map(gap));
   const band = ahead.filter(x => gap(x) <= near + Math.max(8, Math.min(x.o.r.height, 40) * .5));   // the nearest row (items of different heights still count as one row)
@@ -9358,7 +9366,8 @@ function navInfo() {
   const t = (el.getAttribute('aria-label') || el.value || el.textContent || '').trim().replace(/\s+/g, ' ');
   return `${t || 'Key'} · OK to press`;
 }
-function updatePanel() { if (!UI.panel) return; if (UI.strip) { refreshStrip(); return; } navEnsure(); $('#pinfo').textContent = navInfo(); }
+function updatePanel() { if (!UI.panel) { setInfo(padStatus()); return; } if (UI.strip) { refreshStrip(); return; } navEnsure(); setInfo(navInfo()); }
+function padStatus() { const pi = UI.pad, pad = P.pads[pi], chop = withKeys(() => padChop()); return `${padLabel(pi)} ${pad.name || ''} · ${padUsed(pad) ? (pad.src === 'audio' ? 'audio track' : chop ? 'slices' : keysStatus(pi)) : 'empty pad'}`; }
 /* the panel's pad strip: 16 pads that play the selected pad the way Keys view does (notes, scale, chords, arpeggiator), so you can play while you design */
 function buildStrip() {
   const s = $('#pstrip'); s.innerHTML = ''; const oct = h('div', 'soct');
@@ -9386,12 +9395,12 @@ function refreshStrip() {
     if (chop) name = cell < chop.pts.length ? String(cell + 1) : '—'; else if (hasSound(pad)) { const kc = withKeys(() => keyCell(cell)); name = kc.name; root = !!kc.root; }
     d.textContent = name; d.classList.toggle('root', root); d.style.setProperty('--pc', PAD_COLORS[pad.color]); });
   $('#panel').classList.toggle('chords', !chop && kxOf(pi).mode === 'chords');
-  $('#pinfo').textContent = `${padLabel(pi)} ${pad.name || ''} · ${hasSound(pad) ? (chop ? 'slices' : keysStatus(pi)) : 'empty pad'}`;
+  setInfo(padStatus());
 }
 function toggleStrip() { UI.strip = !UI.strip; $('#panel').classList.toggle('padsOn', UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; if (UI.strip) refreshStrip(); else updatePanel(); savePrefs(); }
 function togglePanel() {
-  UI.panel = !UI.panel; $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
-  if (!UI.panel) { if (NAV.mode === 'edit') navEndEdit(true); NAV.mode = 'nav'; if (NAV.el) NAV.el.classList.remove('nf', 'ne'); if (UI.view === 'seq') drawTL(); else drawChop(); }
+  UI.panel = !UI.panel; $('#panel').classList.toggle('mini', !UI.panel); $('#bPanel').classList.toggle('on', UI.panel);
+  if (!UI.panel) { if (NAV.mode === 'edit') navEndEdit(true); NAV.mode = 'nav'; if (NAV.el) NAV.el.classList.remove('nf', 'ne'); if (UI.view === 'seq') drawTL(); else drawChop(); updatePanel(); }
   else requestAnimationFrame(() => { navEnsure(); NAV.el && NAV.el.classList.add('nf'); updatePanel(); });
   savePrefs();
 }
@@ -9483,6 +9492,7 @@ document.querySelectorAll('.dpad .pk[data-k]').forEach(b => holdBtn(b, () => nav
   holdBtn($('#pDel'), () => { if (!dup) navDel(); }); }
 $('#pBack').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); navBack(); updatePanel(); });
 $('#pStrip').addEventListener('click', toggleStrip);
+$('#pinfo').addEventListener('click', () => { if (!INFO.msg) return; clearTimeout(INFO.t); INFO.msg = ''; $('#pinfo').classList.remove('msg'); updatePanel(); });   // a tap puts a message away
 $('#pShift').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); UI.shift = !UI.shift; $('#pShift').classList.toggle('on', UI.shift); updatePanel(); });
 function setFine(v) { UI.fine = v; const b = $('#pFine'); b.textContent = ['Fine', '1/64', '1 ms'][v]; b.classList.toggle('on', v > 0); }
 $('#pFine').addEventListener('pointerdown', e => { e.preventDefault(); haptic(); setFine((UI.fine + 1) % 3); updatePanel(); toast(['Normal steps', 'Fine: 1/64 notes, smallest value steps', 'Extra fine: 1 ms nudges'][UI.fine]); });
@@ -9577,7 +9587,7 @@ async function boot() {
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark'; UI.font = pr.font2 === 'narrow' ? 'narrow' : 'rounded';
     UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null;
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: pr.mon.phones && !TF_PHONES[pr.mon.phones] ? 'Wired earbuds' : TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
-  applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
+  applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').classList.toggle('mini', !UI.panel); $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
   await abLoad(); brLoad(); setTimeout(abTick, 15000); setTimeout(refCleanup, 60000); setInterval(abTick, 5 * 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(abTick, 4000); });
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);

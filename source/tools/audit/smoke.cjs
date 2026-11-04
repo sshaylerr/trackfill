@@ -19,7 +19,7 @@ const crawl = async () => {
   const base = bars();
   const reach = () => { const items = navItems(); if (items.length < 2) return [];
     const seen = new Set(), q = [navDefault() || items[0]]; seen.add(q[0]); const keep = NAV.el;
-    while (q.length) { const el = q.shift(); for (const d of ['up', 'down', 'left', 'right']) { NAV.el = el; NAV.mode = 'nav'; navMove(d); const n = NAV.el; if (n && !seen.has(n)) { seen.add(n); q.push(n); } } }
+    while (q.length) { const el = q.shift(); for (const d of ['up', 'down', 'left', 'right']) { NAV.el = el; NAV.mode = 'nav'; el.scrollIntoView({ block: 'nearest' }); navMove(d); const n = NAV.el; if (n && !seen.has(n)) { seen.add(n); q.push(n); } } }
     out.navd += seen.size; out.navs++; setNav(keep, true); window.scrollTo(0, 0); document.querySelectorAll('.scr, #sheet .card').forEach(s => { s.scrollTop = 0; });
     return items.filter(el => !seen.has(el)).map(el => (el.getAttribute('aria-label') || el.textContent || el.className || el.tagName).trim().replace(/\s+/g, ' ').slice(0, 30)); };
   // text that doesn't fit its box: wider than it (cut or ellipsised) or taller (clipped tops and tails)
