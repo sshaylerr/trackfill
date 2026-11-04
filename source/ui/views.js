@@ -78,7 +78,10 @@ function openLaneSheet(c) {
       l.append(ki); card.append(l); }
     const strip = [0, 1, 2, 3].filter(i => i < 2 || c < R0).map(i => [c + '.-1.' + i, STRIP[i].label, 'channel']);
     if (c < G0) strip.push([c + '.-2.2', 'Pitch bend', '± ' + (P.pads[c].bendR || 2) + ' semitones'], [c + '.-2.0', 'Cutoff', 'pad filter'], [c + '.-2.1', 'Resonance', 'pad filter']);
+    if (conOn()) strip.push([c + '.-1.4', 'Drive', conName() + ' console']);
     list('Channel', strip);
+    if (conOn()) { const C = P.chans[c]; list('Console EQ', [[`${c}.8.-1`, 'EQ in / out', 'console']].concat(CEQ_P.map((p, i) => p.opts ? null : [`${c}.8.${i}`, p.n, 'console EQ']).filter(Boolean)));
+      if (C.bus) list('Bus compressor', [[`${c}.9.-1`, 'In / out', 'console']].concat(fxParams(C.bus).map((p, i) => p.opts ? null : [`${c}.9.${i}`, p.n, 'bus compressor']).filter(Boolean))); }
     if (c < G0 && P.pads[c].src === 'synth' && P.pads[c].syn) list('Synth', synAutoIds(c).map(id => [c + '.-3.' + TFSYN_ID[id].i, TFSYN_ID[id].l, id[0] === 'm' ? 'macro' : 'synth']));
     P.chans[c].fx.forEach((f, s) => list(`Insert ${s + 1} · ${FX_DEFS[f.type].name}`, [[`${c}.${s}.-1`, 'On / off', FX_DEFS[f.type].name]].concat(fxParams(f).map((p, i) => p.opts ? null : [`${c}.${s}.${i}`, p.n, FX_DEFS[f.type].name]).filter(Boolean))));
     card.append(h('div', 'sec', 'Elsewhere')); card.append(btn('Another channel…', () => openChannelPicker(), 'btn'));
@@ -224,9 +227,11 @@ function renderMix(V) {
   const w = h('div', 'mixView'), pages = h('div', 'pages'), chs = mixChans(UI.mixPage);
   MIX_PAGES.forEach((l, i) => pages.append(btn(l, () => { UI.mixPage = i; UI.mixSel = mixChans(i)[0]; renderView(); }, 'key' + (UI.mixPage === i ? ' on' : ''))));
   if (!chs.includes(UI.mixSel)) UI.mixSel = chs.includes(UI.pad) ? UI.pad : chs[0];
-  const con = h('div', 'scr console' + (UI.mixSlide ? ' slide' + UI.mixSlide : '')); UI.mixSlide = 0; STRIP_METERS.length = 0; bindSwipe(con);
-  for (let k = 0; k < 8; k++) { const c = chs[k]; if (c == null) { con.append(h('div', 'strip empty')); continue; } con.append(stripEl(c)); }
-  w.append(pages, con, detailEl(UI.mixSel)); V.append(w); requestAnimationFrame(() => UI.regs.forEach(f => f.upd && f.upd()));
+  STRIP_METERS.length = 0;
+  if (conOn()) { w.classList.add('cx'); w.dataset.con = P.console; w.append(pages, consoleWin(V, chs), detailEl(UI.mixSel)); }   // a console's own window (ui/console.js)
+  else { const con = h('div', 'scr console' + (UI.mixSlide ? ' slide' + UI.mixSlide : '')); UI.mixSlide = 0; bindSwipe(con);
+    for (let k = 0; k < 8; k++) { const c = chs[k]; if (c == null) { con.append(h('div', 'strip empty')); continue; } con.append(stripEl(c)); }
+    w.append(pages, con, detailEl(UI.mixSel)); } V.append(w); requestAnimationFrame(() => UI.regs.forEach(f => f.upd && f.upd()));
 }
 function mixSwipe(dir) { const n = clamp(UI.mixPage + dir, 0, MIX_PAGES.length - 1); if (n === UI.mixPage) return; UI.mixPage = n; UI.mixSel = mixChans(n)[0]; UI.mixSlide = dir > 0 ? 'L' : 'R'; haptic(); renderView(); }
 function bindSwipe(el) { let s = null;
@@ -239,21 +244,24 @@ function stripEl(c) {
   nm.onclick = () => { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); };
   const fd = keyParam(c + '.-1.0', { kind: 'fader', label: chanLabel(c) + ' volume', fmt: shortDb, unity: .85, onSwipe: mixSwipe, onTap: () => { if (UI.mixSel !== c) { UI.mixSel = c; if (isPad) UI.pad = c; renderView(); } } });
   STRIP_METERS.push({ c, el: fd._meter, v: [0, 0] });
-  const pan = keyParam(c + '.-1.1', { cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe });
-  const ms = h('div', 'ms2');
-  if (c !== MASTER) { const mb = btn('M', () => { pushUndo('chan:' + c); C.mute = !C.mute; mb.classList.toggle('on', C.mute); syncChan(c); markDirty(); }, 'm' + (C.mute ? ' on' : ''));
-    const sb = btn('S', () => { pushUndo('chan:' + c); C.solo = !C.solo; sb.classList.toggle('on', C.solo); syncChan(c); markDirty(); }, 's' + (C.solo ? ' on' : '')); ms.append(mb, sb); }
+  const pan = keyParam(c + '.-1.1', Object.assign({ cls: 'mini', label: chanLabel(c) + ' pan', onSwipe: mixSwipe }, conOn() ? { skin: 'desk' } : {})); pan.style.setProperty('--kc', '#e9ecef');
+  const ms = h('div', 'ms2'), cx = conOn();
+  if (c !== MASTER) { const mb = btn(cx ? 'CUT' : 'M', () => { pushUndo('chan:' + c); C.mute = !C.mute; mb.classList.toggle('on', C.mute); syncChan(c); markDirty(); }, 'm' + (C.mute ? ' on' : ''));
+    const sb = btn(cx ? 'SOLO' : 'S', () => { pushUndo('chan:' + c); C.solo = !C.solo; sb.classList.toggle('on', C.solo); syncChan(c); markDirty(); }, 's' + (C.solo ? ' on' : '')); ms.append(mb, sb); }
   else ms.style.height = '19px';
-  el.append(nm, fd, pan, ms); return el;
+  if (cx) { const t = btn(ceqThumb(C), () => { UI.mixSel = c; if (isPad) UI.pad = c; UI.mixFollow = UI.pad; UI.mixMode = 'eq'; renderView(); }, 'eqt'); t.dataset.c = c; t.setAttribute('aria-label', chanLabel(c) + ' EQ'); el.append(nm, t, fd, pan, ms); }
+  else el.append(nm, fd, pan, ms); return el;
 }
 function detailEl(c) {
   const C = P.chans[c], d = h('div', 'detail'), bt = h('div', 'dbtns'), dk = h('div', 'dk');
   bt.append(scopeBox(c));
   if (c < R0) bt.append(btn('→ ' + esc(destName(c)), () => openOutputPicker(c), 'key sm'));
-  bt.append(btn(`FX ${C.fx.length} · ` + (C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'none'), () => openFx(c, 'mix'), 'key sm' + (C.fx.length ? ' on' : '')));
-  if (c < R0) { dk.append(keyParam(c + '.-1.2', { label: 'Send A' }), keyParam(c + '.-1.3', { label: 'Send B' })); }
+  { const fb = btn(`FX ${C.fx.length} · ` + (C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'none'), () => openFx(c, 'mix'), 'key sm' + (C.fx.length ? ' on' : '')); fb.dataset.alt = 'FX ' + C.fx.length; bt.append(fb); }
+  const cx = conOn(), K = (key, label) => cx ? conKnob(key, '#e9ecef', { label }) : keyParam(key, { label });   // on a console the desk's knobs, and its drive
+  if (c < R0) { dk.append(K(c + '.-1.2', 'Send A'), K(c + '.-1.3', 'Send B')); }
   else { dk.append(blankCell(), blankCell()); }
-  dk.append(keyParam(c + '.-1.1', { label: 'Pan' }));
+  dk.append(K(c + '.-1.1', 'Pan'));
+  if (cx) dk.append(conKnob(c + '.-1.4', '#c8352a', { label: 'Drive' }));
   d.append(bt, dk); return d;
 }
 function openOutputPicker(c) {
@@ -268,7 +276,7 @@ function openOutputPicker(c) {
 /* ---------- effects: 8 slot keys, the selected effect's knobs below ---------- */
 function openFx(c, back) { navReset(); UI.fxCh = c; UI.fxBack = back || 'mix'; UI.fxSlot = 0; UI.view = 'fx'; renderView(); }
 function remapSlots(c, map) {   // keep automation attached to the right effect when slots move: map[oldSlot] = newSlot or -1
-  for (const sc of P.scenes) { const next = {}; for (const k in sc.auto) { const p = tfParseKey(k); if (p.c !== c || p.s < 0) { next[k] = sc.auto[k]; continue; } const ns = map[p.s]; if (ns >= 0) next[`${c}.${ns}.${p.i}`] = sc.auto[k]; } sc.auto = next; }
+  for (const sc of P.scenes) { const next = {}; for (const k in sc.auto) { const p = tfParseKey(k); if (p.c !== c || p.s < 0 || p.s >= TF.NSLOT) { next[k] = sc.auto[k]; continue; } const ns = map[p.s]; if (ns >= 0) next[`${c}.${ns}.${p.i}`] = sc.auto[k]; } sc.auto = next; }
 }
 function fxChanged(c) { syncChan(c); P.scenes.forEach((_, i) => syncScene(i)); if (c < G0 && P.pads[c].frz) touchPad(c); markDirty(); renderView(); }
 // how the controls sit: rows of up to four; a shorter row is centred; '' leaves a gap so a band's controls stay in one column.

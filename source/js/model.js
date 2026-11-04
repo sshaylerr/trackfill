@@ -449,8 +449,25 @@ function fxFromSpec(s) {
 /* ---------- channels ---------- */
 function chanKind(c) { return c < G0 ? 'pad' : c < B0 ? 'group' : c < R0 ? 'bus' : c < MASTER ? 'return' : 'master'; }
 function chanDefaultName(c) { const k = chanKind(c); return k === 'group' ? 'Group ' + (c - G0 + 1) : k === 'bus' ? 'Bus ' + (c - B0 + 1) : k === 'return' ? 'Return ' + 'AB'[c - R0] : k === 'master' ? 'Master' : ''; }
+/* ---------- the console (a project's mixer can be a console; None keeps the plain mixer) ----------
+   Every channel has a channel EQ (eq: before or after its inserts) and the console's character (drv); groups, buses and the master
+   also have a bus compressor (bus: the stepped VCA design). Engine slots 8 and 9, so their automation keys are "c.8.i" and "c.9.i". */
+const CONSOLES = [['none', 'None', 'The plain mixer'], ['clean', 'Clean', 'Large-format desk: four-band EQ, bus compressor']];
+const CEQ_P = [P_('High-pass', 0, v => v <= .001 ? 'Off' : fHz(expmap(v, 16, 350))), P_('Low-pass', 1, v => v >= .999 ? 'Off' : fHz(expmap(v, 3000, 22000))),
+  P_('HF gain', .5, v => fSign(v, -15, 15)), P_('HF freq', .706, v => fHz(expmap(v, 1500, 16000))), P_('HF shape', 0, null, ['Shelf', 'Bell']),
+  P_('HMF gain', .5, v => fSign(v, -15, 15)), P_('HMF freq', .654, v => fHz(expmap(v, 600, 7000))), P_('HMF Q', .431, v => expmap(v, .5, 2.5).toFixed(2)),
+  P_('LMF gain', .5, v => fSign(v, -15, 15)), P_('LMF freq', .435, v => fHz(expmap(v, 200, 2500))), P_('LMF Q', .431, v => expmap(v, .5, 2.5).toFixed(2)),
+  P_('LF gain', .5, v => fSign(v, -15, 15)), P_('LF freq', .445, v => fHz(expmap(v, 30, 450))), P_('LF shape', 0, null, ['Shelf', 'Bell']), P_('Curve', 0, null, ['Brown', 'Black'])];
+const CEQ_TYPE = 40, hasBusComp = c => c >= G0;
+const newCeq = () => ({ type: CEQ_TYPE, mode: 0, on: true, post: false, p: CEQ_P.map(q => q.d) });
+const newBusComp = () => Object.assign(newFx(FX_TYPES.COMP, null, 3), { on: false });
+function consoleClean(C, c, s) {   // a channel's console parts from a file: known shapes only
+  const e = s && s.eq, b = s && s.bus, d = newCeq();
+  C.eq = Object.assign(d, { on: e ? e.on !== false : true, post: !!(e && e.post), p: d.p.map((v, i) => e && Array.isArray(e.p) && e.p[i] != null && isFinite(+e.p[i]) ? clamp01(+e.p[i]) : v) });
+  if (hasBusComp(c)) { const nb = newBusComp(); C.bus = Object.assign(nb, { on: !!(b && b.on), p: nb.p.map((v, i) => b && Array.isArray(b.p) && b.p[i] != null && isFinite(+b.p[i]) ? clamp01(+b.p[i]) : v) }); } else delete C.bus;
+  C.drv = clamp01(+(s && s.drv) || 0); return C; }
 function defaultChan(c) {
-  const ch = { name: chanDefaultName(c), vol: .85, pan: .5, sa: 0, sb: 0, mute: false, solo: false, out: MASTER, fx: [] };
+  const ch = { name: chanDefaultName(c), vol: .85, pan: .5, sa: 0, sb: 0, mute: false, solo: false, out: MASTER, fx: [] }; consoleClean(ch, c, null);
   if (c === R0) ch.fx.push(newFx(FX_TYPES.DELAY, { 1: optVal(4, 11), 3: .368, 4: 1, 6: .4375, 7: .502 }));
   if (c === R0 + 1) ch.fx.push(newFx(FX_TYPES.REVERB, { 4: 1 }));
   return ch;
@@ -570,8 +587,9 @@ function normalize(p) {
       if (o.type === 19) o.lfo = Array.isArray(f.lfo) && f.lfo.length >= 2 ? f.lfo.slice(0, 40).map(q => ({ x: clamp01(+q.x || 0), y: clamp01(+q.y || 0), c: Math.max(-.97, Math.min(.97, +q.c || 0)) })) : def.lfo;
       if (o.type === 21) o.steps = Array.from({ length: 16 }, (_, i) => Math.max(0, Math.min(6, (Array.isArray(f.steps) ? f.steps[i] : 0) | 0)));
       return o; });
-    return o; });
+    return consoleClean(o, c, s); });
   n.scenes = Array.from({ length: Array.isArray(p.scenes) && p.scenes.length ? Math.min(MAX_SCENES, p.scenes.length) : NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.name = tfName(s.name, 14); s.notes = s.notes && typeof s.notes === 'object' ? s.notes : {}; s.auto = s.auto && typeof s.auto === 'object' ? s.auto : {}; s.clips = clipsClean(s.clips); return s; });
+  n.console = CONSOLES.some(k => k[0] === p.console) ? p.console : 'none';
   n.bpm = Math.min(220, Math.max(40, +n.bpm || 96)); n.swing = clamp01(+n.swing || 0); n.swq = [48, 24, 12].includes(+n.swq) ? +n.swq : 24;   // the swing grid: 1/8, 1/16 (the default) or 1/32
   return n;
 }
@@ -707,5 +725,5 @@ function stress2V2() {
   for (const s of [0, 1]) { S[s].auto['8.-2.0'] = lane([[0, .35], [4 * BAR, 1], [8 * BAR - 24, .5]]);     S[s].auto['31.-1.3'] = lane([[4 * BAR, 0], [8 * BAR - 24, .45]]); S[s].auto[G.bass + '.-1.0'] = lane([[0, .3], [BAR, .45], [8 * BAR - 24, .45]]); }
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { clipsClean, MAX_SCENES, fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
+if (typeof module !== 'undefined') module.exports = { CONSOLES, CEQ_P, CEQ_TYPE, hasBusComp, newCeq, newBusComp, clipsClean, MAX_SCENES, fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
   buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };

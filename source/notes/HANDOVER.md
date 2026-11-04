@@ -98,8 +98,14 @@ all inlined, so it asks no other site for anything and works offline as a home-s
   - The CSS per engine is the `synDev[data-eng=…]` block in app.html. Faces come from fonts/faces (OFL, LICENSES.txt).
   - Only looks change: same controls, same order, same d-pad path.
   - Switch rule: the second option is up (or right), and the lit label is the one that's on.
+- Consoles (`ui/console.js`, `P.console`: 'none' or 'clean'; `CONSOLES` in js/model.js).
+  - Every channel has `eq` (the channel EQ: engine slot 8, type 40, `CEQ_P`; `post` puts it after the inserts) and `drv` (the desk's character, key `c.-1.4`); groups, buses, returns and the master also have `bus` (the VCA compressor, slot 9, off until engaged).
+  - With 'none' the host leaves slots 8 and 9 empty and drive at 0 (`tfSlotFx`, `tfConsoleOn`), so the plain mixer sounds exactly as before; the tests check that, and that full boosts stay under 0 dBFS.
+  - The mixer shows the console's window (FADERS / EQ / BUS, `UI.mixMode`) over the usual detail row (analyzer, output, effects, sends, pan, drive). Knob skin `desk`, coloured with `--kc`.
+  - Order in a channel: EQ (pre), bus compressor, inserts, EQ (post), drive, fader.
+- Monitoring (crossfeed, headphone correction) was removed from the page; the engine is told it's off. The button by the meter (ANLZ) opens the master analyzer.
 - Text that doesn't fit: `fitFonts(root)` (app.html) runs after a page, sheet or scene strip renders.
-  - First it shrinks the text slightly (down to 85%), then (to 75%), then uses a short form (`data-alt`, `data-alt2`). It never switches typeface. Pad names, mixer names and scene names are left out on purpose: one size per row, two lines (pads, mixer) or an ellipsis.
+  - First it shrinks the text slightly (down to 85%), then uses a short form (`data-alt`, then `data-alt2`), then goes down to 75% (never below 8.5 px). It never switches typeface. Pad names, mixer names and scene names are left out on purpose: one size per row, two lines (pads, mixer) or an ellipsis.
   - Only after all that does it fall back to an ellipsis.
   - Add a selector to `FIT_SEL` for new tight labels. On canvases use `fitText(g, text, width)`.
 
@@ -114,6 +120,7 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 
 ## Where things stand (Nov 3, 2026)
 - Just done:
+  - consoles: Clean (and None); next would be Punchy and Warm, maybe a per-channel console later;
   - the safety pass, all green: tests, levels, bench, security, smoke at five sizes, 120 s fuzz, 400-step session;
   - the new big-project stress test (`tools/audit/stress.cjs`), which passes;
   - meters surviving display errors;

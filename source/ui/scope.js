@@ -12,6 +12,7 @@ function scopeWant() {
   let ch = -1, fc = -1, fs = -1;
   if (SCOPE.sheet >= 0) ch = SCOPE.sheet;
   else if (UI.view === 'sound' && UI.snd === PG.MIX) ch = UI.pad;
+  else if (UI.view === 'mix' && conOn() && UI.mixMode === 'bus') { fc = hasBusComp(UI.mixSel) ? UI.mixSel : MASTER; fs = NSLOTS + 1; }   // the console's gain reduction meter
   else if (UI.view === 'fx' && P.chans[UI.fxCh].fx[UI.fxSlot]) { fc = UI.fxCh; fs = UI.fxSlot; const t = P.chans[fc].fx[fs].type; if (t === FX_TYPES.EQ || t === FX_TYPES.FILTER) ch = fc; }
   const full = SCOPE.sheet >= 0 ? anMask() : 0, key = ch + ':' + fc + ':' + fs + ':' + full; if (key === SCOPE.key) return; SCOPE.key = key;
   SCOPE.hist = []; SCOPE.wv.n = 0; SCOPE.io.pk.fill(-120); SCOPE.io.hold.fill(-120);   // a different effect: start its histories fresh

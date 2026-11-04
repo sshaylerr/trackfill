@@ -522,6 +522,47 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .detail .dk{display:grid;grid-template-columns:repeat(3,64px);gap:4px;justify-content:end}
 .detail .dbtns{display:flex;flex-direction:column;gap:5px;min-width:0}
 .detail .dbtns .key{width:100%;justify-content:flex-start}
+/* the console (ui/console.js): a desk's window in the mixer. Grey steel, tape names, coloured caps */
+.mixView.cx{--pn:#3b4046;--pn2:#2d3136;--cink:#eef0f2;--cink2:#a9b0b8;--d-ink2:#a9b0b8;--d-ring:#fff;--sw-font:"Archivo Narrow"}
+.cx .cwin{flex:1;min-height:0;box-sizing:border-box;border-radius:5px;background:linear-gradient(180deg,var(--pn),var(--pn2));border:1px solid #000;box-shadow:inset 0 1px 0 rgba(255,255,255,.1);padding:5px;display:flex;flex-direction:column;gap:5px;overflow:hidden;color:var(--cink)}
+.cx .ctop{display:flex;align-items:center;gap:6px;height:24px;flex:none}
+.cx .cbadge{height:24px;padding:0 4px;background:none;border:0;font:700 11px "Archivo Narrow",var(--font-ui);letter-spacing:.18em;color:#fff;display:flex;align-items:center;white-space:nowrap} .cx .cbadge small{font-size:8px;letter-spacing:.2em;color:var(--cink2);margin-left:6px}
+.cx .cseg{display:flex;gap:3px;margin-left:auto}
+.cx .cbtn{height:22px;padding:0 8px;border-radius:2px;background:#24272b;border:1px solid #111;color:var(--cink2);font:700 10px "Archivo Narrow",var(--font-ui);letter-spacing:.1em;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
+.cx .cbtn.on{background:#e9ecef;color:#1b1e21} .cx .cbtn i{width:5px;height:5px;border-radius:50%;background:#4a1a14;flex:none} .cx .cbtn.lit{color:#fff} .cx .cbtn.lit i{background:#ff4a2e;box-shadow:0 0 5px #ff4a2e}
+.cx .cbtn:disabled{opacity:.35} .cx .cbtn.ar{width:22px;padding:0;font-size:14px}
+.cx .console{padding:0;gap:3px}
+.cx .strip{background:rgba(0,0,0,.12);border:0;border-left:1px solid rgba(255,255,255,.05);padding:4px 2px} .cx .strip.sel{background:rgba(255,255,255,.08);box-shadow:0 0 0 1.5px #e9ecef inset}
+.cx .strip.empty{opacity:.45}
+.cx .sname{grid-template-rows:10px 24px 0;height:36px;gap:2px} .cx .sname em{font:700 8px/10px "Archivo Narrow",var(--font-ui);color:var(--cink2);letter-spacing:.1em}
+.cx .sname b{background:#efe9da;color:#22201c;border-radius:1px;box-shadow:0 1px 0 rgba(0,0,0,.4);font:700 9px/11px "Archivo Narrow",var(--font-ui);text-transform:uppercase;max-height:24px;padding:1px 1px;box-sizing:border-box;height:24px;display:-webkit-box;align-content:center} .cx .strip.sel .sname b{color:#22201c}
+.cx .sname i{display:none}
+@media (max-width:360px){.cx .sname b{font-size:8px;overflow-wrap:normal;letter-spacing:0} .cx .ms2 button{font-size:6.5px;letter-spacing:0}}
+.cx .eqt{flex:none;width:100%;height:20px;padding:0;border-radius:2px;background:#101214;border:0;box-shadow:inset 0 1px 3px #000;position:relative;overflow:hidden} .cx .eqt svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.cx .fader .fval{color:var(--cink2)} .cx .fader .fmeter{background:#0b0c0d}
+.cx .fader .fcap{width:22px;height:28px;margin-left:-11px;background:linear-gradient(180deg,#d9dcdf,#a7abb0 45%,#8e9297 55%,#c5c8cc);border:1px solid #1b1e21;box-shadow:0 2px 3px rgba(0,0,0,.6)} .cx .fader .fcap::after{left:2px;right:2px;top:12px;height:2px;background:#1b1e21}
+.cx .ms2 button{flex:1;width:auto;min-width:0;height:16px;background:#24272b;border:1px solid #111;font:700 7.5px "Archivo Narrow",var(--font-ui);color:var(--cink2);padding:0;letter-spacing:.02em} .cx .ms2 button.m.on{background:#c8352a;color:#fff} .cx .ms2 button.s.on{background:#e8c93a;color:#1b1e21}
+.cx .knob.sk .dkt line{stroke:#c9ced4;stroke-width:1;stroke-linecap:round} .cx .knob .kval{color:#fff} .cx .knob .klab{color:var(--cink2);font-family:"Archivo Narrow",var(--font-ui);font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.cx .detail .knob .kval{color:var(--ink)} .cx .detail .knob .klab{color:var(--mute)}
+#view .mixView.cx .detail .dk{grid-template-columns:repeat(4,54px)} #view.short .mixView.cx .detail .dk{grid-template-columns:repeat(4,46px)} #view.tiny .mixView.cx .detail .dk{grid-template-columns:repeat(4,34px)}
+#view .mixView.cx .detail .knob svg{width:40px;height:40px} #view.tiny .mixView.cx .detail .knob svg{width:30px;height:30px}
+.cx .ceq,.cx .cbus{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;overflow-y:auto;overflow-x:hidden}
+.cx .chead{display:flex;align-items:center;gap:4px;height:24px;flex:none} .cx .chead>.cbtn{flex:none}
+.cx .cpick{display:flex;align-items:center;gap:3px;flex:1;min-width:0;margin-right:auto}
+.cx .ctape{flex:1;min-width:0;height:18px;border-radius:1px;background:#efe9da;color:#22201c;font:700 10px/18px "Archivo Narrow",var(--font-ui);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;box-shadow:0 1px 0 rgba(0,0,0,.4);max-width:130px}
+.cx .ceqscr{flex:1 0 56px;max-height:120px;border-radius:3px;box-shadow:inset 0 2px 5px #000;position:relative;overflow:hidden} .cx .ceqscr canvas,.cx .cvu canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.cx .cbands{display:flex;flex-direction:column;flex:none}
+.cx .cband{display:grid;grid-template-columns:44px repeat(3,minmax(0,1fr)) 56px;align-items:center;gap:2px;border-top:1px solid rgba(0,0,0,.35);box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:1px 0}
+.cx .cbl{height:40px;border-radius:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 11px "Archivo Narrow",var(--font-ui);letter-spacing:.08em;color:#fff;background:var(--bc);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 0 #000} .cx .cbl.lite{background:#6b7178}
+.cx .cbl small{font-size:7.5px;letter-spacing:.14em;opacity:.8}
+.cx .cband .knob{padding:0} .cx .cband .knob svg{width:32px;height:32px} .cx .cbgrid .knob svg{width:38px;height:38px} .cx .cband .knob .kval,.cx .cbgrid .knob .kval{font-size:9px;line-height:10px} .cx .cband .knob .klab,.cx .cbgrid .knob .klab{font-size:8px;line-height:9px}
+.cx .ctg{display:flex;flex-direction:column;align-items:center;gap:4px} .cx .ctg .cbtn{height:20px;padding:0 6px;font-size:9px;min-width:46px}
+.cx .cvu{flex:none;height:clamp(70px,15vh,118px);border-radius:4px;background:#101214;box-shadow:inset 0 2px 5px #000;position:relative;overflow:hidden;border:6px solid #101214;box-sizing:border-box}
+.cx .cbgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 4px;padding:6px 0 2px;border-top:1px solid rgba(0,0,0,.35);align-items:start}
+.cx .cbgrid .selr{min-width:0} .cx .cbgrid .selr .klab{font:700 8px/9px "Archivo Narrow",var(--font-ui);letter-spacing:.1em;color:var(--cink2);text-transform:uppercase} .cx .sw-rotary .rot text.on{fill:#fff}
+.cx .cbgrid>.knob{padding-top:18px}   /* level with the pointer knobs, whose settings are printed above them */
+.cx .cbfoot{grid-column:1/-1;display:flex;justify-content:center} .cx .cbfoot .knob{width:33%}
+.cx .cbus.off .cbgrid{opacity:.55}
 .scopebox{position:relative;display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;text-align:left;padding:0 8px;cursor:pointer;overflow:hidden}
 .scopebox span,.scopebox i{position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .scopebox i{flex:none;display:flex;color:var(--mute)} .scopebox i svg{width:14px;height:14px;fill:currentColor}
@@ -666,7 +707,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
     <button class="tb ic" id="bPanel" aria-label="Precision controls"><svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" opacity=".95"/></svg></button>
     <button class="tb ic" id="bMenu" aria-label="Project menu"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="2.2" rx="1.1"/><rect x="4" y="11" width="16" height="2.2" rx="1.1"/><rect x="4" y="16" width="16" height="2.2" rx="1.1"/></svg></button>
   </header>
-  <div id="meter" title="Output level. Tap for the master analyzer (and to reset the clip light)."><div class="bars"><div class="bar"><i></i></div><div class="bar"><i></i></div></div><span class="cpu lcd">CPU —</span><span class="mon" id="bMon" title="Monitoring: speakers or crossfeed on headphones">MON</span><span class="clip">CLIP</span><div id="note" role="status" aria-live="polite"></div></div>
+  <div id="meter" title="Output level. Tap for the master analyzer (and to reset the clip light)."><div class="bars"><div class="bar"><i></i></div><div class="bar"><i></i></div></div><span class="cpu lcd">CPU —</span><span class="mon" id="bMon" title="Master analyzer">ANLZ</span><span class="clip">CLIP</span><div id="note" role="status" aria-live="polite"></div></div>
   <nav id="scenes" aria-label="Scenes"></nav>
   <main id="view"></main>
   <section id="panel" hidden aria-label="Precision controls">
@@ -825,7 +866,7 @@ const duckerCount = () => P.chans.reduce((n, c) => n + c.fx.filter(f => f.type =
 
 /* ================= state ================= */
 let P = null;
-const UI = { follow: true, mon: { mode: 0, phones: '' }, theme: 'amber', padStyle: 'dark', view: 'pads', bank: 0, pad: 0, scene: 0, keys: false, oct: 0, keyCell: 0, panel: false, shift: false, fine: 0, mirror: false, sheet: false,
+const UI = { follow: true, theme: 'amber', padStyle: 'dark', view: 'pads', bank: 0, pad: 0, scene: 0, keys: false, oct: 0, keyCell: 0, panel: false, shift: false, fine: 0, mirror: false, sheet: false,
   tl: { mode: 'bank', lane: 'notes', target: null, zoom: null, sx: 0, sy: null, by: 0, rv: 16, kh: 24, snap: 24, sel: null, ms: null, selMode: false, box: null, selPt: -1, draw: false, cursor: { t: 0, row: 0, v: .5 } },
   snd: 0, slice: 0, click: 'rec', countIn: 1, clickVol: .5, mixPage: 0, mixSel: 0, fxCh: 0, fxSlot: 0, fxBack: 'mix', regs: [], autoRec: null, haptics: true };
 const T = { playing: false, rec: false, loop: 'scene' };
@@ -1038,7 +1079,7 @@ function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 
 // the song's key, for effects that play in it (the Resonator): sent whenever it changes
 let keySent = ''; function syncKey(force) { if (!P || !P.key) return; const iv = scaleOf(P.key.scale)[1], sig = P.key.root + ':' + iv.join(','); if (sig === keySent && !force) return; keySent = sig; send({ t: 'key', root: P.key.root, iv }); }
 function saveNow() { clearTimeout(saveTimer); if (P) { projSave(); abTouched(); } }
-function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, font2: UI.font, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, mon: UI.mon, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog }); }
+function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, padStyle: UI.padStyle, font2: UI.font, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -1323,7 +1364,7 @@ function spreadSlices(pi) {
   touchPad(pi); pushUndo('all'); const S = P.chans[pi], tpl = JSON.parse(JSON.stringify(pad));
   free.forEach((j, k) => { const [a, b] = sliceRange(pad, k);
     P.pads[j] = Object.assign(JSON.parse(JSON.stringify(tpl)), { name: ((pad.name || 'Slice').slice(0, 8) + ' ' + (k + 1)).slice(0, 12), start: a, end: b, chop: null, frz: null });
-    Object.assign(P.chans[j], { vol: S.vol, pan: S.pan, sa: S.sa, sb: S.sb, out: S.out, fx: S.fx.filter(f => f.type !== FX_TYPES.DUCK).map(f => JSON.parse(JSON.stringify(f))) }); });
+    Object.assign(P.chans[j], { vol: S.vol, pan: S.pan, sa: S.sa, sb: S.sb, out: S.out, eq: JSON.parse(JSON.stringify(S.eq)), drv: S.drv || 0, fx: S.fx.filter(f => f.type !== FX_TYPES.DUCK).map(f => JSON.parse(JSON.stringify(f))) }); });
   for (const sc of P.scenes) { const arr = sc.notes[pi]; if (!arr) continue;   // the pattern moves with the slices, so it still sounds the same
     for (const nn of arr) { const j = free[clamp(Math.round(nn.p) || 0, 0, n - 1)]; (sc.notes[j] = sc.notes[j] || []).push(Object.assign({}, nn, { p: 0 })); } delete sc.notes[pi]; }
   for (const C of P.chans) for (const f of C.fx) if (f.type === FX_TYPES.DUCK && f.trig.includes(pi)) for (const j of free) if (!f.trig.includes(j)) f.trig.push(j);
@@ -1351,7 +1392,8 @@ async function freezePad(pi) {
 
 /* ---------- parameter metadata by key ---------- */
 const STRIP = [{ label: 'Volume', short: 'Vol', def: .85, fmt: volFmt, step: .0025, coarse: .025 }, { label: 'Pan', short: 'Pan', def: .5, fmt: panFmt, bipolar: true, step: .005, coarse: .05 },
-  { label: 'Send A', short: 'Send A', def: 0, fmt: sendFmt, step: .0025, coarse: .025 }, { label: 'Send B', short: 'Send B', def: 0, fmt: sendFmt, step: .0025, coarse: .025 }];
+  { label: 'Send A', short: 'Send A', def: 0, fmt: sendFmt, step: .0025, coarse: .025 }, { label: 'Send B', short: 'Send B', def: 0, fmt: sendFmt, step: .0025, coarse: .025 },
+  { label: 'Drive', short: 'Drive', def: 0, fmt: v => Math.round(v * 100) + '%', step: .005, coarse: .05 }];   // the console's character
 const SOUNDP = [{ label: 'Cutoff', short: 'Cutoff', def: 1, fmt: v => { const f = 20 * Math.pow(1000, v); return f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + ' kHz' : Math.round(f) + ' Hz'; }, step: .002, coarse: .025 },
   { label: 'Resonance', short: 'Reso', def: .08, fmt: v => (.7 + v * v * 18).toFixed(1), step: .005, coarse: .03 }];
 // typing a value: what the box shows (get) and the control value it sets (set)
@@ -1369,10 +1411,11 @@ function keyMeta(key) {
   if (s === -2 && i === 2) { const r = (P.pads[c] && P.pads[c].bendR) || 2; return { label: 'Pitch bend', short: 'Bend', def: .5, bipolar: true, step: .002, coarse: .02, fmt: v => { const st = (v * 2 - 1) * r; return (st > 0 ? '+' : '') + st.toFixed(Math.abs(st) < 10 ? 2 : 1) + ' st'; } }; }
   if (s === -2) return SOUNDP[i];
   if (s === -3) { const d = TFSYN[i]; return d ? { label: d.l, short: d.l, def: tfSynNorm(d, d.d), bipolar: d.k === 'bip', step: .002, coarse: .02, fmt: v => synFmt(d, tfSynPhys(d, v)) } : { label: '?', short: '?', def: 0, fmt: pct }; }
-  const f = P.chans[c].fx[s]; if (!f) return { label: 'Missing effect', short: '?', def: 0, fmt: pct };
-  const d = FX_DEFS[f.type]; if (i === -1) return { label: `${d.name} on`, short: `${s + 1}·On`, def: f.on ? 1 : 0, toggle: true, fmt: v => v >= .5 ? 'On' : 'Off', step: 1, coarse: 1 };
-  const prm = fxParams(f)[i];
-  return { label: `${d.name} ${prm.n}`, short: `${s + 1}·${prm.n}`, def: prm.d, fmt: prm.opts ? v => prm.opts[Math.round(v * (prm.opts.length - 1))] : prm.f, step: prm.opts ? 1 / (prm.opts.length - 1) : .002, coarse: prm.opts ? 1 / (prm.opts.length - 1) : .02 };
+  const f = tfSlotFx(P, P.chans[c], s); if (!f) return { label: 'Missing effect', short: '?', def: 0, fmt: pct };
+  const con = s >= NSLOTS, name = s === NSLOTS ? 'EQ' : con ? 'Bus comp' : FX_DEFS[f.type].name, tag = s === NSLOTS ? 'EQ' : con ? 'Bus' : s + 1;   // slots past the inserts are the console's
+  if (i === -1) return { label: `${name} on`, short: `${tag}·On`, def: f.on ? 1 : 0, toggle: true, fmt: v => v >= .5 ? 'On' : 'Off', step: 1, coarse: 1 };
+  const prm = s === NSLOTS ? CEQ_P[i] : fxParams(f)[i]; if (!prm) return { label: '?', short: '?', def: 0, fmt: pct };
+  return { label: `${name} ${prm.n}`, short: `${tag}·${prm.n}`, def: prm.d, fmt: prm.opts ? v => prm.opts[Math.round(v * (prm.opts.length - 1))] : prm.f, step: prm.opts ? 1 / (prm.opts.length - 1) : .002, coarse: prm.opts ? 1 / (prm.opts.length - 1) : .02 };
 }
 
 /* ================= rendering ================= */
@@ -2123,17 +2166,8 @@ function openTempo() {
     const cv = paramEl({ label: 'Click volume', min: 0, max: 1, step: .05, coarse: .1, get: () => UI.clickVol, set: v => { UI.clickVol = v; sendClick(); savePrefs(); }, def: .5, fmt: v => Math.round(v * 100) + '%', noFocus: true }); cv.style.marginTop = '14px';
     card.append(cv, h('p', 'note', 'Not included in exports.')); });
 }
-/* ---------- monitoring: speakers or crossfeed for headphones, and headphone correction. This device's output only: never exports ---------- */
-const MON_MODES = ['Off', 'Crossfeed', 'Speakers'];
-function sendMonitor() { if (!UI.mon) UI.mon = { mode: 0, phones: '' }; send({ t: 'monitor', mode: UI.mon.mode, phones: UI.mon.phones }); const b = $('#bMon'); if (b) b.classList.toggle('on', !!(UI.mon.mode || UI.mon.phones)); }
-function openMonitor() {
-  openSheet('Monitoring', card => { const st = h('div', 'stack'); card.append(st); const set = (k, v) => { UI.mon[k] = v; sendMonitor(); savePrefs(); closeSheet(); openMonitor(); };
-    st.append(h('div', 'sec', 'Listen as'));
-    const g = h('div', 'g3'); MON_MODES.forEach((n, i) => g.append(btn(n, () => set('mode', i), 'btn' + (UI.mon.mode === i ? ' on' : '')))); st.append(g);
-    st.append(h('div', 'sec', 'Headphones'));
-    const g2 = h('div', 'g2'); g2.append(btn('No correction', () => set('phones', ''), 'btn' + (!UI.mon.phones ? ' on' : ''))); for (const n of Object.keys(TF_PHONES)) g2.append(btn(n, () => set('phones', n), 'btn' + (UI.mon.phones === n ? ' on' : ''))); st.append(g2);
-    st.append(h('p', 'note', 'What you hear only. Exports, bounces and freezes are never affected.')); });
-}
+// monitoring (crossfeed, headphone correction) has gone: the engine is told it's off, in case a saved state ever asked for it
+function sendMonitor() { send({ t: 'monitor', mode: 0, phones: '' }); }
 /* The main menu: grouped the way most music apps order theirs (the project and its files, editing, sound, settings, help); anything with
    more than a couple of choices opens its own page (›), so this one stays short. */
 function openMenu() {
@@ -2143,12 +2177,11 @@ function openMenu() {
     sec('Project');
     row('Projects…', 'open, new, templates, backups', () => { closeSheet(); openProjects(); });
     row('Export…', 'mix, stems or MIDI', () => { closeSheet(); openExport(); });
+    row('Console…', conOn() ? conName() : 'none', () => { closeSheet(); openConsolePicker(); });
     row('Tempo & click…', `${+P.bpm.toFixed(1)} BPM · swing ${Math.round(50 + P.swing * 25)}%`, () => { closeSheet(); openTempo(); });
     sec('Edit');
     row('Redo', REDO.length ? '' : 'nothing to redo', () => { closeSheet(); redo(); });
     sec('Sound');
-    const mon = UI.mon && (UI.mon.mode || UI.mon.phones);
-    row('Monitoring…', mon ? [UI.mon.mode ? MON_MODES[UI.mon.mode] : '', UI.mon.phones].filter(Boolean).join(' · ') : 'off', () => { closeSheet(); openMonitor(); });
     row('Engine check…', 'sound, response time, device power', () => { closeSheet(); openDiag(); });
     row('Panic', 'stop every sound now', () => { closeSheet(); panic(); }, 'warn');
     sec('Settings');
@@ -2230,7 +2263,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-03', ['Messages slide in over the level meter (or show in the d-pad\'s window when it\'s open); the bar above the tabs is gone.', 'One typeface everywhere; pad and mixer names at one size, longer ones on two lines; mixer numbers and colour bars line up.', 'Clearer Analog, Sub and Instrument screens.', 'Synth pages tidied: knobs in a block, selectors and switches in a column on the right, everything lined up. Analog picks waves and modes with a pointer knob; the page keys are each synth\'s own buttons.', 'Fix: text cut off with the d-pad open.', 'Each synth engine is now its own instrument: its own knobs, switches, keys and screen. Every control and patch works as before.', 'FX synth: a Play key. Instrument: keys to jump between kinds of instrument.', 'Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
+  ['2026-11-03', ['Consoles (Menu › Console): Clean, a large-format desk with a four-band EQ on every channel, a bus compressor on groups, buses and the master, and drive. None keeps the plain mixer.', 'The ANLZ button by the level meter opens the master analyzer; the monitoring options are gone.', 'Messages slide in over the level meter (or show in the d-pad\'s window when it\'s open); the bar above the tabs is gone.', 'One typeface everywhere; pad and mixer names at one size, longer ones on two lines; mixer numbers and colour bars line up.', 'Clearer Analog, Sub and Instrument screens.', 'Synth pages tidied: knobs in a block, selectors and switches in a column on the right, everything lined up. Analog picks waves and modes with a pointer knob; the page keys are each synth\'s own buttons.', 'Fix: text cut off with the d-pad open.', 'Each synth engine is now its own instrument: its own knobs, switches, keys and screen. Every control and patch works as before.', 'FX synth: a Play key. Instrument: keys to jump between kinds of instrument.', 'Fix: synth pads and audio tracks no longer look empty in the mixer and on the pads.', 'Fix: device meters and analyzers keep working after an error.', 'Names that don\'t fit (mixer strips, scenes, menus) get a little smaller or narrower before they\'re cut off; messages wrap.', 'New rounded text font (Appearance › Text has a narrower one).', 'Fix: trying many wavetables or sounds in a row could fill the engine\'s memory (“Out of memory”). Ones nothing uses are now cleared out.', 'Audio tracks: make a pad one (Sound source › Audio track), up to 10 minutes of recordings per project. Keys opens its editor: scenes, each bank\'s notes and the grid above the clips; drag, trim and split anywhere, across scenes.', 'Audio clips: gain, fades, reverse and stretch to tempo on the Sound page; copy, paste, duplicate and send to a pad in Edit.', 'Clips belong to the scene they start in and move with it; looping a scene plays the audio that falls inside it.', 'New output: Speaker (direct), past the master and left out of exports, for a reference.', 'Backups now keep your wavetables as wavetables, with their folders, tags, favorites and recent.', 'Wavetable browser: search, folders (a pack gets its own, with its sub-folders), tags worked out from the sound on import, favorites and recent. Hold a table to rename, move, tag or delete it; ⋯ › Scan library re-tags everything.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
   ['2026-10-31', ['Automation points stick to the middle, the bottom and the default; curves snap straight.', 'Automation shows where the previous section leaves a control and the next picks it up; points stick to those values.', 'New project: Blank (no sounds).', 'Sound source menu: clear the pad, its bank or all pads.', 'Slide across pads to play them.', 'Fix: a second finger on a held pad left a stuck note.', 'Synth: Sub and Noise can run through the filter (Sub·Noise page).', 'Fix: synth knobs could ignore quick drags while the panel was open; Map mode now ends when you leave the page.', 'Arpeggiator works on single notes in every key mode: hold notes to arpeggiate them, or one note to repeat it.']],
@@ -2654,7 +2687,7 @@ function drawMeter() { [METER.l, METER.r].forEach((v, i) => { const db = v > 1e-
     meterEls[i].style.transform = `scaleX(${f})`; meterEls[i].classList.toggle('hot', db > -3); }); clipEl.classList.toggle('on', METER.clip);
   const n = performance.now(); if (n - lastCpuDraw > 400) { lastCpuDraw = n; const c = ENG.ready ? Math.round(REP.cpu * 100) : null; cpuEl.textContent = c == null ? 'CPU —' : `CPU ${c}%`; cpuEl.classList.toggle('hot', c != null && c > 60); } }
 $('#meter').addEventListener('click', () => { METER.clip = false; drawMeter(); openAnalyzer(MASTER); });   // the output meter opens the master's analyzer
-$('#bMon').addEventListener('click', e => { e.stopPropagation(); openMonitor(); });
+$('#bMon').addEventListener('click', e => { e.stopPropagation(); openAnalyzer(MASTER); });
 $('#bPlay').onclick = play;
 $('#bRec').onclick = () => { T.rec = !T.rec; sendClick(); REC.saved = -1; REC.last = null; updateTransport(); if (T.rec && !T.playing) toast('Record armed. Press play, then play pads or move controls.'); };
 $('#bLoop').onclick = () => { T.loop = T.loop === 'scene' ? 'song' : 'scene'; send({ t: 'loop', v: T.loop }); updateTransport(); savePrefs(); toast(T.loop === 'song' ? 'Song mode: scenes play in order with repeats' : 'Scene mode: the selected scene loops'); };
@@ -2708,7 +2741,7 @@ async function boot() {
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (SNAPS.some(x => x.t === pr.snap)) UI.tl.snap = pr.snap; UI.tl.velOpen = pr.velOpen !== false;
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark'; UI.font = pr.font2 === 'narrow' ? 'narrow' : 'rounded';
     UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null;
-    UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; if (pr.mon) UI.mon = { mode: [0, 1, 2].includes(pr.mon.mode) ? pr.mon.mode : 0, phones: pr.mon.phones && !TF_PHONES[pr.mon.phones] ? 'Wired earbuds' : TF_PHONES[pr.mon.phones] ? pr.mon.phones : '' }; }
+    UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty();
   await abLoad(); brLoad(); setTimeout(abTick, 15000); setTimeout(refCleanup, 60000); setInterval(abTick, 5 * 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(abTick, 4000); });

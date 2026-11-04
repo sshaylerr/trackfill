@@ -15,7 +15,9 @@ typedef short i16;
 #define EX extern "C" __attribute__((visibility("default")))
 
 enum { NCH = 83, SPEAKER = 83, NPAD = 64, G0 = 64, B0 = 72, R0 = 80, MASTER = 82, NSLOT = 8, MAXN = 128,
-       NVOICE = 96, VOICECAP = 80, NSAMP = 1024, NPARAM = 12 };
+       NVOICE = 96, VOICECAP = 80, NSAMP = 1024, NPARAM = 16 };
+// the console: every channel has a channel EQ in slot NSLOT and (groups, buses, master) a bus compressor in slot NSLOT + 1, outside the inserts
+enum { SL_EQ = 8, SL_BUS = 9, NSLOTX = 10, FX_CEQ = 40 };
 enum { FX_EQ = 0, FX_COMP, FX_FILTER, FX_SAT, FX_DELAY, FX_REVERB, FX_DUCK, FX_UTIL, FX_CHORUS, FX_CLIP, FX_CRUSH, FX_TRANS, FX_PHASER,
        FX_LIMIT, FX_MBAND, FX_TAPE, FX_GATE, FX_DISP, FX_APAN, FX_LFOT, FX_VINYL, FX_STEP, FX_GRIN, FX_DIST, FX_INFL, FX_RESO, FX_PITCH, FX_FSHIFT, FX_RING, FX_IMAGER, FX_DEESS, FX_COUNT };
 
@@ -252,7 +254,8 @@ struct Chan {
   float vol, pan, sa, sb, mute, cut, res;      // targets
   float cv, cp, ca, cb, cm, ccut, cres;        // smoothed
   float fz1[2], fz2[2];                        // pad filter state
-  i32 out; u32 quiet, tail, oq, gap; Fx fx[NSLOT];   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
+  i32 out; u32 quiet, tail, oq, gap; Fx fx[NSLOTX];
+  i32 eqPost; float drv, cdrv;   // the console: channel EQ before or after the inserts; the console's character (0 = none)   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
 };
 static Chan chs[NCH];
 static float dirL[MAXN], dirR[MAXN]; static i32 dirMute = 0;   // channels routed to the speaker; exports leave them out
@@ -285,7 +288,7 @@ EX void tf_init(float sr) {
     Chan* C = &chs[c];
     C->vol = C->cv = 0.98f; C->pan = C->cp = 0; C->sa = C->ca = 0; C->sb = C->cb = 0; C->mute = C->cm = 1;
     C->cut = C->ccut = 20000.f; C->res = C->cres = 0.707f; C->out = defaultOut(c); C->tail = (u32)(0.3f * SR); C->gap = (u32)(0.1f * SR); C->quiet = 0; C->oq = 0;
-    for (i32 s = 0; s < NSLOT; s++) C->fx[s].type = -1;
+    for (i32 s = 0; s < NSLOTX; s++) C->fx[s].type = -1; C->eqPost = 0; C->drv = C->cdrv = 0;
   }
 }
 EX void tf_set_bpm(float b) { BPM = sane(b, 20.f, 400.f, 120.f); }
@@ -301,6 +304,8 @@ EX void tf_ch_set(i32 c, i32 what, float v) {
     case 4: C->mute = sane(v, 0.f, 1.f, 0.f); break;
     case 5: C->cut = sane(v, 20.f, 20000.f, 20000.f); break;
     case 6: C->res = sane(v, 0.5f, 25.f, 0.707f); break;
+    case 7: C->eqPost = v >= 0.5f ? 1 : 0; break;
+    case 9: C->drv = sane(v, 0.f, 1.f, 0.f); break;
   }
 }
 EX void tf_ch_route(i32 c, i32 o) { if (c >= 0 && c < NCH) chs[c].out = validOut(c, o); }
@@ -322,7 +327,7 @@ static u32 discMask(i32 t, i32 m) {
     case FX_PHASER: return m == 1 ? B2 : 0;
     case FX_LIMIT: return B3 | B4;
     case FX_APAN: return B0 | B1 | B4; case FX_LFOT: return B0 | B1; case FX_VINYL: return B4; case FX_STEP: return B0 | B1; case FX_GRIN: return B1;
-    case FX_INFL: return B3 | B4; case FX_RESO: return B0 | B1 | B2 | B6; case FX_PITCH: return m == 1 ? B0 | B1 : 0; case FX_RING: return B1; case FX_DEESS: return B3 | B4;
+    case FX_CEQ: return B4 | (1u << 13) | (1u << 14); case FX_INFL: return B3 | B4; case FX_RESO: return B0 | B1 | B2 | B6; case FX_PITCH: return m == 1 ? B0 | B1 : 0; case FX_RING: return B1; case FX_DEESS: return B3 | B4;
     default: return 0;
   }
 }
@@ -395,10 +400,10 @@ static u32 fxGap(const Fx* f) { switch (f->type) { case FX_DELAY: return (u32)DL
 static void chanTail(Chan* C) { u32 t = (u32)(0.3f * SR), g = (u32)(0.1f * SR); for (i32 s = 0; s < NSLOT; s++) if (C->fx[s].type >= 0) { u32 x = fxTail(&C->fx[s]); if (x > t) t = x; x = fxGap(&C->fx[s]); if (x > g) g = x; } C->tail = t; C->gap = g; }
 static void fxReset(Fx* f) { f->vis[0] = f->vis[1] = f->vis[2] = f->vis[3] = 0.f; if (f->st) zero(f->st, f->stBytes); for (i32 i = 0; i < NPARAM; i++) f->last[i] = -1.f; }
 
-static Fx* fxAt(i32 c, i32 s) { return (c >= 0 && c < NCH && s >= 0 && s < NSLOT) ? &chs[c].fx[s] : 0; }
+static Fx* fxAt(i32 c, i32 s) { return (c >= 0 && c < NCH && s >= 0 && s < NSLOTX) ? &chs[c].fx[s] : 0; }
 EX i32 tf_fx_type(i32 c, i32 s, i32 type) {
   Fx* f = fxAt(c, s); if (!f) return 0;
-  if (type < -1 || type >= FX_COUNT) type = -1;
+  if (type < -1 || (type >= FX_COUNT && type != FX_CEQ)) type = -1;
   if (f->st) { tf_free(f->st); f->st = 0; f->stBytes = 0; }
   f->type = type; f->mode = 0; f->on = 1; f->key = -1; f->fresh = 1; f->ntrig = 0;
   if (type >= 0) { f->stBytes = fxStateBytes(type, 0); f->st = tf_malloc(f->stBytes); if (!f->st) { f->type = -1; return 0; } fxReset(f); }
@@ -645,6 +650,43 @@ static float noiseGate(float* g, const float* L, const float* R, i32 n) {
 #include "fx_more.inc"
 #include "fx_more2.inc"
 #include "synth.inc"
+/* ================= the console: channel EQ and character =================
+   Clean (a large-format British desk, the E/G channel): high-pass 16–350 Hz at 18 dB/oct and low-pass 3–22 kHz at 12 dB/oct (each off at its end),
+   HF shelf 1.5–16 kHz and LF shelf 30–450 Hz (either a bell), HMF 600 Hz–7 kHz and LMF 200 Hz–2.5 kHz bells with Q 0.5–2.5, ±15 dB.
+   Brown: constant Q and plain shelves. Black: the bells narrow as they're pushed (proportional Q) and the shelves overshoot a little.
+   Params: 0 HPF, 1 LPF, 2–4 HF gain/freq/bell, 5–7 HMF gain/freq/Q, 8–10 LMF gain/freq/Q, 11–13 LF gain/freq/bell, 14 curve. A flat band costs nothing. */
+struct CeqSt { BQ2 q[6]; i32 on[6]; float hx[2], hy[2], ha; i32 h1; };
+static void ceqCoef(Fx* f, CeqSt* e) {
+  const float* s = f->s; const i32 black = s[14] >= 0.5f;
+  const float pq = 1.f / 15.f, shQ = black ? 1.05f : 0.7071f;
+  for (i32 b = 0; b < 6; b++) e->on[b] = 0;
+  e->h1 = s[0] > 0.001f; if (e->h1) { const float fc = expmap(s[0], 16.f, 350.f); bq2Set(&e->q[0], BQ_HP, fc, 1.f, 0); e->on[0] = 1; e->ha = fexp(-6.28318531f * fc / SR); }
+  if (s[1] < 0.999f) { bq2Set(&e->q[1], BQ_LP, expmap(s[1], 3000.f, 22000.f), 0.7071f, 0); e->on[1] = 1; }
+  const float gh = linmap(s[2], -15, 15), gm = linmap(s[5], -15, 15), gl = linmap(s[8], -15, 15), gb = linmap(s[11], -15, 15);
+  const float qm = expmap(s[7], 0.5f, 2.5f) * (black ? 0.6f + 1.2f * fabsf_(gm) * pq : 1.f), ql = expmap(s[10], 0.5f, 2.5f) * (black ? 0.6f + 1.2f * fabsf_(gl) * pq : 1.f);
+  if (fabsf_(gh) > 0.05f) { const float fr = expmap(s[3], 1500.f, 16000.f); if (s[4] >= 0.5f) bq2Set(&e->q[2], BQ_PEAK, fr, black ? 0.5f + 1.f * fabsf_(gh) * pq : 0.9f, gh); else bq2Set(&e->q[2], BQ_HS, fr, shQ, gh); e->on[2] = 1; }
+  if (fabsf_(gm) > 0.05f) { bq2Set(&e->q[3], BQ_PEAK, expmap(s[6], 600.f, 7000.f), qm, gm); e->on[3] = 1; }
+  if (fabsf_(gl) > 0.05f) { bq2Set(&e->q[4], BQ_PEAK, expmap(s[9], 200.f, 2500.f), ql, gl); e->on[4] = 1; }
+  if (fabsf_(gb) > 0.05f) { const float fr = expmap(s[12], 30.f, 450.f); if (s[13] >= 0.5f) bq2Set(&e->q[5], BQ_PEAK, fr, black ? 0.5f + 1.f * fabsf_(gb) * pq : 0.9f, gb); else bq2Set(&e->q[5], BQ_LS, fr, shQ, gb); e->on[5] = 1; }
+}
+static void fx_ceq(Fx* f, float* L, float* R, i32 n) {
+  CeqSt* e = (CeqSt*)f->st; i32 dirty = 0;
+  for (i32 i = 0; i < 15; i++) if (f->s[i] != f->last[i]) { dirty = 1; f->last[i] = f->s[i]; }
+  if (dirty) ceqCoef(f, e);
+  i32 any = e->h1; for (i32 b = 1; b < 6; b++) any |= e->on[b]; if (!any) return;
+  for (i32 c = 0; c < 2; c++) { float* x = c ? R : L;
+    for (i32 i = 0; i < n; i++) { float y = x[i];
+      if (e->h1) { const float o = e->ha * (e->hy[c] + y - e->hx[c]); e->hx[c] = y; e->hy[c] = o; y = o; }   // the third pole of the high-pass
+      for (i32 b = 0; b < 6; b++) if (e->on[b]) y = bq2(&e->q[b], c, y);
+      x[i] = y; } }
+}
+// the console's character: the desk's electronics pushed a little. Level-matched (unity for small signals); it rounds the peaks and adds
+// low-order odd harmonics as it's turned up. Off at 0, and never more than gentle.
+static void consoleChar(Chan* C, float* L, float* R, i32 n) {
+  C->cdrv += (C->drv - C->cdrv) * 0.2f; if (C->cdrv < 1e-4f) { C->cdrv = C->drv < 1e-4f ? 0.f : C->cdrv; if (C->cdrv == 0.f) return; }
+  const float d = C->cdrv, k = 1.f + 2.5f * d, ik = 1.f / k, mix = 0.65f * d;
+  for (i32 i = 0; i < n; i++) { const float l = L[i], r = R[i]; L[i] = l + (fsat(l * k) * ik - l) * mix; R[i] = r + (fsat(r * k) * ik - r) * mix; }
+}
 static u32 fxStateBytes(i32 t, i32 m) {
   if (m == 0 && t < FX_LIMIT) return fxStateBytes0(t);
   switch (t) {
@@ -653,7 +695,7 @@ static u32 fxStateBytes(i32 t, i32 m) {
     case FX_CLIP: return sizeof(Clip2St); case FX_CRUSH: return sizeof(Crush2St); case FX_PHASER: return sizeof(PhaserSt);
     case FX_LIMIT: return sizeof(LimSt); case FX_MBAND: return sizeof(MbSt); case FX_TAPE: return sizeof(TapeSt); case FX_GATE: return sizeof(GateSt); case FX_DISP: return sizeof(DispSt);
     case FX_APAN: return sizeof(APSt); case FX_LFOT: return sizeof(LTSt); case FX_VINYL: return sizeof(VinSt); case FX_STEP: return sizeof(StepSt); case FX_GRIN: return sizeof(GrinSt);
-    case FX_DIST: return sizeof(DistSt); case FX_INFL: return sizeof(InflSt); case FX_RESO: return sizeof(ResoSt);
+    case FX_DIST: return sizeof(DistSt); case FX_INFL: return sizeof(InflSt); case FX_RESO: return sizeof(ResoSt); case FX_CEQ: return sizeof(CeqSt);
     case FX_PITCH: return sizeof(PitchSt); case FX_FSHIFT: return sizeof(FSh2St); case FX_RING: return sizeof(RingSt); case FX_IMAGER: return sizeof(ImgSt); case FX_DEESS: return sizeof(DeesSt);
     default: return fxStateBytes0(t);
   }
@@ -684,7 +726,7 @@ static void fx_run(i32 c, Fx* f, float* L, float* R, i32 n) {
     case FX_GATE: fx_gate(f, L, R, n, kL, kR); break; case FX_DISP: fx_disp(f, L, R, n); break;
     case FX_APAN: fx_autopan(f, L, R, n); break; case FX_LFOT: fx_lfotool(f, L, R, n); break; case FX_VINYL: fx_vinyl(f, L, R, n); break; case FX_STEP: fx_step(f, L, R, n); break; case FX_GRIN: fx_grin(f, L, R, n); break;
     case FX_DIST: fx_dist(f, L, R, n); break; case FX_INFL: fx_inflate(f, L, R, n); break; case FX_RESO: fx_reso(f, L, R, n); break;
-    case FX_PITCH: fx_pitch(f, L, R, n); break; case FX_FSHIFT: fx_fshift(f, L, R, n); break; case FX_RING: fx_ring(f, L, R, n); break; case FX_IMAGER: fx_imager(f, L, R, n); break; case FX_DEESS: fx_deess(f, L, R, n); break;
+    case FX_PITCH: fx_pitch(f, L, R, n); break; case FX_FSHIFT: fx_fshift(f, L, R, n); break; case FX_RING: fx_ring(f, L, R, n); break; case FX_IMAGER: fx_imager(f, L, R, n); break; case FX_DEESS: fx_deess(f, L, R, n); break; case FX_CEQ: fx_ceq(f, L, R, n); break;
   }
   (void)c;
 }
@@ -732,7 +774,7 @@ static void renderVoices(i32 n) {
 }
 static void resetChan(i32 c) {
   Chan* C = &chs[c]; C->fz1[0] = C->fz1[1] = C->fz2[0] = C->fz2[1] = 0;
-  for (i32 s = 0; s < NSLOT; s++) fxReset(&C->fx[s]);
+  for (i32 s = 0; s < NSLOTX; s++) fxReset(&C->fx[s]);
 }
 EX void tf_reset_all() { for (i32 c = 0; c < NCH; c++) { resetChan(c); chs[c].quiet = 0; chs[c].oq = 0; } for (i32 v = 0; v < NVOICE; v++) vc[v].on = 0; synReset(); runaway = 0; }
 
@@ -754,7 +796,7 @@ static void processChan(i32 c, i32 n) {
   // asleep: nothing in and nothing to hear: either the longest tail has passed, or the effects have gone silent (below -120 dB) for
   // longer than any of them can hold sound back. Long reverbs stop costing anything once they've faded, not a minute later.
   if ((C->quiet > C->tail || (C->quiet > 0 && C->oq > C->gap)) && !duckBusy(C)) {
-    if (!keyZ[c]) { zero(keyL[c], MAXN * 4); zero(keyR[c], MAXN * 4); keyZ[c] = 1; for (i32 s = 0; s < NSLOT; s++) C->fx[s].vis[0] = C->fx[s].vis[1] = C->fx[s].vis[2] = C->fx[s].vis[3] = 0.f; }
+    if (!keyZ[c]) { zero(keyL[c], MAXN * 4); zero(keyR[c], MAXN * 4); keyZ[c] = 1; for (i32 s = 0; s < NSLOTX; s++) C->fx[s].vis[0] = C->fx[s].vis[1] = C->fx[s].vis[2] = C->fx[s].vis[3] = 0.f; }
     C->cv = C->vol; C->cp = C->pan; C->ca = C->sa; C->cb = C->sb; C->cm = C->mute; awakeBits[c >> 5] &= ~(1u << (c & 31)); return;
   }
   awakeBits[c >> 5] |= 1u << (c & 31); dIn[c] = 1; keyZ[c] = 0;   // the effects write into the buffer from here on
@@ -768,9 +810,13 @@ static void processChan(i32 c, i32 n) {
     }
   }
   const i32 io = c == ioCh;
+  { Fx* e = &C->fx[SL_EQ]; if (!C->eqPost && e->type >= 0 && e->on) fx_run(c, e, L, R, n); }
+  { Fx* b = &C->fx[SL_BUS]; if (b->type >= 0 && b->on) fx_run(c, b, L, R, n); }
   for (i32 s = 0; s < NSLOT; s++) { Fx* f = &C->fx[s]; if (io && f->type >= 0) ioPeak(fxio[s], L, R, n);
     if (f->type >= 0 && f->on) fx_run(c, f, L, R, n); else if (f->type == FX_DUCK && f->st) ((DuckSt*)f->st)->npend = 0;
     if (io && f->type >= 0) ioPeak(fxio[s] + 2, L, R, n); }
+  { Fx* e = &C->fx[SL_EQ]; if (C->eqPost && e->type >= 0 && e->on) fx_run(c, e, L, R, n); }
+  consoleChar(C, L, R, n);
   if (hasPst) for (i32 i = 0; i < n; i++) { L[i] += pstL[c][i]; R[i] += pstR[c][i]; }
   // isolate broken channels: invalid numbers or absurd levels never leave the channel
   float sum = 0, om = 0; for (i32 i = 0; i < n; i++) { const float s1 = fabsf_(L[i]) + fabsf_(R[i]); sum += s1; if (s1 > om) om = s1; }

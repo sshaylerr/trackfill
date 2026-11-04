@@ -195,21 +195,24 @@ function tfTempoCum(P, si, sr) { const sc = P.scenes[si], pts = sc && sc.auto &&
   const len = sc.bars * TF.BAR; let sig = len * 7 + sr + P.bpm; for (const q of pts) sig = (sig * 31 + q.t * 13 + q.v * 1e5 + (q.c || 0) * 977) % 1e15;
   const hit = TF_CUM.get(pts); if (hit && hit.sig === sig) return hit.cum;
   const cum = new Float64Array(len + 1); let n = 0; for (let t = 0; t < len; t++) { n += 60 * sr / (tfBpmAt(P, si, t + .5) * TF.PPQ); cum[t + 1] = n; } TF_CUM.set(pts, { sig, cum }); return cum; }
+// an effect slot by number: the inserts (0–7), then the console's channel EQ (8) and bus compressor (9), which exist only while the project has a console
+const tfConsoleOn = P => !!P && !!P.console && P.console !== 'none';
+function tfSlotFx(P, C, s) { return s < TF.NSLOT ? C.fx[s] : !tfConsoleOn(P) ? null : s === TF.NSLOT ? C.eq || null : s === TF.NSLOT + 1 ? C.bus || null : null; }
 function tfBase(P, k) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return null;
   if (s === -4) return tfTempoV(P.bpm);
-  if (s === -1) return [C.vol, C.pan, C.sa, C.sb][i];
+  if (s === -1) return [C.vol, C.pan, C.sa, C.sb, C.drv || 0][i];
   if (s === -2) { const p = P.pads[c]; return p ? [p.cut, p.res, p.bend == null ? .5 : p.bend][i] : null; }
   if (s === -3) { const p = P.pads[c], d = TFSYN[i]; return p && p.syn && d ? tfSynNorm(d, p.syn.p[d.id]) : null; }   // synth parameter i
-  const f = C.fx[s]; return f ? (i === -1 ? (f.on ? 1 : 0) : f.p[i]) : null;
+  const f = tfSlotFx(P, C, s); return f ? (i === -1 ? (f.on ? 1 : 0) : f.p[i]) : null;
 }
 function tfSetBase(P, k, v) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return;
   if (s === -4) { P.bpm = Math.round(tfTempoBpm(v) * 10) / 10; return; }
-  if (s === -1) C[['vol', 'pan', 'sa', 'sb'][i]] = v;
+  if (s === -1) C[['vol', 'pan', 'sa', 'sb', 'drv'][i]] = v;
   else if (s === -2) { const p = P.pads[c]; if (p) p[['cut', 'res', 'bend'][i]] = v; }
   else if (s === -3) { const p = P.pads[c], d = TFSYN[i]; if (p && p.syn && d) p.syn.p[d.id] = tfSynPhys(d, v); }
-  else if (C.fx[s]) C.fx[s].p[i] = v;
+  else { const f = tfSlotFx(P, C, s); if (f) f.p[i] = v; }
 }
 function tfHasNotes(sc) { for (const k in sc.notes) if (sc.notes[k].length) return true; for (const k in sc.clips || {}) if (sc.clips[k].length) return true; return false; }
 /* ---------- audio clips: each sits in a scene (its anchor) at a tick, and plays its stretch of a recording in seconds, past the scene's end if it is long ---------- */
@@ -354,7 +357,7 @@ class TFHost {
   constructor(ex, sr, post) {
     this.ex = ex; this.sr = sr; this.post = post || null; ex.tf_init(sr); if (ex.tf_warm) ex.tf_warm();
     this.P = null; this.sm = new Map();
-    this.fxT = []; for (let c = 0; c < TF.NCH; c++) this.fxT.push([-1, -1, -1, -1, -1, -1, -1, -1]);
+    this.fxT = []; for (let c = 0; c < TF.NCH; c++) this.fxT.push([-1, -1, -1, -1, -1, -1, -1, -1, -1, -1]);
     this.duck = []; this.playing = false; this.loop = 'scene'; this.heap = new TFHeap(); this.fpend = new Map(); this.marks = []; this.arps = new Map(); this.arpOut = []; this.now = 0;
     this.ah = null; this.pending = null; this.LA = Math.round(0.02 * sr);
     this.live = new Set(); this.autoOn = new Set(); this.fresh = new Map(); this.pos = null; this.idx = [];
@@ -418,7 +421,7 @@ class TFHost {
   applyKey(k, v) {
     const { c, s, i } = tfParseKey(k), ex = this.ex;
     if (v == null || !(v === v) || s === -4) return;   // tempo is followed by the scheduler, not set here
-    if (s === -1) { if (i === 0) ex.tf_ch_set(c, 0, tfFaderGain(v)); else if (i === 1) ex.tf_ch_set(c, 1, v * 2 - 1); else ex.tf_ch_set(c, i, tfSendGain(v)); }
+    if (s === -1) { if (i === 0) ex.tf_ch_set(c, 0, tfFaderGain(v)); else if (i === 1) ex.tf_ch_set(c, 1, v * 2 - 1); else if (i === 4) ex.tf_ch_set(c, 9, tfConsoleOn(this.P) && !(c < TF.NPAD && this.frozen(c)) ? v : 0); else ex.tf_ch_set(c, i, tfSendGain(v)); }   // drive (i 4): a frozen pad has it in its render
     else if (s === -2 && i === 2) { const p = this.P.pads[c]; ex.tf_ch_bend(c, (v * 2 - 1) * ((p && p.bendR) || 2), v * 2 - 1); }   // pitch bend: ± the pad's bend range
     else if (s === -3) { if (ex.tf_syn_param) ex.tf_syn_param(c, i, v); }
     else if (s === -2) { if (this.frozen(c)) return; ex.tf_ch_set(c, i === 0 ? 5 : 6, i === 0 ? 20 * Math.pow(1000, v) : 0.7 + v * v * 18); }
@@ -432,9 +435,10 @@ class TFHost {
   syncChan(c) {
     const ex = this.ex, C = this.P.chans[c], frz = c < TF.NPAD && this.frozen(c);
     ex.tf_ch_route(c, tfDest(this.P, c));
-    for (let i = 0; i < 4; i++) this.applyKey(c + '.-1.' + i, [C.vol, C.pan, C.sa, C.sb][i]);
-    for (let s = 0; s < TF.NSLOT; s++) {
-      const f = C.fx[s], t = f ? f.type : -1, mode = f ? (f.mode | 0) : 0, id = t < 0 ? -1 : t * 16 + mode;   // an effect slot is identified by type and mode
+    for (let i = 0; i < 5; i++) this.applyKey(c + '.-1.' + i, [C.vol, C.pan, C.sa, C.sb, C.drv || 0][i]);
+    ex.tf_ch_set(c, 7, C.eq && C.eq.post ? 1 : 0);
+    for (let s = 0; s < TF.NSLOT + 2; s++) {
+      const f = tfSlotFx(this.P, C, s), t = f ? f.type : -1, mode = f ? (f.mode | 0) : 0, id = t < 0 ? -1 : t * 16 + mode;   // an effect slot is identified by type and mode
       if (id !== this.fxT[c][s]) { let ok = ex.tf_fx_type(c, s, t); if (ok && t >= 0 && mode) ok = ex.tf_fx_mode(c, s, mode);
         this.fxT[c][s] = ok ? id : -1; if (!ok && t >= 0 && this.post) this.post({ t: 'oom' }); }
       if (f && ex.tf_fx_tab && f.type === 25) this.resoKey(c, s);   // the Resonator plays in the song's key
@@ -832,4 +836,4 @@ function tfWarmEngine(module, sr) {
   for (let r = 0; r < 3; r++) { if (sid > 0) for (let c = 4; c < 8; c++) ex.tf_voice_start(c, sid, 0, 1 + c * .1, 0, 1, 0, .8, .0005, .05, -1, 1, 0);
     for (let k = 0; k < 4; k++) ex.tf_syn_note(k, 0, 0, .8, .3, 2 + k, 0); for (let b = 0; b < 100; b++) ex.tf_render(128); }
 }
-if (typeof module !== 'undefined') module.exports = { tfClipRate, tfClipLen, tfClipKey, tfFFT, tfTickSamples, tfSongOrder, tfIsToggle, tfStepAt, TF_ENV_DIVS, tfEnvDiv, tfWarmEngine, TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { tfSlotFx, tfConsoleOn, tfClipRate, tfClipLen, tfClipKey, tfFFT, tfTickSamples, tfSongOrder, tfIsToggle, tfStepAt, TF_ENV_DIVS, tfEnvDiv, tfWarmEngine, TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

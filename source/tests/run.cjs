@@ -766,6 +766,26 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(p.chans[80].fx[0].type === 4 && p.chans[81].fx[0].type === 5, 'v1 master delay/reverb become Return A/B');
     const r = await H.tfRenderOffline(wasm, p, kit, { order: [{ scene: 0, reps: 1 }] }); ok(stats(r.L, r.R).rms > 0, 'migrated project renders');
   }
+  console.log('console');
+  { const sc = order(P)[0].scene, rend = async Q => { const r = await H.tfRenderOffline(wasm, Q, kit, { order: [{ scene: sc, reps: 1 }], tail: 1 }); return Object.assign(stats(r.L, r.R), { h: hash(r.L) ^ hash(r.R) }); };
+    const cp = () => JSON.parse(JSON.stringify(P)), boost = Q => { for (const C of Q.chans) { const p = C.eq.p; p[2] = p[5] = p[8] = p[11] = 1; } };
+    const base = await rend(cp()), clean = await rend(Object.assign(cp(), { console: 'clean' }));
+    ok(base.h === clean.h, 'a console with its EQ flat, drive at 0 and the bus compressors off sounds exactly like the plain mixer');
+    const none = cp(); boost(none); none.chans.forEach(C => { C.drv = 1; if (C.bus) C.bus.on = true; });
+    ok((await rend(none)).h === base.h, 'with no console, console settings left in a project do nothing');
+    const hot = Object.assign(cp(), { console: 'clean' }); boost(hot); hot.chans.forEach(C => { C.drv = 1; if (C.bus) { C.bus.on = true; C.bus.p[0] = 0; C.bus.p[1] = 1; } }); const hs = await rend(hot);
+    ok(hs.bad === 0 && hs.pk <= 1, `every band at +15 dB, full drive and every bus compressor slammed: still clean and under 0 dBFS (peak ${(20 * Math.log10(hs.pk)).toFixed(2)} dBFS)`);
+    const drv = Object.assign(cp(), { console: 'clean' }); drv.chans.forEach(C => { C.drv = .3; }); const ds = await rend(drv), dd = 20 * Math.log10(ds.rms / base.rms);
+    ok(ds.h !== base.h && Math.abs(dd) < 1, `drive is subtle and level-matched (30% on every channel: ${dd >= 0 ? '+' : ''}${dd.toFixed(2)} dB)`);
+    const post = Object.assign(cp(), { console: 'clean' }); post.chans[M.MASTER].eq.p[0] = .6; const pre = await rend(post); post.chans[M.MASTER].eq.post = true; const ps = await rend(post);
+    ok(pre.rms < base.rms && ps.rms < base.rms && pre.bad === 0, 'the EQ works before and after the effects');
+    const bc = Object.assign(cp(), { console: 'clean' }); bc.chans[M.MASTER].bus.on = true; bc.chans[M.MASTER].bus.p[0] = .3; const bs = await rend(bc);
+    ok(bs.pk < base.pk && bs.bad === 0, 'the master bus compressor, once in, holds the peaks down');
+    const back = M.migrate(JSON.parse(JSON.stringify(Object.assign(cp(), { console: 'clean' })))), junk = M.migrate(Object.assign(cp(), { console: 'brand x', chans: P.chans.map(C => Object.assign({}, C, { eq: { p: ['x', 9, null] }, bus: 'no', drv: 7 })) }));
+    ok(back.console === 'clean' && junk.console === 'none' && junk.chans[0].eq.p[0] === 0 && junk.chans[0].eq.p[1] === 1 && junk.chans[0].drv === 1 && !junk.chans[0].bus && junk.chans[M.MASTER].bus.on === false, 'console settings load safely from a file');
+    const k = Object.assign(cp(), { console: 'clean' }); H.tfSetBase(k, M.MASTER + '.8.2', .9); H.tfSetBase(k, M.MASTER + '.-1.4', .4);
+    ok(k.chans[M.MASTER].eq.p[2] === .9 && k.chans[M.MASTER].drv === .4 && H.tfBase(k, M.MASTER + '.9.0') === k.chans[M.MASTER].bus.p[0] && H.tfBase(cp(), '0.8.2') == null, 'console controls are automatable (EQ, bus compressor, drive), and only while there is a console');
+  }
   console.log('golden');
   { const g = {}; for (const o of order(P)) { const r = await H.tfRenderOffline(wasm, P, kit, { order: [{ scene: o.scene, reps: 1 }] }); const s = stats(r.L, r.R); g['scene' + o.scene] = { rms: +s.rms.toFixed(4), pk: +s.pk.toFixed(4) }; }
     if (process.argv.includes('--update-golden') || !fs.existsSync(GOLD)) { fs.writeFileSync(GOLD, JSON.stringify(g, null, 1)); console.log('    golden values written'); }
