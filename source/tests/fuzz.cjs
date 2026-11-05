@@ -45,7 +45,7 @@ function makeRecipe(seed, n) {
 function run(recipe, verbose, spy) {
   const ex = new WebAssembly.Instance(wasm, {}).exports, trips = [], host = new H.TFHost(ex, 48000, m => { if (m.t === 'trip') trips.push(m); });
   const P = M.demoProject(); P.bpm = 140; for (const sc of P.scenes) { sc.notes[0] = Array.from({ length: 32 }, (_, k) => ({ t: k * 96, len: 24, p: 0, v: .9 })); }   // pad 0: a kick on every beat of every scene, on a clean channel
-  P.chans[0].fx = []; P.chans[0].vol = M.newProject(true).chans[0].vol;
+  P.chans[0].fx = []; P.chans[0].vol = M.newProject(true).chans[0].vol; P.chans[0].out = 82;   // straight to the master: the edits can turn any bus down
   host.msg({ t: 'project', P: clone(P) }); for (const [key, s] of kit) host.msg({ t: 'sample', key, data: s.data, frames: s.frames, ch: s.ch, sr: s.sr });
   host.soft = false; host.msg({ t: 'play', scene: 1, loop: 'scene' });
   const L = new Float32Array(128), R = new Float32Array(128); let kicks = 0, lastKick = 0; const d0 = host.dispatch.bind(host);

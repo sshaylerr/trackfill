@@ -450,7 +450,7 @@ function drawFmDisp(g, W, H, v, tab, txt, grid, col) {
 
 /* ----- Wavetable: the table as stacked frames (the current position lit), and the table picker with import and one-tap tools ----- */
 const tableName = key => !key ? 'None' : key.startsWith('w:') ? key.slice(2) : (SAMPLES.get(key) || {}).name || 'Missing';
-// Sub: the waveform (clean fundamental faint behind it), the harmonics as bars with the crossover marked; 808: the pitch drop and the tail
+// Sub: the waveform (clean fundamental faint behind it), the harmonics as bars (those below the crossover dimmed); 808: the pitch drop and the tail
 // Instrument: its key map (zones as blocks along the keyboard, velocity layers stacked) and the zone a middle C plays, as a waveform
 // FX: one view per tab, all over the sweep's own time (bars marked): the sweep and its fade; the noise band travelling (log frequency);
 // the tone's pitch with its motion; the hit; Size as a stereo picture (voices, noise width, sub, space)
@@ -554,7 +554,6 @@ function drawSuDisp(g, W, H, v, tab, txt, grid, col) {
   plot(x => Math.sin(2 * Math.PI * x) * v('sul') / Math.max(1, mx), COL.mute, 1.2, .6); plot(x => sum(x) / mx, col, 2.2, 1);
   const bw = W / 10, bt = top + 6, bh = H - bt - 16, xoK = xo / f1;
   amps.forEach((a, i) => { const hgt = Math.min(1, Math.abs(i ? a : v('sul'))) * bh, x = i * bw + bw * .2; g.fillStyle = i ? (i + 1 > xoK ? col : COL.dim) : COL.accent; g.fillRect(x, bt + bh - hgt, bw * .6, Math.max(1, hgt)); });
-  const xx = Math.min(W - 2, Math.max(2, (xoK - 1) * bw + bw / 2)); g.fillStyle = COL.ink; g.globalAlpha = .6; g.fillRect(Math.round(xx), bt - 2, 1, bh + 4); g.globalAlpha = 1;
   txt(`${note} · ${f1.toFixed(1)} Hz`, 8, 12); txt('clean below ' + Math.round(xo) + ' Hz', W - 8, 12, COL.mute, 'right'); txt('1', bw * .5, H - 6, COL.dim, 'center'); txt('10', W - bw * .5, H - 6, COL.dim, 'center');
 }
 function drawWtDisp(g, W, H, v, tab, txt, grid, col, S) {

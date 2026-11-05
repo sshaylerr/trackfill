@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-NVHtLEyvZ4qtb5L054h/J63/yZVm2Mx3kxwVVMLQvjk=' 'sha256-JNCYkEkWulfkIr5Utj9XFY4zHbfB+NKixD+r4HieQQw=' 'sha256-JbmOCqkZwCehSIW3IJ/sAOouTcR204/H9szm09mTf2o=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-NVHtLEyvZ4qtb5L054h/J63/yZVm2Mx3kxwVVMLQvjk=' 'sha256-JNCYkEkWulfkIr5Utj9XFY4zHbfB+NKixD+r4HieQQw=' 'sha256-oBsI0utI/BxO0BPR3j0AwoZaieE6KPd6j+KpJEJ7ukk=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -228,7 +228,7 @@ body{font-variant-numeric:tabular-nums}
 /* Granular: an aluminium module between rails, knurled knobs, bat levers, a black-and-teal display, its patch points */
 .synDev[data-eng="gr"]{background:repeating-linear-gradient(90deg,rgba(255,255,255,.18) 0 1px,rgba(0,0,0,.03) 1px 3px),linear-gradient(180deg,#e1e4e7,#c3c7cb);color:#141618;padding-top:16px;padding-bottom:16px;--d-ink2:#3d4146;--d-ring:#0c8f6b;--sw-font:"Space Mono"}
 .synDev[data-eng="gr"]::before,.synDev[data-eng="gr"]::after{display:block;left:0;right:0;width:auto;height:10px;border-radius:0;box-shadow:none;background:radial-gradient(circle at 12px 50%,#f4f5f6 0 2.4px,#6f7378 2.8px 3.4px,transparent 3.8px),radial-gradient(circle at calc(100% - 12px) 50%,#f4f5f6 0 2.4px,#6f7378 2.8px 3.4px,transparent 3.8px),linear-gradient(180deg,#d9dcdf,#8d9196)}
-.synDev[data-eng="gr"]::before{top:0} .synDev[data-eng="gr"]::after{top:auto;bottom:0}
+#view.short .synDev[data-eng="gr"]{padding-top:14px;padding-bottom:12px} .synDev[data-eng="gr"] .synPages.capkeys{padding-top:2px} .synDev[data-eng="gr"] .synPages.capkeys .key{line-height:13px!important;overflow:visible} .synDev[data-eng="gr"]::before{top:0} .synDev[data-eng="gr"]::after{top:auto;bottom:0}
 #view.short .synDev[data-eng="gr"] .klab{font-size:10px} .synDev[data-eng="gr"] .klab{font:700 11px/12px "Space Grotesk",var(--font-ui);letter-spacing:.01em;text-transform:lowercase;color:#141618}
 .synDev[data-eng="gr"] .knob .kval{font:400 9.5px/13px "Space Mono",var(--font-lcd);color:#3d4146}
 .synDev[data-eng="gr"] .engKey b{font:700 18px/1 "Space Grotesk",var(--font-ui);text-transform:lowercase;letter-spacing:-.01em;color:#141618} .synDev[data-eng="gr"] .engKey small{font-family:"Space Mono";color:#3d4146;letter-spacing:.08em}
@@ -323,7 +323,7 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 .spacer{flex:1}
 #meter{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 60px 30px 32px;gap:6px;align-items:center;height:12px;cursor:pointer;position:relative}
 #note{position:absolute;left:0;top:50%;width:calc(100% - 140px);height:22px;margin-top:-11px;z-index:5;display:flex;align-items:center;gap:7px;padding:0 9px;box-sizing:border-box;border-radius:5px;background:linear-gradient(180deg,#1d1d21,#131316);border:1px solid var(--edge);box-shadow:0 3px 10px rgba(0,0,0,.5);
-  font:600 11.5px var(--font-ui);color:var(--ink);white-space:nowrap;overflow:hidden;opacity:0;transform:translateX(-14px);pointer-events:none;transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .15s}
+  font:600 12px var(--font-ui);color:#fff;text-shadow:0 1px 0 #000;white-space:nowrap;overflow:hidden;opacity:0;transform:translateX(-14px);pointer-events:none;transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .15s}
 #note.show{opacity:1;transform:none;pointer-events:auto} #note::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)} #note .clip{flex:1;min-width:0;overflow:hidden;display:block} #note .run{display:inline-block;white-space:nowrap}
 #meter .bars{display:flex;flex-direction:column;gap:2px}
 #meter .bar{height:3px;border-radius:2px;background:#0b0b0c;overflow:hidden}
@@ -359,6 +359,9 @@ body[data-pads="tint"] .pad.hit,body[data-pads="bright"] .pad.hit,body[data-pads
 #tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;flex:none;height:42px}
 #tabs button{height:40px;border-radius:4px;background:linear-gradient(180deg,var(--keyhi),var(--keylo));border:1px solid var(--edge);box-shadow:0 2px 0 #050506,inset 0 1px 0 rgba(255,255,255,.08);
   font:600 13px var(--font-ui);color:var(--print);display:flex;align-items:center;justify-content:center;gap:5px;overflow:hidden;white-space:nowrap;min-width:0}
+/* hardware-style labels: every key's legend in capitals (keys that show a name or a value keep it as written) */
+.btn,.key,#tabs button{text-transform:uppercase;letter-spacing:.04em} .key.sm{letter-spacing:0} .key.modeKey{text-transform:none;letter-spacing:normal} .stepPal .key{padding-left:3px;padding-right:3px;gap:3px} .btn .lsub,.btn .fxn,.key .fxn,.btn i,.key i{text-transform:none;letter-spacing:normal}
+.btn.presetLcd,.lanebox,.dbtns .btn,.dbtns .key,.key.lcd,.scopebox,.btn.mchip,.btn.lcdbox,.btn.cellBtn,.btn.srcbtn,.sheet .list .btn,.btn.eqt,.btn.cstripvu,.sname,.btn.scbtn{text-transform:none;letter-spacing:normal}
 #tabs button::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--led-off)}
 #tabs button.on{color:var(--ink)} #tabs button.on::before{background:var(--accent);box-shadow:0 0 6px var(--accent)}
 
@@ -646,7 +649,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
    condensed face, peach-lit square buttons, pink mutes and cream solos, aluminium fin knobs with coloured caps, chrome faders, a bridge of lit VUs */
 .mixView.cx[data-con="punchy"]{--pn:#1d1e20;--pn2:#17181a;--cink:#f2f3f4;--cink2:#2fa4f0;--d-ink2:#2fa4f0;--d-ring:#fff;--sw-font:"Archivo Narrow"}
 /* the desk's cherry trim, top and bottom (where the real one has its wood), aluminium at the sides */
-.cx[data-con="punchy"] .cwin{background:repeating-linear-gradient(90deg,transparent 0 3px,rgba(60,20,5,.22) 3px 4px,rgba(255,220,180,.07) 4px 9px,rgba(60,20,5,.12) 9px 10px,transparent 10px 17px) top/100% 8px no-repeat,linear-gradient(180deg,#c27448,#9b5130 55%,#7c3c20) top/100% 8px no-repeat,repeating-linear-gradient(90deg,transparent 0 3px,rgba(60,20,5,.22) 3px 4px,rgba(255,220,180,.07) 4px 9px,rgba(60,20,5,.12) 9px 10px,transparent 10px 17px) bottom/100% 8px no-repeat,linear-gradient(180deg,#c27448,#9b5130 55%,#7c3c20) bottom/100% 8px no-repeat,linear-gradient(180deg,#1f2022,#18191b);padding-top:13px;padding-bottom:13px;border:1px solid #000;border-left:2px solid #8e9399;border-right:2px solid #8e9399;box-shadow:none}
+.cx[data-con="punchy"] .cwin{background:linear-gradient(90deg,rgba(40,12,4,.18),rgba(255,220,180,.06) 18%,rgba(40,12,4,.08) 37%,rgba(255,220,180,.05) 58%,rgba(40,12,4,.12) 80%,rgba(255,220,180,.04)) top/100% 8px no-repeat,linear-gradient(180deg,#c27448,#9b5130 55%,#7c3c20) top/100% 8px no-repeat,linear-gradient(90deg,rgba(40,12,4,.18),rgba(255,220,180,.06) 18%,rgba(40,12,4,.08) 37%,rgba(255,220,180,.05) 58%,rgba(40,12,4,.12) 80%,rgba(255,220,180,.04)) bottom/100% 8px no-repeat,linear-gradient(180deg,#c27448,#9b5130 55%,#7c3c20) bottom/100% 8px no-repeat,linear-gradient(180deg,#1f2022,#18191b);padding-top:13px;padding-bottom:13px;border:1px solid #000;border-left:2px solid #8e9399;border-right:2px solid #8e9399;box-shadow:none}
 .cx[data-con="punchy"] .cbadge{font:800 12px Archivo,var(--font-ui);letter-spacing:.04em;color:#fff} .cx[data-con="punchy"] .cbadge small{color:#2fa4f0;font-family:"Archivo Narrow",var(--font-ui)}
 .cx[data-con="punchy"] .cbtn{border-radius:2px;background:linear-gradient(180deg,#e9c8b2,#d7ae95);border:1px solid #0a0a0b;color:#3a1e10;font:700 10px "Archivo Narrow",var(--font-ui);letter-spacing:.06em;box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
 .cx[data-con="punchy"] .cbtn.on,.cx[data-con="punchy"] .cbtn.lit{background:linear-gradient(180deg,#ffd2b0,#ffa877);color:#2b1205;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 0 8px rgba(255,150,90,.55)}
@@ -693,7 +696,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
    fader caps on a silver fader panel, orange LED meters, a black compression meter */
 .mixView.cx[data-con="clean"]{--pn:#50555d;--pn2:#454950;--cink:#f1f0ec;--cink2:#d4d6d9;--d-ink2:#d4d6d9;--d-ring:#fff;--sw-font:"Archivo Narrow"}
 .knob.sk .dsd{fill:#f1f0ec} .knob.sk .kmk{fill:var(--km,#fff)}
-.cx[data-con="clean"] .cwin{border:1px solid #22252a;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 0 0 2px #9da2a8,0 0 0 3px #2c2f33}
+.cx[data-con="clean"] .cwin{border:3px solid #9da2a8;outline:1px solid #2c2f33;outline-offset:-1px;box-shadow:inset 0 0 0 1px #22252a,inset 0 2px 0 rgba(255,255,255,.12)}
 .cx[data-con="clean"] .cbadge{color:#fff} .cx[data-con="clean"] .cbadge small{color:#c9cdd1}
 .cx[data-con="clean"] .cbtn{border-radius:2px;background:linear-gradient(180deg,#efeadb,#d5cfbb);border:1px solid #1d1f22;color:#2a2924;font:700 9.5px "Archivo Narrow",var(--font-ui);letter-spacing:.06em;box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 1px 0 #2a2c30}
 .cx[data-con="clean"] .cbtn.on{background:linear-gradient(180deg,#fff7d6,#f4df92);color:#2a2105;box-shadow:inset 0 1px 0 #fff,0 0 8px rgba(255,220,120,.55)}
@@ -722,7 +725,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 /* Warm refresh, after the classic British module desks: a slate blue panel in a mahogany frame, white silkscreen, knurled metal knobs with
    grey, navy and red caps, cream push buttons, a white scribble strip, a black fader bay with cream caps; cream-faced meters */
 .mixView.cx[data-con="warm"]{--pn:#4b5d71;--pn2:#415264;--cink:#f4f4ef;--cink2:#d5dbe2;--d-ink2:#e6eaee;--d-ring:#fff;--sw-font:"Work Sans"}
-.cx[data-con="warm"] .cwin{--wd:repeating-linear-gradient(90deg,transparent 0 3px,rgba(50,15,5,.25) 3px 4px,rgba(255,215,170,.08) 4px 10px,rgba(50,15,5,.14) 10px 11px,transparent 11px 19px);--wv:repeating-linear-gradient(0deg,transparent 0 3px,rgba(50,15,5,.25) 3px 4px,rgba(255,215,170,.08) 4px 10px,rgba(50,15,5,.14) 10px 11px,transparent 11px 19px);
+.cx[data-con="warm"] .cwin{--wd:linear-gradient(90deg,rgba(40,12,4,.18),rgba(255,220,180,.06) 18%,rgba(40,12,4,.08) 37%,rgba(255,220,180,.05) 58%,rgba(40,12,4,.12) 80%,rgba(255,220,180,.04));--wv:linear-gradient(0deg,rgba(40,12,4,.16),rgba(255,220,180,.05) 30%,rgba(40,12,4,.08) 60%,rgba(255,220,180,.04));
   background:var(--wd) top/100% 8px no-repeat,linear-gradient(180deg,#c06a38,#99502a 55%,#743819) top/100% 8px no-repeat,var(--wd) bottom/100% 8px no-repeat,linear-gradient(180deg,#b5622f,#8e4824 55%,#6a321a) bottom/100% 8px no-repeat,
   var(--wv) left/5px 100% no-repeat,linear-gradient(90deg,#743819,#a85a2e 60%,#8a4522) left/5px 100% no-repeat,var(--wv) right/5px 100% no-repeat,linear-gradient(90deg,#8a4522,#a85a2e 40%,#743819) right/5px 100% no-repeat,linear-gradient(180deg,var(--pn),var(--pn2));
   padding:13px 9px;border:1px solid #1d0d06;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
@@ -873,7 +876,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 /* ---------- precision panel ---------- */
 #panel{flex:none;height:168px;background:linear-gradient(180deg,var(--body2),var(--body));border:1px solid var(--edge);border-radius:6px;padding:8px 10px 10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
 .pinfo{height:22px;margin-bottom:8px;font-size:10.5px;margin-right:62px;position:relative}
-.pinfo.msg{color:var(--ink);text-overflow:clip} .pinfo.msg::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);margin-right:7px}   /* a message: the dot that toasts had */
+.pinfo.msg{color:#fff;font-weight:600;text-overflow:clip} .pinfo.msg::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);margin-right:7px}   /* a message: the dot that toasts had */
 .pinfo .clip{flex:1;min-width:0;overflow:hidden;display:block} .pinfo .run{display:inline-block;white-space:nowrap}   /* a message too long for the window runs past, like an LCD */
 #pStrip{position:absolute;top:8px;right:10px;width:56px;height:22px;font-size:11px;border-radius:3px} #panel{position:relative}
 .pstrip{display:none;grid-template-columns:30px 1fr 26px;gap:5px;height:124px}
@@ -5308,8 +5311,8 @@ function drawNotesLane(g) {
   if (NAV.mode === 'canvas' && !tl.sel) { const c = tl.cursor, y = row2y(c.row), x = t2x(c.t); g.setLineDash([4, 3]); g.strokeStyle = COL.accent; g.lineWidth = 1.5; g.strokeRect(x + .5, y + 1.5, Math.max(6, tlStep() * tl.zoom) - 1, rh - 3); g.setLineDash([]); }
   g.fillStyle = COL.raised; g.fillRect(0, RULER_H, LABEL_W, H); g.font = '500 11px ' + FONT_LCD; g.textBaseline = 'middle';
   for (let r = 0; r < rows; r++) { const y = row2y(r); if (y + rh < RULER_H || y > H) continue;
-    if (tl.mode === 'bank') { const pi = UI.bank * 16 + r, p = P.pads[pi]; g.fillStyle = PAD_COLORS[p.color]; g.globalAlpha = p.sample ? 1 : .3; g.fillRect(4, y + rh / 2 - 4, 3, 8); g.globalAlpha = 1;
-      g.fillStyle = pi === UI.pad ? COL.ink : (p.sample ? COL.mute : COL.dim); g.fillText(fitText(g, p.name || padLabel(pi), LABEL_W - 13), 10, y + rh / 2); }
+    if (tl.mode === 'bank') { const pi = UI.bank * 16 + r, p = P.pads[pi]; g.fillStyle = PAD_COLORS[p.color]; g.globalAlpha = padUsed(p) ? 1 : .3; g.fillRect(4, y + rh / 2 - 4, 3, 8); g.globalAlpha = 1;
+      g.fillStyle = pi === UI.pad ? COL.ink : (padUsed(p) ? COL.mute : COL.dim); g.fillText(fitText(g, p.name || padLabel(pi), LABEL_W - 13), 10, y + rh / 2); }
     else if (chop) { g.fillStyle = r === UI.slice ? COL.ink : COL.mute; g.fillText('#' + (r + 1), 10, y + rh / 2); }
     else { const p = KEY_HI - r; g.fillStyle = ((p % 12) + 12) % 12 === 0 ? COL.ink : COL.dim; g.fillText(noteName(p), 6, y + rh / 2); } }
   g.restore(); drawVelLane(g);
@@ -5587,7 +5590,7 @@ async function importFiles(files, firstPad) {
   }
   // fill: the chosen pad first, then the next empty pads from the selected pad onward
   const placed = []; let next = firstPad != null ? firstPad : UI.pad;
-  const nextEmpty = from => { for (let k = 0; k < NPADS; k++) { const i = (from + k) % NPADS; if (!P.pads[i].sample && !placed.includes(i)) return i; } return -1; };
+  const nextEmpty = from => { for (let k = 0; k < NPADS; k++) { const i = (from + k) % NPADS; if (!padUsed(P.pads[i]) && !placed.includes(i)) return i; } return -1; };
   if (ids.length) pushUndo('all');
   ids.forEach((x, n) => { const target = n === 0 && firstPad != null ? firstPad : nextEmpty(next); if (target < 0) return; touchPad(target);
     Object.assign(P.pads[target], { sample: x.id, name: x.name.slice(0, 12), start: 0, end: 1, reverse: false, frz: null }); placed.push(target); next = target; syncPad(target); });
@@ -6561,7 +6564,7 @@ function drawDisp() {
       const dur = s.frames / s.sr; g.strokeStyle = COL.accent; g.lineWidth = 1.5; g.beginPath();
       if (pad.fin > 0) { g.moveTo(xs, H - 2); g.lineTo(xs + Math.min(xe - xs, pad.fin / dur * W), 2); } if (pad.fout > 0) { g.moveTo(xe - Math.min(xe - xs, pad.fout / dur * W), 2); g.lineTo(xe, H - 2); } g.stroke();
       if (pad.mode === 'loop') { const xl = clamp(pad.loopS, pad.start, pad.end) * W; g.globalAlpha = .13; g.fillRect(xl, 0, xe - xl, H); g.globalAlpha = 1; g.fillRect(xl - 1, 0, 2, H); txt('loop', xl + 5, 22, COL.accent); }
-      txt(`${(s.frames / s.sr).toFixed(2)}s · ${s.ch === 2 ? 'stereo' : 'mono'}${pad.reverse ? ' · reversed' : ''}${pad.tempo > 0 || (pad.wm && pad.wm !== 'Repitch') ? ' · ' + stretchLabel(pad) : ''}`, 8, H - 10); txt(s.name, W - 128, 15, COL.mute, 'right');
+      txt(`${(s.frames / s.sr).toFixed(2)}s · ${s.ch === 2 ? 'stereo' : 'mono'}${pad.reverse ? ' · reversed' : ''}${pad.tempo > 0 || (pad.wm && pad.wm !== 'Repitch') ? ' · ' + stretchLabel(pad) : ''}`, 8, H - 10); { const dk = cv.parentNode.querySelector('.dispKey'); txt(s.name, W - (dk ? dk.offsetWidth + 14 : 128), 15, COL.mute, 'right'); }
       return;
     }
     // AMP: the envelope over the trimmed sound
@@ -8098,7 +8101,7 @@ const SKINS = {
   analog: { tag: 'Three oscillator', knob: 'skirt', sw: 'paddle', sel: 'rotary', screen: { bg: '#140a02', ink: '#ffc261', trace: '#ffcf86', mute: '#e6a54a', dim: '#6e4510', line: 'rgba(255,181,71,.17)', accent: '#ffc261', font: 'VT323', fs: 1.6, glow: 3, glowCol: 'rgba(255,166,48,.85)' } },
   fm: { tag: 'Four operator', knob: 'encoder', sw: 'box', screen: { bg: '#adbd6c', ink: '#1f2a0c', trace: '#1f2a0c', mute: '#3c4a1c', dim: '#7d8d45', line: 'rgba(31,42,12,.16)', accent: '#1f2a0c', font: 'Silkscreen', fs: .78, pixel: true } },
   wt: { tag: 'Morphing VA', knob: 'vk', sw: 'box', screen: { bg: '#b5d34e', bg2: '#94bb32', ink: '#14200a', trace: '#16240a', mute: '#2b3d12', dim: '#4f6a18', line: 'rgba(22,36,10,.16)', accent: '#0d1606', font: 'DotGothic16', fs: 1.1 } },
-  gr: { tag: 'Cloud processor', knob: 'knurl', sw: 'lever', jacks: ['pos cv', 'size cv', 'gate', 'out'], screen: { bg: '#000000', ink: '#e8fffb', trace: '#2fe0b0', mute: '#8fb9b2', dim: '#3b4a48', line: '#17211f', accent: '#2fe0b0', font: 'Space Mono', fs: .95 } },
+  gr: { tag: 'Cloud processor', knob: 'knurl', sw: 'lever', screen: { bg: '#000000', ink: '#e8fffb', trace: '#2fe0b0', mute: '#8fb9b2', dim: '#3b4a48', line: '#17211f', accent: '#2fe0b0', font: 'Space Mono', fs: .95 } },
   sub: { tag: 'Bass voice', knob: 'cap', sw: 'slide', screen: { bg: '#0a0505', ink: '#ff3b24', trace: '#ff3b24', mute: '#ec5a40', dim: '#4a1510', line: '#2a0d0a', accent: '#ffb02e', font: 'Share Tech Mono', fs: 1.15, glow: 3, glowCol: 'rgba(255,42,16,.9)' } },
   ins: { tag: 'Sound module', knob: 'alu', sw: 'box', cats: true, screen: { bg: '#041a19', bg2: '#021010', ink: '#6ff7e6', trace: '#6ff7e6', mute: '#62d8c8', dim: '#1f5a53', line: 'rgba(111,247,230,.12)', accent: '#6ff7e6', font: 'Iceland', fs: 1.5, glow: 3, glowCol: 'rgba(63,240,220,.8)' } },
   sfx: { tag: 'Sweep generator', knob: 'flat', sw: 'slide', play: true, screen: { bg: '#000000', ink: '#ffffff', trace: '#2d6bff', mute: '#9c9c9c', dim: '#4a4a4a', line: '#1a1a1a', accent: '#ff5a1f', font: '"Press Start 2P"', fs: .72, pixel: true } } };
@@ -8843,7 +8846,7 @@ function drawFmDisp(g, W, H, v, tab, txt, grid, col) {
 
 /* ----- Wavetable: the table as stacked frames (the current position lit), and the table picker with import and one-tap tools ----- */
 const tableName = key => !key ? 'None' : key.startsWith('w:') ? key.slice(2) : (SAMPLES.get(key) || {}).name || 'Missing';
-// Sub: the waveform (clean fundamental faint behind it), the harmonics as bars with the crossover marked; 808: the pitch drop and the tail
+// Sub: the waveform (clean fundamental faint behind it), the harmonics as bars (those below the crossover dimmed); 808: the pitch drop and the tail
 // Instrument: its key map (zones as blocks along the keyboard, velocity layers stacked) and the zone a middle C plays, as a waveform
 // FX: one view per tab, all over the sweep's own time (bars marked): the sweep and its fade; the noise band travelling (log frequency);
 // the tone's pitch with its motion; the hit; Size as a stereo picture (voices, noise width, sub, space)
@@ -8947,7 +8950,6 @@ function drawSuDisp(g, W, H, v, tab, txt, grid, col) {
   plot(x => Math.sin(2 * Math.PI * x) * v('sul') / Math.max(1, mx), COL.mute, 1.2, .6); plot(x => sum(x) / mx, col, 2.2, 1);
   const bw = W / 10, bt = top + 6, bh = H - bt - 16, xoK = xo / f1;
   amps.forEach((a, i) => { const hgt = Math.min(1, Math.abs(i ? a : v('sul'))) * bh, x = i * bw + bw * .2; g.fillStyle = i ? (i + 1 > xoK ? col : COL.dim) : COL.accent; g.fillRect(x, bt + bh - hgt, bw * .6, Math.max(1, hgt)); });
-  const xx = Math.min(W - 2, Math.max(2, (xoK - 1) * bw + bw / 2)); g.fillStyle = COL.ink; g.globalAlpha = .6; g.fillRect(Math.round(xx), bt - 2, 1, bh + 4); g.globalAlpha = 1;
   txt(`${note} · ${f1.toFixed(1)} Hz`, 8, 12); txt('clean below ' + Math.round(xo) + ' Hz', W - 8, 12, COL.mute, 'right'); txt('1', bw * .5, H - 6, COL.dim, 'center'); txt('10', W - bw * .5, H - 6, COL.dim, 'center');
 }
 function drawWtDisp(g, W, H, v, tab, txt, grid, col, S) {
@@ -9986,7 +9988,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-04', ['Synths: the page keys keep their size with the d-pad open and show the d-pad\'s cursor; Map\'s amount bar shows again.', 'Wavetable synth redesigned after the classic red-and-black desks, with a green LCD; it stays legible with the d-pad open.', 'Fix: device screens no longer squash when the d-pad opens; screen captions stay clear of the picture.', 'Two more consoles: Punchy and Warm, each with its own EQ, compressor and drive. Switching keeps each one\'s settings.', 'All three consoles redesigned after classic desks; the EQ insert\'s Punch and Console modes match.', 'Console EQ and Comp views fit without scrolling, even with the d-pad open.', 'Digital meters on console faders; the master fader stands apart.', 'Tap Mixer again to go from a console\'s EQ or Comp back to the faders.', 'Timeline: hold a track\'s name to select all its notes in the scene.', 'Fix: console meters and gain reduction needles.']],
+  ['2026-11-04', ['Key labels in capitals throughout; brighter messages.', 'Granular: no jacks along the bottom; its page keys no longer clip. Sub: no stray line on the harmonics.', 'Smoother wood on the Punchy and Warm consoles.', 'Fix: synth pads and audio tracks no longer look empty in the timeline.', 'Synths: the page keys keep their size with the d-pad open and show the d-pad\'s cursor; Map\'s amount bar shows again.', 'Wavetable synth redesigned after the classic red-and-black desks, with a green LCD; it stays legible with the d-pad open.', 'Fix: device screens no longer squash when the d-pad opens; screen captions stay clear of the picture.', 'Two more consoles: Punchy and Warm, each with its own EQ, compressor and drive. Switching keeps each one\'s settings.', 'All three consoles redesigned after classic desks; the EQ insert\'s Punch and Console modes match.', 'Console EQ and Comp views fit without scrolling, even with the d-pad open.', 'Digital meters on console faders; the master fader stands apart.', 'Tap Mixer again to go from a console\'s EQ or Comp back to the faders.', 'Timeline: hold a track\'s name to select all its notes in the scene.', 'Fix: console meters and gain reduction needles.']],
   ['2026-11-03', ['Consoles (Menu › Console): Clean, with an EQ on every channel, a bus compressor and drive.', 'Audio tracks: recordings with their own editor, clip gain, fades, reverse and stretch to tempo.', 'Each synth engine is now its own instrument, with its own controls and screen.', 'Wavetable browser: search, folders, tags and favorites.', 'New output: Speaker (direct), left out of exports.', 'ANLZ opens the master analyzer; the monitoring options are gone.', 'New rounded font; long names shrink before they\'re cut off.', 'Fix: memory filling up when trying many sounds.', 'Fix: text cut off with the d-pad open.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],

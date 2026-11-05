@@ -167,7 +167,7 @@ function drawDisp() {
       const dur = s.frames / s.sr; g.strokeStyle = COL.accent; g.lineWidth = 1.5; g.beginPath();
       if (pad.fin > 0) { g.moveTo(xs, H - 2); g.lineTo(xs + Math.min(xe - xs, pad.fin / dur * W), 2); } if (pad.fout > 0) { g.moveTo(xe - Math.min(xe - xs, pad.fout / dur * W), 2); g.lineTo(xe, H - 2); } g.stroke();
       if (pad.mode === 'loop') { const xl = clamp(pad.loopS, pad.start, pad.end) * W; g.globalAlpha = .13; g.fillRect(xl, 0, xe - xl, H); g.globalAlpha = 1; g.fillRect(xl - 1, 0, 2, H); txt('loop', xl + 5, 22, COL.accent); }
-      txt(`${(s.frames / s.sr).toFixed(2)}s · ${s.ch === 2 ? 'stereo' : 'mono'}${pad.reverse ? ' · reversed' : ''}${pad.tempo > 0 || (pad.wm && pad.wm !== 'Repitch') ? ' · ' + stretchLabel(pad) : ''}`, 8, H - 10); txt(s.name, W - 128, 15, COL.mute, 'right');
+      txt(`${(s.frames / s.sr).toFixed(2)}s · ${s.ch === 2 ? 'stereo' : 'mono'}${pad.reverse ? ' · reversed' : ''}${pad.tempo > 0 || (pad.wm && pad.wm !== 'Repitch') ? ' · ' + stretchLabel(pad) : ''}`, 8, H - 10); { const dk = cv.parentNode.querySelector('.dispKey'); txt(s.name, W - (dk ? dk.offsetWidth + 14 : 128), 15, COL.mute, 'right'); }
       return;
     }
     // AMP: the envelope over the trimmed sound
