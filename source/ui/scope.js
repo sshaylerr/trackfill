@@ -232,7 +232,7 @@ function drawStereo(g, W, H) { const A = SCOPE.an, sz = Math.min(H - 8, W * .55)
 const AN_DRAW = { loud: drawLoud, spec: drawSpec, sgram: drawSgram, wave: drawWave2, stereo: drawStereo };
 function openAnalyzer(c) {
   SCOPE.sheet = c; SCOPE.an = null; scopeWant();
-  openSheet('Analyzer · ' + chanLabel(c) + ' ' + chanName(c) + (c === MASTER ? '' : ' (pre-fader)'), card => {
+  openSheet('Analyzer · ' + chanLabel(c) + ' ' + chanName(c) + (c === MASTER ? '' : ' · pre'), card => {
     const st = h('div', 'anstack'); card.append(st); const pr = anPrefs();
     const build = () => { st.innerHTML = ''; SCOPE.views = SCOPE.views.filter(v => !st.contains(v.cv) && v.cv.isConnected);
       for (const [k, name, , ht] of AN_PANELS) { const p = h('div', 'anp' + (pr[k] ? ' open' : '')), hd = h('div', 'anh');
