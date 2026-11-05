@@ -299,7 +299,9 @@ function drawSynDisp() { const cv = synCv; if (!cv || !cv.isConnected) return; c
   const sk = synSkin(UI.pad), sc = sk && sk.screen; if (!sc) return drawSynDisp0(cv, null);
   const keep = [COL, FONT_LCD]; COL = Object.assign({}, COL, { bg: sc.bg, ink: sc.ink, mute: sc.mute, dim: sc.dim, line: sc.line, accent: sc.accent }); FONT_LCD = sc.font;
   try { drawSynDisp0(cv, sc); } finally { COL = keep[0]; FONT_LCD = keep[1]; } }
-function drawSynDisp0(cv, sc) {
+let SYN_CAP = null;   // a screen's captions, drawn last on the screen's own colour so the picture never runs through them
+function drawSynDisp0(cv, sc) { SYN_CAP = []; try { drawSynDisp1(cv, sc); } finally { const q = SYN_CAP; SYN_CAP = null; q.forEach(f => f()); } }
+function drawSynDisp1(cv, sc) {
   const pi = UI.pad, S = synOf(pi);
   const r = innerBox(cv.parentNode), dpr = sc && sc.pixel ? 1 : window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
   cv.parentNode.classList.toggle('gone', H < 34); if (H < 34) return;   // too small to read: the screen steps aside until there's room
@@ -310,7 +312,8 @@ function drawSynDisp0(cv, sc) {
   const fs = sc ? sc.fs : 1, v = id => S.p[id] ?? TFSYN_ID[id].d, tab = synTab(), col = sc ? sc.trace : PAD_COLORS[P.pads[pi].color];
   const txt = (t, x, y, c = COL.mute, al = 'left') => { g.fillStyle = c; let sz = 10.5 * fs; g.font = `${sc ? 400 : 500} ${sz.toFixed(1)}px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle';
     const room = al === 'left' ? W - x - 4 : al === 'right' ? x - 4 : W - 8, tw = g.measureText(t).width; if (tw > room && room > 20) { sz = Math.max(6, sz * room / tw); g.font = `${sc ? 400 : 500} ${sz.toFixed(1)}px ${FONT_LCD}`; }   // a long line gets smaller rather than running off the screen
-    const sb = g.shadowBlur; if (sb > 1.5) g.shadowBlur = 1.5; g.fillText(t, x, y); g.shadowBlur = sb; g.textAlign = 'left'; };   // text keeps only a faint glow, so it stays crisp
+    const sb = g.shadowBlur; if (sb > 1.5) g.shadowBlur = 1.5; if (y < Math.min(H / 2, 30) && SYN_CAP) { const st = { f: g.font, c: g.fillStyle }; SYN_CAP.push(() => { g.font = st.f; g.fillStyle = st.c; g.textAlign = al; g.textBaseline = 'middle'; const w2 = g.measureText(t).width, x0 = al === 'left' ? x : al === 'right' ? x - w2 : x - w2 / 2; g.shadowBlur = 0; g.globalAlpha = .85; g.fillStyle = COL.bg; g.fillRect(x0 - 3, y - sz * .62, w2 + 6, sz * 1.24); g.globalAlpha = 1; g.fillStyle = st.c; g.fillText(t, x, y); g.textAlign = 'left'; }); g.shadowBlur = sb; g.textAlign = 'left'; return; }
+    g.fillText(t, x, y); g.shadowBlur = sb; g.textAlign = 'left'; };   // text keeps only a faint glow, so it stays crisp
   const grid = () => { g.fillStyle = COL.line; for (let k = 1; k < 4; k++) g.fillRect(Math.round(W * k / 4), 0, 1, H); g.fillRect(0, Math.round(H / 2), W, 1); };
   const line = (fn, c = col, lw = 2) => { g.beginPath(); for (let x = 0; x <= W; x++) { const y = fn(x / W); x ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = c; g.lineWidth = lw; g.stroke(); };
   const wave = (w, ph, pw) => { ph -= Math.floor(ph); switch (w) { case 'Sine': return Math.sin(ph * 2 * Math.PI); case 'Triangle': return ph < .5 ? 4 * ph - 1 : 3 - 4 * ph; case 'Saw': return 2 * ph - 1; case 'Square': return ph < .5 ? 1 : -1; default: return ph < pw ? 1 : -1; } };
@@ -394,7 +397,7 @@ function drawSynDisp0(cv, sc) {
       txt(`Macro ${k}` + (mine.length ? ' → ' + mine.map(m => (TFSYN_ID[m.d] ? TFSYN_ID[m.d].l : m.d) + ' ' + (m.a > 0 ? '+' : '') + Math.round(m.a * 100) + '%').join(', ') : ' · not mapped (use Map)'), W * .3 + 16, y, mine.length ? COL.ink : COL.dim); });
     return; }
   if (/^l\d$/.test(tab)) {   // the drawn LFO: points, curves, and the grid when snapping
-    const k = +tab[1] - 1, pts = S.lfo[k], T = tfLfoTable(pts), X = x => 8 + (W - 16) * x, Y = y => H - 10 - (H - 26) * y;
+    const k = +tab[1] - 1, pts = S.lfo[k], T = tfLfoTable(pts), X = x => 8 + (W - 16) * x, Y = y => 24 + (H - 34) * (1 - y);
     g.fillStyle = COL.line; const sn = [0, 4, 8, 16][SYN_ST.snap]; if (sn) for (let i = 1; i < sn; i++) g.fillRect(Math.round(X(i / sn)), 0, 1, H); g.fillRect(0, Math.round(Y(.5)), W, 1);
     g.beginPath(); for (let i = 0; i <= 256; i++) { const y = (T[i & 255] + 1) / 2; i ? g.lineTo(X(i / 256), Y(y)) : g.moveTo(X(0), Y(y)); } g.strokeStyle = col; g.lineWidth = 2; g.stroke();
     pts.forEach((q, i) => { g.beginPath(); g.arc(X(q.x), Y(q.y), i === LFOED.sel ? 6.5 : 4.5, 0, 7); g.fillStyle = i === LFOED.sel ? COL.accent : COL.ink; g.fill(); });
@@ -649,12 +652,12 @@ const LFOED = { sel: 0, drag: null, last: { t: 0, i: -1 }, src: null };
 function lfoPts(pi) { const k = +synTab()[1] - 1; return synOf(pi).lfo[k]; }
 function lfoChanged(pi) { syncPad(pi); markDirty(); drawSynDisp(); }
 function snapX(x) { const sn = [0, 4, 8, 16][SYN_ST.snap]; return sn ? Math.round(x * sn) / sn : x; }
-const lfoSynSrc = pi => ({ pts: () => lfoPts(pi), changed: () => lfoChanged(pi), draw: drawSynDisp, undo: () => pushUndo('pad:' + pi), snap: snapX });
+const lfoSynSrc = pi => ({ pts: () => lfoPts(pi), changed: () => lfoChanged(pi), draw: drawSynDisp, undo: () => pushUndo('pad:' + pi), snap: snapX, top: 24, pad: 34 });   // the synth screen keeps its caption line clear of the shape
 function bindLfo(cv, srcOrPi) {
   const src = typeof srcOrPi === 'number' ? lfoSynSrc(srcOrPi) : srcOrPi; LFOED.src = src;
-  const pos = e => { const r = cv.getBoundingClientRect(); return { x: clamp((e.clientX - r.left - 8) / (r.width - 16), 0, 1), y: clamp(1 - (e.clientY - r.top - 10) / (r.height - 26), 0, 1), r }; };
+  const pos = e => { const r = cv.getBoundingClientRect(); return { x: clamp((e.clientX - r.left - 8) / (r.width - 16), 0, 1), y: clamp(1 - (e.clientY - r.top - (src.top || 10)) / (r.height - (src.pad || 26)), 0, 1), r }; };
   cv.addEventListener('pointerdown', e => { if (UI.map) return; e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} LFOED.src = src;
-    const pts = src.pts(), p = pos(e), W = p.r.width - 16, H = p.r.height - 26; let hit = -1, best = 18;
+    const pts = src.pts(), p = pos(e), W = p.r.width - 16, H = p.r.height - (src.pad || 26); let hit = -1, best = 18;
     pts.forEach((q, i) => { const d = Math.hypot((q.x - p.x) * W, (q.y - p.y) * H); if (d < best) { best = d; hit = i; } });
     src.undo(); const now = Date.now();
     if (hit >= 0) { if (LFOED.last.i === hit && now - LFOED.last.t < 320 && pts.length > 2) { pts.splice(hit, 1); LFOED.sel = Math.max(0, hit - 1); LFOED.last = { t: 0, i: -1 }; src.changed(); return; }
