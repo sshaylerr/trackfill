@@ -89,7 +89,7 @@ function deviceEl(c, s, f, redrawRef) {
   dev.dataset.t = f.type; dev.dataset.m = m; if (lk.console) dev.classList.add('dconsole'); if (lk.stripes) dev.classList.add('stripes'); if (!f.on) dev.classList.add('off');
   const head = h('div', 'devHead'), logo = h('div', 'logo'); logo.innerHTML = `<b>${esc(d.name)}</b>${md.n ? `<i>${esc(md.n)}</i>` : ''}`; head.append(logo);
   if (d.modes.length > 1) { const mb = btn(`${esc(md.n)} <span class="car">▾</span>`, () => openModePicker(c, s), 'key sm modeKey'); mb.setAttribute('aria-label', 'Mode: ' + md.n); head.append(mb); }
-  const vis = h('div', 'scr fxvis'), vcv = h('canvas'); vis.append(vcv); vcv._lk = lk; const redraw = () => drawFxVis(vcv, c, s); redrawRef.fn = redraw;
+  const vis = h('div', 'scr fxvis'), vcv = h('canvas'); vis.append(vcv); vcv._lk = lk; const redraw = () => drawFxVis(vcv, c, s); redrawRef.fn = redraw; vcv._redraw = redraw;
   if (FXV_LIVE.has(f.type)) scopeView(vcv, redraw); requestAnimationFrame(redraw);
   if (f.type === FX_TYPES.LFOT) { vcv.classList.add('navc'); vcv.setAttribute('aria-label', 'Shaper shape'); vcv._ctl = lfoCtl; vcv._draw = redraw;
     bindLfo(vcv, { pts: () => P.chans[c].fx[s].lfo, changed: () => { syncChan(c); markDirty(); redraw(); }, draw: redraw, undo: () => pushUndo('chan:' + c), snap: x => Math.round(x * 32) / 32 }); }

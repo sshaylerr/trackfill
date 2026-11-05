@@ -429,7 +429,7 @@ function openSoundTools(pi) {
 // a filter's LFO shape: drawn here like the Shaper's (it moves the cutoff by LFO depth, at LFO rate or in time with LFO sync)
 function openFilterLfo(c, s) { const f = P.chans[c].fx[s]; if (!f) return;
   openSheet('Filter LFO', card => { if (!f.lfo || !f.lfo.length) f.lfo = FX_LFO_SHAPES.Sine.map(q => Object.assign({ c: 0 }, q));
-    const box = h('div', 'scr fxvis'), cv = h('canvas', 'navc'); box.style.cssText = 'position:relative;height:170px'; cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;touch-action:none'; box.append(cv);
+    const box = h('div', 'scr fxvis'), cv = h('canvas', 'navc'); box.style.cssText = 'position:relative;height:170px'; cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;touch-action:none'; box.append(cv); cv._redraw = () => draw();
     const draw = () => { if (!cv.isConnected) return; const { g, W, H } = prepCanvas(cv), pts = f.lfo, tb = tfLfoTable(pts), X = u => 8 + u * (W - 16), Y = v => 10 + (1 - v) * (H - 26);
       g.fillStyle = COL.bg; g.fillRect(0, 0, W, H); g.fillStyle = COL.line; for (let k = 1; k < 4; k++) g.fillRect(Math.round(X(k / 4)), 4, 1, H - 12); g.fillRect(8, Math.round(Y(.5)), W - 16, 1);
       g.beginPath(); for (let i = 0; i <= 256; i++) { const x = X(i / 256), y = Y((tb[i % 256] + 1) / 2); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = COL.accent; g.lineWidth = 2; g.stroke();

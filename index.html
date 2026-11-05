@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-NVHtLEyvZ4qtb5L054h/J63/yZVm2Mx3kxwVVMLQvjk=' 'sha256-JNCYkEkWulfkIr5Utj9XFY4zHbfB+NKixD+r4HieQQw=' 'sha256-Tfyn1FCVd7E6pILpMZfAYFQMal6+SgdXyCZA9lvBz34=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-NVHtLEyvZ4qtb5L054h/J63/yZVm2Mx3kxwVVMLQvjk=' 'sha256-JNCYkEkWulfkIr5Utj9XFY4zHbfB+NKixD+r4HieQQw=' 'sha256-G+AOKiINbgOA9G7BwIbTgm8qrIv7ihzayEG4TRq4doU=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -6816,7 +6816,7 @@ function openSoundTools(pi) {
 // a filter's LFO shape: drawn here like the Shaper's (it moves the cutoff by LFO depth, at LFO rate or in time with LFO sync)
 function openFilterLfo(c, s) { const f = P.chans[c].fx[s]; if (!f) return;
   openSheet('Filter LFO', card => { if (!f.lfo || !f.lfo.length) f.lfo = FX_LFO_SHAPES.Sine.map(q => Object.assign({ c: 0 }, q));
-    const box = h('div', 'scr fxvis'), cv = h('canvas', 'navc'); box.style.cssText = 'position:relative;height:170px'; cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;touch-action:none'; box.append(cv);
+    const box = h('div', 'scr fxvis'), cv = h('canvas', 'navc'); box.style.cssText = 'position:relative;height:170px'; cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;touch-action:none'; box.append(cv); cv._redraw = () => draw();
     const draw = () => { if (!cv.isConnected) return; const { g, W, H } = prepCanvas(cv), pts = f.lfo, tb = tfLfoTable(pts), X = u => 8 + u * (W - 16), Y = v => 10 + (1 - v) * (H - 26);
       g.fillStyle = COL.bg; g.fillRect(0, 0, W, H); g.fillStyle = COL.line; for (let k = 1; k < 4; k++) g.fillRect(Math.round(X(k / 4)), 4, 1, H - 12); g.fillRect(8, Math.round(Y(.5)), W - 16, 1);
       g.beginPath(); for (let i = 0; i <= 256; i++) { const x = X(i / 256), y = Y((tb[i % 256] + 1) / 2); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.strokeStyle = COL.accent; g.lineWidth = 2; g.stroke();
@@ -7712,7 +7712,7 @@ function deviceEl(c, s, f, redrawRef) {
   dev.dataset.t = f.type; dev.dataset.m = m; if (lk.console) dev.classList.add('dconsole'); if (lk.stripes) dev.classList.add('stripes'); if (!f.on) dev.classList.add('off');
   const head = h('div', 'devHead'), logo = h('div', 'logo'); logo.innerHTML = `<b>${esc(d.name)}</b>${md.n ? `<i>${esc(md.n)}</i>` : ''}`; head.append(logo);
   if (d.modes.length > 1) { const mb = btn(`${esc(md.n)} <span class="car">▾</span>`, () => openModePicker(c, s), 'key sm modeKey'); mb.setAttribute('aria-label', 'Mode: ' + md.n); head.append(mb); }
-  const vis = h('div', 'scr fxvis'), vcv = h('canvas'); vis.append(vcv); vcv._lk = lk; const redraw = () => drawFxVis(vcv, c, s); redrawRef.fn = redraw;
+  const vis = h('div', 'scr fxvis'), vcv = h('canvas'); vis.append(vcv); vcv._lk = lk; const redraw = () => drawFxVis(vcv, c, s); redrawRef.fn = redraw; vcv._redraw = redraw;
   if (FXV_LIVE.has(f.type)) scopeView(vcv, redraw); requestAnimationFrame(redraw);
   if (f.type === FX_TYPES.LFOT) { vcv.classList.add('navc'); vcv.setAttribute('aria-label', 'Shaper shape'); vcv._ctl = lfoCtl; vcv._draw = redraw;
     bindLfo(vcv, { pts: () => P.chans[c].fx[s].lfo, changed: () => { syncChan(c); markDirty(); redraw(); }, draw: redraw, undo: () => pushUndo('chan:' + c), snap: x => Math.round(x * 32) / 32 }); }
@@ -9975,7 +9975,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
-  ['2026-11-04', ['Two more consoles: Punchy and Warm, each with its own EQ, compressor and drive. Switching keeps each one\'s settings.', 'All three consoles redesigned after classic desks; the EQ insert\'s Punch and Console modes match.', 'Console EQ and Comp views fit without scrolling, even with the d-pad open.', 'Digital meters on console faders; the master fader stands apart.', 'Tap Mixer again to go from a console\'s EQ or Comp back to the faders.', 'Timeline: hold a track\'s name to select all its notes in the scene.', 'Fix: console meters and gain reduction needles.']],
+  ['2026-11-04', ['Fix: device screens no longer squash when the d-pad opens.', 'Two more consoles: Punchy and Warm, each with its own EQ, compressor and drive. Switching keeps each one\'s settings.', 'All three consoles redesigned after classic desks; the EQ insert\'s Punch and Console modes match.', 'Console EQ and Comp views fit without scrolling, even with the d-pad open.', 'Digital meters on console faders; the master fader stands apart.', 'Tap Mixer again to go from a console\'s EQ or Comp back to the faders.', 'Timeline: hold a track\'s name to select all its notes in the scene.', 'Fix: console meters and gain reduction needles.']],
   ['2026-11-03', ['Consoles (Menu › Console): Clean, with an EQ on every channel, a bus compressor and drive.', 'Audio tracks: recordings with their own editor, clip gain, fades, reverse and stretch to tempo.', 'Each synth engine is now its own instrument, with its own controls and screen.', 'Wavetable browser: search, folders, tags and favorites.', 'New output: Speaker (direct), left out of exports.', 'ANLZ opens the master analyzer; the monitoring options are gone.', 'New rounded font; long names shrink before they\'re cut off.', 'Fix: memory filling up when trying many sounds.', 'Fix: text cut off with the d-pad open.']],
   ['2026-11-02', ['Scenes: add and remove them (up to 64), from the scene menu or the + at the end of the strip.', 'Automate effects on and off: each insert has an On / off lane.']],
   ['2026-11-01', ['Fix: synth switches (wave, filter type and the like) now take effect at once.', 'Envelopes: Sync (times in note values) and Mode (Loop, One-shot) on each envelope tab, as on the LFOs.', 'Voice tab: Voicing and Voices are one knob (Legato, Mono, 2–16); Velocity moved there. Bend range: hold the bend wheel, or in Keys.', 'Ducker: Band (Full, Lows, Highs) and Split, to duck only the low end.', 'Velocity lane: with several notes selected, drag up or down to change them all together.', 'Fix: the synth Pitch knob did nothing (nor did pitch modulation such as vibrato). It now tunes the whole voice, ±36 semitones.', 'Timeline keys cover the full MIDI range (C-2 to G8).']],
@@ -10412,6 +10412,12 @@ document.addEventListener('touchmove', e => { if (e.touches.length > 1 || !e.tar
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 document.addEventListener('touchend', () => { if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); }, true);
 document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(); if (T.playing) stop(); if (mediaTag) mediaTag.pause(); } });
+/* every canvas redraws when its own box changes size (a d-pad opening, a label fitting, a late layout), so a picture is never stretched
+   or squashed: one that knows how (_redraw) draws itself, the rest are the page's own displays */
+const CANVAS_RO = typeof ResizeObserver === 'function' ? new ResizeObserver(es => { let any = false; for (const e of es) { const cv = e.target; if (!cv.isConnected) { CANVAS_RO.unobserve(cv); continue; }
+    if (cv._redraw) { try { cv._redraw(); } catch (err) { console.error(err); } } else any = true; }
+  if (any) requestAnimationFrame(() => { if (UI.view === 'sound') { drawDisp(); drawSynDisp(); drawDrumDisp(); } drawChop(); if (UI.view === 'seq' && TL.cv && TL.cv.isConnected) sizeTL(); }); }) : null;
+if (CANVAS_RO) new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.tagName === 'CANVAS') CANVAS_RO.observe(n); else n.querySelectorAll && n.querySelectorAll('canvas').forEach(c => CANVAS_RO.observe(c)); } }).observe(document.body, { childList: true, subtree: true });
 new ResizeObserver(() => { placeSheet(); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audSize(); audDraw(); } if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); clearTimeout(FIT_T); FIT_T = setTimeout(() => { fitFonts(V); fitFonts($('#scenes')); fitFonts($('#top')); }, 150); }).observe($('#view'));   // a new width: text fitted again
 let FIT_T = 0;
 let lastHeard = -1;
