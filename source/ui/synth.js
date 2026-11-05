@@ -383,7 +383,7 @@ function drawSynDisp1(cv, sc) {
   }
   if (/^e[a23]$/.test(tab)) {   // the envelope with its curves
     const e = tab === 'ea' ? 'a' : tab[1], A = v(e + 'a'), D = v(e + 'd'), Sus = v(e + 's'), R = v(e + 'r'), ca = v(e + 'c') * .85, ck = v(e + 'k') * .85, hold = Math.max(.15, (A + D) * .35), tot = A + D + hold + R;
-    const X = t => 10 + (W - 20) * t / tot, Y = y => H - 14 - (H - 30) * y; grid(); g.beginPath(); g.moveTo(X(0), Y(0));
+    const X = t => 10 + (W - 20) * t / tot, Y = y => H - 12 - (H - 40) * y; grid(); g.beginPath(); g.moveTo(X(0), Y(0));
     for (let i = 1; i <= 40; i++) g.lineTo(X(A * i / 40), Y(tfCurve(i / 40, ca)));
     for (let i = 1; i <= 40; i++) g.lineTo(X(A + D * i / 40), Y(1 + (Sus - 1) * tfCurve(i / 40, ck)));
     g.lineTo(X(A + D + hold), Y(Sus)); for (let i = 1; i <= 40; i++) g.lineTo(X(A + D + hold + R * i / 40), Y(Sus * (1 - tfCurve(i / 40, ck))));
