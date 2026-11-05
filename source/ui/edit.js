@@ -20,6 +20,20 @@ function duplicatePad(pi) {
   pushUndo('all'); putPad(to, { pad: P.pads[pi], chan: P.chans[pi] }); P.pads[to].name = (P.pads[pi].name || 'Sound').slice(0, 10) + ' 2';
   UI.pad = to; UI.bank = Math.floor(to / 16); renderAll(); toast(`Duplicated to ${padLabel(to)}`);
 }
+// the pad and everything it plays: its sound and channel, its notes, audio clips and automation lanes in every scene, onto the next free pad
+const padFree = j => !padUsed(P.pads[j]) && !P.scenes.some(s => (s.notes[j] && s.notes[j].length) || (s.clips && s.clips[j] && s.clips[j].length) || Object.keys(s.auto || {}).some(k => k.split('.')[0] === String(j)));
+function duplicatePadAll(pi) {
+  let to = -1; for (let k = 1; k < NPADS; k++) { const j = (pi + k) % NPADS; if (padFree(j)) { to = j; break; } }
+  if (to < 0) { toast('No empty pad left to duplicate into'); return; }
+  pushUndo('all'); putPad(to, { pad: P.pads[pi], chan: P.chans[pi] }); P.pads[to].name = (P.pads[pi].name || 'Sound').slice(0, 10) + ' 2';
+  let notes = 0, lanes = 0;
+  for (const sc of P.scenes) {
+    if (sc.notes[pi] && sc.notes[pi].length) { sc.notes[to] = clone(sc.notes[pi]); notes += sc.notes[to].length; }
+    if (sc.clips && sc.clips[pi] && sc.clips[pi].length) sc.clips[to] = clone(sc.clips[pi]);
+    for (const k of Object.keys(sc.auto || {})) { const p = k.split('.'); if (p[0] !== String(pi)) continue; p[0] = String(to); sc.auto[p.join('.')] = clone(sc.auto[k]); lanes++; } }
+  syncProject(); markDirty(); UI.pad = to; UI.bank = Math.floor(to / 16); renderAll();
+  toast(`Duplicated to ${padLabel(to)} · ${notes} ${notes === 1 ? 'note' : 'notes'}${lanes ? ` · ${lanes} ${lanes === 1 ? 'lane' : 'lanes'}` : ''}`);
+}
 // swap two pads everywhere: sounds, channel strips, notes in every scene, automation and ducker triggers
 function swapPads(a, b) {
   if (a === b) return; pushUndo('all');
@@ -228,7 +242,8 @@ function openEdit() {
               key(S === a && a > 0 ? 'Start: from bar 1' : 'Start at bar ' + (EDR.from + 1), () => { tl.start = S === a || a === 0 ? null : { scene: UI.scene, t: a }; toast(tl.start ? `Plays from bar ${EDR.from + 1}` : 'Plays from the start'); }, true, { stay: 1, w: 2 })]; })()); }
       if (tab === 'Pad') { const pi = UI.view === 'mix' ? UI.mixSel : UI.pad;
         grid(key('Copy', () => copyPad(pi)), key('Paste', () => pastePad(pi), clipIs('pad')), key('Duplicate', () => duplicatePad(pi), hasSound(P.pads[pi]), { cls: 'hot' }), confirmBtn('Clear', 'Again', () => { closeSheet(); clearPad(pi); }),
-          key('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap a pad to swap with ${padLabel(pi)}`); }, true, { w: 2 })); }
+          key('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap a pad to swap with ${padLabel(pi)}`); }, true, { w: 2 }),
+          key('Duplicate + notes', () => duplicatePadAll(pi), padUsed(P.pads[pi]) || P.scenes.some(sc => sc.notes[pi] && sc.notes[pi].length), { w: 2, cls: 'hot' })); }
       if (tab === 'Channel') { const c = UI.mixSel;
         grid(key('Copy', () => copyChan(c)), key('Paste', () => pasteChan(c), clipIs('chan')), key('Copy FX', () => copyChain(c), P.chans[c].fx.length > 0), key('Paste FX', () => pasteChain(c), clipIs('chain'))); }
       if (tab === 'Effect') { const c = UI.fxCh, s = UI.fxSlot, f = P.chans[c].fx[s];
