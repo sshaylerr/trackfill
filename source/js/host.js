@@ -180,6 +180,8 @@ function tfDest(P, c) {
 }
 // Automation / parameter keys: "channel.slot.index". slot -1 = channel strip (vol, pan, send A, send B),
 // slot -2 = pad sound (cutoff, resonance), slot 0..7 = insert effect parameter.
+// a synth route onto an insert effect: 'fx:<slot>:<param>' → { s, i } (null for an ordinary synth control)
+function tfFxTarget(d) { const m = /^fx:(\d+):(\d+)$/.exec(d || ''); return m ? { s: +m[1], i: +m[2] } : null; }
 function tfParseKey(k) { const a = k.split('.'); return { c: +a[0], s: +a[1], i: +a[2] }; }
 // an effect's on/off lane ('c.s.-1'): it steps (holds each point until the next) instead of ramping
 const tfIsToggle = k => { const { s, i } = tfParseKey(k); return s >= 0 && i === -1; };
@@ -447,6 +449,7 @@ class TFHost {
         if (f.type === 19) { const t = tfLfoTable(f.lfo); for (let i = 0; i < 256; i++) T[i] = (t[i] + 1) * .5; } else { T.fill(0); (f.steps || []).forEach((v, i) => { if (i < 16) T[i] = v; }); } } }
       if (f) { for (let i = 0; i < f.p.length; i++) ex.tf_fx_param(c, s, i, f.p[i]); ex.tf_fx_on(c, s, f.on && !frz ? 1 : 0); ex.tf_fx_key(c, s, (f.type === 6 || f.type === 16) && f.key != null ? f.key : -1); }
     }
+    if (c < TF.NPAD) this.syncFxRoutes(c);   // a synth pad's routes onto its effects follow the chain (moved, removed, changed)
   }
   syncPad(i) {
     const p = this.P.pads[i];
@@ -522,9 +525,14 @@ class TFHost {
     for (let k = 0; k < 4; k++) { const ptr = ex.tf_syn_lfo(pi, k); if (ptr) new Float32Array(ex.memory.buffer, ptr, 256).set(tfLfoTable(S.lfo && S.lfo[k])); }
     const mods = (S.mods || []).filter(r => TFSYN_ID[r.d] && r.s >= 0 && r.s < TF_SRC.length).slice(0, 32); ex.tf_syn_routes(pi, mods.length);
     mods.forEach((r, k) => ex.tf_syn_route(pi, k, r.s, TFSYN_ID[r.d].i, r.a || 0, r.c || 0, r.v == null ? -1 : r.v));
+    this.syncFxRoutes(pi);
     ex.tf_syn_voice(pi, ['poly', 'mono', 'legato'].indexOf(pad.voice || 'poly'), pad.poly || 8, pad.glide || 0);
     ex.tf_syn_on(pi, 1);
   }
+  // routes from a synth pad's sources onto its own insert effects: d = 'fx:<slot>:<param>'; one that points at nothing (a removed effect) is skipped
+  syncFxRoutes(pi) { const ex = this.ex, pad = this.P && this.P.pads[pi]; if (!ex.tf_syn_fxroutes || !pad || pad.src !== 'synth' || !pad.syn) return;
+    const C = this.P.chans[pi], rs = (pad.syn.mods || []).map(r => [r, tfFxTarget(r.d)]).filter(([r, t]) => t && r.s >= 0 && r.s < TF_SRC.length && C.fx[t.s] && t.i < C.fx[t.s].p.length).slice(0, 16);
+    ex.tf_syn_fxroutes(pi, rs.length); rs.forEach(([r, t], k) => ex.tf_syn_fxroute(pi, k, r.s, t.s, t.i, r.a || 0, r.c || 0, r.v == null ? -1 : r.v)); }
   // Follow: a pad can play the notes of other pads (a sub under every mid bass); of notes that start together it takes the lowest
   voice(pi, off, semi, vel, gateSec, tag, chordN = 0, only) {
     if (!only) this.voice0(pi, off, semi, vel, gateSec, tag, chordN);
@@ -836,4 +844,4 @@ function tfWarmEngine(module, sr) {
   for (let r = 0; r < 3; r++) { if (sid > 0) for (let c = 4; c < 8; c++) ex.tf_voice_start(c, sid, 0, 1 + c * .1, 0, 1, 0, .8, .0005, .05, -1, 1, 0);
     for (let k = 0; k < 4; k++) ex.tf_syn_note(k, 0, 0, .8, .3, 2 + k, 0); for (let b = 0; b < 100; b++) ex.tf_render(128); }
 }
-if (typeof module !== 'undefined') module.exports = { tfSlotFx, tfConsoleOn, tfClipRate, tfClipLen, tfClipKey, tfFFT, tfTickSamples, tfSongOrder, tfIsToggle, tfStepAt, TF_ENV_DIVS, tfEnvDiv, tfWarmEngine, TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };
+if (typeof module !== 'undefined') module.exports = { tfFxTarget, tfSlotFx, tfConsoleOn, tfClipRate, tfClipLen, tfClipKey, tfFFT, tfTickSamples, tfSongOrder, tfIsToggle, tfStepAt, TF_ENV_DIVS, tfEnvDiv, tfWarmEngine, TF_TEMPO_KEY, tfSwing, tfGroove, tfBpmAt, tfSceneSamples, TFAnalyzer, TF_AN_BANDS, TF_AN_LO, TF_AN_HI, TF_PHONES, tfBiquad, tfFaderDb, tfFaderGain, tfFaderPos, tfSendGain, tfSendPos, tfPanGains, TF_ENGS, TF_WARPS, TF_ALGS, TF_OPMODES, TF_FMWAVES, TFSYN, TFSYN_ID, TF_SRC, TF_WAVES, TF_LFO_DIVS, tfSynNorm, tfSynPhys, tfLfoTable, TFSpectrum, TF, TFHost, TFHeap, tfRenderOffline, tfCurve, tfValueAt, tfSwing, tfDest, tfParseKey, tfBase, tfSetBase };

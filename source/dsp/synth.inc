@@ -10,6 +10,8 @@
 
 enum { NSV = 32, NROUTE = 32, LFOT = 256, MAXUNI = 7, CMB = 2048 };
 struct Route { i32 src, dst, curve, via; float amt; };
+struct FxRoute { i32 src, slot, prm, curve, via; float amt; };   // a synth source onto one of the pad's insert effects
+enum { NFXR = 16 };
 struct Grain { double pos; float inc, t, len, gl, gr; i32 on; };
 enum { NGRAIN = 24, GRAIN_CAP = 128 };
 struct Zone { float root, lo, hi, vlo, vhi, g; u32 st, en, ls, le; };
@@ -23,6 +25,7 @@ struct Patch {
   i32 wt[2];   // wavetable ids for oscillators A and B (0: none)
   float p[NSP]; float lfo[4][LFOT]; Route r[NROUTE]; i32 nr, on, mode, poly; float glide;
   float gph[4], gval[4];            // free-running LFOs: one shared phase per pad
+  FxRoute fr[NFXR]; i32 nfr, scOn; u32 scAge; float sc[NSRC];   // routes onto the pad's effects; the sources as the newest voice sees them
   i32 alt; u32 rng; i32 used[NSP]; u32 srcUsed; XVerb* xr;   // srcUsed: bit per source that any route reads (unused LFOs and envelopes are skipped)  // used: which parameters have a modulation route
 };
 struct SVoice {
@@ -77,6 +80,12 @@ EX void tf_syn_route(i32 pad, i32 k, i32 src, i32 dst, float amt, i32 curve, i32
   Patch* P = patch(pad); if (!P || k < 0 || k >= NROUTE || src < 0 || src >= NSRC || dst < 0 || dst >= NSP) return;
   Route* r = &P->r[k]; r->src = src; r->dst = dst; r->amt = sane(amt, -1.f, 1.f, 0.f); r->curve = curve < 0 || curve > 3 ? 0 : curve; r->via = via >= 0 && via < NSRC ? via : -1; P->used[dst] = 1; P->srcUsed |= 1u << src; if (r->via >= 0) P->srcUsed |= 1u << r->via;
 }
+// routes from the synth's sources onto the pad's own insert effects (sent after tf_syn_routes, which clears the used sources)
+EX void tf_syn_fxroutes(i32 pad, i32 n) { Patch* P = patch(pad); if (!P) return; P->nfr = n < 0 ? 0 : (n > NFXR ? NFXR : n); }
+EX void tf_syn_fxroute(i32 pad, i32 k, i32 src, i32 slot, i32 prm, float amt, i32 curve, i32 via) {
+  Patch* P = patch(pad); if (!P || k < 0 || k >= NFXR || src < 0 || src >= NSRC || slot < 0 || slot >= NSLOT || prm < 0 || prm >= NPARAM) return;
+  FxRoute* r = &P->fr[k]; r->src = src; r->slot = slot; r->prm = prm; r->amt = sane(amt, -1.f, 1.f, 0.f); r->curve = curve < 0 || curve > 3 ? 0 : curve; r->via = via >= 0 && via < NSRC ? via : -1;
+  P->srcUsed |= 1u << src; if (r->via >= 0) P->srcUsed |= 1u << r->via; }
 EX float tf_syn_map(i32 i, float n) { return i >= 0 && i < NSP ? spPhys(i, n) : 0.f; }   // for the tests
 
 /* ---------- voices ---------- */
@@ -356,6 +365,7 @@ static void xVerbRun(i32 pi, Patch* P, i32 n);
 static void renderSynth(i32 n) {
   const float dt = n / SR, beat = 60.f / BPM;
   for (i32 pi = 0; pi < NPAD; pi++) { Patch* P = pat[pi]; if (P && P->xr) { zero(P->xr->sL, n * 4); zero(P->xr->sR, n * 4); } }
+  for (i32 pi = 0; pi < NPAD; pi++) { Patch* P = pat[pi]; if (P) P->scOn = 0; }
   for (i32 pi = 0; pi < NPAD; pi++) { Patch* P = pat[pi]; if (!P || !P->on) continue;   // free-running LFOs advance once per pad
     for (i32 k = 0; k < 4; k++) { const float* p = P->p; i32 b = SP_L1Y + k * 6; float hz = disc(p[b], 2) ? 1.f / (lfoDivBeats[disc(p[b + 2], NLFODIV)] * beat) : spPhys(b + 1, p[b + 1]);
       if (disc(p[b], 2) && gPlay) { const double q = gBeat / lfoDivBeats[disc(p[b + 2], NLFODIV)]; P->gph[k] = (float)(q - (double)(long long)q); }   // synced and playing: locked to the song position, so it never drifts off the bars
@@ -383,6 +393,7 @@ static void renderSynth(i32 n) {
       if (q->via >= 0) { float w = srcVal(v, P, q->via, o3); x *= q->via >= 3 && q->via <= 6 ? (w + 1.f) * 0.5f : w; }
       m[q->dst] += x * q->amt; }
     for (i32 i = 0; i < NSP; i++) if (P->used[i]) m[i] = clampf(m[i], 0.f, 1.f);
+    if (P->nfr && (!P->scOn || v->age >= P->scAge)) { for (i32 k = 0; k < NSRC; k++) P->sc[k] = srcVal(v, P, k, o3); P->scOn = 1; P->scAge = v->age; }   // the pad's effects follow its newest note
     // pitch (glide in semitones), drift
     if (v->semi != v->semiT) { float g = P->glide; if (g < 0.001f) v->semi = v->semiT; else { v->semi = v->semiT + (v->semi - v->semiT) * fexp(-dt * 4.f / g); if (fabsf_(v->semi - v->semiT) < 0.002f) v->semi = v->semiT; } }
     const float drift = m[SP_DRI];
@@ -691,6 +702,16 @@ static void renderSynth(i32 n) {
     if (!(v->fb[0] == v->fb[0]) || !(v->ampPrev == v->ampPrev) || !(v->xg == v->xg)) v->on = 0;   // never let a broken voice keep running
   }
   for (i32 pi = 0; pi < NPAD; pi++) { Patch* P = pat[pi]; if (P && P->on && P->xr && P->xr->live) xVerbRun(pi, P, n); }
+  // no note playing: the envelopes rest at zero, macros and bend still move the effects; LFOs, velocity and note hold their last value
+  for (i32 pi = 0; pi < NPAD; pi++) { Patch* P = pat[pi]; if (!P || !P->nfr || P->scOn) continue; P->sc[0] = P->sc[1] = P->sc[2] = 0.f; for (i32 k = 12; k < 16; k++) P->sc[k] = P->p[SP_M1 + (k - 12)]; P->sc[16] = chBendN[pi]; }
+}
+// the offset a pad's synth routes add to one of its effect's settings this block
+static void synFxMod(i32 c, i32 slot, float* tgt) {
+  if (c < 0 || c >= NPAD) return; const Patch* P = pat[c]; if (!P || !P->on || !P->nfr) return;
+  for (i32 r = 0; r < P->nfr; r++) { const FxRoute* q = &P->fr[r]; if (q->slot != slot) continue; float x = P->sc[q->src];
+    switch (q->curve) { case 1: x = x * fabsf_(x); break; case 2: x = (x < 0 ? -1.f : 1.f) * sqrtf_(fabsf_(x)); break; case 3: { float a = fabsf_(x); a = a * a * (3.f - 2.f * a); x = x < 0 ? -a : a; } }
+    if (q->via >= 0) { float w = P->sc[q->via]; x *= q->via >= 3 && q->via <= 6 ? (w + 1.f) * 0.5f : w; }
+    tgt[q->prm] = clampf(tgt[q->prm] + x * q->amt, 0.f, 1.f); }
 }
 // Space: diffused by two all-passes, then four delay lines mixed by a Householder matrix, damped and decayed to the RT60 Space asks for.
 // Size scales the room; the tail keeps running after the voices end and stops itself once silent.

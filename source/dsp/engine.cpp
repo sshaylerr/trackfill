@@ -881,7 +881,9 @@ static u32 fxStateBytes(i32 t, i32 m) {
 static void fx_run(i32 c, Fx* f, float* L, float* R, i32 n) {
   if (!f->st) return;
   u64 dm = discMask(f->type, f->mode);
-  for (i32 i = 0; i < NPARAM; i++) { if (f->fresh || ((dm >> i) & 1ull)) f->s[i] = f->p[i]; else f->s[i] += (f->p[i] - f->s[i]) * 0.35f; }
+  float tgt[NPARAM]; for (i32 i = 0; i < NPARAM; i++) tgt[i] = f->p[i];
+  { const i32 slot = (i32)(f - chs[c].fx); if (slot >= 0 && slot < NSLOT) synFxMod(c, slot, tgt); }   // a synth pad's sources moving its own effects
+  for (i32 i = 0; i < NPARAM; i++) { if (f->fresh || ((dm >> i) & 1ull)) f->s[i] = tgt[i]; else f->s[i] += (tgt[i] - f->s[i]) * 0.35f; }
   f->fresh = 0;
   const float *kL = 0, *kR = 0;
   if (f->key >= 0) { kL = keyL[f->key]; kR = keyR[f->key]; }

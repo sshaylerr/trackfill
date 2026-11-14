@@ -278,9 +278,11 @@ function openOutputPicker(c) {
 /* ---------- effects: 8 slot keys, the selected effect's knobs below ---------- */
 function openFx(c, back) { navReset(); UI.fxCh = c; UI.fxBack = back || 'mix'; UI.fxSlot = 0; UI.view = 'fx'; renderView(); }
 function remapSlots(c, map) {   // keep automation attached to the right effect when slots move: map[oldSlot] = newSlot or -1
+  const S = c < NPADS && P.pads[c].src === 'synth' && P.pads[c].syn;   // and a synth pad's routes onto its effects
+  if (S && S.mods) S.mods = S.mods.filter(m => { const t = tfFxTarget(m.d); if (!t) return true; const ns = map[t.s]; if (!(ns >= 0)) return false; m.d = `fx:${ns}:${t.i}`; return true; });
   for (const sc of P.scenes) { const next = {}; for (const k in sc.auto) { const p = tfParseKey(k); if (p.c !== c || p.s < 0 || p.s >= TF.NSLOT) { next[k] = sc.auto[k]; continue; } const ns = map[p.s]; if (ns >= 0) next[`${c}.${ns}.${p.i}`] = sc.auto[k]; } sc.auto = next; }
 }
-function fxChanged(c) { syncChan(c); P.scenes.forEach((_, i) => syncScene(i)); if (c < G0 && P.pads[c].frz) touchPad(c); markDirty(); renderView(); }
+function fxChanged(c) { if (c < NPADS && P.pads[c].src === 'synth') syncPad(c); syncChan(c); P.scenes.forEach((_, i) => syncScene(i)); if (c < G0 && P.pads[c].frz) touchPad(c); markDirty(); renderView(); }
 // how the controls sit: rows of up to four; a shorter row is centred; '' leaves a gap so a band's controls stay in one column.
 // '@src' is the Ducker's trigger source (pads or a channel), '@key' the Gate's. Only the layout changes: each control keeps its
 // place in the engine, in automation and in saved projects, and anything a layout misses is added at the end.
@@ -388,6 +390,7 @@ function renderFx(V) {
       const lk = fxLook(f.type, f.mode | 0), rot = lk.rot && prm.opts && prm.opts.length > 2;   // a look with its own knobs (and selector knobs for three settings or more)
       if (prm.opts) { el = selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(key, f.p[i]); redrawVis(); if (f.type === FX_TYPES.DUCK && i === 0) { syncChan(c); renderView(); } markDirty(); }, rot ? { paint: conRot(prm.opts, null, lk.rot) } : {}); if (rot) el.classList.add('swk', 'sw-rotary'); }
       else el = keyParam(key, Object.assign({ label: f.type === FX_TYPES.MBD ? prm.n.replace(/^(Low|Mid|High) (.)/, (_, b, ch) => ch.toUpperCase()) : prm.n, after: redrawVis }, lk.knob ? { skin: lk.knob } : {}));
+      if (c < NPADS && P.pads[c].src === 'synth' && P.pads[c].syn && (P.pads[c].syn.mods || []).some(m => m.d === `fx:${s}:${i}`)) el.classList.add('modded');   // moved by the pad's synth (Map)
       el.dataset.p = prm.n; return el; };
     if (f.type === FX_TYPES.STEP) dev.append(stepPalette(c, s));
     if (f.type === FX_TYPES.MBD) { const tb = h('div', 'mbTabs'); MBD_TABS.forEach((n, b) => tb.append(btn(n, () => { UI.mbBand = b; renderView(); }, 'key sm' + ((UI.mbBand ?? 1) === b ? ' on' : '')))); dev.append(tb); }

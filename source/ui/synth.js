@@ -394,14 +394,14 @@ function drawSynDisp1(cv, sc) {
   if (tab === 'mc') { grid(); const routes = (S.mods || []).filter(m => m.s >= 12);
     [1, 2, 3, 4].forEach((k, i) => { const y = 18 + i * (H - 24) / 4, val = v('m' + k), mine = routes.filter(m => m.s === 11 + k);
       g.fillStyle = COL.raised2; g.fillRect(8, y - 5, W * .3, 10); g.fillStyle = COL.accent; g.fillRect(8, y - 5, W * .3 * val, 10);
-      txt(`Macro ${k}` + (mine.length ? ' → ' + mine.map(m => (TFSYN_ID[m.d] ? TFSYN_ID[m.d].l : m.d) + ' ' + (m.a > 0 ? '+' : '') + Math.round(m.a * 100) + '%').join(', ') : ' · not mapped (use Map)'), W * .3 + 16, y, mine.length ? COL.ink : COL.dim); });
+      txt(`Macro ${k}` + (mine.length ? ' → ' + mine.map(m => (mapTgt(pi, m.d) || { l: m.d }).l + ' ' + (m.a > 0 ? '+' : '') + Math.round(m.a * 100) + '%').join(', ') : ' · not mapped (use Map)'), W * .3 + 16, y, mine.length ? COL.ink : COL.dim); });
     return; }
   if (/^l\d$/.test(tab)) {   // the drawn LFO: points, curves, and the grid when snapping
     const k = +tab[1] - 1, pts = S.lfo[k], T = tfLfoTable(pts), X = x => 8 + (W - 16) * x, Y = y => 24 + (H - 34) * (1 - y);
     g.fillStyle = COL.line; const sn = [0, 4, 8, 16][SYN_ST.snap]; if (sn) for (let i = 1; i < sn; i++) g.fillRect(Math.round(X(i / sn)), 0, 1, H); g.fillRect(0, Math.round(Y(.5)), W, 1);
     g.beginPath(); for (let i = 0; i <= 256; i++) { const y = (T[i & 255] + 1) / 2; i ? g.lineTo(X(i / 256), Y(y)) : g.moveTo(X(0), Y(y)); } g.strokeStyle = col; g.lineWidth = 2; g.stroke();
     pts.forEach((q, i) => { g.beginPath(); g.arc(X(q.x), Y(q.y), i === LFOED.sel ? 6.5 : 4.5, 0, 7); g.fillStyle = i === LFOED.sel ? COL.accent : COL.ink; g.fill(); });
-    const uses = (S.mods || []).filter(m => m.s === 3 + k); txt(`LFO ${k + 1} · ${(S.p['l' + (k + 1) + 'y'] ?? 'Sync') === 'Sync' ? (S.p['l' + (k + 1) + 'd'] ?? '1/4') : hzStr(S.p['l' + (k + 1) + 'r'] ?? 2)} · ` + (uses.length ? '→ ' + uses.map(m => TFSYN_ID[m.d] ? TFSYN_ID[m.d].l : m.d).join(', ') : 'not mapped yet (use Map)'), 8, 11, uses.length ? COL.mute : COL.dim);
+    const uses = (S.mods || []).filter(m => m.s === 3 + k); txt(`LFO ${k + 1} · ${(S.p['l' + (k + 1) + 'y'] ?? 'Sync') === 'Sync' ? (S.p['l' + (k + 1) + 'd'] ?? '1/4') : hzStr(S.p['l' + (k + 1) + 'r'] ?? 2)} · ` + (uses.length ? '→ ' + uses.map(m => (mapTgt(pi, m.d) || { l: m.d }).l).join(', ') : 'not mapped yet (use Map)'), 8, 11, uses.length ? COL.mute : COL.dim);
     if (NAV.mode === 'canvas' && NAV.el === cv) { g.strokeStyle = COL.accent; g.setLineDash([4, 3]); g.strokeRect(1.5, 1.5, W - 3, H - 3); g.setLineDash([]); }
     return;
   }
@@ -693,9 +693,12 @@ function openLfoShapes(pi, k) {
 }
 
 /* ----- Map mode: tap a control, pick a source, set the amount ----- */
+// a map target: a synth control (its id) or a setting of one of the pad's insert effects ('fx:<slot>:<param>')
+function mapTgt(pi, id) { if (!id) return null; if (TFSYN_ID[id]) return TFSYN_ID[id]; const t = tfFxTarget(id), f = t && P.chans[pi].fx[t.s], ps = f && fxParams(f);
+  return ps && ps[t.i] ? { l: FX_DEFS[f.type].short + ' ' + ps[t.i].n.toLowerCase(), fx: true } : null; }
 function routesFor(pi, id) { return (synOf(pi).mods || []).map((m, i) => [m, i]).filter(([m]) => m.d === id); }
 function mapPick(pi, id) {
-  const M = UI.map, S = synOf(pi); if (!M || !TFSYN_ID[id]) return;
+  const M = UI.map, S = synOf(pi); if (!M || !mapTgt(pi, id)) return;
   if (M.armed >= 0) {   // source first: connect the armed source to every control you tap
     if (!routesFor(pi, id).some(([m]) => m.s === M.armed)) { if (routesFor(pi, id).length >= 4) { toast('A control takes up to four sources'); return; } pushUndo('pad:' + pi); S.mods.push({ s: M.armed, d: id, a: .25, c: 0 }); syncPad(pi); markDirty(); }
     M.target = id; M.route = S.mods.findIndex(m => m.d === id && m.s === M.armed); renderView(); return; }
@@ -705,7 +708,7 @@ const SRC_SHORT = ['Amp', 'Env 2', 'Env 3', 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4', 
 // Map bar (two fixed rows, nothing scrolls): ① the control and the selected connection's amount ② its connections and +
 function mapBar(pi) {
   const M = UI.map, S = synOf(pi), bar = { querySelector: s => r2.querySelector(s) }, r1 = h('div', 'mapRow'), r2 = h('div', 'mapRow');
-  const t = M.target && TFSYN_ID[M.target], m = t && M.route >= 0 ? S.mods[M.route] : null;
+  const t = mapTgt(pi, M.target), m = t && M.route >= 0 ? S.mods[M.route] : null;
   r1.append(h('div', 'lcdbox mapLab', t ? esc(t.l) : M.armed >= 0 ? esc(SRC_SHORT[M.armed]) + ' →' : 'Map'));
   if (m) { const amt = paramEl({ label: TF_SRC[m.s], min: -1, max: 1, step: .01, coarse: .05, big: .2, def: 0, bipolar: true, fmt: x => (x > 0 ? '+' : '') + Math.round(x * 100) + '%', noFocus: true,
       get: () => m.a, set: x => { m.a = x; syncPad(pi); markDirty(); paintMods(document.querySelector('.synGrid'), pi); const c = bar.querySelector('.mchip.on b'); if (c) c.textContent = (x > 0 ? '+' : '') + Math.round(x * 100) + '%'; }, onStart: () => pushUndo('pad:' + pi) });
@@ -717,12 +720,24 @@ function mapBar(pi) {
     if (routesFor(pi, M.target).length < 4) r2.append(btn('+', () => openSourcePicker(pi), 'key sm madd'));
   }
   else r2.append(btn(M.armed >= 0 ? 'Source: ' + esc(TF_SRC[M.armed]) : 'Pick a source first…', () => openSourcePicker(pi), 'key sm madd' + (M.armed >= 0 ? ' on' : '')));
+  if (!t && P.chans[pi].fx.length) r2.append(btn('Effects…', () => openFxTargets(pi), 'key sm madd'));   // the pad's own effects can be modulated too
   return [r1, r2];   // row 1 takes the page keys' place, row 2 the faceplate's logo line, so the layout barely moves
+}
+// the pad's insert effects and their settings as map targets (settings with a fixed set of choices are left out); a dot marks one already modulated
+function openFxTargets(pi) {
+  const M = UI.map, S = synOf(pi), C = P.chans[pi];
+  openSheet('Modulate an effect', card => { const st = h('div', 'stack');
+    C.fx.forEach((f, s) => { const d = FX_DEFS[f.type], md = f.mode ? d.modes[f.mode].n : '', ps = fxParams(f);
+      st.append(h('div', 'sec', `${s + 1} · ${esc(d.name)}${md ? ' · ' + esc(md) : ''}`)); const g = h('div', 'g3');
+      ps.forEach((p, i) => { if (p.opts) return; const id = `fx:${s}:${i}`, used = (S.mods || []).some(m => m.d === id);
+        g.append(btn(`${used ? '<i class="sdot" style="background:' + SRC_COL((S.mods.find(m => m.d === id) || {}).s || 0) + '"></i>' : ''}${esc(p.n)}`, () => { closeSheet(); mapPick(pi, id); }, 'btn srcbtn' + (M.target === id ? ' on' : ''))); });
+      st.append(g); });
+    card.append(st); });
 }
 // every source in one sheet, grouped and coloured (no scrolling rows); with no control picked it arms the source instead
 function openSourcePicker(pi) {
   const M = UI.map, S = synOf(pi), t = M.target;
-  openSheet(t ? 'Modulate ' + TFSYN_ID[t].l + ' with…' : 'Pick a source', card => { const st = h('div', 'stack');
+  openSheet(t ? 'Modulate ' + mapTgt(pi, t).l + ' with…' : 'Pick a source', card => { const st = h('div', 'stack');
     for (const [title, ids] of [['Envelopes', [0, 1, 2]], ['LFOs', [3, 4, 5, 6, 11]], ['Playing', [7, 8, 9, 10, 16]], ['Macros', [12, 13, 14, 15]]]) {
       st.append(h('div', 'sec', title)); const g = h('div', 'g3');
       for (const s of ids) { const used = t && routesFor(pi, t).some(([q]) => q.s === s);
@@ -734,7 +749,7 @@ function openSourcePicker(pi) {
 }
 function openRouteMore(pi, ri) {
   const S = synOf(pi), m = S.mods[ri]; if (!m) return;
-  openSheet(`${TF_SRC[m.s]} → ${TFSYN_ID[m.d].l}`, card => { const st = h('div', 'stack');
+  openSheet(`${TF_SRC[m.s]} → ${(mapTgt(pi, m.d) || { l: '?' }).l}`, card => { const st = h('div', 'stack');
     st.append(h('div', 'sec', 'Response curve')); let g = h('div', 'g4');
     ['Linear', 'Exponential', 'Log', 'S-curve'].forEach((n, c) => g.append(btn(n, () => { pushUndo('pad:' + pi); m.c = c; syncPad(pi); markDirty(); closeSheet(); openRouteMore(pi, ri); }, 'btn' + ((m.c || 0) === c ? ' on' : '')))); st.append(g);
     st.append(h('div', 'sec', 'Via: scale this by another source')); g = h('div', 'g4');

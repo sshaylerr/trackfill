@@ -279,6 +279,15 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     ok(rms(hat.L) < rms(ref.L) * .7, `De-esser turns a bright hat down ${(20 * Math.log10(rms(hat.L) / rms(ref.L))).toFixed(1)} dB`);
     const ps = M.newFx(26); ps.p[0] = 19 / 24; const pv = await render(ps, Object.assign({}, sine)), fp = zc(pv.L, 30000, 72000);
     ok(Math.abs(fp / fa - Math.pow(2, 7 / 12)) < .01, `Pitch +7 st: ${fa.toFixed(1)} Hz → ${fp.toFixed(1)} Hz (a fifth up is ×1.498, got ×${(fp / fa).toFixed(3)})`); }
+  console.log('synth to effects');
+  { // a synth pad's sources move its own effects: Macro 1 at full, +25% onto Utility gain (0 dB → +12 dB), quiet enough not to reach the master's ceiling
+    const rms = (x, a, b) => { let s = 0; for (let i = a; i < b; i++) s += x[i] * x[i]; return Math.sqrt(s / (b - a)); };
+    const go = async (mods, m1, notes) => { const Q = M.newProject(true), syn = SP.synPatch({ n: 't', p: { o1w: 'Sine', flt: 'Off', aa: .001, as: 1, dri: 0, ar: .01 } }); syn.mods = mods; if (m1 != null) syn.p.m1 = m1;
+      Object.assign(Q.pads[0], { src: 'synth', syn, mode: 'gate', sample: null }); const u = M.newFx(M.FX_TYPES.UTIL); Q.chans[0].fx = [M.newFx(M.FX_TYPES.EQ), u]; Q.scenes[0].notes = { 0: notes || [{ t: 0, len: 380, p: 0, v: .3 }] }; Q.bpm = 120;
+      return (await H.tfRenderOffline(wasm, Q, kit, { order: [{ scene: 0, reps: 1 }], tail: 0 })).L; };
+    const dry = await go([]), mac = await go([{ s: 12, d: 'fx:1:0', a: .25 }], 1), gone = await go([{ s: 12, d: 'fx:5:0', a: .25 }], 1);
+    const lift = 20 * Math.log10(rms(mac, 24000, 72000) / rms(dry, 24000, 72000)), none = 20 * Math.log10(rms(gone, 24000, 72000) / rms(dry, 24000, 72000));
+    ok(Math.abs(lift - 12) < .3 && Math.abs(none) < .05, `synth macros move the pad's effects: Macro 1 → Utility gain +25% lifts it ${lift.toFixed(2)} dB (want +12); a route to an empty slot does nothing (${none.toFixed(2)} dB)`); }
   console.log('filter LFO');
   { const fl = async (lfo, sync) => { const Q = M.newProject(true); Object.assign(Q.pads[0], { sample: 'b:dhat', src: 'sample' }); Q.scenes[0].notes = { 0: Array.from({ length: 16 }, (_, k) => ({ t: k * 24, len: 24, p: 0, v: .9 })) };
       const f = M.newFx(2, null, 1); f.p[6] = .5; f.p[0] = .5; f.p[9] = sync; if (lfo) f.lfo = M.FX_LFO_SHAPES[lfo].map(q => Object.assign({ c: 0 }, q)); Q.chans[0].fx = [f]; Q.bpm = 120;

@@ -120,6 +120,8 @@ function switchFxMode(c, s, mode) {
   const f = P.chans[c].fx[s]; if (!f || (f.mode | 0) === mode) return; pushUndo('all');
   const old = fxParams(f).map(p => p.n); setFxMode(f, mode); const neu = fxParams(f).map(p => p.n);
   for (const sc of P.scenes) { const next = {}; for (const k in sc.auto) { const q = tfParseKey(k); if (q.c !== c || q.s !== s) { next[k] = sc.auto[k]; continue; } const ni = neu.indexOf(old[q.i]); if (ni >= 0) next[`${c}.${s}.${ni}`] = sc.auto[k]; } sc.auto = next; }
+  const S = c < NPADS && P.pads[c].src === 'synth' && P.pads[c].syn;   // a synth pad's routes onto this effect follow its controls by name
+  if (S && S.mods) S.mods = S.mods.filter(m => { const t = tfFxTarget(m.d); if (!t || t.s !== s) return true; const ni = neu.indexOf(old[t.i]); if (ni < 0 || fxParams(f)[ni].opts) return false; m.d = `fx:${s}:${ni}`; return true; });
   fxChanged(c); toast(FX_DEFS[f.type].name + ': ' + FX_DEFS[f.type].modes[mode].n);
 }
 
