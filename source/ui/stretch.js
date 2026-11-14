@@ -38,6 +38,10 @@ let strBusy = 0; function stretchBusy(d) { strBusy += d; const el = document.que
 // a pad changed: if what the stretch depends on moved (tempo, pitch, mode, settings, sample), render again
 function stretchCheck(pi) { const pad = P.pads[pi]; if (!pad || !pad.wm || pad.wm === 'Repitch') { if (pad && pad.stx) { pad.stx = null; } return; } if (!pad.sample) return; const key = stretchKey(pad); if (key !== pad.stx && key !== STR.sig.get(pi)) scheduleStretch(pi); }
 
+// keys: { r: 0..11, m: minor }. A minor sound in a major song matches the song's relative minor (and the other way round).
+function songKeyOf() { return { r: P.key.root, m: tonality(SCALES[P.key.scale][1]) === 'min' }; }
+function keyName(k) { return NOTE_NAMES[k.r] + (k.m ? ' minor' : ' major'); }
+function keyShift(fk, sk) { const to = fk.m === sk.m ? sk.r : sk.m ? sk.r + 3 : sk.r + 9; const d = ((to - fk.r) % 12 + 12) % 12; return d > 6 ? d - 12 : d; }
 /* ---------- the Stretch menu (on the Sample page: the sound's tempo, the mode and its settings) ---------- */
 function stretchLabel(pad) { const m = pad.wm || 'Repitch'; return pad.tempo > 0 ? `${m} · ${+pad.tempo.toFixed(1)}→${P.bpm}` : m === 'Repitch' ? 'Off' : m + (pad.wp && pad.wp.speed !== 1 ? ' · ' + pad.wp.speed.toFixed(2) + '×' : ''); }
 const STRETCH_ABOUT = { Repitch: 'speed and pitch move together, like a turntable', Clean: 'keeps the pitch: vocals, pads, keys, full mixes', Beats: 'slices at each hit, every slice at its own speed: breaks',
@@ -49,6 +53,11 @@ function openStretch(pi) {
     const l = h('div', 'list'); for (const m of STRETCH_MODES) { const li = h('div', 'li' + (pad.wm === m ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${m}</b><span>${STRETCH_ABOUT[m]}</span></div>`;
       li.onclick = () => { pushUndo('pad:' + pi); touchPad(pi); pad.wm = m; markDirty(); if (m === 'Repitch') { pad.stx = null; syncPad(pi); } else refreshStretch(pi); closeSheet(); openStretch(pi); }; l.append(li); }
     st.append(h('div', 'sec', 'Mode'), l);
+    if (pad.fk) { const sk = songKeyOf(), d = keyShift(pad.fk, sk), kr = h('div', 'g2');   // the sound's key (from its file name) against the song's
+      st.append(h('div', 'sec', `Key: ${keyName(pad.fk)}, the song is in ${keyName(sk)}`));
+      kr.append(btn('Original', () => { pushUndo('pad:' + pi); touchPad(pi); pad.pitch = 0; pad.fine = 0; syncPad(pi); markDirty(); closeSheet(); openStretch(pi); }, 'btn' + (!pad.pitch && !pad.fine ? ' on' : '')),
+        btn(`Match song · ${d > 0 ? '+' : ''}${d} st`, () => { pushUndo('pad:' + pi); touchPad(pi); pad.pitch = d; pad.fine = 0; syncPad(pi); markDirty(); closeSheet(); openStretch(pi); toast(d ? `Moved ${d > 0 ? 'up' : 'down'} ${Math.abs(d)} semitone${Math.abs(d) > 1 ? 's' : ''}${pad.wm === 'Repitch' ? ': with Repitch this also changes its speed' : ''}` : 'Already in the song\'s key'); }, 'btn' + (pad.pitch === d && !pad.fine && d ? ' on' : '')));
+      st.append(kr); }
     st.append(h('div', 'sec', 'The sound\'s tempo: then it follows the song (' + P.bpm + ' BPM)'));
     const dur = (pad.end - pad.start) * s.frames / s.sr, fit = h('div', 'g3'); fit.append(btn('Off', () => { pushUndo('pad:' + pi); touchPad(pi); pad.tempo = 0; syncPad(pi); markDirty(); closeSheet(); openStretch(pi); }, 'btn' + (pad.tempo ? '' : ' on')));
     for (const [beats, l] of [[1, '1 beat'], [2, '2 beats'], [4, '1 bar'], [8, '2 bars'], [16, '4 bars'], [32, '8 bars']]) { const bpm = beats * 60 / dur; if (bpm < 20 || bpm > 300) continue;

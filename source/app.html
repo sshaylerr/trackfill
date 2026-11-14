@@ -2327,12 +2327,13 @@ async function expandAudio(files) { const out = []; let zipFail = false;
   return out; }
 async function importFiles(files, firstPad) {
   files = await expandAudio(files); if (!files.length) return;
+  files.sort((a, b) => (a.tfDir || '').localeCompare(b.tfDir || '', undefined, { numeric: true }) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));   // Kick 2 before Kick 10, a pack's folders kept together
   ensureAudio(); toast(`Loading ${files.length} file${files.length > 1 ? 's' : ''}…`);
   const ids = [], failed = [];
   for (const f of files) {
     try { const ab = await f.arrayBuffer(), buf = await new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
       const chans = []; for (let c = 0; c < Math.min(2, buf.numberOfChannels); c++) chans.push(buf.getChannelData(c));
-      const name = f.name.replace(/\.[^.]+$/, '').slice(0, 24); ids.push({ id: addUserSample(name, buf.sampleRate, chans.length, interleave(chans, Math.floor(buf.sampleRate * 90))), name }); }
+      const tg = nameTags(f.name, buf.duration), name = tg.name.slice(0, 24); ids.push({ id: addUserSample(name, buf.sampleRate, chans.length, interleave(chans, Math.floor(buf.sampleRate * 90))), name, tg, beats: /drum|beat|perc|top|break|groove|kick|snare|hat|clap|shaker|fill/i.test(f.name) }); }
     catch (err) { failed.push(f.name); }
   }
   // fill: the chosen pad first, then the next empty pads from the selected pad onward
@@ -2340,12 +2341,13 @@ async function importFiles(files, firstPad) {
   const nextEmpty = from => { for (let k = 0; k < NPADS; k++) { const i = (from + k) % NPADS; if (!padUsed(P.pads[i]) && !placed.includes(i)) return i; } return -1; };
   if (ids.length) pushUndo('all');
   ids.forEach((x, n) => { const target = n === 0 && firstPad != null ? firstPad : nextEmpty(next); if (target < 0) return; touchPad(target);
-    Object.assign(P.pads[target], { sample: x.id, name: x.name.slice(0, 12), start: 0, end: 1, reverse: false, frz: null }); placed.push(target); next = target; syncPad(target); });
+    Object.assign(P.pads[target], { sample: x.id, name: x.name.slice(0, 12), start: 0, end: 1, reverse: false, frz: null, fk: x.tg.key, pitch: 0, fine: 0 },
+      x.tg.bpm ? { tempo: x.tg.bpm, wm: x.beats ? 'Beats' : 'Clean' } : { tempo: 0, wm: 'Repitch' }); placed.push(target); next = target; syncPad(target); if (x.tg.bpm) refreshStretch(target); });   // a loop named with its tempo follows the song's
   markDirty(); renderAll();
   if (placed.length) { UI.pad = placed[0]; UI.bank = Math.floor(UI.pad / 16); audition(placed[0]); }
   const where = placed.length ? (placed.length === 1 ? padLabel(placed[0]) : `${padLabel(placed[0])}–${padLabel(placed[placed.length - 1])}`) : '';
   toast((placed.length ? `Loaded ${placed.length} onto ${where}` : ids.length ? 'Added to the library (no empty pads left)' : 'Nothing loaded') +
-    (ids.length > placed.length && placed.length ? `; ${ids.length - placed.length} more in the library` : '') + (failed.length ? `. ${failed.length} file${failed.length > 1 ? 's' : ''} could not be read as audio.` : '.'));
+    (ids.length > placed.length && placed.length ? `; ${ids.length - placed.length} more in the library` : '') + (placed.some(i => P.pads[i].tempo > 0) ? `; ${placed.filter(i => P.pads[i].tempo > 0).length} follow the song's tempo` : '') + (failed.length ? `. ${failed.length} file${failed.length > 1 ? 's' : ''} could not be read as audio.` : '.'));
 }
 function openLibrary() {
   openSheet('Sound library', card => {
@@ -2528,6 +2530,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
   ['2026-11-13', [
+    'Importing: sounds go onto pads in name order; loops named with a tempo follow the song, and a key in the name shows up, with Stretch › Match song to transpose.',
     'Every effect now has a Mix (dry/wet); Multiband\'s Amount is now Mix.',
     'Analyzer: lay another track over the spectrum as a reference (Ref).', 'Synth Map can now move the pad\'s own effects: in Map, tap Effects… and pick a setting.', 'New Multiband: every band compressed above and lifted below, from gentle glue to over the top. Older projects keep the old one.']],
   ['2026-11-05', ['Edit › Pad › Duplicate + notes: copies the pad\'s sound and channel with its notes, clips and automation in every scene to the next free pad.']],

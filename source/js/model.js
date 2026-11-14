@@ -552,7 +552,7 @@ function defaultChan(c) {
 }
 // tempo: the sound's own tempo in BPM (0 = off); when set, it is repitched to follow the project tempo.
 // chop: slices of the sound. Notes on a chopped pad carry the slice number in 'p' instead of a pitch.
-function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, swg: null, swq: null, tim: 0, gain: 0, norm: false, ng: 1, fin: 0, fout: 0, silA: 0, silB: 0, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08, src: 'sample', wm: 'Repitch', wp: null, stx: null, drum: null, choke: 0, syn: null, bend: .5, bendR: 2 }; }
+function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, swg: null, swq: null, tim: 0, gain: 0, norm: false, ng: 1, fin: 0, fout: 0, silA: 0, silB: 0, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08, src: 'sample', wm: 'Repitch', wp: null, stx: null, drum: null, choke: 0, syn: null, bend: .5, bendR: 2, fk: null }; }
 
 /* ---------- chopping ---------- */
 const MAX_SLICES = 16;
@@ -598,6 +598,27 @@ function newProject(blank) {
 }
 /* ---------- migration: every saved project passes through here ---------- */
 // a name typed or loaded from a file: plain text only (no markup characters, no control characters), so it can never become part of the page
+/* What a sound's file name says about it: tempo, key and a tidier name. Sample-shop names look like "XX_YYY_124_synth_loop_Fmin" or
+   "Kick 01" or "Pad Loop 90bpm F# minor". A bare number only counts as a tempo when the sound lasts a whole number of bars at it;
+   "120bpm" counts anyway. A key needs its quality (Fmin, F#m, C major): a lone letter is too often something else. */
+const NT_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+function nameTags(file, secs) {
+  const base = String(file || '').replace(/\.[a-z0-9]{2,5}$/i, ''), tok = base.split(/[\s_\-.()[\],]+/).filter(Boolean), used = new Set(); let bpm = 0, sure = false, key = null;
+  const loopy = b => { if (!(secs > 0)) return false; const bars = secs * b / 240; return [.5, 1, 2, 4, 8, 16, 32].some(n => Math.abs(bars - n) < n * .02 + .01); };
+  const keyOf = (t, nx) => { const m = /^([A-G])(#|♯|b|♭|s(?=h|m|maj|min|$))?(sharp|flat)?(m|min|minor|maj|major)?$/.exec(t); if (!m) return null;
+    let q = m[4], extra = 0; if (!q && nx && /^(min|minor|maj|major)$/i.test(nx)) { q = nx.toLowerCase(); extra = 1; } if (!q) return null;
+    const acc = m[2] || (m[3] === 'sharp' ? '#' : m[3] === 'flat' ? 'b' : ''); const r = (NT_PC[m[1]] + (/[#♯s]/.test(acc) ? 1 : /[b♭]/.test(acc) ? -1 : 0) + 12) % 12;
+    return { r, m: /^m(in(or)?)?$/i.test(q) && q !== 'M', extra }; };
+  for (let i = 0; i < tok.length; i++) { const t = tok[i], nx = tok[i + 1];
+    let m = /^(\d{2,3}(?:\.\d+)?)bpm$/i.exec(t); if (!m && /^\d{2,3}(\.\d+)?$/.test(t) && nx && /^bpm$/i.test(nx)) { m = [t, t]; used.add(i + 1); }
+    if (m && +m[1] >= 40 && +m[1] <= 250) { bpm = +m[1]; sure = true; used.add(i); continue; }
+    if (!sure && !bpm && /^\d{2,3}$/.test(t) && +t >= 60 && +t <= 200 && loopy(+t)) { bpm = +t; used.add(i); continue; }
+    if (/^bpm$/i.test(t)) { used.add(i); continue; }
+    if (!key) { const k = keyOf(t, nx); if (k) { key = { r: k.r, m: k.m }; used.add(i); if (k.extra) used.add(i + 1); } } }
+  if (bpm && !sure && !loopy(bpm)) bpm = 0;
+  let rest = tok.filter((_, i) => !used.has(i)); while (rest.length > 2 && /^[A-Z0-9]{2,4}$/.test(rest[0]) && /[A-Z]/.test(rest[0])) rest = rest.slice(1);   // a shop's pack code in front
+  const name = rest.join(' ').replace(/\s+/g, ' ').trim();
+  return { bpm, key, name: name ? name[0].toUpperCase() + name.slice(1) : base.slice(0, 24) }; }
 function tfName(s, max = 40) { return String(s ?? '').replace(/[<>"`\u0000-\u001f\u007f]/g, '').slice(0, max); }
 function migrate(src) {
   let p = JSON.parse(JSON.stringify(src || {}), (k, v) => k === '__proto__' || k === 'constructor' || k === 'prototype' ? undefined : v);   // a project file's keys can't reach an object's prototype
@@ -648,6 +669,7 @@ function normalize(p) {
     delete d.nv;   // per-note renders of a layered drum: remade on load
     d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.drum = d.drum ? DRN().drumNormalize(d.drum) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : d.src === 'drum' && d.drum ? 'drum' : d.src === 'audio' ? 'audio' : 'sample';
     d.choke = Math.max(0, Math.min(4, d.choke | 0));
+    d.fk = d.fk && typeof d.fk === 'object' && +d.fk.r >= 0 && +d.fk.r < 12 ? { r: +d.fk.r | 0, m: !!d.fk.m } : null;   // the sound's own key, from its file name
     d.gain = Math.max(-24, Math.min(24, +d.gain || 0)); d.norm = !!d.norm; d.ng = Math.max(0, Math.min(16, +d.ng || 1)); d.fin = Math.max(0, Math.min(10, +d.fin || 0)); d.fout = Math.max(0, Math.min(10, +d.fout || 0));   // non-destructive edits
     d.swg = d.swg == null || d.swg === '' ? null : clamp01(+d.swg); d.swq = [48, 24, 12].includes(+d.swq) ? +d.swq : null; d.tim = Math.max(-40, Math.min(40, +d.tim || 0));   // groove: own swing (null: the song's) and a timing offset in ms
     d.silA = clamp01(+d.silA || 0); d.silB = Math.max(d.silA, clamp01(+d.silB || 0));
@@ -804,4 +826,4 @@ function stress2V2() {
   return p;
 }
 if (typeof module !== 'undefined') module.exports = { conEqP, PEQ_P, WEQ_P, PBUS_P, WBUS_P, PEQ_GAINS, PEQ_HZ, WEQ_HZ, CON_DEF, conOfEq, conBusP, conBands, ceqBands, ceqDb, ceqMidMax, CONSOLES, CEQ_P, CEQ_TYPE, hasBusComp, newCeq, newBusComp, clipsClean, MAX_SCENES, fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
-  buildKitSample, toInt16, GEN_MIX, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };
+  buildKitSample, toInt16, nameTags, GEN_MIX, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };

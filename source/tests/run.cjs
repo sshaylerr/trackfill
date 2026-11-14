@@ -802,6 +802,10 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       const L = new Float32Array(128), R = new Float32Array(128); let pk = 0; for (let b = 0; b < 400; b++) { host.render(128, L, R); for (let j = 0; j < 128; j++) pk = Math.max(pk, Math.abs(L[j]), Math.abs(R[j])); }
       if (pk > 1e-6) noisy.push(`${M.FX_DEFS[ty].name}/${M.FX_DEFS[ty].modes[mo].n} ${(20 * Math.log10(pk)).toFixed(0)} dB`); }
     ok(!noisy.length, `every effect is silent on silence (${noisy.length ? noisy.join(', ') : 'all below -120 dB'})`); }
+  { // file names: tempo and key read the way sample shops write them; a bare number only when the sound is that many whole bars long
+    const T = (n, s) => M.nameTags(n, s), a = T('SO_CPP_124_synth_loop_Fmin.wav', 240 * 4 / 124), b = T('Pad Loop 90bpm F# minor.wav', 3), c = T('Drum_Loop_120.wav', 3), d = T('Take B.wav', 2), e = T('vox_Ebmaj_100.wav', 9.6);
+    ok(a.bpm === 124 && a.key.r === 5 && a.key.m && a.name === 'Synth loop' && b.bpm === 90 && b.key.r === 6 && b.key.m && c.bpm === 0 && !c.key && !d.key && d.name === 'Take B' && e.bpm === 100 && e.key.r === 3 && !e.key.m,
+      `file names give tempo and key (${[a, b, c, d, e].map(x => `${x.name}: ${x.bpm || '-'} ${x.key ? x.key.r + (x.key.m ? 'm' : '') : '-'}`).join(', ')})`); }
   console.log('migration');
   { const v1 = { name: 'Old', bpm: 100, master: { vol: .8, dlyTime: 3, dlyFb: .5, rvbSize: .2 }, pads: [{ name: 'K', sample: 'b:kick', vol: .5, pan: .2, dly: .3, rvb: .4, cut: .5 }],
       scenes: [{ name: 'A', bars: 2, notes: { 0: [{ t: 0, len: 24, p: 0, v: .9 }] }, auto: { 0: { cut: [{ t: 0, v: .1, c: 0 }], rvb: [{ t: 0, v: .5, c: 0 }] } } }] };

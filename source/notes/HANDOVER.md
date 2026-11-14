@@ -161,3 +161,8 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 - Fixed Mix 0 not being dry: Opto's DC blocker now on the wet part only; Saturation Classic's Output/auto gain on the wet part only.
 - Vinyl's Mix is how much record; wow and the stop move the whole sound (by design). Pitch runs ~45 ms behind; its dry is delayed to match.
 - Test "every effect has a Mix, and at 0 it's the dry sound" covers all 74 effects and modes.
+
+## Import from sample-shop downloads (2026-11-13)
+- importFiles (app.html) sorts picks naturally (folder, then name), and reads each file name with nameTags (js/model.js): tempo ("124bpm", or a bare 60–200 number only when the sound is a whole number of bars at it), key (needs a quality: Fmin, F#m, C major), and a tidier name (tempo/key tokens and a leading 2–4 letter pack code dropped).
+- A tempo sets pad.tempo and Stretch mode (Beats when the name says drum/perc/top/break…, else Clean). A key goes in pad.fk {r, m}; shown on the Sample display, and Stretch › Key has Original / Match song (keyShift: relative major/minor when the modes differ, nearest of ±6 st).
+- No shop names anywhere in the app.
