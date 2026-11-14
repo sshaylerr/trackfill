@@ -287,10 +287,10 @@ function fxChanged(c) { if (c < NPADS && P.pads[c].src === 'synth') syncPad(c); 
 // '@src' is the Ducker's trigger source (pads or a channel), '@key' the Gate's. Only the layout changes: each control keeps its
 // place in the engine, in automation and in saved projects, and anything a layout misses is added at the end.
 const FX_LAY = {
-  '0:0': [['Low freq', 'Mid freq', 'High freq', 'Low cut'], ['Low gain', 'Mid gain', 'High gain', 'High cut'], ['', 'Mid Q', '', 'Output']],
-  '0:1': [['Low freq', 'Low boost', 'Low atten', 'Tube'], ['High freq', 'Bandwidth', 'High boost', 'Output'], ['Atten freq', 'High atten']],
-  '0:2': [['Low freq', 'Mid freq', 'High freq', 'Filter'], ['Low gain', 'Mid gain', 'High gain', 'Colour'], ['Low shape', '', 'High shape', 'Output']],
-  '0:3': [['LF freq', 'LMF freq', 'HMF freq', 'HF freq'], ['LF gain', 'LMF gain', 'HMF gain', 'HF gain'], ['HPF', 'LMF Q', 'HMF Q', 'Output']],
+  '0:0': [['Low freq', 'Mid freq', 'High freq', 'Low cut'], ['Low gain', 'Mid gain', 'High gain', 'High cut'], ['', 'Mid Q', 'Mix', 'Output']],
+  '0:1': [['Low freq', 'Low boost', 'Low atten', 'Tube'], ['High freq', 'Bandwidth', 'High boost', 'Output'], ['Atten freq', 'High atten', '', 'Mix']],
+  '0:2': [['Low freq', 'Mid freq', 'High freq', 'Filter'], ['Low gain', 'Mid gain', 'High gain', 'Colour'], ['Low shape', 'Mix', 'High shape', 'Output']],
+  '0:3': [['LF freq', 'LMF freq', 'HMF freq', 'HF freq'], ['LF gain', 'LMF gain', 'HMF gain', 'HF gain'], ['HPF', 'LMF Q', 'HMF Q', 'Output'], ['', '', '', 'Mix']],
   '1:0': [['Threshold', 'Ratio', 'Attack', 'Release'], ['Knee', 'Key HPF', 'Makeup', 'Mix']],
   '1:1': [['Peak reduction', 'Makeup', 'Emphasis'], ['Mode', 'Tube', 'Mix']],
   '1:2': [['Input', 'Ratio', 'Output'], ['Attack', 'Release', 'Mix']],
@@ -311,7 +311,7 @@ const FX_LAY = {
   '5:2': [['Size', 'Decay', 'Predelay'], ['Damping', 'Bandwidth', 'Low cut'], ['Mod', 'Width', 'Mix']],
   '5:3': [['Size', 'Decay', 'Predelay', 'Era'], ['Mod depth', 'Mod rate', 'Attack', 'Bass mult'], ['Low cut', 'High cut', 'Mix']],
   '5:4': [['Size', 'Decay', 'Predelay', 'Gravity'], ['Mod depth', 'Mod rate', 'Low cut', 'High cut'], ['Freeze', 'Mix']],
-  '6:0': [['Trigger', '@src', 'Threshold', 'Band'], ['Depth', 'Curve', 'Lookahead', 'Split'], ['Attack', 'Hold', 'Release']],
+  '6:0': [['Trigger', '@src', 'Threshold', 'Band'], ['Depth', 'Curve', 'Lookahead', 'Split'], ['Attack', 'Hold', 'Release', 'Mix']],
   '8:0': [['Rate', 'Depth', 'Delay'], ['Feedback', 'Mix']],
   '8:3': [['Rate', 'Depth', 'Manual'], ['Feedback', 'Stereo', 'Mix']],
   '10:2': [['Amount', 'Tone', 'Noise'], ['Compress', 'Mix']],
@@ -320,25 +320,25 @@ const FX_LAY = {
   '14:0': [['Threshold', 'Ratio', 'Attack', 'Release'], ['Below thr', 'Below ratio', 'Low split', 'High split'], ['Low gain', 'Mid gain', 'High gain', 'Output']],
   '14:1': [['Depth', 'Time', 'Upward', 'Downward'], ['Low split', 'High split', 'Input', 'Output'], ['Low gain', 'Mid gain', 'High gain']],
   ...Object.fromEntries([0, 1, 2].map(m => ['15:' + m, [['Drive', 'Bump', 'Tone', 'Hiss'], ['Wow', 'Flutter', 'Output', 'Mix']]])),
-  '16:0': [['Threshold', 'Range', 'Hysteresis', '@key'], ['Attack', 'Hold', 'Release']],
-  '18:0': [['Sync', 'Division', 'Rate'], ['Depth', 'Shape', 'Phase']],
-  '19:0': [['@shape', 'Depth', 'Filter'], ['Sync', 'Division', 'Rate'], ['Smooth', 'Phase', 'Stereo']],
+  '16:0': [['Threshold', 'Range', 'Hysteresis', '@key'], ['Attack', 'Hold', 'Release', 'Mix']],
+  '18:0': [['Sync', 'Division', 'Rate'], ['Depth', 'Shape', 'Phase', 'Mix']],
+  '19:0': [['@shape', 'Depth', 'Filter'], ['Sync', 'Division', 'Rate'], ['Smooth', 'Phase', 'Stereo', 'Mix']],
   '20:0': [['Crackle', 'Noise', 'Wear', 'Wow'], ['Stop', 'Stop time', 'Start time', 'Mix']],
   '21:0': [['Steps', 'Repeat', 'Filter'], ['@pattern', 'Smooth', 'Mix']],
   ...Object.fromEntries([0, 1, 2, 3, 4, 5].map(m => ['22:' + m, [['Amount', 'Auto', 'Tone', 'Mix']]])),
 };
 // rows of cells: a param index, -1 for a gap, or '@src' / '@key'; the default is four to a row in the engine's order
-// Multiband: one band's controls at a time (Low, Mid, High) or the setup (splits, bands, knee, detect, solo); Amount, Time and Output stay in reach
+// Multiband: one band's controls at a time (Low, Mid, High) or the setup (splits, bands, knee, detect, solo); Mix, Time and Output stay in reach
 const MBD_TABS = ['Low', 'Mid', 'High', 'Setup'];
 function mbdRows(f) { const ps = fxParams(f), ix = n => n === '' ? -1 : n[0] === '@' ? n : ps.findIndex(p => p.n === n), b = UI.mbBand == null ? 1 : UI.mbBand, B = MBD_TABS[b];
   const rows = b === 3 ? [['Low split', 'High split', 'Low band', 'High band'], ['Knee', 'Detect', 'Solo', '']]
     : [[B + ' input', B + ' above', B + ' above ratio', B + ' gain'], [B + ' below', B + ' below ratio', B + ' attack', B + ' release']];
-  rows.push(['Amount', 'Time', 'Output', '@mbpreset']); return rows.map(r => r.map(ix)); }
+  rows.push(['Mix', 'Time', 'Output', '@mbpreset']); return rows.map(r => r.map(ix)); }
 // presets: settings by name in real units, turned into knob positions with the same maps the labels use
 const mbI = { lin: (x, a, b) => (x - a) / (b - a), exp: (x, a, b) => Math.log(x / a) / Math.log(b / a) };
 const mbAboveV = r => r === Infinity ? 1 : r >= 1 ? .2 + .8 * Math.log(r) / Math.log(100) : .2 - .2 * (1 / r - 1);
 const mbBelowV = (r, up) => r <= 1 ? .5 : up ? .5 + .5 * Math.log(r) / Math.log(8) : .5 - .5 * Math.log(r) / Math.log(8);
-function mbdPreset(o) { const v = { 'Low split': mbI.exp(o.split[0], 40, 1000), 'High split': mbI.exp(o.split[1], 800, 12000), Amount: o.amount ?? 1, Time: .5, Output: mbI.lin(o.out || 0, -24, 24), Knee: o.soft === false ? 0 : 1, Detect: o.rms === false ? 0 : 1, Solo: 0, 'Low band': 1, 'High band': 1 };
+function mbdPreset(o) { const v = { 'Low split': mbI.exp(o.split[0], 40, 1000), 'High split': mbI.exp(o.split[1], 800, 12000), Mix: o.mix ?? 1, Time: .5, Output: mbI.lin(o.out || 0, -24, 24), Knee: o.soft === false ? 0 : 1, Detect: o.rms === false ? 0 : 1, Solo: 0, 'Low band': 1, 'High band': 1 };
   ['Low', 'Mid', 'High'].forEach((B, b) => { const k = x => Array.isArray(x) ? x[b] : x;
     Object.assign(v, { [B + ' input']: .5, [B + ' above']: mbI.lin(k(o.above), -60, 0), [B + ' above ratio']: mbAboveV(k(o.ar)), [B + ' below']: mbI.lin(k(o.below), -80, 0), [B + ' below ratio']: mbBelowV(k(o.br), true),
       [B + ' attack']: mbI.exp(k(o.atk), .1, 300), [B + ' release']: mbI.exp(k(o.rel), 10, 3000), [B + ' gain']: mbI.lin(k(o.gain || 0), -24, 24) }); });

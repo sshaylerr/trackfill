@@ -760,7 +760,7 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     // a 2 s delay at full feedback-free mix: the repeat 2 s later must still arrive although the output is silent in between
     const d = await rt(M.newFx(M.FX_TYPES.DELAY, { 0: 0, 2: 1, 3: 0, 4: 1 }, 0), 4), rep = stats(d.L, d.R, Math.round(2.0 * 48000), Math.round(2.2 * 48000)).pk;
     ok(last < r.L.length - 48000 && before < 1e-5 && rep > .1, `faded effects stop processing (silent ${((r.L.length - last) / 48000).toFixed(1)} s before the end, last level ${(20 * Math.log10(before + 1e-12)).toFixed(0)} dB) and delays keep their repeats (${rep.toFixed(2)})`); }
-  { // Multiband (dynamics): each band's static curve as its controls say, Amount scales it, Solo and band-off route as labelled
+  { // Multiband (dynamics): each band's static curve as its controls say, Mix blends it with the dry sound, Solo and band-off route as labelled
     const sine = (hz, db) => { const n = 96000, d = new Int16Array(n), a = Math.pow(10, db / 20) * 32767; for (let i = 0; i < n; i++) d[i] = Math.round(a * Math.sin(2 * Math.PI * hz * i / 48000)); return d; };
     const T = M.FX_TYPES.MBD, ps = M.FX_DEFS[T].params, ix = n => ps.findIndex(p => p.n === n);
     const fxOf = set => { const f = M.newFx(T); f.p[ix('Low split')] = 0; f.p[ix('High split')] = 1; f.p[ix('Knee')] = 0; f.p[ix('Detect')] = 1; for (const B of ['Low', 'Mid', 'High']) { f.p[ix(B + ' above ratio')] = .2; f.p[ix(B + ' below ratio')] = .5; } for (const k in set) f.p[ix(k)] = set[k]; return f; };
@@ -773,10 +773,29 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     // slopes, measured as the output change for a 6 dB input change (independent of the path's own gain): 4:1 → 1.5 dB, half Amount → 3.75 dB
     const step = async (fx, hz, a, b) => (await out(fx, hz, a)) - (await out(fx, hz, b));
     const dn = await step(fxOf(above(-30, 4)), 700, -6, -12), up = await step(fxOf({ 'Mid below': .5, 'Mid below ratio': .5 + .5 * Math.log(4) / Math.log(8) }), 700, -50, -56);
-    const half = await step(fxOf(Object.assign(above(-30, 4), { Amount: .5 })), 700, -6, -12), joined = await step(fxOf(Object.assign(above(-30, 4), { 'Low band': 0, 'Low split': .5 })), 60, -6, -12);
+    const heavy = Object.assign(above(-30, 4), { 'Mid below': .5, 'Mid below ratio': 1, 'Mid gain': .8, Output: .8 }), half = (await out(fxOf(Object.assign({}, heavy, { Mix: 0 })), 700, -6)) - (await out(fxOf({}), 700, -6)), joined = await step(fxOf(Object.assign(above(-30, 4), { 'Low band': 0, 'Low split': .5 })), 60, -6, -12);
     const ref = await out(fxOf({}), 700, -6), solo = await out(fxOf({ Solo: 1 / 3 }), 700, -6) - ref, flat = Math.abs(ref - await out(fxOf({}), 60, -6)), lin = await step(fxOf({}), 700, -6, -12);
-    ok(Math.abs(dn - 1.5) < .25 && Math.abs(up - 1.5) < .25 && Math.abs(half - 3.75) < .25 && Math.abs(joined - 1.5) < .25 && solo < -40 && flat < .3 && Math.abs(lin - 6) < .05,
-      `multiband follows its curves (output change for 6 dB in): 4:1 above ${dn.toFixed(2)} (want 1.5), 4:1 up below ${up.toFixed(2)} (want 1.5), Amount 50% ${half.toFixed(2)} (want 3.75), low band off joins the mid ${joined.toFixed(2)} (want 1.5), untouched ${lin.toFixed(2)}; low solo mutes the mid ${solo.toFixed(0)} dB; bands sum flat (${flat.toFixed(2)} dB apart)`); }
+    ok(Math.abs(dn - 1.5) < .25 && Math.abs(up - 1.5) < .25 && Math.abs(half) < .05 && Math.abs(joined - 1.5) < .25 && solo < -40 && flat < .3 && Math.abs(lin - 6) < .05,
+      `multiband follows its curves (output change for 6 dB in): 4:1 above ${dn.toFixed(2)} (want 1.5), 4:1 up below ${up.toFixed(2)} (want 1.5), Mix 0% matches the dry sound (${half.toFixed(2)} dB off), low band off joins the mid ${joined.toFixed(2)} (want 1.5), untouched ${lin.toFixed(2)}; low solo mutes the mid ${solo.toFixed(0)} dB; bands sum flat (${flat.toFixed(2)} dB apart)`); }
+  { // every Mix knob: at 0 the effect's output is the dry sound, sample for sample (the multiband's bands add back up through a phase shift, so its level is checked);
+    // the effects with no Mix of their own get one from the engine at the same place the page shows it
+    const n = 24000, d = new Int16Array(n); let x = 11; const w = () => (x = (x * 16807) % 2147483647) / 2147483647 * 2 - 1; for (let i = 0; i < n; i++) d[i] = Math.round(w() * 6000);
+    const run = async fx => { const Q = M.newProject(true); Object.assign(Q.pads[0], { sample: 'wn', mode: 'one', rel: .001 }); Q.chans[0].fx = fx ? [fx] : [];
+      Q.scenes[0] = Object.assign(M.emptyScene(), { bars: 1, notes: { 0: [{ t: 0, len: 24, p: 0, v: 1 }] } }); Q.bpm = 120;
+      return H.tfRenderOffline(wasm, Q, new Map([['wn', { id: 'wn', data: d, frames: n, ch: 1, sr: 48000 }]]), { order: [{ scene: 0, reps: 1 }], tail: 0 }); };
+    const dry = await run(null), bad = [], ex = new WebAssembly.Instance(wasm, {}).exports; let cnt = 0;
+    for (let ty = 0; ty < M.FX_DEFS.length; ty++) { if (M.FX_DEFS[ty].legacy) continue;
+      for (let mo = 0; mo < M.FX_DEFS[ty].modes.length; mo++) { const ps = M.FX_DEFS[ty].modes[mo].params, mi = ps.findIndex(p => p.n === 'Mix' || p.n === 'Dry/wet'), nm = `${M.FX_DEFS[ty].name}/${M.FX_DEFS[ty].modes[mo].n || '-'}`;
+        const gi = ps.findIndex(p => p.gen); if (gi !== ex.tf_fx_genmix(ty, mo)) bad.push(`${nm}: page Mix ${gi}, engine ${ex.tf_fx_genmix(ty, mo)}`);
+        if (mi < 0) { if (ty !== M.FX_TYPES.UTIL && ty !== M.FX_TYPES.LIMIT) bad.push(nm + ' has no Mix'); continue; }
+        const f = M.newFx(ty, null, mo); f.p[mi] = 0; const r = await run(f); cnt++; let e = 0, s0 = 0, a = 0;
+        for (let i = 2400; i < 20000; i++) { e += (r.L[i] - dry.L[i]) ** 2 + (r.R[i] - dry.R[i]) ** 2; s0 += dry.L[i] ** 2 + dry.R[i] ** 2; a += r.L[i] ** 2 + r.R[i] ** 2; }
+        let res = 10 * Math.log10(e / s0 + 1e-15); const lv = 10 * Math.log10(a / s0);
+        if (res > -50 && ty === M.FX_TYPES.PITCH) { let best = 0, bl = 0; for (let l = 0; l < 4000; l += 1) { let c = 0; for (let i = 8000; i < 12000; i++) c += r.L[i + l] * dry.L[i]; if (c > best) { best = c; bl = l; } }   // it runs behind (look-ahead), the dry part delayed to match
+          e = 0; for (let i = 2400; i < 20000 - bl; i++) e += (r.L[i + bl] - dry.L[i]) ** 2 + (r.R[i + bl] - dry.R[i]) ** 2; res = 10 * Math.log10(e / s0 + 1e-15); }
+        if (ty === M.FX_TYPES.VINYL) continue;   // Mix is how much record: the turntable (wow, stop) moves the whole sound
+        if (ty === M.FX_TYPES.MBD ? Math.abs(lv) > .1 : res > -50) bad.push(`${nm} at Mix 0: ${ty === M.FX_TYPES.MBD ? lv.toFixed(2) + ' dB' : 'differs from dry by ' + res.toFixed(0) + ' dB'}`); } }
+    ok(!bad.length, `every effect has a Mix, and at 0 it's the dry sound (${bad.length ? bad.join(', ') : cnt + ' effects and modes'})`); }
   { // silence in, silence out: no effect makes a click, thump or hiss on its own when nothing is playing (transport stopped)
     const noisy = []; for (let ty = 0; ty < M.FX_DEFS.length; ty++) for (let mo = 0; mo < M.FX_DEFS[ty].modes.length; mo++) {
       const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.newProject(true); Q.chans[0].fx = [M.newFx(ty, null, mo)]; host.msg({ t: 'project', P: Q });

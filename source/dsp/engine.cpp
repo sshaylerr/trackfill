@@ -250,7 +250,7 @@ EX void tf_release_all(float rel) { for (i32 i = 0; i < NVOICE; i++) if (vc[i].o
 EX i32 tf_voices() { i32 n = 0; for (i32 i = 0; i < NVOICE; i++) n += vc[i].on; return n + synVoices(); }
 
 /* ================= channels ================= */
-struct Fx { i32 type, mode, on, key, fresh, ntrig; float p[NPARAM], s[NPARAM], last[NPARAM]; i32 trig[8]; void* st; u32 stBytes; float vis[8]; float tab[256]; };   // tab: a drawn shape or a step pattern   // vis: live gain changes in dB for the display
+struct Fx { i32 type, mode, on, key, fresh, ntrig; float p[NPARAM], s[NPARAM], last[NPARAM]; i32 trig[8]; void* st; u32 stBytes; float vis[8]; float tab[256]; float mixS; i32 fresh2; };   // tab: a drawn shape or a step pattern   // vis: live gain changes in dB for the display
 struct Chan {
   float vol, pan, sa, sb, mute, cut, res;      // targets
   float cv, cp, ca, cb, cm, ccut, cres;        // smoothed
@@ -408,7 +408,7 @@ EX i32 tf_fx_type(i32 c, i32 s, i32 type) {
   Fx* f = fxAt(c, s); if (!f) return 0;
   if (type < -1 || (type >= FX_COUNT && (type < FX_CEQ || type > FX_WBUS))) type = -1;
   if (f->st) { tf_free(f->st); f->st = 0; f->stBytes = 0; }
-  f->type = type; f->mode = 0; f->on = 1; f->key = -1; f->fresh = 1; f->ntrig = 0;
+  f->type = type; f->mode = 0; f->on = 1; f->key = -1; f->fresh = 1; f->fresh2 = 1; f->ntrig = 0;
   if (type >= 0) { f->stBytes = fxStateBytes(type, 0); f->st = tf_malloc(f->stBytes); if (!f->st) { f->type = -1; return 0; } fxReset(f); }
   chanTail(&chs[c]);
   return 1;
@@ -422,7 +422,7 @@ EX void tf_fx_param(i32 c, i32 s, i32 i, float v) {
 EX i32 tf_fx_mode(i32 c, i32 s, i32 mode) {
   Fx* f = fxAt(c, s); if (!f || f->type < 0) return 0; if (mode < 0 || mode > 15) mode = 0; if (mode == f->mode && f->st) return 1;
   u32 need = fxStateBytes(f->type, mode); void* st = tf_malloc(need); if (!st) return 0;
-  if (f->st) tf_free(f->st); f->st = st; f->stBytes = need; f->mode = mode; f->fresh = 1; fxReset(f); chanTail(&chs[c]); return 1;
+  if (f->st) tf_free(f->st); f->st = st; f->stBytes = need; f->mode = mode; f->fresh = 1; f->fresh2 = 1; fxReset(f); chanTail(&chs[c]); return 1;
 }
 EX float tf_fx_vis(i32 c, i32 s, i32 i) { Fx* f = fxAt(c, s); if (!f || i < 0 || i > 7) return 0.f; float v = f->vis[i]; return v == v ? v : 0.f; }
 EX void tf_fx_on(i32 c, i32 s, i32 on) { Fx* f = fxAt(c, s); if (f) f->on = on ? 1 : 0; }
@@ -495,7 +495,7 @@ static void fx_sat(Fx* f, float* L, float* R, i32 n) {
       float dry = x[i], v = dry * dg, y;
       switch (type) { case 0: y = ftanh(v); break; case 1: y = clampf(v, -1.f, 1.f); break; case 2: y = ftanh(v + 0.25f) - ftanh(0.25f); break; default: y = fsin(v); }
       z += (y - z) * lc; y = z * lo + (y - z) * hi;
-      x[i] = (dry + (y - dry) * mix) * og;
+      x[i] = dry + (y * og - dry) * mix;   // Output and auto gain belong to the wet part: Mix 0 is the dry sound
     }
     st->lp[c] = z;
   }
@@ -878,6 +878,13 @@ static u32 fxStateBytes(i32 t, i32 m) {
     default: return fxStateBytes0(t);
   }
 }
+/* the dry/wet Mix that effects without their own get as their last control (js/model.js GEN_MIX): which control it is, or -1.
+   None of these effects delays the sound, so the dry part needs no delay to line up. */
+static i32 genMix(i32 type, i32 mode) {
+  switch (type) { case FX_EQ: return mode == 0 || mode == 1 ? 10 : mode == 2 ? 11 : 12; case FX_DUCK: return 10; case FX_TRANS: return 3; case FX_GATE: return 6;
+    case FX_APAN: return 6; case FX_LFOT: return 8; case FX_INFL: return 6; case FX_IMAGER: return 9; case FX_DEESS: return 5; default: return -1; } }
+EX i32 tf_fx_genmix(i32 type, i32 mode) { return genMix(type, mode); }
+static float dryL[MAXN], dryR[MAXN];
 static void fx_run(i32 c, Fx* f, float* L, float* R, i32 n) {
   if (!f->st) return;
   u64 dm = discMask(f->type, f->mode);
@@ -887,7 +894,8 @@ static void fx_run(i32 c, Fx* f, float* L, float* R, i32 n) {
   f->fresh = 0;
   const float *kL = 0, *kR = 0;
   if (f->key >= 0) { kL = keyL[f->key]; kR = keyR[f->key]; }
-  const i32 m = f->mode;
+  const i32 m = f->mode, gm = genMix(f->type, m); float m0 = 1.f, m1 = 1.f;
+  if (gm >= 0) { m1 = f->s[gm]; m0 = f->fresh2 ? m1 : f->mixS; f->mixS = m1; f->fresh2 = 0; if (m0 < 0.9999f || m1 < 0.9999f) for (i32 i = 0; i < n; i++) { dryL[i] = L[i]; dryR[i] = R[i]; } }
   switch (f->type) {
     case FX_EQ: if (m) fx_eq2(f, L, R, n); else fx_eq(f, L, R, n); break;
     case FX_COMP: if (m == 1) fx_opto(f, L, R, n); else if (m == 2) fx_fet(f, L, R, n); else if (m == 3) fx_vca(f, L, R, n, kL, kR); else fx_comp(f, L, R, n, kL, kR); break;
@@ -908,6 +916,8 @@ static void fx_run(i32 c, Fx* f, float* L, float* R, i32 n) {
     case FX_DIST: fx_dist(f, L, R, n); break; case FX_INFL: fx_inflate(f, L, R, n); break; case FX_RESO: fx_reso(f, L, R, n); break;
     case FX_PITCH: fx_pitch(f, L, R, n); break; case FX_FSHIFT: fx_fshift(f, L, R, n); break; case FX_RING: fx_ring(f, L, R, n); break; case FX_IMAGER: fx_imager(f, L, R, n); break; case FX_DEESS: fx_deess(f, L, R, n); break; case FX_MBD: fx_mbd(f, L, R, n); break; case FX_CBUS: fx_cbus(f, L, R, n); break; case FX_PBUS: fx_pbus(f, L, R, n); break; case FX_WBUS: fx_wbus(f, L, R, n); break; case FX_PEQ: case FX_WEQ: case FX_CEQ: fx_ceq(f, L, R, n); break;
   }
+  if (gm >= 0 && (m0 < 0.9999f || m1 < 0.9999f)) { const float d = (m1 - m0) / n; float w = m0;   // dry/wet, eased across the block
+    for (i32 i = 0; i < n; i++) { w += d; L[i] = dryL[i] + (L[i] - dryL[i]) * w; R[i] = dryR[i] + (R[i] - dryR[i]) * w; } }
   (void)c;
 }
 

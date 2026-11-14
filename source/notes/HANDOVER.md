@@ -154,3 +154,10 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 - Spectrum header key "Ref" (openRefPicker in ui/scope.js) sets UI.anRef; scopeWant sends `ref` with the scope message. The host (setScope/scopeFeed) feeds that channel's tf_key_l/r (after its effects, before its fader) into TFAnalyzer.feedRef; spectrum() returns a third block of bands.
 - Drawn dashed pink; "Match level" (pr.refMatch, default on) shifts it by the mean dB gap over 100 Hz–10 kHz, skipping bands where the reference is below -100 dB. A silent reference draws nothing and says so.
 - Headless tests need `--autoplay-policy=no-user-gesture-required` and a wait for ENG.ready, or no reports arrive.
+
+## Dry/wet everywhere (2026-11-13)
+- Effects without their own Mix get one as their last control: js/model.js GEN_MIX (params flagged `gen`), blended in dsp/engine.cpp fx_run via genMix(type, mode) (the index must match; tests/run.cjs checks it). None of them delay the sound, so the dry needs no delay. Not on Utility (Gain does it) or the Limiter (a blend would cross its ceiling).
+- Multiband: Amount became Mix, blended per band (in phase, no comb at the splits).
+- Fixed Mix 0 not being dry: Opto's DC blocker now on the wet part only; Saturation Classic's Output/auto gain on the wet part only.
+- Vinyl's Mix is how much record; wow and the stop move the whole sound (by design). Pitch runs ~45 ms behind; its dry is delayed to match.
+- Test "every effect has a Mix, and at 0 it's the dry sound" covers all 74 effects and modes.

@@ -42,7 +42,7 @@ static inline float gcomp(float ldb, float thr, float ratio, float knee) {
 static void fx_opto(Fx* f, float* L, float* R, i32 n) {
   Comp2St* c = (Comp2St*)f->st; float* s = f->s;
   float thr = -6.f - 42.f * s[0], mk = db2lin(linmap(s[1], 0, 30)), ratio = disc(s[2], 2) ? 14.f : 3.2f, emph = s[3], mix = s[4], tube = s[5];
-  const float aA = fexp(-1.f / (0.010f * SR)), lpA = onepole(1500.f), chUp = 1.f / (1.2f * SR), chDn = 1.f / (5.f * SR);
+  const float dcA = 1.f - 6.28318531f * 10.f / SR, aA = fexp(-1.f / (0.010f * SR)), lpA = onepole(1500.f), chUp = 1.f / (1.2f * SR), chDn = 1.f / (5.f * SR);
   float g0 = 0;
   for (i32 i = 0; i < n; i++) {
     float xl = L[i], xr = R[i];
@@ -53,11 +53,9 @@ static void fx_opto(Fx* f, float* L, float* R, i32 n) {
     c->env = gr < c->env ? gr + (c->env - gr) * aA : gr + (c->env - gr) * aR;
     float g = db2lin(c->env) * mk, yl = xl * g, yr = xr * g;
     if (tube > 0.001f) { float k = 1.f + 2.f * tube; yl += (fsat(yl * k + 0.15f * tube) - fsat(0.15f * tube)) / k * tube - yl * tube; yr += (fsat(yr * k + 0.15f * tube) - fsat(0.15f * tube)) / k * tube - yr * tube; }
+    { float x = yl; yl = x - c->dc[0] + dcA * c->dcy[0]; c->dc[0] = x; c->dcy[0] = yl; x = yr; yr = x - c->dc[1] + dcA * c->dcy[1]; c->dc[1] = x; c->dcy[1] = yr; }   // tube asymmetry adds a little DC: blocked on the wet part only, so Mix 0 is the dry sound exactly
     L[i] = xl + (yl - xl) * mix; R[i] = xr + (yr - xr) * mix; if (c->env < g0) g0 = c->env;
   }
-  // tube asymmetry adds a little DC: block it
-  const float dcA = 1.f - 6.28318531f * 10.f / SR;
-  for (i32 i = 0; i < n; i++) { float x = L[i]; L[i] = x - c->dc[0] + dcA * c->dcy[0]; c->dc[0] = x; c->dcy[0] = L[i]; x = R[i]; R[i] = x - c->dc[1] + dcA * c->dcy[1]; c->dc[1] = x; c->dcy[1] = R[i]; }
   f->vis[0] = c->env;
 }
 // FET (a fast FET limiting amplifier): params Input, Output, Attack, Release, Ratio (4/8/12/20/All), Mix. Feedback detection, colour grows with gain reduction.
@@ -565,7 +563,7 @@ static inline float mbdKnee(float over, float slope, float k) {   // gain (dB) f
 static void fx_mbd(Fx* f, float* L, float* R, i32 n) {
   MbdSt* m = (MbdSt*)f->st; float* s = f->s;
   float f1 = expmap(s[0], 40, 1000), f2 = expmap(s[1], 800, 12000); if (f2 < f1 * 1.5f) f2 = f1 * 1.5f; mbXover(&m->x, f1, f2);
-  const float amt = s[2], tm = expmap(s[3], 0.1f, 10.f), outg = db2lin(linmap(s[4], -24, 24)), knee = s[5] >= 0.5f ? 6.f : 0.f;
+  const float mix = s[2], tm = expmap(s[3], 0.1f, 10.f), outg = db2lin(linmap(s[4], -24, 24)), knee = s[5] >= 0.5f ? 6.f : 0.f;
   const i32 rms = s[6] >= 0.5f, solo = (i32)(s[7] * 3.f + 0.5f), lowOn = s[8] >= 0.5f, highOn = s[9] >= 0.5f;
   float ing[3], thA[3], slA[3], thB[3], slB[3], aA[3], aR[3], relS[3], gb[3];
   for (i32 b = 0; b < 3; b++) { const float* q = s + 10 + 8 * b;
@@ -588,12 +586,12 @@ static void fx_mbd(Fx* f, float* L, float* R, i32 n) {
     for (i32 b = 0; b < 3; b++) {
       const i32 live = b == 1 || (b == 0 ? lowOn : highOn);
       float ld = lin2db(m->env[b] + 1e-9f), gd = 0.f;
-      if (live) { gd = mbdKnee(ld - thA[b], slA[b], knee) + mbdKnee(thB[b] - ld, slB[b], knee); gd *= amt;
+      if (live) { gd = mbdKnee(ld - thA[b], slA[b], knee) + mbdKnee(thB[b] - ld, slB[b], knee); 
         if (gd > 0.f) gd = minf(gd, 30.f) * clampf((ld + 80.f) * 0.05f, 0.f, 1.f);   // lifts fade out from -60 to -80 dB: silence and the noise floor stay put
         gd = maxf(gd, -60.f);
         if (gd > 0.f) { const float ru = 1.f - fexp(-(float)nn / (relS[b] * SR)); gd = m->up[b] + (gd - m->up[b]) * ru; } m->up[b] = maxf(gd, 0.f); }   // a lift rises at the release speed: a note out of silence is never caught mid-lift
       f->vis[b] = gd; f->vis[3 + b] = live ? ld : -120.f;
-      float g1 = live ? db2lin(gd) * gb[b] * outg : 0.f; if (solo && solo - 1 != b) g1 = 0.f;
+      float g1 = live ? (1.f - mix) / ing[b] + mix * db2lin(gd) * gb[b] * outg : 0.f; if (solo && solo - 1 != b) g1 = 0.f;   // Mix blends each band with its own dry part: in phase, so no comb filtering at the splits
       float g0 = m->init ? m->g[b] : g1, dg = (g1 - g0) / nn; m->g[b] = g1;
       float* bl = bd[b][0]; float* br = bd[b][1];
       if (b == 0) for (i32 i = 0; i < nn; i++) { g0 += dg; L[o + i] = bl[i] * g0; R[o + i] = br[i] * g0; }

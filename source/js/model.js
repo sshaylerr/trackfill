@@ -301,7 +301,7 @@ const mbdAbove = v => { if (v >= .995) return '∞:1'; if (v < .2) return '1:' +
 const mbdBelow = v => { if (Math.abs(v - .5) < .004) return '1:1'; if (v > .5) { const r = expmap((v - .5) * 2, 1, 8); return r.toFixed(1) + ':1 up'; } if (v <= .005) return 'Gate'; return '1:' + expmap((.5 - v) * 2, 1, 8).toFixed(1) + ' down'; };
 const MBD_BAND = b => [P_(b + ' input', .5, v => fSign(v, -24, 24)), P_(b + ' above', 2 / 3, v => fDb(linmap(v, -60, 0))), P_(b + ' above ratio', .3204, mbdAbove),
   P_(b + ' below', .5, v => fDb(linmap(v, -80, 0))), P_(b + ' below ratio', .5, mbdBelow), P_(b + ' attack', .575, v => fMs(expmap(v, .1, 300))), P_(b + ' release', .4748, v => fMs(expmap(v, 10, 3000))), P_(b + ' gain', .5, v => fSign(v, -24, 24))];
-const MBD_P = [P_('Low split', .3413, v => fHz(expmap(v, 40, 1000))), P_('High split', .4207, v => fHz(expmap(v, 800, 12000))), P_('Amount', 1, fPct), P_('Time', .5, v => (expmap(v, .1, 10) * 100).toFixed(0) + '%'),
+const MBD_P = [P_('Low split', .3413, v => fHz(expmap(v, 40, 1000))), P_('High split', .4207, v => fHz(expmap(v, 800, 12000))), P_('Mix', 1, fPct), P_('Time', .5, v => (expmap(v, .1, 10) * 100).toFixed(0) + '%'),
   P_('Output', .5, v => fSign(v, -24, 24)), P_('Knee', 1, null, ['Hard', 'Soft']), P_('Detect', 1, null, ['Peak', 'RMS']), P_('Solo', 0, null, ['Off', 'Low', 'Mid', 'High']),
   P_('Low band', 1, null, ['Off', 'On']), P_('High band', 1, null, ['Off', 'On']), ...MBD_BAND('Low'), ...MBD_BAND('Mid'), ...MBD_BAND('High')];
 const TAPE_P = [P_('Drive', .3, v => fDb(linmap(v, -6, 24))), P_('Bump', .4, v => '+' + (v * 6).toFixed(1) + ' dB'), P_('Wow', .2, fPct), P_('Flutter', .2, fPct), P_('Hiss', .15, fPct), P_('Tone', .3, v => fHz(expmap(1 - v, 3000, 20000))), P_('Mix', 1, fPct), P_('Output', .5, v => fSign(v, -12, 12))];
@@ -437,7 +437,11 @@ const FX_TYPES = { EQ: 0, COMP: 1, FILTER: 2, SAT: 3, DELAY: 4, REVERB: 5, DUCK:
 FX_DEFS.forEach((d, t) => { const m = FX_MODES[t]; d.modes = [{ n: m ? m.mode0[0] : '', blurb: m ? m.mode0[1] : '', params: d.params }].concat(m ? m.more.map(([n, blurb, params]) => ({ n, blurb, params })) : []); });
 FX_DEFS[7].params.push(P_('Bass mono', 0, fHzOff(20, 500)));
 // the filters with an LFO can lock it to the song (Off: free, at LFO rate); its shape is drawn like the Shaper's (f.lfo)
+// a dry/wet Mix on the effects that have none of their own (last control; the engine blends it, see genMix in dsp/engine.cpp).
+// Not on Utility (its Gain is the same thing) or the Limiter (a blend would cross its ceiling).
+const GEN_MIX = [0, 6, 11, 16, 18, 19, 24, 29, 30];
 { const seen = new Set(); FX_DEFS[2].modes.slice(1).forEach(m => { if (seen.has(m.params)) return; seen.add(m.params); m.params.push(P_('LFO sync', 0, null, ['Off', '1/16', '1/8', '1/4', '1/2', '1 bar', '2 bars', '4 bars'])); }); }
+GEN_MIX.forEach(t => FX_DEFS[t].modes.forEach(m => { if (!m.params.some(p => p.n === 'Mix')) m.params.push(Object.assign(P_('Mix', 1, fPct), { gen: true })); }));
 const fxParams = f => (FX_DEFS[f.type].modes[f.mode | 0] || FX_DEFS[f.type].modes[0]).params;
 function newFx(type, over, mode = 0) { const f = { type, mode, on: true, p: FX_DEFS[type].modes[mode].params.map(p => p.d), key: null, trig: [] }; if (over) for (const k in over) f.p[+k] = over[k];
   if (type === 19) f.lfo = FX_LFO_SHAPES.Pump.map(q => Object.assign({}, q)); if (type === 21) f.steps = STEP_DEFAULT.slice(); return f; }
@@ -800,4 +804,4 @@ function stress2V2() {
   return p;
 }
 if (typeof module !== 'undefined') module.exports = { conEqP, PEQ_P, WEQ_P, PBUS_P, WBUS_P, PEQ_GAINS, PEQ_HZ, WEQ_HZ, CON_DEF, conOfEq, conBusP, conBands, ceqBands, ceqDb, ceqMidMax, CONSOLES, CEQ_P, CEQ_TYPE, hasBusComp, newCeq, newBusComp, clipsClean, MAX_SCENES, fxFromSpec, tfName, FX_LFO_SHAPES, STEP_ACTS, STEP_DEFAULT, stressProject, stress2Project, JUNGLE, JUNGLE_PAD, PACKS, jungleProject, MAX_SLICES, newChop, chopEqual, chopTransients, rechop, sliceRange, CLASSIC, EXTRA, ALL_BUILTINS, NPADS, NSCENES, NCHANS, G0, B0, R0, MASTER, NSLOTS, MAX_DUCKERS, BAR, BEAT, BANKS, PROJECT_VERSION, KIT, KIT_SR, SOUNDS,
-  buildKitSample, toInt16, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };
+  buildKitSample, toInt16, GEN_MIX, FX_DEFS, FX_TYPES, FX_MODES, fxParams, setFxMode, newFx, optVal, chanKind, chanDefaultName, defaultChan, defaultPad, emptyScene, newProject, migrate, normalize, demoProject, expmap, linmap };
