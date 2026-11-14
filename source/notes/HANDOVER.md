@@ -149,3 +149,8 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 - Multiband dynamics (2026-11-13): type 31 `FX_MBD` (fx_mbd in dsp/fx_modes.inc), 34 params (MBD_P in model.js; NPARAM is now 40 and discMask is u64). Per band: input, above thr/ratio, below thr/ratio, attack, release, gain; global splits, Amount, Time, Output, Knee, Detect, Solo, Low/High band (off = joins the mid). vis[0..2] gain change, vis[3..5] band level. UI: mbdRows (tabs Low/Mid/High/Setup, UI.mbBand), presets MBD_PRESETS in views.js. Type 14 is now 'Multiband (old)' (legacy: hidden from the add list; presets and the demo still use it).
 
 - Synth → effects (2026-11-13): a synth route whose d is 'fx:<slot>:<param>' moves one of the pad's insert effects (S.mods; host syncFxRoutes → tf_syn_fxroute; engine Patch.fr, values from the newest voice in Patch.sc, applied in fx_run via synFxMod). remapSlots and switchFxMode keep the routes attached; fxChanged re-syncs the pad. Map bar: Effects… → openFxTargets (settings with fixed choices are left out).
+
+## Analyzer reference (2026-11-13)
+- Spectrum header key "Ref" (openRefPicker in ui/scope.js) sets UI.anRef; scopeWant sends `ref` with the scope message. The host (setScope/scopeFeed) feeds that channel's tf_key_l/r (after its effects, before its fader) into TFAnalyzer.feedRef; spectrum() returns a third block of bands.
+- Drawn dashed pink; "Match level" (pr.refMatch, default on) shifts it by the mean dB gap over 100 Hz–10 kHz, skipping bands where the reference is below -100 dB. A silent reference draws nothing and says so.
+- Headless tests need `--autoplay-policy=no-user-gesture-required` and a wait for ENG.ready, or no reports arrive.

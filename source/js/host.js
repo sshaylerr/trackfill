@@ -269,6 +269,7 @@ class TFAnalyzer {
     this.fft = tfFFT(N); this.rev = new Uint16Array(N); for (let i = 0, j = 0; i < N; i++) { this.rev[i] = j; let b = N >> 1; while (j & b) { j ^= b; b >>= 1; } j |= b; }
     this.win = new Float32Array(N); let ws = 0; for (let i = 0; i < N; i++) { this.win[i] = .5 - .5 * Math.cos(2 * Math.PI * i / (N - 1)); ws += this.win[i]; } this.wsum = ws;
     this.re = new Float32Array(N); this.im = new Float32Array(N); this.pM = new Float32Array(N / 2); this.pS = new Float32Array(N / 2);
+    this.qL = new Float32Array(N); this.qR = new Float32Array(N); this.qw = 0; this.pQ = new Float32Array(N / 2); this.qOn = false;   // a reference channel's signal, for its spectrum laid over the mix
     this.bf = new Float32Array(TF_AN_BANDS + 1); for (let b = 0; b <= TF_AN_BANDS; b++) this.bf[b] = TF_AN_LO * Math.pow(TF_AN_HI / TF_AN_LO, b / TF_AN_BANDS) * N / sr;   // band edges in bins
     // K-weighting (the sample-rate-independent form of the BS.1770 filters)
     { let f0 = 1681.974450955533, G = 3.999843853973347, Q = .7071752369554196, K = Math.tan(Math.PI * f0 / sr), Vh = Math.pow(10, G / 20), Vb = Math.pow(Vh, .4996667741545416), a0 = 1 + K / Q + K * K;
@@ -316,9 +317,12 @@ class TFAnalyzer {
   range() { const L = x => -.691 + 10 * Math.log10(x + 1e-20); let n = 0, e = 0; for (let b = 0; b < 900; b++) { n += this.hS[b]; e += this.hSe[b]; } if (n < 2) return 0;
     const b0 = Math.max(0, Math.round((L(e / n) - 20 + 80) * 10)); let tot = 0; for (let b = b0; b < 900; b++) tot += this.hS[b]; if (tot < 2) return 0;
     const pc = q => { let acc = 0; for (let b = b0; b < 900; b++) { acc += this.hS[b]; if (acc >= q * tot) return b / 10 - 80; } return 0; }; return pc(.95) - pc(.10); }
-  spectrum(side) {   // mid and side power (side only when it's shown), smoothed into 160 log bands (bands narrower than a bin read the bins around them)
-    const N = this.N, re = this.re, im = this.im, w = this.w, win = this.win, rev = this.rev, g = 2 / this.wsum, out = new Float32Array(TF_AN_BANDS * 2);
-    for (const [k, pw] of side ? [[0, this.pM], [1, this.pS]] : [[0, this.pM]]) { for (let i = 0; i < N; i++) { const j = rev[i], a = this.rL[(w + i) & (N - 1)], b = this.rR[(w + i) & (N - 1)]; re[j] = (k ? (a - b) : (a + b)) * .5 * win[i]; im[j] = 0; }
+  feedRef(L, R, m) { const Nm = this.N - 1; for (let i = 0; i < m; i++) { this.qL[this.qw] = L[i]; this.qR[this.qw] = R[i]; this.qw = (this.qw + 1) & Nm; } this.qOn = true; }
+  spectrum(side, ref) {   // mid and side power (side only when it's shown) and the reference's mid, smoothed into 160 log bands (bands narrower than a bin read the bins around them)
+    const N = this.N, re = this.re, im = this.im, win = this.win, rev = this.rev, g = 2 / this.wsum, out = new Float32Array(TF_AN_BANDS * (ref ? 3 : 2));
+    const runs = [[0, this.pM]]; if (side) runs.push([1, this.pS]); if (ref) runs.push([2, this.pQ]);
+    for (const [k, pw] of runs) { const rl = k === 2 ? this.qL : this.rL, rr = k === 2 ? this.qR : this.rR, w = k === 2 ? this.qw : this.w;
+      for (let i = 0; i < N; i++) { const j = rev[i], a = rl[(w + i) & (N - 1)], b = rr[(w + i) & (N - 1)]; re[j] = (k === 1 ? (a - b) : (a + b)) * .5 * win[i]; im[j] = 0; }
       this.fft(re, im); for (let i = 0; i < N / 2; i++) pw[i] = (re[i] * re[i] + im[i] * im[i]) * g * g;
       for (let b = 0; b < TF_AN_BANDS; b++) { const a = this.bf[b], c = this.bf[b + 1]; let p;
         if (c - a < 1) { const x = (a + c) / 2, i0 = Math.floor(x), f = x - i0; p = pw[i0] + (pw[Math.min(N / 2 - 1, i0 + 1)] - pw[i0]) * f; }
@@ -328,7 +332,7 @@ class TFAnalyzer {
   report(mask) {
     const r = { mask };
     if (mask & 1) { r.loud = [this.mom ?? -120, this.st ?? -120, this.integrated(), this.range(), 20 * Math.log10(this.tpMax + 1e-9), 20 * Math.log10(this.spMax + 1e-9)]; r.hist = this.hist; this.hist = []; }
-    if (mask & 6) r.spec = this.spectrum(mask & 32);
+    if (mask & 6) r.spec = this.spectrum(mask & 32, this.qOn);
     if (mask & 8) { r.cols = this.cols; this.cols = []; }
     if (mask & 16) { const d = Math.sqrt(this.cLL * this.cRR); r.st = [d > 1e-12 ? this.cLR / d : 0, this.cMM + this.cSS > 1e-12 ? this.cSS / (this.cMM + this.cSS) : 0, this.cLL + this.cRR > 1e-12 ? (this.cRR - this.cLL) / (this.cLL + this.cRR) : 0];
       this.cLL = this.cRR = this.cLR = this.cMM = this.cSS = 0; r.vs = Array.from(this.vs); }
@@ -582,6 +586,8 @@ class TFHost {
     this.anMask = m.full | 0; if (!this.anMask) this.an = null;
     if (m.ch == null || m.ch < 0 || m.ch >= TF.NCH) { this.scope = null; this.an = null; return; }
     if (this.anMask && (!this.an || this.an.ch !== m.ch)) { this.an = new TFAnalyzer(this.sr); this.an.ch = m.ch; }
+    const ref = m.ref != null && m.ref >= 0 && m.ref < TF.NCH && m.ref !== m.ch && (this.anMask & 2) ? m.ref : -1;   // a reference channel laid over the spectrum
+    if (ref !== this.refCh) { this.refCh = ref; this.refV = null; if (this.an) { this.an.qOn = false; this.an.qL.fill(0); this.an.qR.fill(0); } }
     let s = this.scope; if (!s) { s = this.scope = { buf: new Float32Array(2048), w: 0, pkL: 0, pkR: 0, ssL: 0, ssR: 0, n: 0, mem: null }; if (!this.spec) this.spec = new TFSpectrum(this.sr); }
     if (s.ch !== m.ch) { s.ch = m.ch; s.mem = null; s.buf.fill(0); s.pkL = s.pkR = s.ssL = s.ssR = 0; s.n = 0; }   // never carry the last channel's levels over
   }
@@ -593,6 +599,7 @@ class TFHost {
     for (let i = 0; i < m; i++) { const l = L[i], r = R[i]; buf[w] = (l + r) * .5; w = (w + 1) & 2047; const al = l < 0 ? -l : l, ar = r < 0 ? -r : r; if (al > pl) pl = al; if (ar > pr) pr = ar; sl += l * l; sr += r * r; }
     s.w = w; s.pkL = pl; s.pkR = pr; s.ssL += sl; s.ssR += sr; s.n += m;
     if (this.an && this.anMask) this.an.feed(L, R, m, this.anMask);
+    if (this.an && this.refCh >= 0) { let v = this.refV; if (!v || v.mem !== mem) v = this.refV = { mem, L: new Float32Array(mem, ex.tf_key_l(this.refCh), 128), R: new Float32Array(mem, ex.tf_key_r(this.refCh), 128) }; this.an.feedRef(v.L, v.R, m); }   // after its effects, before its fader: a muted reference still reads
   }
   /* the ducker's scrolling waveforms: per block, the peak of its channel (after the duck), the peak of its key (the trigger pads,
      or the source channel in Audio mode) and the duck gain. About 375 columns a second, sent with each report. */

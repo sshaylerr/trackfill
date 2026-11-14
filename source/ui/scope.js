@@ -14,10 +14,10 @@ function scopeWant() {
   else if (UI.view === 'sound' && UI.snd === PG.MIX) ch = UI.pad;
   else if (UI.view === 'mix' && conOn() && UI.mixMode === 'bus') { fc = hasBusComp(UI.mixSel) ? UI.mixSel : MASTER; fs = NSLOTS + 1; }   // the console's gain reduction meter
   else if (UI.view === 'fx' && P.chans[UI.fxCh].fx[UI.fxSlot]) { fc = UI.fxCh; fs = UI.fxSlot; const t = P.chans[fc].fx[fs].type; if (t === FX_TYPES.EQ || t === FX_TYPES.FILTER) ch = fc; }
-  const full = SCOPE.sheet >= 0 ? anMask() : 0, key = ch + ':' + fc + ':' + fs + ':' + full; if (key === SCOPE.key) return; SCOPE.key = key;
+  const full = SCOPE.sheet >= 0 ? anMask() : 0, ref = full & 2 && UI.anRef != null && UI.anRef !== ch ? UI.anRef : -1, key = ch + ':' + fc + ':' + fs + ':' + full + ':' + ref; if (key === SCOPE.key) return; SCOPE.key = key;
   SCOPE.hist = []; SCOPE.wv.n = 0; SCOPE.io.pk.fill(-120); SCOPE.io.hold.fill(-120);   // a different effect: start its histories fresh
   if (ch !== SCOPE.ch) { SCOPE.tgt.fill(-120); SCOPE.disp.fill(-120); SCOPE.pk = [-120, -120]; SCOPE.rms = [-120, -120]; SCOPE.hold = [-120, -120]; SCOPE.vis = SCOPE.visD = 0; }
-  SCOPE.ch = ch; SCOPE.fc = fc; SCOPE.fs = fs; send({ t: 'scope', ch, fc, fs, full });
+  SCOPE.ch = ch; SCOPE.fc = fc; SCOPE.fs = fs; SCOPE.ref = ref; send({ t: 'scope', ch, fc, fs, full, ref });
 }
 function onScope(sc) {
   if (sc.ch !== SCOPE.ch) return; const now = performance.now(); SCOPE.at = now; SCOPE.vis = sc.vis || 0; SCOPE.vis3 = sc.vis3 || null; wake();
@@ -83,7 +83,7 @@ const dbStr = d => d <= -99 ? '-∞' : (d > 0 ? '+' : '') + d.toFixed(1);
 const AN_PANELS = [['loud', 'Loudness', 1, 186], ['spec', 'Spectrum', 2, 210], ['sgram', 'Spectrogram', 4, 150], ['wave', 'Waveform', 8, 112], ['stereo', 'Stereo', 16, 190]];
 const anPrefs = () => UI.anP || (UI.anP = { loud: 1, spec: 1, sgram: 1, wave: 1, stereo: 1, tilt: 3, side: 1 });
 const anMask = () => AN_PANELS.reduce((m, [k, , b]) => m | (anPrefs()[k] ? b : 0), 0) | (anPrefs().spec && anPrefs().side ? 32 : 0);
-function anNew() { return { loud: [-120, -120, -120, 0, -120, -120], hs: new Float32Array(1200).fill(-120), hn: 0, spec: null, disp: new Float32Array(TF_AN_BANDS * 2).fill(-120), hold: new Float32Array(TF_AN_BANDS).fill(-120),
+function anNew() { return { loud: [-120, -120, -120, 0, -120, -120], hs: new Float32Array(1200).fill(-120), hn: 0, spec: null, disp: new Float32Array(TF_AN_BANDS * 3).fill(-120), hold: new Float32Array(TF_AN_BANDS).fill(-120),
   seq: 0, cols: new Float32Array(AN_WCOLS * 5), cn: 0, st: [0, 0, 0], stD: [0, 0, 0], vs: null, sg: new Uint8Array(AN_SGF * TF_AN_BANDS), sgN: 0 }; }
 const AN_SGF = 2048, AN_WCOLS = 8192;   // history kept for scrolling back: about a minute of spectrogram, 40 s of waveform
 function anTake(a) { const A = SCOPE.an || (SCOPE.an = anNew());
@@ -92,7 +92,7 @@ function anTake(a) { const A = SCOPE.an || (SCOPE.an = anNew());
   if (a.cols) for (let i = 0; i + 4 < a.cols.length; i += 5) { A.cols.set(a.cols.slice(i, i + 5), (A.cn % AN_WCOLS) * 5); A.cn++; }
   if (a.st) A.st = a.st; if (a.vs) A.vs = a.vs; }
 function anStep(dt) { const A = SCOPE.an; if (!A || !A.spec) return; const fall = 30 * dt;   // spectrum: instant rise, smooth fall; a held peak line that drifts down
-  for (let i = 0; i < A.disp.length; i++) { const t = A.spec[i]; A.disp[i] = t > A.disp[i] ? t : Math.max(t, A.disp[i] - fall); }
+  for (let i = 0; i < A.spec.length; i++) { const t = A.spec[i]; A.disp[i] = t > A.disp[i] ? t : Math.max(t, A.disp[i] - fall); }
   for (let i = 0; i < TF_AN_BANDS; i++) A.hold[i] = Math.max(A.disp[i], A.hold[i] - 6 * dt);
   for (let k = 0; k < 3; k++) A.stD[k] += (A.st[k] - A.stD[k]) * Math.min(1, dt * 6); }
 const anF = b => TF_AN_LO * Math.pow(TF_AN_HI / TF_AN_LO, (b + .5) / TF_AN_BANDS), anX = (f, x, w, v) => x + w * Math.log(f / (v ? v.fLo : TF_AN_LO)) / Math.log(v ? v.fHi / v.fLo : TF_AN_HI / TF_AN_LO);
@@ -182,10 +182,17 @@ function drawSpec(g, W, H, cv) { const A = SCOPE.an, pr = anPrefs(), V = AN_VIEW
     if (fill) { g.globalAlpha = .28; g.fillStyle = col; g.fill(); } g.globalAlpha = al; g.strokeStyle = col; g.lineWidth = lw; g.lineJoin = 'round'; g.stroke(); g.globalAlpha = 1; };
   g.save(); g.beginPath(); g.rect(x0, top, w, bot - top); g.clip();
   curve(0, true, COL.play, 1.6, 1); if (pr.side) curve(TF_AN_BANDS, false, '#7aa8ff', 1.2, .85);
+  const hasRef = SCOPE.ref >= 0 && A.spec.length >= TF_AN_BANDS * 3; let rOff = 0, rMax = -200;
+  if (hasRef) for (let k = 0; k < TF_AN_BANDS; k++) rMax = Math.max(rMax, A.disp[2 * TF_AN_BANDS + k]);
+  const refOn = hasRef && rMax > -100;   // a silent reference draws nothing (no flat line matched up to the mix)
+  if (refOn) { if (pr.refMatch !== 0) { let a = 0, b = 0, n = 0; for (let k = 0; k < TF_AN_BANDS; k++) { const f = anF(k); if (f < 100 || f > 10000 || A.disp[2 * TF_AN_BANDS + k] < -100) continue; a += A.disp[k]; b += A.disp[2 * TF_AN_BANDS + k]; n++; } rOff = n ? (a - b) / n : 0; }   // Match: the reference moved to the mix's average level, so their shapes compare
+    g.beginPath(); for (let k = 0; k < TF_AN_BANDS; k++) { const y = Y(A.disp[2 * TF_AN_BANDS + k] + rOff + t(k)); k ? g.lineTo(bx(k), y) : g.moveTo(bx(k), y); } g.strokeStyle = AN_REF_COL; g.lineWidth = 1.6; g.globalAlpha = .95; g.setLineDash([5, 3]); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; }
   g.beginPath(); for (let b = 0; b < TF_AN_BANDS; b++) { const y = Y(A.hold[b] + t(b)); b ? g.lineTo(bx(b), y) : g.moveTo(bx(b), y); } g.strokeStyle = COL.ink; g.globalAlpha = .35; g.lineWidth = 1; g.stroke(); g.globalAlpha = 1; g.restore();
   if (cv._touch) { const x = Math.max(x0, Math.min(x0 + w, cv._touch.x)), f = V.fLo * Math.pow(V.fHi / V.fLo, (x - x0) / w), b = Math.max(0, Math.min(TF_AN_BANDS - 1, Math.round(Math.log(f / TF_AN_LO) / Math.log(TF_AN_HI / TF_AN_LO) * TF_AN_BANDS - .5)));
     g.fillStyle = COL.ink; g.fillRect(Math.round(x), top, 1, bot - top); const lab = `${fmtF(f)} Hz · ${fNote(f)} · ${A.disp[b].toFixed(0)} dB`; vText(g, lab, x > W / 2 ? x - 6 : x + 6, top + 8, COL.ink, x > W / 2 ? 'right' : 'left', 11, 600); }
-  vText(g, 'Mid', x0 + 4, top + 8, COL.play, 'left', 10, 600); if (pr.side) vText(g, 'Side', x0 + 32, top + 8, '#7aa8ff', 'left', 10, 600); }
+  vText(g, 'Mid', x0 + 4, top + 8, COL.play, 'left', 10, 600); if (pr.side) vText(g, 'Side', x0 + 32, top + 8, '#7aa8ff', 'left', 10, 600);
+  if (hasRef) vText(g, `Ref ${chanLabel(SCOPE.ref)}${!refOn ? ' · silent' : pr.refMatch !== 0 ? ` (${rOff > 0 ? '+' : ''}${rOff.toFixed(1)} dB)` : ''}`, x0 + (pr.side ? 64 : 32), top + 8, AN_REF_COL, 'left', 10, 600); }
+const AN_REF_COL = '#ff9ac2';
 // Spectrogram: time left to right (newest at the right), frequency up the side on the same log scale, colour = level
 const SG_LUT = (() => { const st = [[0, 0, 0, 0], [.18, 30, 8, 60], [.4, 120, 20, 110], [.6, 220, 60, 60], [.8, 255, 160, 30], [1, 255, 250, 200]], o = new Uint8ClampedArray(256 * 3);
   for (let i = 0; i < 256; i++) { const x = i / 255; let k = 0; while (k < st.length - 2 && x > st[k + 1][0]) k++; const [a, b] = [st[k], st[k + 1]], f = (x - a[0]) / (b[0] - a[0]); for (let c = 0; c < 3; c++) o[i * 3 + c] = a[c + 1] + (b[c + 1] - a[c + 1]) * f; } return o; })();
@@ -230,6 +237,17 @@ function drawStereo(g, W, H) { const A = SCOPE.an, sz = Math.min(H - 8, W * .55)
   bar(14 + (H - 20) / 3, 'Width', wid, 0, 1, Math.round(wid * 100) + '% side', false, true);
   bar(14 + (H - 20) * 2 / 3, 'Balance', bal, -1, 1, Math.abs(bal) < .02 ? 'Centre' : (bal < 0 ? 'L ' : 'R ') + Math.round(Math.abs(bal) * 100) + '%', Math.abs(bal) > .25); }
 const AN_DRAW = { loud: drawLoud, spec: drawSpec, sgram: drawSgram, wave: drawWave2, stereo: drawStereo };
+// the reference laid over the spectrum: any other channel (a reference song on an audio track, muted or sent to the speaker so it stays out of the mix)
+function openRefPicker(c) {
+  openSheet('Reference', card => { const l = h('div', 'list'), pr = anPrefs();
+    const row = (ch, name, sub) => { const li = h('div', 'li' + ((UI.anRef ?? null) === ch ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${esc(name)}</b><span>${esc(sub)}</span></div>`;
+      li.onclick = () => { UI.anRef = ch; closeSheet(); openAnalyzer(c); }; l.append(li); };
+    row(null, 'None', 'Just the mix');
+    for (let ch = 0; ch < MASTER; ch++) { if (ch === c) continue; if (ch < NPADS ? !padUsed(P.pads[ch]) : !P.chans[ch].name && !(P.chans[ch].fx || []).length && ch >= G0 && !P.pads.some((_, i) => tfDest(P, i) === ch)) continue;
+      row(ch, chanLabel(ch) + ' ' + chanName(ch), ch < NPADS ? (P.pads[ch].src === 'audio' ? 'Audio track' : 'Pad') + ' · before its fader' : 'Before its fader'); }
+    const m = h('div', 'g2'); m.append(btn('Match level: ' + (pr.refMatch === 0 ? 'Off' : 'On'), () => { pr.refMatch = pr.refMatch === 0 ? 1 : 0; savePrefs(); closeSheet(); openRefPicker(c); }, 'btn' + (pr.refMatch === 0 ? '' : ' on')));
+    card.append(l, m); });
+}
 function openAnalyzer(c) {
   SCOPE.sheet = c; SCOPE.an = null; scopeWant();
   openSheet('Analyzer · ' + chanLabel(c) + ' ' + chanName(c) + (c === MASTER ? '' : ' · pre'), card => {
@@ -238,6 +256,7 @@ function openAnalyzer(c) {
       for (const [k, name, , ht] of AN_PANELS) { const p = h('div', 'anp' + (pr[k] ? ' open' : '')), hd = h('div', 'anh');
         const tg = btn(`<span class="car">${pr[k] ? '▾' : '▸'}</span> ${name}`, () => { pr[k] = pr[k] ? 0 : 1; savePrefs(); scopeWant(); build(); }, 'anTitle'); hd.append(tg);
         if (k === 'loud' && pr[k]) hd.append(btn('Reset', () => { send({ t: 'anReset' }); if (SCOPE.an) { SCOPE.an.hs.fill(-120); SCOPE.an.hn = 0; } }, 'key sm'));
+        if (k === 'spec' && pr[k]) hd.append(btn(UI.anRef != null ? 'Ref ' + chanLabel(UI.anRef) : 'Ref', () => openRefPicker(c), 'key sm' + (UI.anRef != null ? ' on' : '')));
         if (k === 'spec' && pr[k]) hd.append(btn('Side', () => { pr.side = pr.side ? 0 : 1; savePrefs(); scopeWant(); build(); }, 'key sm' + (pr.side ? ' on' : '')), btn('Tilt ' + (pr.tilt || 0), () => { pr.tilt = pr.tilt === 3 ? 4.5 : pr.tilt === 4.5 ? 0 : 3; savePrefs(); build(); }, 'key sm'));
         p.append(hd);
         if (pr[k]) { const box = h('div', 'scr anbody'), cv = h('canvas'); box.style.height = ht + 'px'; box.append(cv); p.append(box);
