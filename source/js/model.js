@@ -398,7 +398,7 @@ const FX_DEFS = [
   { name: 'Transient', short: 'Trans', params: [P_('Attack', .5, v => { const t = Math.round((v * 2 - 1) * 100); return (t > 0 ? '+' : '') + t + '%'; }), P_('Sustain', .5, v => { const t = Math.round((v * 2 - 1) * 100); return (t > 0 ? '+' : '') + t + '%'; }), P_('Output', .5, v => fDb(linmap(v, -12, 12)))] },
   { name: 'Phaser', short: 'Phase', params: [P_('Rate', .4, v => expmap(v, .03, 5).toFixed(2) + ' Hz'), P_('Depth', .6, fPct), P_('Feedback', .4, v => fPct(linmap(v, 0, .85))), P_('Mix', .5, fPct), P_('Center', .5, v => fHz(expmap(v, 200, 4000)))] },
   { name: 'Limiter', short: 'Limit', params: LIM_P },
-  { name: 'Multiband (old)', short: 'Multi', legacy: true, params: MB_CLASSIC },   // kept so older projects play as they did; new ones get Multiband (31)
+  { name: 'Multiband (old)', logo: 'Multiband', short: 'Multi', legacy: true, params: MB_CLASSIC },   // kept so older projects play as they did; new ones get Multiband (31)
   { name: 'Tape', short: 'Tape', params: TAPE_P },
   { name: 'Gate', short: 'Gate', key: true, params: [P_('Threshold', .5, v => fDb(linmap(v, -80, 0))), P_('Range', 1, v => '−' + Math.round(linmap(v, 0, 80)) + ' dB'), P_('Attack', .3, v => fMs(expmap(v, .05, 50))),
     P_('Hold', .1, v => fMs(linmap(v, 0, 500))), P_('Release', .4, v => fMs(expmap(v, 5, 2000))), P_('Hysteresis', .333, v => linmap(v, 0, 12).toFixed(1) + ' dB')] },
