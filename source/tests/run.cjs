@@ -148,7 +148,7 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     for (const [k, t] of Object.entries(M.FX_TYPES)) { const d = M.FX_DEFS[t];
       if (!new RegExp('case T\\.' + k + '\\b').test(vis)) miss.display.push(d.name);
       if (!new RegExp(`'${t}:0'`).test(dev) && !/'\d+:0'/.test('')) { if (!dev.includes(`'${t}:0'`)) miss.look.push(d.name); }
-      if (!groups.includes(d.name)) miss.menu.push(d.name);
+      if (!groups.includes(d.name) && !d.legacy) miss.menu.push(d.name);
       for (const m of d.modes) for (const p of m.params) if (/^(Freq|Gain|Color|Speed|In gain|Out gain)$/.test(p.n) && !(t === M.FX_TYPES.UTIL && p.n === 'Gain')) miss.names.push(d.name + '/' + p.n); }
     if (engCount !== Object.keys(M.FX_TYPES).length) miss.engine.push(`engine has ${engCount}, app ${Object.keys(M.FX_TYPES).length}`);
     const bad = Object.entries(miss).filter(([, v]) => v.length);
@@ -736,7 +736,7 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
       Q.scenes[0] = Object.assign(M.emptyScene(), { bars: 1, notes: { 0: [{ t: 0, len: 24, p: 0, v: 1 }] } }); Q.bpm = 120;
       const r = await H.tfRenderOffline(wasm, Q, new Map([['pn', { id: 'pn', data: d, frames: n, ch: 1, sr: 48000 }]]), { order: [{ scene: 0, reps: 1 }], tail: 0 }); return stats(r.L, r.R, 9600, 33600).rms; };
     const dry = await lvl(null), off = [];
-    for (let ty = 0; ty < M.FX_DEFS.length; ty++) { if (ty === M.FX_TYPES.COMP || ty === M.FX_TYPES.MBAND) continue;
+    for (let ty = 0; ty < M.FX_DEFS.length; ty++) { if (ty === M.FX_TYPES.COMP || ty === M.FX_TYPES.MBAND || ty === M.FX_TYPES.MBD) continue;
       for (let mo = 0; mo < M.FX_DEFS[ty].modes.length; mo++) { const dd = 20 * Math.log10(await lvl(M.newFx(ty, null, mo)) / dry), lim = ty === M.FX_TYPES.SAT && mo === 5 ? 4 : ty === M.FX_TYPES.INFL ? 3 : ty === M.FX_TYPES.FILTER || ty === M.FX_TYPES.VINYL ? 2.5 : 1.5;   // filters and vinyl wear take away frequencies by design
         if (!(Math.abs(dd) <= lim)) off.push(`${M.FX_DEFS[ty].name}/${M.FX_DEFS[ty].modes[mo].n} ${dd.toFixed(1)} dB`); } }
     ok(!off.length, `every effect and mode at its defaults keeps the level (${off.length ? off.join(', ') : 'all within 1.5 dB'})`); }
@@ -751,6 +751,23 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     // a 2 s delay at full feedback-free mix: the repeat 2 s later must still arrive although the output is silent in between
     const d = await rt(M.newFx(M.FX_TYPES.DELAY, { 0: 0, 2: 1, 3: 0, 4: 1 }, 0), 4), rep = stats(d.L, d.R, Math.round(2.0 * 48000), Math.round(2.2 * 48000)).pk;
     ok(last < r.L.length - 48000 && before < 1e-5 && rep > .1, `faded effects stop processing (silent ${((r.L.length - last) / 48000).toFixed(1)} s before the end, last level ${(20 * Math.log10(before + 1e-12)).toFixed(0)} dB) and delays keep their repeats (${rep.toFixed(2)})`); }
+  { // Multiband (dynamics): each band's static curve as its controls say, Amount scales it, Solo and band-off route as labelled
+    const sine = (hz, db) => { const n = 96000, d = new Int16Array(n), a = Math.pow(10, db / 20) * 32767; for (let i = 0; i < n; i++) d[i] = Math.round(a * Math.sin(2 * Math.PI * hz * i / 48000)); return d; };
+    const T = M.FX_TYPES.MBD, ps = M.FX_DEFS[T].params, ix = n => ps.findIndex(p => p.n === n);
+    const fxOf = set => { const f = M.newFx(T); f.p[ix('Low split')] = 0; f.p[ix('High split')] = 1; f.p[ix('Knee')] = 0; f.p[ix('Detect')] = 1; for (const B of ['Low', 'Mid', 'High']) { f.p[ix(B + ' above ratio')] = .2; f.p[ix(B + ' below ratio')] = .5; } for (const k in set) f.p[ix(k)] = set[k]; return f; };
+    const out = async (fx, hz, db) => { const Q = M.newProject(true); Object.assign(Q.pads[0], { sample: 'sn', mode: 'one', rel: .001 }); Q.chans[0].fx = [fx];
+      Q.scenes[0] = Object.assign(M.emptyScene(), { bars: 1, notes: { 0: [{ t: 0, len: 48, p: 0, v: 1 }] } }); Q.bpm = 120;
+      const r = await H.tfRenderOffline(wasm, Q, new Map([['sn', { id: 'sn', data: sine(hz, db), frames: 96000, ch: 1, sr: 48000 }]]), { order: [{ scene: 0, reps: 1 }], tail: 0 });
+      const st = stats(r.L, r.R, 48000, 72000); return 20 * Math.log10(st.pk / H.tfPanGains(.5)[0] + 1e-12); };
+    const above = (thr, r) => ({ 'Mid above': (thr + 60) / 60, 'Mid above ratio': r === Infinity ? 1 : .2 + .8 * Math.log(r) / Math.log(100) });
+    // splits at 40 Hz and 12 kHz so the test tone sits far from both crossovers (near a split, the next band's uncompressed edge adds back in, as in any multiband)
+    // slopes, measured as the output change for a 6 dB input change (independent of the path's own gain): 4:1 → 1.5 dB, half Amount → 3.75 dB
+    const step = async (fx, hz, a, b) => (await out(fx, hz, a)) - (await out(fx, hz, b));
+    const dn = await step(fxOf(above(-30, 4)), 700, -6, -12), up = await step(fxOf({ 'Mid below': .5, 'Mid below ratio': .5 + .5 * Math.log(4) / Math.log(8) }), 700, -50, -56);
+    const half = await step(fxOf(Object.assign(above(-30, 4), { Amount: .5 })), 700, -6, -12), joined = await step(fxOf(Object.assign(above(-30, 4), { 'Low band': 0, 'Low split': .5 })), 60, -6, -12);
+    const ref = await out(fxOf({}), 700, -6), solo = await out(fxOf({ Solo: 1 / 3 }), 700, -6) - ref, flat = Math.abs(ref - await out(fxOf({}), 60, -6)), lin = await step(fxOf({}), 700, -6, -12);
+    ok(Math.abs(dn - 1.5) < .25 && Math.abs(up - 1.5) < .25 && Math.abs(half - 3.75) < .25 && Math.abs(joined - 1.5) < .25 && solo < -40 && flat < .3 && Math.abs(lin - 6) < .05,
+      `multiband follows its curves (output change for 6 dB in): 4:1 above ${dn.toFixed(2)} (want 1.5), 4:1 up below ${up.toFixed(2)} (want 1.5), Amount 50% ${half.toFixed(2)} (want 3.75), low band off joins the mid ${joined.toFixed(2)} (want 1.5), untouched ${lin.toFixed(2)}; low solo mutes the mid ${solo.toFixed(0)} dB; bands sum flat (${flat.toFixed(2)} dB apart)`); }
   { // silence in, silence out: no effect makes a click, thump or hiss on its own when nothing is playing (transport stopped)
     const noisy = []; for (let ty = 0; ty < M.FX_DEFS.length; ty++) for (let mo = 0; mo < M.FX_DEFS[ty].modes.length; mo++) {
       const ex = new WebAssembly.Instance(wasm, {}).exports, host = new H.TFHost(ex, 48000, null), Q = M.newProject(true); Q.chans[0].fx = [M.newFx(ty, null, mo)]; host.msg({ t: 'project', P: Q });

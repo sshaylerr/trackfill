@@ -263,13 +263,13 @@ const DNB_PACK = [
     lfo: [LFO_SHAPES.Triangle], m: { m2: .7 },
     mods: [synMod('LFO 1', 'cut', .14, 0, 'Macro 2'), synMod('LFO 1', 'det', .12, 0, 'Macro 2'), synMod('Macro 1', 'cut', .25)],
     fx: [FXS('Distortion', 'Bass', { Drive: .55, Tone: .6, Split: .5, Output: .68 }), FXS('Chorus', 'Flanger', { Rate: .25, Depth: .5, Manual: .45, Feedback: .78, Mix: .45, Stereo: .5 }),
-      FXS('Multiband', 'Squash', { Depth: .45 }), MONO_LOW] },
+      FXS('Multiband (old)', 'Squash', { Depth: .45 }), MONO_LOW] },
   // ----- mid-bass and growls -----
   { n: 'Talking Growl', g: 'DnB · Growl', eng: 'wt', voice: 'mono', glide: .02, wt: { a: 'w:Talk', b: 'w:Basic Shapes' },
     p: { wap: .2, wal: .85, wao: -1, sbl: .8, spl: .55, flt: 'Formant', cut: 1000, res: .55, key: 0, shp: .2, drv: .3, ar: .08, l1d: '1/8', l1m: 'Retrig' },
     lfo: [LFO_SHAPES['Saw down']], m: { m2: .75 },
     mods: [synMod('LFO 1', 'wap', .55, 0, 'Macro 2'), synMod('LFO 1', 'shp', .45, 0, 'Macro 2'), synMod('Macro 1', 'cut', .2)],
-    fx: [FXS('Distortion', 'Overdrive', { Drive: .45, Tone: .6, 'Low cut': .45, Output: .72 }), FXS('Multiband', 'Squash', { Depth: .55 }), WIDE_TOP] },
+    fx: [FXS('Distortion', 'Overdrive', { Drive: .45, Tone: .6, 'Low cut': .45, Output: .72 }), FXS('Multiband (old)', 'Squash', { Depth: .55 }), WIDE_TOP] },
   { n: 'Jump Wub', g: 'DnB · Growl', voice: 'mono', glide: .02,
     p: { o1w: 'Square', o1o: -1, o2o: -1, o2f: -8, o2l: .6, sbl: .75, spl: .5, flt: 'Clean', cut: 420, res: .55, shp: .5, key: .5, drv: .35, '2a': .0005, '2d': .12, '2s': 0, ar: .08, l1d: '1/8 T', l1m: 'Retrig' },
     lfo: [LFO_SHAPES.Triangle], m: { m2: .7 },
@@ -331,7 +331,7 @@ const EIGHTH = { o1o: -1, o2w: 'Square', o2o: 0, o2l: 0, sbl: .85, spl: .05, flt
   '2a': .0005, '2d': .14, '2s': .3, '2r': .05, '2k': 0, '3a': .0005, '3d': .04, '3s': 0, '3r': .02, aa: .001, ad: .3, as: 1, ar: .03 };
 const KICK_IN = [synMod('Env 3', 'o2l', .8), synMod('Env 3', 'o2s', .5)];   // the square's attack: in at full, an octave above it, gone in ~40 ms
 const BASS_SAT = (d, t = .6) => FXS('Distortion', 'Bass', { Drive: d, Tone: t, Split: .4, Output: .78 });   // grit above ~130 Hz only: the sine stays clean
-const SUBC = { sbl: .8, spl: .5 }, DROP_AMP = { aa: .001, ad: .3, as: .8, ar: .04 }, SQUASH = d => FXS('Multiband', 'Squash', { Depth: d });   // used by the two kept from the first try
+const SUBC = { sbl: .8, spl: .5 }, DROP_AMP = { aa: .001, ad: .3, as: .8, ar: .04 }, SQUASH = d => FXS('Multiband (old)', 'Squash', { Depth: d });   // used by the two kept from the first try
 const DNB_DROPS = [
   { n: 'Classic 8th', g: 'DnB drops', voice: 'mono', glide: .01, p: { ...EIGHTH },
     mods: [...KICK_IN, synMod('Velocity', 'fen', .15), synMod('Macro 1', 'cut', .3), synMod('Macro 2', '2d', .3)],

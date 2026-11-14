@@ -548,6 +548,61 @@ static void fx_mband(Fx* f, float* L, float* R, i32 n) {
   }
 }
 
+/* ================= Multiband dynamics: three bands, each with its own above and below thresholds ================= 
+   Above the top threshold a band is pushed down (ratio above 1) or up (below 1); below the bottom one it is lifted (upward compression)
+   or pushed further down (expansion). Amount scales every gain change, Time every attack and release. Subtle glue through to the
+   over-the-top squash. Params (40 max):
+   0 Low split, 1 High split, 2 Amount, 3 Time, 4 Output, 5 Knee (hard/soft), 6 Detect (peak/RMS), 7 Solo (off/low/mid/high),
+   8 Low band (off/on), 9 High band (off/on), then per band b (Low, Mid, High) at 10 + 8b:
+   Input, Above, Above ratio, Below, Below ratio, Attack, Release, Gain */
+struct MbdSt { MbSt x; float env[3], ms[3], up[3], g[3]; i32 init; };
+// the ratio knobs (the same maps as the app's labels): above, 0..0.2 expands (1:2 .. 1:1), then 1:1 .. 100:1, the top is infinite
+static float mbdAboveSlope(float v) { if (v < 0.2f) { float r = 1.f / (1.f + (0.2f - v) / 0.2f); return 1.f / r - 1.f; } if (v >= 0.995f) return -1.f; return 1.f / expmap((v - 0.2f) / 0.8f, 1.f, 100.f) - 1.f; }
+// below: the middle is 1:1; above the middle lifts quiet parts (upward compression up to 8:1), below it pushes them down (to 1:8, then a gate)
+static float mbdBelowSlope(float v) { if (v >= 0.5f) return 1.f - 1.f / expmap((v - 0.5f) * 2.f, 1.f, 8.f); if (v <= 0.005f) return -60.f; return -(expmap((0.5f - v) * 2.f, 1.f, 8.f) - 1.f); }
+static inline float mbdKnee(float over, float slope, float k) {   // gain (dB) for a level `over` dB past a threshold, with a soft knee k dB wide
+  if (k <= 0.f) return over > 0.f ? slope * over : 0.f; if (over <= -0.5f * k) return 0.f; if (over < 0.5f * k) { float t = over + 0.5f * k; return slope * t * t / (2.f * k); } return slope * over; }
+static void fx_mbd(Fx* f, float* L, float* R, i32 n) {
+  MbdSt* m = (MbdSt*)f->st; float* s = f->s;
+  float f1 = expmap(s[0], 40, 1000), f2 = expmap(s[1], 800, 12000); if (f2 < f1 * 1.5f) f2 = f1 * 1.5f; mbXover(&m->x, f1, f2);
+  const float amt = s[2], tm = expmap(s[3], 0.1f, 10.f), outg = db2lin(linmap(s[4], -24, 24)), knee = s[5] >= 0.5f ? 6.f : 0.f;
+  const i32 rms = s[6] >= 0.5f, solo = (i32)(s[7] * 3.f + 0.5f), lowOn = s[8] >= 0.5f, highOn = s[9] >= 0.5f;
+  float ing[3], thA[3], slA[3], thB[3], slB[3], aA[3], aR[3], relS[3], gb[3];
+  for (i32 b = 0; b < 3; b++) { const float* q = s + 10 + 8 * b;
+    ing[b] = db2lin(linmap(q[0], -24, 24)); thA[b] = linmap(q[1], -60, 0); slA[b] = mbdAboveSlope(q[2]); thB[b] = linmap(q[3], -80, 0); if (thB[b] > thA[b]) thB[b] = thA[b]; slB[b] = mbdBelowSlope(q[4]);
+    float at = expmap(q[5], 0.0001f, 0.3f) * tm, rl = expmap(q[6], 0.01f, 3.f) * tm; relS[b] = rl; aA[b] = fexp(-1.f / (at * SR)); aR[b] = fexp(-1.f / (rl * SR)); gb[b] = db2lin(linmap(q[7], -24, 24)); }
+  const float aMs = fexp(-1.f / (0.01f * SR));   // the RMS window: 10 ms
+  enum { MBN = 64 };
+  float bd[3][2][MBN];
+  for (i32 o = 0; o < n; o += MBN) { const i32 nn = n - o < MBN ? n - o : MBN;
+    for (i32 i = 0; i < nn; i++) {
+      for (i32 c = 0; c < 2; c++) { float x = c ? R[o + i] : L[o + i]; MbSt* X = &m->x;
+        float lo = bq2(&X->lp1[1], c, bq2(&X->lp1[0], c, x)), rest = bq2(&X->hp1[1], c, bq2(&X->hp1[0], c, x));
+        float mid = bq2(&X->lp2[1], c, bq2(&X->lp2[0], c, rest)), hi = bq2(&X->hp2[1], c, bq2(&X->hp2[0], c, rest)); lo = bq2(&X->ap, c, lo);
+        if (!lowOn) { mid += lo; lo = 0.f; } if (!highOn) { mid += hi; hi = 0.f; }   // a band switched off joins the middle one
+        bd[0][c][i] = lo * ing[0]; bd[1][c][i] = mid * ing[1]; bd[2][c][i] = hi * ing[2]; }
+      for (i32 b = 0; b < 3; b++) { float l = bd[b][0][i], r = bd[b][1][i], lv;
+        if (rms) { m->ms[b] = (l * l + r * r) * 0.5f + (m->ms[b] - (l * l + r * r) * 0.5f) * aMs; lv = sqrtf_(m->ms[b] * 2.f); } else lv = maxf(fabsf_(l), fabsf_(r));   // RMS reads a sine's peak level, like peak does
+        m->env[b] = lv > m->env[b] ? lv + (m->env[b] - lv) * aA[b] : lv + (m->env[b] - lv) * aR[b]; }
+    }
+    for (i32 b = 0; b < 3; b++) {
+      const i32 live = b == 1 || (b == 0 ? lowOn : highOn);
+      float ld = lin2db(m->env[b] + 1e-9f), gd = 0.f;
+      if (live) { gd = mbdKnee(ld - thA[b], slA[b], knee) + mbdKnee(thB[b] - ld, slB[b], knee); gd *= amt;
+        if (gd > 0.f) gd = minf(gd, 30.f) * clampf((ld + 80.f) * 0.05f, 0.f, 1.f);   // lifts fade out from -60 to -80 dB: silence and the noise floor stay put
+        gd = maxf(gd, -60.f);
+        if (gd > 0.f) { const float ru = 1.f - fexp(-(float)nn / (relS[b] * SR)); gd = m->up[b] + (gd - m->up[b]) * ru; } m->up[b] = maxf(gd, 0.f); }   // a lift rises at the release speed: a note out of silence is never caught mid-lift
+      f->vis[b] = gd; f->vis[3 + b] = live ? ld : -120.f;
+      float g1 = live ? db2lin(gd) * gb[b] * outg : 0.f; if (solo && solo - 1 != b) g1 = 0.f;
+      float g0 = m->init ? m->g[b] : g1, dg = (g1 - g0) / nn; m->g[b] = g1;
+      float* bl = bd[b][0]; float* br = bd[b][1];
+      if (b == 0) for (i32 i = 0; i < nn; i++) { g0 += dg; L[o + i] = bl[i] * g0; R[o + i] = br[i] * g0; }
+      else for (i32 i = 0; i < nn; i++) { g0 += dg; L[o + i] += bl[i] * g0; R[o + i] += br[i] * g0; }
+    }
+    m->init = 1;
+  }
+}
+
 /* ================= Tape: Studio, Cassette, Worn ================= */
 enum { TBL = 8192 };
 struct TapeSt { float b[2][TBL]; u32 w; float em[2], de[2], lp[2], hp[2], wph, fph, wn, wnz, dz, drop; u32 rng; BQ2 bump; float lastBump, ng; };

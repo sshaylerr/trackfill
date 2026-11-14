@@ -296,6 +296,14 @@ const XO = [P_('Low split', .5, v => fHz(expmap(v, 60, 600))), P_('High split', 
 const BANDG = ['Low gain', 'Mid gain', 'High gain'].map(n => P_(n, .5, v => fSign(v, -24, 24)));
 const MB_CLASSIC = [...XO, P_('Threshold', .6, v => fDb(linmap(v, -60, 0))), P_('Ratio', .463, fRatio), P_('Below thr', 0, v => fDb(linmap(v, -80, -20))), P_('Below ratio', 0, v => '1:' + expmap(v, 1, 4).toFixed(2)),
   P_('Attack', .5, v => fMs(expmap(v, .5, 100))), P_('Release', .5, v => fMs(expmap(v, 10, 1000))), ...BANDG, P_('Output', .5, v => fSign(v, -24, 24))];
+// Multiband dynamics: the same maps as fx_mbd in the engine
+const mbdAbove = v => { if (v >= .995) return '∞:1'; if (v < .2) return '1:' + (1 + (.2 - v) / .2).toFixed(2) + ' up'; const r = expmap((v - .2) / .8, 1, 100); return (r < 10 ? r.toFixed(1) : Math.round(r)) + ':1'; };
+const mbdBelow = v => { if (Math.abs(v - .5) < .004) return '1:1'; if (v > .5) { const r = expmap((v - .5) * 2, 1, 8); return r.toFixed(1) + ':1 up'; } if (v <= .005) return 'Gate'; return '1:' + expmap((.5 - v) * 2, 1, 8).toFixed(1) + ' down'; };
+const MBD_BAND = b => [P_(b + ' input', .5, v => fSign(v, -24, 24)), P_(b + ' above', 2 / 3, v => fDb(linmap(v, -60, 0))), P_(b + ' above ratio', .3204, mbdAbove),
+  P_(b + ' below', .5, v => fDb(linmap(v, -80, 0))), P_(b + ' below ratio', .5, mbdBelow), P_(b + ' attack', .575, v => fMs(expmap(v, .1, 300))), P_(b + ' release', .4748, v => fMs(expmap(v, 10, 3000))), P_(b + ' gain', .5, v => fSign(v, -24, 24))];
+const MBD_P = [P_('Low split', .3413, v => fHz(expmap(v, 40, 1000))), P_('High split', .4207, v => fHz(expmap(v, 800, 12000))), P_('Amount', 1, fPct), P_('Time', .5, v => (expmap(v, .1, 10) * 100).toFixed(0) + '%'),
+  P_('Output', .5, v => fSign(v, -24, 24)), P_('Knee', 1, null, ['Hard', 'Soft']), P_('Detect', 1, null, ['Peak', 'RMS']), P_('Solo', 0, null, ['Off', 'Low', 'Mid', 'High']),
+  P_('Low band', 1, null, ['Off', 'On']), P_('High band', 1, null, ['Off', 'On']), ...MBD_BAND('Low'), ...MBD_BAND('Mid'), ...MBD_BAND('High')];
 const TAPE_P = [P_('Drive', .3, v => fDb(linmap(v, -6, 24))), P_('Bump', .4, v => '+' + (v * 6).toFixed(1) + ' dB'), P_('Wow', .2, fPct), P_('Flutter', .2, fPct), P_('Hiss', .15, fPct), P_('Tone', .3, v => fHz(expmap(1 - v, 3000, 20000))), P_('Mix', 1, fPct), P_('Output', .5, v => fSign(v, -12, 12))];
 // Distortion: the same six controls in every flavour; Character is named for what it does in that flavour
 const fSt = v => { const x = linmap(v, -12, 12); return (x > .05 ? '+' : x < -.05 ? '−' : '') + Math.abs(x).toFixed(1) + ' st'; }, NOTE12 = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
@@ -390,7 +398,7 @@ const FX_DEFS = [
   { name: 'Transient', short: 'Trans', params: [P_('Attack', .5, v => { const t = Math.round((v * 2 - 1) * 100); return (t > 0 ? '+' : '') + t + '%'; }), P_('Sustain', .5, v => { const t = Math.round((v * 2 - 1) * 100); return (t > 0 ? '+' : '') + t + '%'; }), P_('Output', .5, v => fDb(linmap(v, -12, 12)))] },
   { name: 'Phaser', short: 'Phase', params: [P_('Rate', .4, v => expmap(v, .03, 5).toFixed(2) + ' Hz'), P_('Depth', .6, fPct), P_('Feedback', .4, v => fPct(linmap(v, 0, .85))), P_('Mix', .5, fPct), P_('Center', .5, v => fHz(expmap(v, 200, 4000)))] },
   { name: 'Limiter', short: 'Limit', params: LIM_P },
-  { name: 'Multiband', short: 'Multi', params: MB_CLASSIC },
+  { name: 'Multiband (old)', short: 'Multi', legacy: true, params: MB_CLASSIC },   // kept so older projects play as they did; new ones get Multiband (31)
   { name: 'Tape', short: 'Tape', params: TAPE_P },
   { name: 'Gate', short: 'Gate', key: true, params: [P_('Threshold', .5, v => fDb(linmap(v, -80, 0))), P_('Range', 1, v => '−' + Math.round(linmap(v, 0, 80)) + ' dB'), P_('Attack', .3, v => fMs(expmap(v, .05, 50))),
     P_('Hold', .1, v => fMs(linmap(v, 0, 500))), P_('Release', .4, v => fMs(expmap(v, 5, 2000))), P_('Hysteresis', .333, v => linmap(v, 0, 12).toFixed(1) + ' dB')] },
@@ -415,7 +423,8 @@ const FX_DEFS = [
   { name: 'Ring mod', short: 'Ring', params: [P_('Frequency', .45, v => fHz(expmap(v, 20, 5000))), P_('Shape', 0, null, ['Sine', 'Triangle', 'Square']), P_('Amount', 1, v => v < .02 ? 'Tremolo' : v > .98 ? 'Ring' : fPct(v)), P_('Stereo', 0, v => Math.round(v * 180) + '°'), P_('Mix', .5, fPct)] },
   { name: 'Imager', short: 'Image', params: [P_('Low split', .5, v => fHz(expmap(v, 60, 600))), P_('Mid split', .5, v => fHz(expmap(v, 400, 4000))), P_('High split', .5, v => fHz(expmap(v, 2000, 16000))),
     P_('Low width', .5, v => Math.round(v * 200) + '%'), P_('Low-mid width', .5, v => Math.round(v * 200) + '%'), P_('High-mid width', .5, v => Math.round(v * 200) + '%'), P_('High width', .5, v => Math.round(v * 200) + '%'), P_('Stereoize', 0, fPct), P_('Output', .5, v => fDb(linmap(v, -12, 12)))] },
-  { name: 'De-esser', short: 'De-ess', params: [P_('Frequency', .5, v => fHz(expmap(v, 3000, 12000))), P_('Threshold', .6, v => fDb(linmap(v, -50, 0))), P_('Range', .25, v => '−' + linmap(v, 0, 24).toFixed(1) + ' dB'), P_('Mode', 0, null, ['Split', 'Wide']), P_('Listen', 0, null, ['Off', 'On'])] }
+  { name: 'De-esser', short: 'De-ess', params: [P_('Frequency', .5, v => fHz(expmap(v, 3000, 12000))), P_('Threshold', .6, v => fDb(linmap(v, -50, 0))), P_('Range', .25, v => '−' + linmap(v, 0, 24).toFixed(1) + ' dB'), P_('Mode', 0, null, ['Split', 'Wide']), P_('Listen', 0, null, ['Off', 'On'])] },
+  { name: 'Multiband', short: 'Multi', params: MBD_P },
 ];
 // Shaper shapes (the drawn curve: 1 = full level, 0 = the Depth's dip) and Step FX actions
 const FX_LFO_SHAPES = { Pump: [{ x: 0, y: 0, c: -.65 }, { x: .55, y: 1, c: 0 }, { x: .97, y: 1, c: 0 }], 'Gate 1/8': [{ x: 0, y: 1, c: 0 }, { x: .45, y: 1, c: 0 }, { x: .5, y: 0, c: 0 }, { x: .95, y: 0, c: 0 }],
@@ -423,7 +432,7 @@ const FX_LFO_SHAPES = { Pump: [{ x: 0, y: 0, c: -.65 }, { x: .55, y: 1, c: 0 }, 
   Triangle: [{ x: 0, y: 0, c: 0 }, { x: .5, y: 1, c: 0 }], 'Saw down': [{ x: 0, y: 1, c: 0 }, { x: .97, y: 0, c: 0 }], 'Saw up': [{ x: 0, y: 0, c: 0 }, { x: .97, y: 1, c: 0 }], Swell: [{ x: 0, y: 0, c: .6 }, { x: .97, y: 1, c: 0 }] };
 const STEP_ACTS = [['Through', '#4a4a4f'], ['Mute', '#16161a'], ['Repeat', '#f2b544'], ['Reverse', '#5ec8e0'], ['Half', '#b48cff'], ['Filter', '#4fe0b0'], ['Tape stop', '#ff6b4a']];
 const STEP_DEFAULT = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 6, 6];
-const FX_TYPES = { EQ: 0, COMP: 1, FILTER: 2, SAT: 3, DELAY: 4, REVERB: 5, DUCK: 6, UTIL: 7, CHORUS: 8, CLIP: 9, CRUSH: 10, TRANS: 11, PHASER: 12, LIMIT: 13, MBAND: 14, TAPE: 15, GATE: 16, DISP: 17, APAN: 18, LFOT: 19, VINYL: 20, STEP: 21, GRIN: 22, DIST: 23, INFL: 24, RESO: 25, PITCH: 26, FSHIFT: 27, RING: 28, IMAGER: 29, DEESS: 30 };
+const FX_TYPES = { EQ: 0, COMP: 1, FILTER: 2, SAT: 3, DELAY: 4, REVERB: 5, DUCK: 6, UTIL: 7, CHORUS: 8, CLIP: 9, CRUSH: 10, TRANS: 11, PHASER: 12, LIMIT: 13, MBAND: 14, TAPE: 15, GATE: 16, DISP: 17, APAN: 18, LFOT: 19, VINYL: 20, STEP: 21, GRIN: 22, DIST: 23, INFL: 24, RESO: 25, PITCH: 26, FSHIFT: 27, RING: 28, IMAGER: 29, DEESS: 30, MBD: 31 };
 // every effect lists its modes; mode 0 is the effect's original design (old projects play it unchanged)
 FX_DEFS.forEach((d, t) => { const m = FX_MODES[t]; d.modes = [{ n: m ? m.mode0[0] : '', blurb: m ? m.mode0[1] : '', params: d.params }].concat(m ? m.more.map(([n, blurb, params]) => ({ n, blurb, params })) : []); });
 FX_DEFS[7].params.push(P_('Bass mono', 0, fHzOff(20, 500)));

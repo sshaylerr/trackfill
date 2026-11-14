@@ -2,7 +2,7 @@
    Curves are computed from the settings with the engine's own formulas, and drawn only when a setting changes.
    Live parts (spectrum behind EQ and Filter, gain-change meters, limiter history, multiband bands) come from the engine,
    only for the effect on screen. Colours come from the device's screen (each mode has its own look). */
-const FXV_LIVE = new Set([FX_TYPES.EQ, FX_TYPES.FILTER, FX_TYPES.COMP, FX_TYPES.DUCK, FX_TYPES.CLIP, FX_TYPES.TRANS, FX_TYPES.LIMIT, FX_TYPES.MBAND, FX_TYPES.GATE, FX_TYPES.APAN, FX_TYPES.LFOT, FX_TYPES.VINYL, FX_TYPES.STEP, FX_TYPES.GRIN, FX_TYPES.INFL, FX_TYPES.RESO, FX_TYPES.PITCH, FX_TYPES.IMAGER, FX_TYPES.DEESS]);
+const FXV_LIVE = new Set([FX_TYPES.EQ, FX_TYPES.FILTER, FX_TYPES.COMP, FX_TYPES.DUCK, FX_TYPES.CLIP, FX_TYPES.TRANS, FX_TYPES.LIMIT, FX_TYPES.MBAND, FX_TYPES.MBD, FX_TYPES.GATE, FX_TYPES.APAN, FX_TYPES.LFOT, FX_TYPES.VINYL, FX_TYPES.STEP, FX_TYPES.GRIN, FX_TYPES.INFL, FX_TYPES.RESO, FX_TYPES.PITCH, FX_TYPES.IMAGER, FX_TYPES.DEESS]);
 const fxSR = () => (ctx && ctx.sampleRate) || 48000;
 // RBJ biquads exactly as engine.cpp bq_set builds them; returns |H| in dB at f
 function bqDb(type, f0, Q, gdb, f) {
@@ -212,6 +212,21 @@ function drawFxVis(cv, c, s) {
         g.fillStyle = d < 0 ? K.acc : K.alt; if (d < 0) g.fillRect(x, mid, w, -d * sc); else g.fillRect(x, mid - d * sc, w, d * sc);
         T2(nm, x + w / 2, top + 8, K.ink, 'center', 10, 600); T2((d > .05 ? '+' : '') + d.toFixed(1), x + w / 2, top + h - 8, Math.abs(d) > .05 ? (d < 0 ? K.acc : K.alt) : K.mute, 'center', 10); });
       T2(fmtHz(f1), 10 + bw, mid - 8, K.mute, 'center', 9.5, 400); T2(fmtHz(f2), 10 + 2 * bw, mid - 8, K.mute, 'center', 9.5, 400); break; }
+    case T.MBD: { const v = live && SCOPE.vis3 ? SCOPE.vis3 : null, sel = UI.mbBand == null ? 1 : UI.mbBand, rh = h / 3, x0 = 46, x1 = W - 44, LO = -72, HI = 0, X = d => x0 + (x1 - x0) * (Math.max(LO, Math.min(HI, d)) - LO) / (HI - LO);
+      const on = [p[8] >= .5, true, p[9] >= .5], solo = dsc(p[7], 4), f1 = ex(p[0], 40, 1000), f2 = ex(p[1], 800, 12000), rng = [`< ${fmtHz(f1)}`, `${fmtHz(f1)}–${fmtHz(f2)}`, `> ${fmtHz(f2)}`];
+      g.fillStyle = K.line; for (const d of [-60, -48, -36, -24, -12]) g.fillRect(Math.round(X(d)), top, 1, h);
+      [2, 1, 0].forEach((b, r) => { const y = top + r * rh, q = p.slice(10 + 8 * b, 18 + 8 * b), ta = lin(q[1], -60, 0), tb = Math.min(ta, lin(q[3], -80, 0)), yb = y + 3, bh = rh - 6, quiet = !on[b] || (solo && solo - 1 !== b);
+        g.globalAlpha = quiet ? .35 : 1;
+        if (b === sel) { g.fillStyle = K.line; g.globalAlpha *= .7; g.fillRect(0, y + 1, W, rh - 2); g.globalAlpha = quiet ? .35 : 1; }
+        const up = q[4] > .504, dn = q[4] < .496, comp = q[2] > .2;
+        if (up || dn) { g.fillStyle = up ? K.alt : K.mute; g.globalAlpha *= .35; g.fillRect(x0, yb, X(tb) - x0, bh); g.globalAlpha = quiet ? .35 : 1; }   // below the bottom threshold: lifted (or pushed down)
+        g.fillStyle = comp ? K.acc : K.alt; g.globalAlpha *= .35; g.fillRect(X(ta), yb, x1 - X(ta), bh); g.globalAlpha = quiet ? .35 : 1;   // above the top one: pushed down (or up)
+        const lv = v ? v[3 + b] : -120; if (lv > LO) { g.fillStyle = K.ink; g.fillRect(x0, yb + bh * .3, X(lv) - x0, bh * .4); }
+        g.fillStyle = K.ink; g.fillRect(Math.round(X(ta)) - 1, yb, 2, bh); g.fillStyle = up ? K.alt : K.mute; g.fillRect(Math.round(X(tb)) - 1, yb, 2, bh);
+        T2(['LOW', 'MID', 'HIGH'][b], 6, y + rh / 2 - (rh > 26 ? 6 : 0), b === sel ? K.ink : K.mute, 'left', 10, 700); if (rh > 26) T2(on[b] ? rng[b] : 'off', 6, y + rh / 2 + 7, K.mute, 'left', 8.5, 400);
+        const d = v && on[b] ? v[b] : 0; T2((d > .05 ? '+' : '') + d.toFixed(1), W - 6, y + rh / 2, Math.abs(d) > .05 ? (d < 0 ? K.acc : K.alt) : K.mute, 'right', 10.5, 600);
+        g.globalAlpha = 1; });
+      if (solo) T2('Solo ' + ['', 'low', 'mid', 'high'][solo], (x0 + x1) / 2, top + 2, K.acc, 'center', 9, 600); break; }
     case T.TAPE: { const r = Math.min(h / 2 - 12, W / 7), y = top + h / 2 + 2, x1 = W / 2 - r * 1.6, x2 = W / 2 + r * 1.6;
       for (const x of [x1, x2]) { g.beginPath(); g.arc(x, y, r, 0, 7); g.strokeStyle = K.ink; g.lineWidth = 1.5; g.stroke(); g.beginPath(); g.arc(x, y, r * .3, 0, 7); g.stroke();
         for (let k = 0; k < 3; k++) { const a = .4 + k * 2.094; g.beginPath(); g.moveTo(x + Math.cos(a) * r * .32, y + Math.sin(a) * r * .32); g.lineTo(x + Math.cos(a) * r * .85, y + Math.sin(a) * r * .85); g.stroke(); } }

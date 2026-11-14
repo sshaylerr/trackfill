@@ -326,7 +326,35 @@ const FX_LAY = {
   ...Object.fromEntries([0, 1, 2, 3, 4, 5].map(m => ['22:' + m, [['Amount', 'Auto', 'Tone', 'Mix']]])),
 };
 // rows of cells: a param index, -1 for a gap, or '@src' / '@key'; the default is four to a row in the engine's order
-function fxRows(f) { const ps = fxParams(f), L = FX_LAY[f.type + ':' + (f.mode | 0)], used = new Set();
+// Multiband: one band's controls at a time (Low, Mid, High) or the setup (splits, bands, knee, detect, solo); Amount, Time and Output stay in reach
+const MBD_TABS = ['Low', 'Mid', 'High', 'Setup'];
+function mbdRows(f) { const ps = fxParams(f), ix = n => n === '' ? -1 : n[0] === '@' ? n : ps.findIndex(p => p.n === n), b = UI.mbBand == null ? 1 : UI.mbBand, B = MBD_TABS[b];
+  const rows = b === 3 ? [['Low split', 'High split', 'Low band', 'High band'], ['Knee', 'Detect', 'Solo', '']]
+    : [[B + ' input', B + ' above', B + ' above ratio', B + ' gain'], [B + ' below', B + ' below ratio', B + ' attack', B + ' release']];
+  rows.push(['Amount', 'Time', 'Output', '@mbpreset']); return rows.map(r => r.map(ix)); }
+// presets: settings by name in real units, turned into knob positions with the same maps the labels use
+const mbI = { lin: (x, a, b) => (x - a) / (b - a), exp: (x, a, b) => Math.log(x / a) / Math.log(b / a) };
+const mbAboveV = r => r === Infinity ? 1 : r >= 1 ? .2 + .8 * Math.log(r) / Math.log(100) : .2 - .2 * (1 / r - 1);
+const mbBelowV = (r, up) => r <= 1 ? .5 : up ? .5 + .5 * Math.log(r) / Math.log(8) : .5 - .5 * Math.log(r) / Math.log(8);
+function mbdPreset(o) { const v = { 'Low split': mbI.exp(o.split[0], 40, 1000), 'High split': mbI.exp(o.split[1], 800, 12000), Amount: o.amount ?? 1, Time: .5, Output: mbI.lin(o.out || 0, -24, 24), Knee: o.soft === false ? 0 : 1, Detect: o.rms === false ? 0 : 1, Solo: 0, 'Low band': 1, 'High band': 1 };
+  ['Low', 'Mid', 'High'].forEach((B, b) => { const k = x => Array.isArray(x) ? x[b] : x;
+    Object.assign(v, { [B + ' input']: .5, [B + ' above']: mbI.lin(k(o.above), -60, 0), [B + ' above ratio']: mbAboveV(k(o.ar)), [B + ' below']: mbI.lin(k(o.below), -80, 0), [B + ' below ratio']: mbBelowV(k(o.br), true),
+      [B + ' attack']: mbI.exp(k(o.atk), .1, 300), [B + ' release']: mbI.exp(k(o.rel), 10, 3000), [B + ' gain']: mbI.lin(k(o.gain || 0), -24, 24) }); });
+  return v; }
+const MBD_PRESETS = [
+  ['Gentle glue', 'All three bands, 2:1 above −18 dB', { split: [120, 2500], above: -18, ar: 2, below: -60, br: 1, atk: 20, rel: 200, out: 4.5 }],
+  ['Over the top', 'Hard down above, lifted below, in every band', { split: [88.3, 2500], above: [-33.8, -30.2, -35.5], ar: Infinity, below: [-40.8, -41.8, -40.8], br: 4.17, atk: 13.5, rel: 132, gain: [10.3, 5.7, 10.3], rms: false, out: 11 }],
+  ['Upward only', 'Lifts quiet details, leaves peaks alone', { split: [120, 2500], above: 0, ar: 1, below: -40, br: 3, atk: 10, rel: 150 }],
+  ['Downward only', 'Classic three-band compression, 4:1', { split: [120, 2500], above: -24, ar: 4, below: -60, br: 1, atk: 10, rel: 150, out: 9 }],
+  ['Tame highs', 'Holds back harsh tops, the rest untouched', { split: [120, 4000], above: [0, 0, -30], ar: [1, 1, 4], below: -60, br: 1, atk: [10, 10, 2], rel: [150, 150, 80] }],
+  ['Tight lows', 'Steadies the low end, the rest untouched', { split: [150, 2500], above: [-24, 0, 0], ar: [4, 1, 1], below: -60, br: 1, atk: [30, 10, 10], rel: 120, out: 3.5 }],
+  ['Clean slate', 'No gain changes: start from scratch', { split: [120, 2500], above: 0, ar: 1, below: -80, br: 1, atk: 10, rel: 150 }]];
+function openMbdPresets(c, s) { const f = P.chans[c].fx[s];
+  openSheet('Multiband preset', card => { const list = h('div', 'list');
+    MBD_PRESETS.forEach(([n, blurb, o]) => { const li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>${esc(n)}</b><span>${esc(blurb)}</span></div>`;
+      li.onclick = () => { closeSheet(); pushUndo('chan:' + c); const v = mbdPreset(o), ps = fxParams(f); ps.forEach((p, i) => { if (v[p.n] != null) f.p[i] = Math.max(0, Math.min(1, v[p.n])); }); fxChanged(c); toast('Multiband: ' + n); }; list.append(li); });
+    card.append(list); }); }
+function fxRows(f) { if (f.type === FX_TYPES.MBD) return mbdRows(f); const ps = fxParams(f), L = FX_LAY[f.type + ':' + (f.mode | 0)], used = new Set();
   const rows = L ? L.map(r => r.map(n => n === '' ? -1 : n[0] === '@' ? n : ps.findIndex(p => p.n === n)).filter((i, k) => i !== -1 || r[k] === '')) : [];
   rows.flat().forEach(i => used.add(i)); const rest = ps.map((_, i) => i).filter(i => !used.has(i)); if (!L && (f.type === FX_TYPES.GATE)) rest.push('@key');
   for (let k = 0; k < rest.length; k += 4) rows.push(rest.slice(k, k + 4)); return rows; }
@@ -353,14 +381,16 @@ function renderFx(V) {
     const cell = i => { if (i === -1) return blankCell();
       if (i === '@src') return notesDuck ? cellBtn('Triggers', f.trig.length ? f.trig.map(chanName).join(', ') : 'none', () => openTriggers(c, s)) : cellBtn('Listens to', f.key == null ? 'None' : chanLabel(f.key) + ' ' + chanName(f.key), () => openKeyPicker(c, s));
       if (i === '@shape') return cellBtn('Shape', 'Pick', () => openFxShapes(c, s));
+      if (i === '@mbpreset') return cellBtn('Preset', 'Pick', () => openMbdPresets(c, s));
       if (i === '@pattern') return cellBtn('Pattern', 'Pick', () => openStepPatterns(c, s));
       if (i === '@key') return cellBtn('Listens to', f.key == null ? 'Itself' : chanLabel(f.key) + ' ' + chanName(f.key), () => openKeyPicker(c, s));
       if (notesDuck && i === 7) return null; const prm = params[i], key = `${c}.${s}.${i}`; let el;
       const lk = fxLook(f.type, f.mode | 0), rot = lk.rot && prm.opts && prm.opts.length > 2;   // a look with its own knobs (and selector knobs for three settings or more)
       if (prm.opts) { el = selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(key, f.p[i]); redrawVis(); if (f.type === FX_TYPES.DUCK && i === 0) { syncChan(c); renderView(); } markDirty(); }, rot ? { paint: conRot(prm.opts, null, lk.rot) } : {}); if (rot) el.classList.add('swk', 'sw-rotary'); }
-      else el = keyParam(key, Object.assign({ label: prm.n, after: redrawVis }, lk.knob ? { skin: lk.knob } : {}));
+      else el = keyParam(key, Object.assign({ label: f.type === FX_TYPES.MBD ? prm.n.replace(/^(Low|Mid|High) (.)/, (_, b, ch) => ch.toUpperCase()) : prm.n, after: redrawVis }, lk.knob ? { skin: lk.knob } : {}));
       el.dataset.p = prm.n; return el; };
     if (f.type === FX_TYPES.STEP) dev.append(stepPalette(c, s));
+    if (f.type === FX_TYPES.MBD) { const tb = h('div', 'mbTabs'); MBD_TABS.forEach((n, b) => tb.append(btn(n, () => { UI.mbBand = b; renderView(); }, 'key sm' + ((UI.mbBand ?? 1) === b ? ' on' : '')))); dev.append(tb); }
     for (const r of fxRows(f)) { const els = r.map(cell).filter(Boolean); els.forEach((el, k) => { el.style.gridColumn = (k ? 'auto' : (4 - els.length + 1)) + ' / span 2'; g.append(el); }); }   // a short row sits in the middle
     dev.append(g);
     if (f.type === FX_TYPES.FILTER && (f.mode | 0) > 0) { const r = h('div', 'g2 lfoRow'); r.append(btn('LFO shape… <span class="lsub">' + (f.lfo && f.lfo.length ? 'drawn' : 'sine') + '</span>', () => openFilterLfo(c, s), 'key')); dev.append(r); }   // the filter's LFO, drawn like the Shaper   // Step FX: pick an action, then tap steps on the screen
@@ -371,10 +401,10 @@ function renderFx(V) {
     // one device per line, grouped, like every other menu: colour dot (the device's faceplate), name, and its modes or what it does
     const add = t => { pushUndo('chan:' + c); const nf = newFx(t); if (t === FX_TYPES.DUCK) { const kick = P.pads.findIndex(p => p.sample === 'b:dkick' || p.sample === 'b:kick'); if (kick >= 0 && kick !== c) nf.trig = [kick]; }
       C.fx.push(nf); UI.fxSlot = C.fx.length - 1; fxChanged(c); };
-    const ABOUT = { Autopan: 'moves the sound left and right', 'Shaper': 'a drawn shape on the volume: gate, pump, tremolo', Vinyl: 'crackle, wear and the turntable stop', 'Step FX': 'paint stutters, reverses and tape stops on a grid', Grin: 'one knob for the whole build-up', Ducker: 'ducks this channel when a pad plays or a sound gets loud', Utility: 'gain, pan, width, bass mono', Transient: 'more or less attack and sustain', Gate: 'cuts the sound below a threshold', Disperser: 'smears a band in time: zaps and thicker hits', Inflate: 'louder and denser, without squashing', Resonator: 'tuned strings that ring in the song\'s key', 'Frequency shift': 'moves every frequency by the same Hz: metallic, detuned', 'Ring mod': 'the sound times a tone: bells, robots, clangs', Imager: 'stereo width in four bands, mono-safe', 'De-esser': 'tames harsh s and t sounds' };
+    const ABOUT = { Multiband: 'three bands, each pushed down above and lifted below: gentle glue to over-the-top', Autopan: 'moves the sound left and right', 'Shaper': 'a drawn shape on the volume: gate, pump, tremolo', Vinyl: 'crackle, wear and the turntable stop', 'Step FX': 'paint stutters, reverses and tape stops on a grid', Grin: 'one knob for the whole build-up', Ducker: 'ducks this channel when a pad plays or a sound gets loud', Utility: 'gain, pan, width, bass mono', Transient: 'more or less attack and sustain', Gate: 'cuts the sound below a threshold', Disperser: 'smears a band in time: zaps and thicker hits', Inflate: 'louder and denser, without squashing', Resonator: 'tuned strings that ring in the song\'s key', 'Frequency shift': 'moves every frequency by the same Hz: metallic, detuned', 'Ring mod': 'the sound times a tone: bells, robots, clangs', Imager: 'stereo width in four bands, mono-safe', 'De-esser': 'tames harsh s and t sounds' };
     const GROUPS = [['Tone', ['EQ', 'Filter', 'Saturation', 'Distortion', 'Clipper', 'Bitcrush', 'Tape', 'Vinyl']], ['Dynamics', ['Compressor', 'Limiter', 'Multiband', 'Inflate', 'Transient', 'Gate', 'De-esser', 'Ducker']], ['Pitch and colour', ['Pitch', 'Frequency shift', 'Ring mod', 'Resonator']], ['Rhythm and build-ups', ['Step FX', 'Shaper', 'Autopan', 'Grin']], ['Space and movement', ['Delay', 'Reverb', 'Chorus', 'Phaser', 'Disperser']], ['Stereo and utility', ['Imager', 'Utility']]];
     const seen = new Set();
-    for (const [title, names] of GROUPS.concat([['More', FX_DEFS.map(d => d.name)]])) { const l = h('div', 'list');
+    for (const [title, names] of GROUPS.concat([['More', FX_DEFS.filter(d => !d.legacy).map(d => d.name)]])) { const l = h('div', 'list');
       for (const n of names) { const t = FX_DEFS.findIndex(d => d.name === n); if (t < 0 || seen.has(t)) continue; seen.add(t); const d = FX_DEFS[t], full = t === FX_TYPES.DUCK && duckerCount() >= MAX_DUCKERS, lk = fxLook(t, 0);
         const li = h('div', 'li fxli' + (full ? ' off' : '')); li.innerHTML = `<span class="sdot" style="background:${lk.ring}"></span><div class="lt"><b>${esc(d.name)}</b><span>${esc(full ? 'all 8 duckers in use' : d.modes.length > 1 ? d.modes.map(m => m.n).join(' · ') : ABOUT[d.name] || '')}</span></div>`;
         if (!full) li.onclick = () => add(t); l.append(li); }
