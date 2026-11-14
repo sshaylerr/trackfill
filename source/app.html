@@ -1362,7 +1362,7 @@ const undo = () => { REC.saved = -1; applyHistory(UNDO, REDO, 'undo'); }, redo =
 /* ================= audio engine bridge ================= */
 let ctx = null, wasmModule = null, mediaTag = null;
 const ENG = { node: null, ready: false, err: '', sent: new Set(), heard: new Map(), oomRetry: new Set() };
-const REP = { time: 0, playing: false, pos: null, pk: [0, 0], cpu: 0, voices: 0, cm: [] };
+const REP = { time: 0, playing: false, pos: null, hist: [], st: null, pk: [0, 0], cpu: 0, voices: 0, cm: [] };
 function send(m) { if (ENG.node) ENG.node.port.postMessage(m); }
 /* wavetables: factory ones ('w:Name') are generated, your own live in the library as samples marked .wt (frames); prepared once, cached */
 const WTPREP = new Map();
@@ -1500,7 +1500,9 @@ function onEngine(m) {
   if (m.t === 'pos') {
     if (m.playing || m.voices || m.pk[0] > 1e-5 || m.pk[1] > 1e-5) lastAct = Date.now();   // (sound keeps audio awake; only what a meter can show keeps the screen drawing)
     if (m.playing || m.voices || m.pk[0] > 1e-3 || m.pk[1] > 1e-3) wake();
-    REP.time = m.time; REP.playing = m.playing; REP.pos = m.pos; REP.cpu = REP.cpu * .9 + m.cpu * .1; REP.voices = m.voices; REP.cm = m.cm || [];   // CPU is sampled with a 1 ms clock, so it is averaged
+    REP.time = m.time; REP.playing = m.playing; REP.pos = m.pos;
+    if (m.pos) { REP.hist.push({ time: m.time, scene: m.pos.scene, tick: m.pos.tick, tps: m.pos.tps }); if (REP.hist.length > 90) REP.hist.shift(); }   // the last 3 s of positions: what was heard is looked up, not guessed across a loop's end
+    if (m.st) REP.st = { scene: m.st.scene, tick: m.st.tick, tps: m.st.tps, at: m.time + m.st.in }; REP.cpu = REP.cpu * .9 + m.cpu * .1; REP.voices = m.voices; REP.cm = m.cm || [];   // CPU is sampled with a 1 ms clock, so it is averaged
     if (m.fl && m.fl.length) { const sr = ctx ? ctx.sampleRate : 48000; m.fl.forEach((v, i) => { const f = { at: m.time - ((m.fa && m.fa[i]) || 0) / sr, v }; if (frameOn) FLQ.push(f); else flashOne(f); }); if (FLQ.length > 256) FLQ.splice(0, FLQ.length - 256); }   // each pad lights when its own sound is heard
     { const r = { at: m.time - 1 / 30, pk: m.pk, cm: m.cm, sc: m.sc }; if (frameOn) { METQ.push(r); if (METQ.length > 90) meterTake(METQ.shift()); } else meterTake(r); }   // resting screen: nothing to show, take it now   // meters show each report when it is heard (see meterFeed)   // (pads light when they're heard, with the meters)
     if (m.arp) arpPlayed(m.arp);
@@ -1538,7 +1540,7 @@ function play() {
   recReset();
   const sent = UPQ.jobs.length ? upFlush(T.loop === 'song' ? null : sceneNeeds(UI.scene)) : 0;   // what's about to play is in the engine before it starts
   const count = T.rec ? UI.countIn : 0, lead = Math.max(250 - (performance.now() - (AUD.runAt || 0)), Math.min(400, sent / 50000));   // just woken, or a big sound just sent: a moment more before the first note
-  T.playing = true; REP.pos = null; TL.held = false; tlFollowUpd(); sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count, from: playFrom(), lead }); updateTransport();
+  T.playing = true; REP.pos = null; REP.hist.length = 0; REP.st = null; TL.held = false; tlFollowUpd(); sendClick(); send({ t: 'play', scene: UI.scene, loop: T.loop, count, from: playFrom(), lead }); updateTransport();
   if (count) toast(`Count-in: ${count} bar${count > 1 ? 's' : ''}`);
 }
 /* The timeline's start point and loop range (one scene each): playback starts at the start point, and with the loop on it goes round the range
@@ -1546,7 +1548,7 @@ function play() {
 function playFrom() { const tl = UI.tl, L = tl.loop && tl.loop.on && tl.loop.scene === UI.scene ? tl.loop : null, s = tl.start && tl.start.scene === UI.scene ? tl.start.t : 0;
   return L && (s < L.a || s >= L.b) ? L.a : s; }
 function sendRange() { const L = UI.tl.loop; send({ t: 'range', v: L && L.on ? { scene: L.scene, a: L.a, b: L.b } : null }); }
-function jumpTo(t) { if (!T.playing) return; REP.pos = null; send({ t: 'play', scene: UI.scene, loop: T.loop, count: 0, from: t }); }
+function jumpTo(t) { if (!T.playing) return; REP.pos = null; REP.hist.length = 0; REP.st = null; send({ t: 'play', scene: UI.scene, loop: T.loop, count: 0, from: t }); }
 function loopToggle() { const tl = UI.tl, L = tl.loop;
   if (L && L.scene === UI.scene) L.on = !L.on;
   else { const items = selItems(), len = sceneLen(UI.scene); let a, b;   // a new range: the bars of the selection, or the bar where the start point (or the view) is
@@ -1568,10 +1570,17 @@ function heardTime() { if (!ctx) return 0; const fb = ctx.currentTime - (ctx.out
   if (ts && ts.contextTime > 0 && ts.performanceTime > 0) { const t = ts.contextTime + (performance.now() - ts.performanceTime) / 1000; const c = ctx.currentTime; if (t > c - .6 && t < c + .02) return t; }
   return fb; }
 const DISP_LEAD = 1 / 60;   // a frame drawn now reaches the screen about one refresh later: drawings show the sound heard then
+/* Where the song was at the moment heard (ahead: seconds later). Looked up in the engine's recent positions, so a moment just before a loop
+   comes round is placed at the loop's end, not pulled onto its start. Before the first note (count-in, or the moment after Play): up to a
+   beat early counts as the song's first beat, the way a player leans into the downbeat. */
 function heardPos(ahead = 0) {
-  if (!T.playing || !REP.playing || !REP.pos || !ctx) return null;
-  const dt = heardTime() + ahead - REP.time, sc = REP.pos.scene;
-  return { scene: sc, tick: clamp(REP.pos.tick + dt * ctx.sampleRate * REP.pos.tps, 0, sceneLen(sc) - 1e-6) };
+  if (!T.playing || !REP.playing || !ctx) return null;
+  const h = heardTime() + ahead, sr = ctx.sampleRate, H = REP.hist; let e = null;
+  for (let i = H.length - 1; i >= 0; i--) if (H[i].time <= h) { e = H[i]; break; }
+  if (e) return { scene: e.scene, tick: clamp(e.tick + (h - e.time) * sr * e.tps, 0, sceneLen(e.scene) - 1e-6) };
+  const s = REP.st; if (s) { if (h < s.at - 60 / P.bpm) return null; return { scene: s.scene, tick: clamp(s.tick + Math.max(0, h - s.at) * sr * s.tps, 0, sceneLen(s.scene) - 1e-6) }; }
+  if (!REP.pos) return null; const sc = REP.pos.scene;
+  return { scene: sc, tick: clamp(REP.pos.tick + (h - REP.time) * sr * REP.pos.tps, 0, sceneLen(sc) - 1e-6) };
 }
 // ms: how long after the tap this note sounded (a strum); it's kept as played, after the tap itself is snapped to the grid
 /* Undo while recording: each pass of the loop is its own step. The first thing recorded in a pass saves the scene as it was,
@@ -1587,8 +1596,7 @@ function recordNote(pi, semi, vel = .9, ms = 0) {
   const sc = P.scenes[pos.scene], len = sc.bars * BAR, s = UI.tl.snap, off = ms / 1000 / spt(); let t = pos.tick; if (s) t = gridQ(t, s); t = fixT((((t + off) % len) + len) % len);
   const n = { t, len: s || 24, p: semi, v: +vel.toFixed(3) }, ahead = ((t - pos.tick - off + len) % len) * spt();
   if (ahead < .3) n.f = 1;   // the engine skips this once: you already heard it live
-  (sc.notes[pi] = sc.notes[pi] || []).push(n); syncScene(pos.scene); markDirty();
-  if (pos.scene === UI.scene) { refreshPadDots(); if (UI.view === 'seq') drawTL(); } renderScenes();
+  (sc.notes[pi] = sc.notes[pi] || []).push(n); recSync(pos.scene, true); markDirty();
   return { n, scene: pos.scene };
 }
 function recAuto(key, v) {
@@ -1596,8 +1604,14 @@ function recAuto(key, v) {
   let st = UI.autoRec; if (!st || st.scene !== pos.scene || st.key !== key || t < st.last) st = UI.autoRec = { scene: pos.scene, key, last: t - 1, wrote: -99 };
   if (t - st.wrote < 3) return;
   const pts = sc.auto[key] = (sc.auto[key] || []).filter(q => !(q.t > st.last && q.t <= t));
-  pts.push({ t, v, c: 0 }); pts.sort((a, b) => a.t - b.t); st.last = t; st.wrote = t; syncScene(pos.scene); markDirty();
+  pts.push({ t, v, c: 0 }); pts.sort((a, b) => a.t - b.t); st.last = t; st.wrote = t; recSync(pos.scene, false); markDirty();
 }
+/* While recording, the page's work is gathered up so the next touch is never kept waiting: a scene goes to the engine once for all the
+   notes of a touch (a chord is one send, straight after the touch; automation once a frame), and the screen redraws once a frame. */
+const RECQ = { now: new Set(), soon: new Set(), mt: false, raf: 0 };
+function recSync(si, now) { (now ? RECQ.now : RECQ.soon).add(si);
+  if (now && !RECQ.mt) { RECQ.mt = true; queueMicrotask(() => { RECQ.mt = false; for (const i of RECQ.now) { RECQ.soon.delete(i); syncScene(i); } RECQ.now.clear(); }); }
+  if (!RECQ.raf) RECQ.raf = requestAnimationFrame(() => { RECQ.raf = 0; for (const i of RECQ.soon) syncScene(i); RECQ.soon.clear(); refreshPadDots(); if (UI.view === 'seq') drawTL(); renderScenes(); }); }
 // Capture: everything played on the pads is remembered, so a good idea can be kept after the fact.
 const CAP = [];
 function capHit(pi, semi, vel, ms = 0) { const pos = heardPos(-tapLag()), off = ms / 1000 / spt();
@@ -2529,6 +2543,9 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
+  ['2026-11-14', [
+    'Recording: notes played just before the first beat (or as the loop comes round) land where you played them, and pads stay quick while recording.',
+  ]],
   ['2026-11-13', [
     'Importing: sounds go onto pads in name order; loops named with a tempo follow the song, and a key in the name shows up, with Stretch › Match song to transpose.',
     'Every effect now has a Mix (dry/wet); Multiband\'s Amount is now Mix.',

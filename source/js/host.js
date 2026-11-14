@@ -644,10 +644,11 @@ class TFHost {
     if (bars) { this.makeClicks(); this.clicks(t, 0, bars * TF.BAR, tps); }   // count-in: clicks only, then the scene starts
     const len = this.P.scenes[scene] ? this.P.scenes[scene].bars * TF.BAR : TF.BAR;
     this.ah = { scene, rep: 0, tick: Math.max(0, Math.min(len - 1, +from || 0)), t: t + Math.round(bars * TF.BAR / tps), started: false };   // from: the timeline's start point
+    this.st0 = { scene, tick: this.ah.tick, t: this.ah.t, tps };   // where and when the song starts: the page places notes played just before it on its first beat
   }
   stop(soft) {
     this.bpmNow = null; this.ex.tf_set_bpm(this.P.bpm);   // a tempo lane lets go when the transport stops
-    this.playing = false; this.heap.clear(); this.marks.length = 0; this.pos = null;
+    this.playing = false; this.heap.clear(); this.marks.length = 0; this.pos = null; this.st0 = null;
     if (!soft) this.ex.tf_release_all(0.005);
     this.restoreAuto();
   }
@@ -804,6 +805,7 @@ class TFHost {
       // nothing playing and nothing sounding: one last report, then quiet until something happens (saves the page waking up 30 times a second)
       const idle = !this.playing && !voices && pk[0] < 1e-5 && pk[1] < 1e-5 && !this.flashes.length;
       if (!idle || !this.idleSent) this.post({ t: 'pos', time: (typeof currentTime !== 'undefined' ? currentTime : 0) + n / this.sr, playing: this.playing, pos: this.pos,
+        st: !this.pos && this.st0 ? { scene: this.st0.scene, tick: this.st0.tick, in: (this.st0.t - this.now) / this.sr, tps: this.st0.tps } : undefined,
         pk, cm: Array.from(this.vPk), cpu: blocksMs > 0 ? this.cpuMs / blocksMs : 0, voices, fl: this.flashes.splice(0), fa: this.flashT.splice(0).map(s => this.now - s),   // fa: how many samples ago each flash's sound started (pads light when it's heard)
         arp: this.arpOut.length ? this.arpOut.splice(0) : undefined, sc: this.scope || this.visFx ? this.safeReport() : null });
       else if (this.scope || this.visFx) this.safeReport();

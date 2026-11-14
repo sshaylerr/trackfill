@@ -166,3 +166,8 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 - importFiles (app.html) sorts picks naturally (folder, then name), and reads each file name with nameTags (js/model.js): tempo ("124bpm", or a bare 60–200 number only when the sound is a whole number of bars at it), key (needs a quality: Fmin, F#m, C major), and a tidier name (tempo/key tokens and a leading 2–4 letter pack code dropped).
 - A tempo sets pad.tempo and Stretch mode (Beats when the name says drum/perc/top/break…, else Clean). A key goes in pad.fk {r, m}; shown on the Sample display, and Stretch › Key has Original / Match song (keyShift: relative major/minor when the modes differ, nearest of ±6 st).
 - No shop names anywhere in the app.
+
+## Recording timing (2026-11-14)
+- heardPos looks the heard moment up in REP.hist (the engine's last 3 s of positions) instead of extrapolating back from the newest report, which pulled notes played just before a loop's end onto its start (or before a loop range's start, where they never played).
+- Before the song's first note (count-in, the moment after Play) REP.pos is null, so notes were dropped. The engine now reports where and when the song starts (`st`), and up to a beat early counts as the first beat.
+- recordNote/recAuto no longer redraw or send the scene per note: recSync sends once per touch (microtask; a chord is one send) and automation once a frame, with one screen redraw per frame.
