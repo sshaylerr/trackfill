@@ -380,13 +380,13 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
   { // every key, scale, progression and colour fills 16 named pads, and every voicing stays playable
     let short = 0, unnamed = 0, wild = 0, dup = 0;
     for (let r = 0; r < 12; r++) for (let s = 0; s < HM.SCALES.length; s++) for (let pr = 0; pr <= HM.PROGS.length; pr += r % 3 ? 7 : 1) for (const c of ['triad', 'seventh', 'rich']) {
-      const pads = HM.chordPads({ root: r, scale: s }, HM.normalizeKx({ scale: s, prog: pr, colour: c })); if (pads.length < 16) short++; if (pads.some(x => x.name.includes('*'))) unnamed++;
+      const pads = HM.chordPads({ root: r, scale: s }, HM.normalizeKx({ scale: s, prog: pr, colour: c, v: 2 })); if (pads.length < 16) short++; if (pads.some(x => x.name.includes('*'))) unnamed++;
       for (const [v] of HM.VOICINGS) { let prev = null; for (const ch of pads) { const n = HM.voiceChord(ch, v, prev, { centre: 5 }); prev = n; if (new Set(n).size !== n.length) dup++; if (n[0] < -26 || n[n.length - 1] > 34 || n[n.length - 1] - n[0] > (v === 'wide' ? 42 : 40)) wild++; } } }
     ok(!short && !unnamed, `every key, scale, progression and colour gives 16 named chords (${short} short, ${unnamed} unnamed)`);
     ok(!wild && !dup, `every voicing stays in a playable range with no doubled notes (${wild} out of range, ${dup} doubled)`);
     const cm = HM.chordPads({ root: 0, scale: 5 }, HM.normalizeKx({ colour: 'seventh' })).slice(0, 7).map(x => x.name).join(' ');
     ok(cm === 'Cm7 Dø7 E♭maj7 Fm7 Gm7 A♭maj7 B♭7', 'C minor sevenths are spelled right: ' + cm);
-    const gm = HM.chordPads({ root: 7, scale: 0 }, HM.normalizeKx({ colour: 'rich' })).slice(0, 7).map(x => x.name).join(' ');
+    const gm = HM.chordPads({ root: 7, scale: 0 }, HM.normalizeKx({ colour: 'rich', v: 2 })).slice(0, 7).map(x => x.name).join(' ');
     ok(gm === 'Gmaj9 Am9 Bm7(add11) Cmaj9♯11 D13 Em9 F♯ø11 '.trim(), 'G major rich chords avoid clashing extensions: ' + gm);
     const sc = HM.scalePads({ root: 9, scale: 16 }, HM.normalizeKx({}), 0).slice(0, 6).map(x => HM.noteLabel(x.semi, false)).join(' ');
     ok(sc === 'A2 C3 D3 E3 G3 A3', 'Scale mode lays A minor pentatonic up from the root: ' + sc);
@@ -399,13 +399,13 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
           worst = Math.max(worst, Math.abs(rh.reduce((a, b) => a + b, 0) / rh.length - 5 - ({ piano: 5, wide: 9, stab: 9 }[v] || 0)));
           if (keep) { const k = c.root + ':' + c.bass; if (bass[k] != null && bass[k] !== n[0]) bassMoves++; bass[k] = n[0]; } prev = n; } }
       ok(worst <= 6.5 && !bassMoves, `chords stay in one register while you play (furthest ${worst.toFixed(1)} semitones from centre, bass octave changes: ${bassMoves})`); }
-    // fixed by default: each pad plays exactly the same notes whatever was played before it
-    { const kx = HM.normalizeKx({}), pads = HM.chordPads({ root: 5, scale: 5 }, kx); let prev = null, y = 3, diff = 0; const seen = {};
+    // Smooth off: each pad plays exactly the same notes whatever was played before it (on by default since 2026-11-15: it picks the inversion)
+    { const kx = HM.normalizeKx({ smooth: false, v: 2 }), pads = HM.chordPads({ root: 5, scale: 5 }, kx); let prev = null, y = 3, diff = 0; const seen = {};
       for (const [v] of HM.VOICINGS) for (let i = 0; i < 200; i++) { y = (y * 1103515245 + 12345) % 2147483648; const k = y % 16, n = HM.voiceChord(pads[k], v, prev, { lead: kx.smooth, centre: 5, keyRoot: 5 }).join(); if (seen[v + k] && seen[v + k] !== n) diff++; seen[v + k] = n; prev = n.split(',').map(Number); }
-      ok(kx.smooth === false && !diff, `a chord pad plays the same notes every time by default (${diff} differed)`); }
+      ok(HM.normalizeKx({}).smooth === true && !diff, `with Smooth off a chord pad plays the same notes every time (${diff} differed)`); }
     // the bass is always the chord's root (or slash bass) in the same key-relative window, so F minor's chords never drop an octave
     { let bad = 0, n = 0; for (const [key, kr] of [[{ root: 5, scale: 5 }, 5], [{ root: 0, scale: 0 }, 0], [{ root: 9, scale: 5 }, 9]]) for (const colour of ['triad', 'seventh', 'rich']) for (const v of ['close', 'open', 'drop2', 'shell', 'piano', 'wide', 'quartal']) {
-        const pads = HM.chordPads(key, HM.normalizeKx({ colour })); let prev = null;
+        const pads = HM.chordPads(key, HM.normalizeKx({ colour, v: 2 })); let prev = null;
         for (const c of pads.concat(pads.slice().reverse())) { const o = HM.voiceChord(c, v, prev, { centre: 5, keyRoot: kr }); prev = o; n++; const want = c.bass != null ? c.bass : c.root, lo = kr - 12 - 5;
           if (((o[0] - want) % 12 + 12) % 12 || o[0] < lo || o[0] >= lo + 12 || o[o.length - 1] - o[0] > 38) bad++; } }
       ok(!bad, `chord bass notes follow the root in one window under the key (${n} voicings, ${bad} off)`); }

@@ -68,7 +68,7 @@ function openProgPicker(pi) {
     const st = h('div', 'stack'), kx = kxOf(pi), list = progsFor(P.key, kx);
     const pick = i => { pushUndo('pad:' + pi); const ch = { prog: i }; if (i) { ch.voicing = PROGS[i - 1].v; ch.colour = 'rich'; } setKx(pi, ch); openKeysSheet(pi); if (i) toast(`${PROGS[i - 1].n} · ${VOICINGS.find(v => v[0] === PROGS[i - 1].v)[1].toLowerCase()}`); };
     const row = (i, title, sub, chords) => { const b = btn('', () => pick(i), 'btn prow' + (kx.prog === i ? ' on' : '')); b.append(h('b', '', esc(title)), h('span', '', esc(sub))); if (chords) b.append(h('i', '', esc(chords))); return b; };
-    st.append(row(0, 'None', 'Every chord in the key, then borrowed colour chords'));
+    st.append(row(0, 'None', "The key's seven chords, up the octaves"));
     const tonal = tonality(scaleOf(padKey(pi).scale)[1]);
     st.append(h('div', 'sec', tonal === 'maj' ? 'For major keys' : 'For minor keys'));
     for (const [i, p] of list) { const pads = chordPads(P.key, Object.assign({}, kx, { prog: i, colour: 'rich' })); st.append(row(i, p.n, p.g, pads.slice(0, p.ch.length).map(c => c.name).join(' · '))); }

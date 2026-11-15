@@ -171,3 +171,8 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 - heardPos looks the heard moment up in REP.hist (the engine's last 3 s of positions) instead of extrapolating back from the newest report, which pulled notes played just before a loop's end onto its start (or before a loop range's start, where they never played).
 - Before the song's first note (count-in, the moment after Play) REP.pos is null, so notes were dropped. The engine now reports where and when the song starts (`st`), and up to a beat early counts as the first beat.
 - recordNote/recAuto no longer redraw or send the scene per note: recSync sends once per touch (microtask; a chord is one send) and automation once a frame, with one screen redraw per frame.
+
+## Chord grid (2026-11-15)
+- chordPads: progression (if any), then the key's seven chords in order, then the same seven an octave up (`up`: octaves, playChord adds 12 per octave) to fill 16. The borrowed colour chords no longer fill the grid (COLOUR_MAJ/MIN kept, unused).
+- New defaults: close voicing, sevenths, Smooth on, root bass. normalizeKx moves settings saved before (no `v`) that still had all four old defaults (open, rich, smooth off, bass off); anything chosen stays. kx.v = 2.
+- Tonic pads (dia 0) light as roots, as in Notes mode.

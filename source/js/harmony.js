@@ -174,15 +174,16 @@ function parseChord(spec) {
   if (!QUAL[q]) throw new Error('bad quality ' + q);
   return { deg: parseRoman(rom), q, iv: QUAL[q][0].slice(), bass: bassStr != null ? mod12(+bassStr) : null };
 }
-// the 16 chords on the pads: a progression first (in order), then the key's own chords, then borrowed colour chords
+// the 16 chords on the pads: a progression first (in order), then the key's seven chords in order, going on up an octave (up: octaves higher)
+// to fill the grid. (The borrowed colour chords that used to fill it are kept below for the progressions that name them.)
 function chordPads(key, kx) {
   const sci = kx.scale >= 0 ? kx.scale : key.scale, [, scIv, , parent] = scaleOf(sci), chordIv = parent != null ? SCALES[parent][1] : scIv;
   const ton = tonality(scIv), prog = kx.prog > 0 ? PROGS[kx.prog - 1] : null, out = [], seen = new Set(), colour = kx.colour || 'rich';
   const add = (deg, iv, extra = {}) => { const id = mod12(deg) + ':' + reduceIv(iv, 'triad').join(','); if (extra.prog == null && seen.has(id)) return; seen.add(id); out.push(Object.assign({ deg: mod12(deg), iv }, extra)); };
   if (prog) prog.ch.forEach((s, k) => { const c = parseChord(s); add(c.deg, reduceIv(c.iv, colour), { bass: c.bass, prog: k }); });
   chordIv.forEach((d, i) => add(d, stackChord(chordIv, i, colour), { dia: i }));
-  if (!prog && out.length < 16) out.push({ deg: 0, iv: stackChord(chordIv, 0, colour), dia: 0, up: 1 });
-  for (const [rom, a, b, c] of (ton === 'maj' ? COLOUR_MAJ : COLOUR_MIN)) { if (out.length >= 16) break; add(parseRoman(rom), QUAL[colour === 'triad' ? a : colour === 'seventh' ? b : c][0].slice()); }
+  for (let up = 1; out.length < 16 && up < 4; up++) chordIv.forEach((d, i) => { if (out.length < 16) out.push({ deg: mod12(d), iv: stackChord(chordIv, i, colour), dia: i, up }); });
+  void ton;
   const flats = useFlats(key.root, scIv);
   // borrowed chords on flat degrees (♭II, ♭III, ♭VI, ♭VII) are spelled with flats whatever the key
   return out.slice(0, 16).map(c => { const f = flats || (!scIv.includes(c.deg) && [1, 3, 8, 10].includes(c.deg));
@@ -282,10 +283,12 @@ function inScale(semi, key, kx) { const sci = kx && kx.scale >= 0 ? kx.scale : k
 function keyName(key) { const sc = scaleOf(key.scale); return spell(key.root, useFlats(key.root, sc[1])) + ' ' + sc[0].toLowerCase(); }
 const ARP_PATS = [['up', 'Up'], ['down', 'Down'], ['updown', 'Up-down'], ['random', 'Random'], ['chord', 'Chord']];
 const ARP_RATES = [[96, '1/4'], [48, '1/8'], [32, '1/8T'], [24, '1/16'], [16, '1/16T'], [12, '1/32']];
-const defaultKx = () => ({ mode: 'notes', scale: -1, prog: 0, voicing: 'open', colour: 'rich', smooth: false, bass: 'off', strum: 0, dir: 'up', feel: .5,
+const defaultKx = () => ({ mode: 'notes', scale: -1, prog: 0, voicing: 'close', colour: 'seventh', smooth: true, bass: 'root', v: 2, strum: 0, dir: 'up', feel: .5,
   arp: false, apat: 'up', arate: 24, aoct: 1, agate: .6, latch: false });
 function normalizeKx(k) {
   const d = defaultKx(); if (!k || typeof k !== 'object') return d; const o = Object.assign(d, k);
+  // chord settings from before the new defaults: left exactly as they were made (the old defaults) → the new ones; anything chosen stays
+  if (!(k.v >= 2)) { if ((k.voicing || 'open') === 'open' && (k.colour || 'rich') === 'rich' && !k.smooth && (k.bass || 'off') === 'off') Object.assign(o, { voicing: 'close', colour: 'seventh', smooth: true, bass: 'root' }); o.v = 2; }
   if (!['notes', 'scale', 'chords', 'levels'].includes(o.mode)) o.mode = 'notes'; if (!['vel', 'tune'].includes(o.lv)) o.lv = 'vel';
   o.scale = Math.max(-1, Math.min(SCALES.length - 1, Math.round(+o.scale) || 0)); if (k.scale == null || k.scale < 0) o.scale = -1;
   o.prog = Math.max(0, Math.min(PROGS.length, Math.round(+o.prog) || 0));
