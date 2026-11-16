@@ -230,10 +230,12 @@ function bassNote(pc, keyRoot, centre) { const ref = keyRoot + 12 * Math.round((
 // chooses the inversion inside it (so a run of chords never drifts and never pulls the bass along). Rootless and stab voicings
 // have no bass by design: they're upper voices only, voice-led the same way.
 const LH_KEEP = { piano: 2, wide: 2, shell: 1 }, RH_LIFT = { piano: 5, wide: 9, stab: 9 }, NO_BASS = { rootless: 1, stab: 1 };
+// opt.rise (semitones above the key's root): the chord climbs with its place in the scale, bass and window together, the way
+// the grid reads (C, Dm, Em, F, G, Am, Bdim going up), instead of staying around one spot.
 function voiceChord(chord, style, prev, opt = {}) {
-  const centre = opt.centre == null ? 5 : opt.centre, keyRoot = opt.keyRoot == null ? 0 : opt.keyRoot, keep = NO_BASS[style] ? 0 : LH_KEEP[style] || 1, rc = centre + (RH_LIFT[style] || 0);
+  const rise = opt.rise == null ? 0 : opt.rise, c0 = opt.centre == null ? 5 : opt.centre, centre = c0 + rise, keyRoot = opt.keyRoot == null ? 0 : opt.keyRoot, keep = NO_BASS[style] ? 0 : LH_KEEP[style] || 1, rc = centre + (RH_LIFT[style] || 0);
   const root = chord.root, anchor = chord.bass != null ? mod12(chord.bass - root) : 0, shapes = shapesFor(style, chord.iv, anchor), cands = [];
-  const bass = keep ? bassNote(root + anchor, keyRoot, centre) : null, lead = opt.lead !== false && prev && prev.length > keep;
+  const bass = !keep ? null : opt.rise == null ? bassNote(root + anchor, keyRoot, centre) : bassNote(keyRoot, keyRoot, c0) + rise + mod12(anchor) - (mod12(anchor) > 6 ? 12 : 0), lead = opt.lead !== false && prev && prev.length > keep;
   for (const win of [6.5, 12, 99]) { if (cands.length) break; shapes.forEach((sh, si) => {
     // the left hand: the bass, and for piano and wide pads its second note kept the same distance above it
     let lh = []; if (keep) { if (LH_KEEP[style] >= 2) { const s0 = sh[0]; lh = sh.slice(0, keep).map(x => bass + (x - s0)); } else lh = [bass]; }
@@ -292,7 +294,7 @@ function normalizeKx(k) {
   if (!['notes', 'scale', 'chords', 'levels'].includes(o.mode)) o.mode = 'notes'; if (!['vel', 'tune'].includes(o.lv)) o.lv = 'vel';
   o.scale = Math.max(-1, Math.min(SCALES.length - 1, Math.round(+o.scale) || 0)); if (k.scale == null || k.scale < 0) o.scale = -1;
   o.prog = Math.max(0, Math.min(PROGS.length, Math.round(+o.prog) || 0));
-  if (!VOICINGS.some(v => v[0] === o.voicing)) o.voicing = 'open'; if (!COLOURS.some(v => v[0] === o.colour)) o.colour = 'rich';
+  if (!VOICINGS.some(v => v[0] === o.voicing)) o.voicing = 'close'; if (!COLOURS.some(v => v[0] === o.colour)) o.colour = 'seventh';
   if (!BASSES.some(v => v[0] === o.bass)) o.bass = 'off'; if (!STRUMS.some(v => v[0] === o.dir)) o.dir = 'up';
   o.arp = !!o.arp; o.latch = !!o.latch; if (!ARP_PATS.some(v => v[0] === o.apat)) o.apat = 'up'; if (!ARP_RATES.some(v => v[0] === o.arate)) o.arate = 24;
   o.aoct = Math.max(1, Math.min(3, Math.round(+o.aoct) || 1)); o.agate = Math.max(.05, Math.min(1, +o.agate || .6));
