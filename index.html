@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-PbRAJkRuWYKle4SfKqRCyEygdun9Ayxy4/nCyp87a1I=' 'sha256-36eE7ZFoxPoR52aQIH1pedv7AS8GhCo650nZCR03pqY=' 'sha256-5sBj0WVS0+JALh114hSJMU8yGRS3cXefXd+COu83Hws=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-PbRAJkRuWYKle4SfKqRCyEygdun9Ayxy4/nCyp87a1I=' 'sha256-36eE7ZFoxPoR52aQIH1pedv7AS8GhCo650nZCR03pqY=' 'sha256-naqurM0Y3KTiBazmW4rx08Qz+xCNJhQ9K21mn2lQm0U=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -5116,7 +5116,9 @@ function updatePlayingSlot(pos) { const sc = $('#scenes'), i = pos ? pos.scene :
   if (i !== SLOTP.scene || (kids[i] && !kids[i].classList.contains('playing'))) { for (let k = 0; k < kids.length; k++) { const on = k === i; if (kids[k].classList.contains('playing') !== on) kids[k].classList.toggle('playing', on); const pr = kids[k].querySelector('.prog'); if (!on && pr) pr.style.transform = 'scaleX(0)'; } SLOTP.scene = i; SLOTP.px = -1; }
   if (i < 0 || !kids[i]) return; const f = Math.max(0, Math.min(1, pos.tick / sceneLen(i))), px = Math.round(f * 56); if (px === SLOTP.px) return; SLOTP.px = px;
   const pr = kids[i].querySelector('.prog'); if (pr) pr.style.transform = `scaleX(${(px / 56).toFixed(4)})`; }
-function selectScene(i) { UI.scene = i; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.sx = 0; UI.tl.zoom = null; UI.tl.cursor.t = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else renderView(); savePrefs(); }
+// the timeline keeps its zoom from scene to scene: zoomed all the way out stays all the way out (the new scene whole), anything else keeps its scale
+function selectScene(i) { const tl = UI.tl, fit = () => (TL.W - LABEL_W) / (tlLen() * 1.02), wasFit = tl.zoom && TL.W && tl.zoom <= fit() * 1.03;
+  UI.scene = i; tl.sel = null; tl.selPt = -1; tl.sx = 0; if (tl.zoom && TL.W) tl.zoom = wasFit ? fit() : clamp(tl.zoom, fit(), 3); UI.tl.cursor.t = 0; renderScenes(); if (UI.view === 'pads') refreshPadDots(); else renderView(); savePrefs(); }
 function sceneTap(i) { if (i === UI.scene) { openSceneSheet(i); return; } if (T.playing) { send({ t: 'pending', scene: i }); toast(`Scene ${i + 1} plays from the next bar`); } selectScene(i); }
 
 /* ---------- pads ---------- */
@@ -5430,7 +5432,11 @@ function drawNotesLane(g) {
     else if (chop) { g.fillStyle = r === UI.slice ? COL.ink : COL.mute; g.fillText('#' + (r + 1), 10, y + rh / 2); }
     else { const p = KEY_HI - r; g.fillStyle = ((p % 12) + 12) % 12 === 0 ? COL.ink : COL.dim; g.fillText(noteName(p), 6, y + rh / 2); } }
   g.restore(); drawVelLane(g);
+  if (TL.over && tl.mode === 'bank') { const dn = TL.over > 0, b = UI.bank + (dn ? 1 : -1), go = Math.abs(TL.over) > OVER_FLIP;   // pulled past the end: which bank comes next, and whether letting go now flips to it
+    if (b >= 0 && b <= 3) { g.font = '600 12px ' + FONT_LCD; g.textAlign = 'center'; g.textBaseline = dn ? 'bottom' : 'top'; g.globalAlpha = Math.min(1, Math.abs(TL.over) / OVER_FLIP);
+      g.fillStyle = go ? COL.accent : COL.mute; g.fillText(`${dn ? '↓' : '↑'} Bank ${'ABCD'[b]}`, LABEL_W + (TL.W - LABEL_W) / 2, dn ? noteH() - 6 : RULER_H + 6); g.globalAlpha = 1; g.textAlign = 'left'; } }
 }
+const OVER_FLIP = 56;   // how far past the end a vertical swipe pulls before it flips banks
 /* ---------- the velocity lane: a stalk for each note of the pad in focus (the highlighted row in Bank, the pad in Keys).
    Drag across it to set each note to the height under your finger, so a sweep draws a ramp; with notes selected, only those change. ---------- */
 const velNotes = () => (P.scenes[UI.scene].notes[UI.pad] || []).map(n => ({ pi: UI.pad, n }));
@@ -5590,7 +5596,9 @@ function bindTL(cv) {
     if (!d.moved && Math.hypot(x - d.x0, y - d.y0) > 7) d.moved = true; if (!d.moved) return;
     if (d.kind === 'box') { boxScroll(d); drawTL(); return; }
     if ((d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') && tl.lane === 'notes' && tl.mode === 'bank' && d.axis == null && d.y0 >= RULER_H) d.axis = Math.abs(y - d.y0) > Math.abs(x - d.x0) * 1.3 ? 'v' : 'h';
-    if (d.axis === 'v') return;   // a vertical swipe in Bank view flips banks (on release), like the mixer's pages
+    if (d.axis === 'v') {   // a vertical swipe in Bank view: scrolls the rows when they don't all fit; pulled on past the end it flips banks (on release), like the mixer's pages
+      const most = Math.max(0, 16 * rowH() - (noteH() - RULER_H)); if (most > 0) { const want = d.by0 - (y - d.y0); tl.by = clamp(want, 0, most); TL.over = d.over = want - tl.by; drawTL(); }
+      return; }
     if (d.kind === 'empty' || d.kind === 'pan' || d.kind === 'label') { if (d.kind !== 'label') d.kind = 'pan'; tl.sx = d.sx0 - (x - d.x0) / tl.zoom; if (tl.mode === 'keys' && tl.lane === 'notes') tl.sy = d.sy0 - (y - d.y0); drawTL(); return; }
     if (d.kind === 'move' || d.kind === 'resize') { if (!d.pushed) { pushUndo('scene:' + UI.scene); d.items.forEach(it => touchPad(it.q.pi)); d.pushed = true; } const dt = (x - d.x0) / tl.zoom;
       if (d.kind === 'move') { const shift = snapT(d.t0 + dt) - d.t0, lo = -Math.min(...d.items.map(it => it.t)), hi = Math.min(...d.items.map(it => len - .01 - it.t)), sh = clamp(shift, lo, hi);
@@ -5618,7 +5626,9 @@ function bindTL(cv) {
       drawTL(); return; }
     if (d.kind === 'velhead') { if (Math.hypot(x - d.x0, y - d.y0) < 8) { tl.velOpen = tl.velOpen === false; savePrefs(); } drawTL(); return; }
     if (d.kind === 'vel') { if (d.grp === 'wait') velPaint(d, d.x0, d.y0, d.x0, d.y0); if (d.pushed) afterEdit(); else drawTL(); return; }
-    if (d.axis === 'v') { const dy = y - d.y0; if (Math.abs(dy) > 40) tlBank(UI.bank + (dy < 0 ? 1 : -1), 'swipe'); else drawTL(); return; }
+    if (d.axis === 'v') { const dy = y - d.y0, most = Math.max(0, 16 * rowH() - (noteH() - RULER_H)); TL.over = 0;
+      if (most > 0) { if (Math.abs(d.over || 0) > OVER_FLIP) { const dn = d.over > 0; if (tlBank(UI.bank + (dn ? 1 : -1), 'swipe') !== false) tl.by = dn ? 0 : most; } drawTL(); return; }
+      if (Math.abs(dy) > 40) tlBank(UI.bank + (dy < 0 ? 1 : -1), 'swipe'); else drawTL(); return; }
     if (d.kind === 'label') clearTimeout(d.hold); if (d.held) return;
     if (d.kind === 'label' && !d.moved) { const r = y2row(y); if (r >= 0 && r <= maxRow()) { if (tl.mode === 'bank') { UI.pad = UI.bank * 16 + r; UI.tl.target = null; audition(UI.pad); } else audition(UI.pad, KR.p(r)); } drawTL(); updatePanel(); return; }
     if (d.kind === 'empty' && !d.moved) {
@@ -10225,6 +10235,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
   ['2026-11-20', [
+    'Timeline: zoom stays when you change scenes; zoomed in vertically, swipe up and down to scroll, and pull past the end to change bank.',
     'Synth envelopes: in Loop mode, set one Rate (like 1/8) for the whole cycle; Attack and Decay become its shape.',
   ]],
   ['2026-11-15', [

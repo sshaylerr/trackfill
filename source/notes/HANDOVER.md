@@ -183,3 +183,7 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 - Engine (envStep): Loop + a Rate → attack and decay are scaled so A+D is exactly that note value at the song's tempo; their ratio is kept. Free = the old behaviour (own times, or each snapped with Sync), so older patches sound the same.
 - Knobs show Attack/Decay as a share of the cycle; the display draws four cycles. Test: "a looping envelope at a note value repeats exactly that often".
 - Work tree: the repository is /home/claude/trackfill (Pages root, source/ copied in by deploy.sh). Work in a copy of source/ (here /home/claude/tf), never in trackfill/source itself: deploy.sh deletes and replaces it.
+
+## Timeline zoom and vertical scroll (2026-11-20)
+- selectScene keeps tl.zoom: fully zoomed out (within 3% of fitting the scene) refits the new scene; otherwise the same scale, clamped to it.
+- Bank view: a vertical swipe on empty space or the track names scrolls the 16 rows when they don't all fit (tl.by); pulled past the end by OVER_FLIP (56 px) it flips banks on release, with a "↓ Bank B" hint drawn at that edge (TL.over). When all rows fit, a swipe flips banks as before.
