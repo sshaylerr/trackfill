@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-PbRAJkRuWYKle4SfKqRCyEygdun9Ayxy4/nCyp87a1I=' 'sha256-36eE7ZFoxPoR52aQIH1pedv7AS8GhCo650nZCR03pqY=' 'sha256-naqurM0Y3KTiBazmW4rx08Qz+xCNJhQ9K21mn2lQm0U=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-PbRAJkRuWYKle4SfKqRCyEygdun9Ayxy4/nCyp87a1I=' 'sha256-36eE7ZFoxPoR52aQIH1pedv7AS8GhCo650nZCR03pqY=' 'sha256-BSNt46SfZGxqvRoUIMULgVhSomhfBCiq3b0gx+Hgx4I=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -5316,8 +5316,9 @@ function sideVals(key) { const n = P.scenes.length, si = UI.scene, has = j => tf
   return { prev: at(pv, true), next: at(nx, false) }; }
 const homeVals = key => { const m = keyMeta(key), h = [0, .5], sv = sideVals(key); for (const v of [m.def, sv.prev, sv.next]) if (v != null && !h.includes(v)) h.push(v); return h; };
 let homeHit = null;
-function homeY(y) { if (keyMeta(UI.tl.lane).toggle) { const t = y2v(y) >= .5 ? 1 : 0; if (homeHit !== t) { homeHit = t; haptic(); } return t; }   // on/off lanes: only on or off
-  const v = y2v(y), h = homeVals(UI.tl.lane).find(q => Math.abs(v2y(q) - y) < 10); if (h == null) { homeHit = null; return Math.round(v * 1000) / 1000; } if (homeHit !== h) { homeHit = h; haptic(); } return h; }
+// extra: more values to stick to (the points either side, so two points line up into a flat line)
+function homeY(y, extra) { if (keyMeta(UI.tl.lane).toggle) { const t = y2v(y) >= .5 ? 1 : 0; if (homeHit !== t) { homeHit = t; haptic(); } return t; }   // on/off lanes: only on or off
+  const v = y2v(y), h = homeVals(UI.tl.lane).concat((extra || []).filter(q => q != null)).find(q => Math.abs(v2y(q) - y) < 10); if (h == null) { homeHit = null; return Math.round(v * 1000) / 1000; } if (homeHit !== h) { homeHit = h; haptic(); } return h; }
 function homeStep(v, nv) { for (const h of homeVals(UI.tl.lane)) if ((v < h && nv > h) || (v > h && nv < h)) return h; return nv; }
 function lanePts(create) { const sc = P.scenes[UI.scene], k = UI.tl.lane; if (!sc.auto[k]) { if (!create) return null; sc.auto[k] = []; } return sc.auto[k]; }
 function cleanLane() { const sc = P.scenes[UI.scene]; if (sc.auto[UI.tl.lane] && !sc.auto[UI.tl.lane].length) delete sc.auto[UI.tl.lane]; }
@@ -5479,6 +5480,10 @@ function drawAutoLane(g) {
       g.beginPath(); g.moveTo(x, y - 5); g.lineTo(x + 5, y); g.lineTo(x, y + 5); g.lineTo(x - 5, y); g.closePath(); g.fillStyle = a.c ? COL.accent : COL.panel; g.fill(); g.lineWidth = 1.5; g.strokeStyle = COL.accent; g.stroke(); }
     if (NAV.held && pts[tl.selPt]) { const p = pts[tl.selPt]; g.beginPath(); g.arc(t2x(p.t), v2y(p.v), 13, 0, 7); g.strokeStyle = COL.accent; g.lineWidth = 2; g.setLineDash([3, 3]); g.stroke(); g.setLineDash([]); }
     pts.forEach((p, i) => { const x = t2x(p.t), y = v2y(p.v); g.beginPath(); g.arc(x, y, i === tl.selPt ? 7.5 : 5.5, 0, 7); g.fillStyle = i === tl.selPt ? COL.accent : COL.panel; g.fill(); g.lineWidth = 2; g.strokeStyle = i === tl.selPt ? COL.ink : COL.accent; g.stroke(); });
+    if (pts[tl.selPt]) { const p = pts[tl.selPt], x = t2x(p.t), y = v2y(p.v), s = `${meta.fmt(p.v)} · ${posStr(p.t)}`;   // the selected point's value and place, above it (below it near the top)
+      g.font = '600 11.5px ' + FONT_LCD; const w = g.measureText(s).width + 14, bx = clamp(x - w / 2, LABEL_W + 2, W - w - 2), by = y - 34 < RULER_H + 2 ? y + 14 : y - 34;
+      g.fillStyle = COL.ink; g.globalAlpha = .92; g.beginPath(); g.roundRect ? g.roundRect(bx, by, w, 20, 5) : g.rect(bx, by, w, 20); g.fill(); g.globalAlpha = 1;
+      g.fillStyle = COL.bg; g.textBaseline = 'middle'; g.textAlign = 'left'; g.fillText(s, bx + 7, by + 10.5); }
   }
   const d = TL.drag; if (d && d.kind === 'draw' && d.pts.length > 1) { g.beginPath(); d.pts.forEach((p, i) => { const x = t2x(p.t), y = v2y(p.v); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.strokeStyle = COL.ink; g.lineWidth = 2; g.stroke(); }
   if (NAV.mode === 'canvas' && tl.selPt < 0) { const x = t2x(tl.cursor.t), y = v2y(tl.cursor.v); g.setLineDash([4, 3]); g.strokeStyle = COL.accent; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke(); g.setLineDash([]); g.beginPath(); g.arc(x, y, 6, 0, 7); g.strokeStyle = COL.accent; g.stroke(); }
@@ -5607,7 +5612,7 @@ function bindTL(cv) {
       else { const st = tl.snap || 1, dl = snapT(d.t0 + d.len0 + dt) - (d.t0 + d.len0); for (const it of d.items) it.q.n.len = clamp(fixT(it.len + dl), st, len - it.q.n.t); }
       drawTL(); updatePanel(); return; }
     if (d.kind === 'pt') { if (!d.pushed) { pushUndo('scene:' + UI.scene); d.pushed = true; } const pts = lanePts(true), p = pts[d.i], lo = d.i > 0 ? pts[d.i - 1].t + .01 : 0, hi2 = d.i < pts.length - 1 ? pts[d.i + 1].t - .01 : len;
-      p.t = clamp(snapT(x2t(x)), lo, hi2); p.v = homeY(y); drawTL(); updatePanel(); return; }
+      p.t = clamp(snapT(x2t(x)), lo, hi2); p.v = homeY(y, [pts[d.i - 1] && pts[d.i - 1].v, pts[d.i + 1] && pts[d.i + 1].v]); drawTL(); updatePanel(); return; }
     if (d.kind === 'bend') { const pts = lanePts(true), a = pts[d.si], b = pts[d.si + 1], mf = clamp((y2v(y) - a.v) / (b.v - a.v), .002, .998);
       let lo = -.97, hi = .97; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (curveFrac(d.xf, m) > mf) lo = m; else hi = m; }
       a.c = Math.round((lo + hi) / 2 * 1000) / 1000; const st = Math.abs(a.c) < .05; if (st) a.c = 0; if (st && !d.straight) haptic(); d.straight = st; drawTL(); updatePanel(); return; }
@@ -5634,7 +5639,7 @@ function bindTL(cv) {
     if (d.kind === 'empty' && !d.moved) {
       if (tl.lane === 'notes' && selItems().length) { clearSel(); drawTL(); updatePanel(); TL.lastTap = { t: now, o: null }; return; }   // first tap only deselects
       if (tl.lane === 'notes') { const r = y2row(y); if (r >= 0 && r <= maxRow()) { const t = gridQ(x2t(x), tl.snap, 'floor'); if (t < tlLen()) addNoteAt(t, r); } }
-      else { const t = clamp(snapT(x2t(x)), 0, tlLen()); pushUndo('scene:' + UI.scene); const pts = lanePts(true); pts.push({ t, v: homeY(y), c: 0 }); pts.sort((a, b) => a.t - b.t); tl.selPt = pts.findIndex(p => p.t === t); afterEdit(); }
+      else { const t = clamp(snapT(x2t(x)), 0, tlLen()); pushUndo('scene:' + UI.scene); const pts = lanePts(true), bef = pts.filter(p => p.t < t).pop(), aft = pts.find(p => p.t > t); pts.push({ t, v: homeY(y, [bef && bef.v, aft && aft.v]), c: 0 }); pts.sort((a, b) => a.t - b.t); tl.selPt = pts.findIndex(p => p.t === t); afterEdit(); }
       TL.lastTap = { t: now, o: null }; return; }
     if ((d.kind === 'move' || d.kind === 'resize') && !d.moved) {
       if (TL.lastTap.o === d.hit.n && now - TL.lastTap.t < 350) { deleteSel(); TL.lastTap = { t: 0, o: null }; return; }   // double tap deletes the selection
@@ -10234,6 +10239,9 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
+  ['2026-11-21', [
+    'Automation: the selected point shows its value and place, and points snap level with the points either side.',
+  ]],
   ['2026-11-20', [
     'Timeline: zoom stays when you change scenes; zoomed in vertically, swipe up and down to scroll, and pull past the end to change bank.',
     'Synth envelopes: in Loop mode, set one Rate (like 1/8) for the whole cycle; Attack and Decay become its shape.',

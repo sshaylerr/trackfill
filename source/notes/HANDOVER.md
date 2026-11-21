@@ -187,3 +187,7 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 ## Timeline zoom and vertical scroll (2026-11-20)
 - selectScene keeps tl.zoom: fully zoomed out (within 3% of fitting the scene) refits the new scene; otherwise the same scale, clamped to it.
 - Bank view: a vertical swipe on empty space or the track names scrolls the 16 rows when they don't all fit (tl.by); pulled past the end by OVER_FLIP (56 px) it flips banks on release, with a "↓ Bank B" hint drawn at that edge (TL.over). When all rows fit, a swipe flips banks as before.
+
+## Automation point value and level snap (2026-11-21)
+- drawAutoLane draws a bubble over the selected point: the target's own fmt (dB, %, rates…) and bar.beat.sixteenth.
+- homeY(y, extra) also sticks to the neighbouring points' values (when dragging a point, and when adding one between two), within 10 px, with the existing haptic and the full-width guide line.
