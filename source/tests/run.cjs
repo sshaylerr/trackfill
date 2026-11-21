@@ -288,6 +288,15 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const dry = await go([]), mac = await go([{ s: 12, d: 'fx:1:0', a: .25 }], 1), gone = await go([{ s: 12, d: 'fx:5:0', a: .25 }], 1);
     const lift = 20 * Math.log10(rms(mac, 24000, 72000) / rms(dry, 24000, 72000)), none = 20 * Math.log10(rms(gone, 24000, 72000) / rms(dry, 24000, 72000));
     ok(Math.abs(lift - 12) < .3 && Math.abs(none) < .05, `synth macros move the pad's effects: Macro 1 → Utility gain +25% lifts it ${lift.toFixed(2)} dB (want +12); a route to an empty slot does nothing (${none.toFixed(2)} dB)`); }
+  console.log('envelope loop rate');
+  { // a looping envelope at a note value: one cycle is exactly that long whatever attack and decay are (they keep their share of it)
+    const per = async (aa, ad, rate, bpm) => { const Q = M.newProject(true), syn = SP.synPatch({ n: 't', p: { o1w: 'Sine', flt: 'Off', aa, ad, as: 0, am: 'Loop', al: rate, ay: 'Free', ar: .01, dri: 0 } });
+      Object.assign(Q.pads[0], { src: 'synth', syn, mode: 'gate', sample: null }); Q.chans[0].fx = []; Q.scenes[0].notes = { 0: [{ t: 0, len: 380, p: 0, v: .5 }] }; Q.bpm = bpm;
+      const L = (await H.tfRenderOffline(wasm, Q, kit, { order: [{ scene: 0, reps: 1 }], tail: 0 })).L, w = 96, env = []; for (let i = 0; i + w < 48000 * 1.6; i += w) { let m = 0; for (let j = i; j < i + w; j++) m = Math.max(m, Math.abs(L[j])); env.push(m); }
+      const pk = []; for (let i = 2; i < env.length - 2; i++) if (env[i] > .3 * Math.max(...env) && env[i] >= env[i - 1] && env[i] > env[i + 1] && env[i] >= env[i - 2] && (!pk.length || i - pk[pk.length - 1] > 60)) pk.push(i);
+      return pk.length > 2 ? (pk[pk.length - 1] - pk[1]) / (pk.length - 2) * w / 48000 : 0; };
+    const a = await per(.01, .3, '1/8', 120), b = await per(.12, .05, '1/8', 120), c = await per(.01, .3, '1/16', 90);
+    ok(Math.abs(a - .25) < .004 && Math.abs(b - .25) < .004 && Math.abs(c - 60 / 90 / 4) < .004, `a looping envelope at a note value repeats exactly that often (1/8 at 120: ${a.toFixed(3)} s and ${b.toFixed(3)} s with other attack and decay; 1/16 at 90: ${c.toFixed(3)} s)`); }
   console.log('filter LFO');
   { const fl = async (lfo, sync) => { const Q = M.newProject(true); Object.assign(Q.pads[0], { sample: 'b:dhat', src: 'sample' }); Q.scenes[0].notes = { 0: Array.from({ length: 16 }, (_, k) => ({ t: k * 24, len: 24, p: 0, v: .9 })) };
       const f = M.newFx(2, null, 1); f.p[6] = .5; f.p[0] = .5; f.p[9] = sync; if (lfo) f.lfo = M.FX_LFO_SHAPES[lfo].map(q => Object.assign({ c: 0 }, q)); Q.chans[0].fx = [f]; Q.bpm = 120;

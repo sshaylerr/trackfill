@@ -23,7 +23,7 @@ function synCells(tab) {   // (the controls of a tab, in reading order: see SYN_
 const SYN_CELLS = {
   o1: ['o1w', 'o1o', 'o1s', 'o1f', 'o1l', 'o1p', 'dri'], ph: ['o1h', 'o2h', 'o3h', 'rph'], wp: ['wa9', 'wb9', 'rph'], fp: ['f1h', 'f2h', 'f3h', 'f4h', 'rph'], o2: ['o2w', 'o2o', 'o2s', 'o2f', 'o2l', 'o2p', 'o2y', 'o2m'], o3: ['o3w', 'o3o', 'o3s', 'o3f', 'o3l', 'o3p', 'o3x', 'o3r'],
   vo: ['uni', 'det', 'spr', 'pit', 'vel', 'gan', '#glide', '#voices'], sb: ['sbl', 'sbo', 'sbw', 'spl', 'spn', 'sbf', 'nzf'], nz: ['nzn', 'nzt', 'nzb', 'nzd', 'nzh', 'nzl', 'nzo', 'nzk'],
-  fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp', 'fbk'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'ay', 'am'], e2: ['2a', '2d', '2s', '2r', '2c', '2k', '2y', '2m'], e3: ['3a', '3d', '3s', '3r', '3c', '3k', '3y', '3m'],
+  fl: ['flt', 'cut', 'res', 'drv', 'fen', 'key', 'shp', 'fbk'], ea: ['aa', 'ad', 'as', 'ar', 'ac', 'ak', 'ay@', 'am'], e2: ['2a', '2d', '2s', '2r', '2c', '2k', '2y@', '2m'], e3: ['3a', '3d', '3s', '3r', '3c', '3k', '3y@', '3m'],
   mc: ['m1', 'm2', 'm3', 'm4'],
   xs: ['xsm', 'xs@', 'xdi', 'xsc', 'xlv', 'xpl', 'xtt'], xn: ['xnl', 'xnf', 'xbf', 'xbt', 'xbq', 'xnc'], xo: ['xol', 'xwv', 'xpf', 'xpt', 'xmo', 'xmr', 'xma', 'xru'], xh: ['xhl', 'xht', 'xhn', 'xhd', 'xhw'], xz: ['xsz', 'xsp', 'xdr', 'xgr', 'pit', 'gan', 'vel', '#poly'],
   in: ['#ins', 'ioc', 'ise', 'ifi', 'ist', 'ivt', 'ilo', 'iwd'], su: ['sul', 'suo', 'sus', 'sup', 'sxo', 'sdm', 'sdr', 'sto'], sh: ['sh2', 'sh3', 'sh4', 'sh5', 'shm', 'sho', 'sht', 'shw'],
@@ -41,7 +41,7 @@ const SYN_LAY = {
   vo: { rows: [['uni', 'det', 'spr', 'pit'], ['vel', 'gan', '#glide', '#voices']] },
   sb: { k: [['sbl'], ['spl', 'spn']], s: [['sbo', 'sbw'], ['sbf', 'nzf']] }, nz: { k: [['nzn', 'nzt', 'nzb'], ['nzd', 'nzh', 'nzl']], s: [['nzo', 'nzk']] },
   fl: { rows: [['cut', 'res', 'drv', 'flt'], ['fen', 'key', 'shp', 'fbk']] },
-  ea: { rows: [['aa', 'ad', 'as', 'ar'], ['ac', 'ak', 'ay', 'am']] }, e2: { rows: [['2a', '2d', '2s', '2r'], ['2c', '2k', '2y', '2m']] }, e3: { rows: [['3a', '3d', '3s', '3r'], ['3c', '3k', '3y', '3m']] },
+  ea: { rows: [['aa', 'ad', 'as', 'ar'], ['ac', 'ak', 'ay@', 'am']] }, e2: { rows: [['2a', '2d', '2s', '2r'], ['2c', '2k', '2y@', '2m']] }, e3: { rows: [['3a', '3d', '3s', '3r'], ['3c', '3k', '3y@', '3m']] },
   mc: { k: [['m1', 'm2', 'm3', 'm4']] },
   xs: { k: [['xs@', 'xsc'], ['xlv', 'xtt']], s: [['xsm'], ['xdi', 'xpl']] }, xn: { k: [['xnl', 'xbf', 'xbt'], ['xbq', 'xnc']], s: [['xnf']] },
   xo: { rows: [['xol', 'xpf', 'xpt', 'xwv'], ['xma', 'xru', 'xmr', 'xmo']] }, xh: { k: [['xhl'], ['xhn', 'xhd']], s: [['xht', 'xhw']] },
@@ -74,6 +74,8 @@ const synAutoIds = pi => isXPad(pi) ? SYN_AUTO_X : isInPad(pi) ? SYN_AUTO_IN : i
 const BEND_RANGES = [1, 2, 3, 5, 7, 12, 24];
 function bendRangeSel(pi) { const pad = P.pads[pi]; return selEl('Bend range', BEND_RANGES.map(r => '±' + r + ' st'), () => Math.max(0, BEND_RANGES.indexOf(pad.bendR || 2)), i => { pushUndo('pad:' + pi); pad.bendR = BEND_RANGES[i]; syncPad(pi); markDirty(); }); }
 const synOf = pi => P.pads[pi].syn;
+// a looping envelope's cycle as a note value ('1/8'), or null when it loops on its own times (or doesn't loop)
+const envLoopRate = (S, e) => S && S.p[e + 'm'] === 'Loop' && S.p[e + 'l'] && S.p[e + 'l'] !== 'Free' ? S.p[e + 'l'] : null;
 const synTab = () => { const pg = SYN_PAGES[SYN_ST.pg], t = SYN_ST.tab[SYN_ST.pg]; return t && pg.tabs.some(x => x[0] === t) ? t : pg.tabs[0][0]; };
 
 /* ----- value formatting ----- */
@@ -135,6 +137,7 @@ function synCtl(pi, id) {
   const S = synOf(pi);
   if (id.startsWith('#')) return synSpecial(pi, id.slice(1));
   if (id === 'xs@') { const md = S.p.xsm ?? 'Bars'; return synCtl(pi, md === 'Free' ? 'xst' : md === 'Manual' ? 'xpo' : 'xbl'); }
+  if (/^[a23]y@$/.test(id)) return synCtl(pi, id[0] + (S.p[id[0] + 'm'] === 'Loop' ? 'l' : 'y'));   // looping: the cell is the cycle's Rate instead of Sync
   if (/^l\d@$/.test(id)) { const k = id[1], sync = (S.p['l' + k + 'y'] ?? 'Sync') === 'Sync'; return synCtl(pi, 'l' + k + (sync ? 'd' : 'r')); }
   const p0 = TFSYN_ID[id]; let el, p = p0;
   if (/^f\d[tq]$/.test(id)) { const md = S.p[id[0] + id[1] + 'm'] ?? 'FM', lab = id[2] === 't' ? ({ FM: 'Amount', Ring: 'Ring', Filter: 'Type', 'Filter FM': 'Depth', Fold: 'Fold' })[md] : 'Resonance';
@@ -143,12 +146,13 @@ function synCtl(pi, id) {
   const cur = () => S.p[id] ?? p.d;
   const sk = synSkin(pi), swk = sk && p.k === 'opt' ? (SW_FITS(sk.sw, p.a) ? sk.sw : SEL_FITS(sk.sel, p.a) ? sk.sel : null) : null;   // the faceplate's own switch where the settings fit one
   if (p.k === 'opt') {
-    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || /^[a23]y$/.test(id) || id === 'xsm' || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); }, swk ? { paint: swk === 'rotary' ? skinRotary(p.a) : skinSwitch(swk, p.a) } : {});
+    el = selEl(p.l, p.a, () => Math.max(0, p.a.indexOf(cur())), i => { pushUndo('pad:' + pi); synSet(pi, id, p.a[i]); if (/^l\dy$/.test(id) || /^[a23][yml]$/.test(id) || id === 'xsm' || id === 'flt' || id === 'o3x' || /^f\d[mx]$/.test(id) || /^w[ab]w$/.test(id)) setTimeout(renderView); }, swk ? { paint: swk === 'rotary' ? skinRotary(p.a) : skinSwitch(swk, p.a) } : {});
     if (swk) el.classList.add('swk', 'sw-' + swk);
   } else {
     const intish = p.k === 'int' || /^o\ds$/.test(id) || /^w[ab]s$/.test(id), step = intish ? 1 / (p.b - p.a) : .001;
     el = makeCtl({ label: p.l, min: 0, max: 1, step, coarse: intish ? step : .02, big: intish ? step * 4 : .1, def: tfSynNorm(p, p.d), bipolar: p.k === 'bip' || id === 'gsc' || /^o\d[sf]$/.test(id) || /^w[ab][sf]$/.test(id) || id === 'pit' || id === 'gan',
-      key: 'syn:' + pi + ':' + id, scope: 'pad:' + pi, skin: sk && sk.knob, fmt: n => { const v = tfSynPhys(p, n); if (/^[a23][adr]$/.test(id) && S.p[id[0] + 'y'] === 'Sync') { const k = tfEnvDiv(v); if (k >= 0) return TF_ENV_DIVS[k][0]; } return synFmt(p, v); },
+      key: 'syn:' + pi + ':' + id, scope: 'pad:' + pi, skin: sk && sk.knob, fmt: n => { const v = tfSynPhys(p, n); const lr = envLoopRate(S, id[0]); if (/^[a23][ad]$/.test(id) && lr) { const o = S.p[id[0] + (id[1] === 'a' ? 'd' : 'a')] ?? TFSYN_ID[id[0] + (id[1] === 'a' ? 'd' : 'a')].d; return Math.round(v / (v + o) * 100) + '%'; }   // a share of the cycle
+        if (/^[a23][adr]$/.test(id) && S.p[id[0] + 'y'] === 'Sync') { const k = tfEnvDiv(v); if (k >= 0) return TF_ENV_DIVS[k][0]; } return synFmt(p, v); },
       get: () => tfSynNorm(p, cur()), set: n => { let v = tfSynPhys(p, n); if (intish) v = Math.round(v); synSet(pi, id, v); if (T.playing && T.rec) recAuto(pi + '.-3.' + p.i, tfSynNorm(p, v)); },
       onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); send({ t: 'live', key: pi + '.-3.' + p.i, on: true }); }, onEnd: () => { send({ t: 'live', key: pi + '.-3.' + p.i, on: false }); UI.autoRec = null; } }, 'knob');
   }
@@ -383,6 +387,11 @@ function drawSynDisp1(cv, sc) {
   }
   if (/^e[a23]$/.test(tab)) {   // the envelope with its curves
     const e = tab === 'ea' ? 'a' : tab[1], A = v(e + 'a'), D = v(e + 'd'), Sus = v(e + 's'), R = v(e + 'r'), ca = v(e + 'c') * .85, ck = v(e + 'k') * .85, hold = Math.max(.15, (A + D) * .35), tot = A + D + hold + R;
+    if (envLoopRate(S, e)) {   // looping at a note value: four cycles of the shape, each exactly one step of that value
+      const cy = A + D, X = t => 10 + (W - 20) * t / (cy * 4), Y = y => H - 12 - (H - 40) * y; grid(); g.beginPath(); g.moveTo(X(0), Y(0));
+      for (let c = 0; c < 4; c++) { const o = c * cy, f = c ? Sus : 0; for (let i = 1; i <= 30; i++) g.lineTo(X(o + A * i / 30), Y(f + (1 - f) * tfCurve(i / 30, ca))); for (let i = 1; i <= 30; i++) g.lineTo(X(o + A + D * i / 30), Y(1 + (Sus - 1) * tfCurve(i / 30, ck))); }
+      g.strokeStyle = col; g.lineWidth = 2.2; g.stroke(); g.lineTo(X(cy * 4), Y(0)); g.lineTo(X(0), Y(0)); g.globalAlpha = .12; g.fillStyle = col; g.fill(); g.globalAlpha = 1;
+      txt(`${tab === 'ea' ? 'Amp' : 'Env ' + e} · Loop every ${envLoopRate(S, e)} · A ${Math.round(A / cy * 100)}% · D ${Math.round(D / cy * 100)}% · S ${Math.round(Sus * 100)}%`, 8, 12); return; }
     const X = t => 10 + (W - 20) * t / tot, Y = y => H - 12 - (H - 40) * y; grid(); g.beginPath(); g.moveTo(X(0), Y(0));
     for (let i = 1; i <= 40; i++) g.lineTo(X(A * i / 40), Y(tfCurve(i / 40, ca)));
     for (let i = 1; i <= 40; i++) g.lineTo(X(A + D * i / 40), Y(1 + (Sus - 1) * tfCurve(i / 40, ck)));

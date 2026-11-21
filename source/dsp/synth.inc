@@ -90,7 +90,7 @@ EX float tf_syn_map(i32 i, float n) { return i >= 0 && i < NSP ? spPhys(i, n) : 
 
 /* ---------- voices ---------- */
 // a One-shot envelope ignores the release until its attack and decay are done
-static const i32 envSync[3] = { SP_AY, SP_2Y, SP_3Y }, envMode[3] = { SP_AM, SP_2M, SP_3M };
+static const i32 envSync[3] = { SP_AY, SP_2Y, SP_3Y }, envMode[3] = { SP_AM, SP_2M, SP_3M }, envRate[3] = { SP_AL, SP_2L, SP_3L };
 static void svRelease(SVoice* v) { if (!v->on || !v->held) return; v->held = 0; const Patch* P = pat[v->pad]; for (i32 e = 0; e < 3; e++) { if (P && v->st[e] < 2 && disc(P->p[envMode[e]], 3) == 2) continue; v->st[e] = 3; v->et[e] = 0; v->ef[e] = v->ev[e]; } for (i32 k = 0; k < 4; k++) { v->ost[k] = 3; v->oet[k] = 0; v->oef[k] = v->oev[k]; } }
 static inline i32 isFxEng(const Patch* P) { return disc(P->p[SP_ENG], NENG) == 6; }
 // the FX engine runs its own amp envelope: a 3 ms fade in, full while it plays, then Tail to fade out
@@ -271,7 +271,8 @@ static float envSyncT(float s) { if (s < 0.004f) return s; const float b = s * 2
 static void envStep(SVoice* v, i32 e, const float* m, float dt, i32 base) {
   float A = spPhys(base, m[base]), D = spPhys(base + 1, m[base + 1]), S = m[base + 2], R = spPhys(base + 3, m[base + 3]);
   if (disc(m[envSync[e]], 2)) { A = envSyncT(A); D = envSyncT(D); R = envSyncT(R); }
-  const i32 mode = disc(m[envMode[e]], 3);
+  const i32 mode = disc(m[envMode[e]], 3), rate = mode == 1 ? disc(m[envRate[e]], NENVDIV + 1) : 0;
+  if (rate) { const float cyc = envDivBeats[rate - 1] * 60.f / BPM, s = A + D; if (s > 1e-6f) { A *= cyc / s; D *= cyc / s; } else { A = 0.f; D = cyc; } }   // Loop at a note value: one cycle is exactly that long, attack and decay keeping their share
   float ca = linmap(m[base + 4], -0.85f, 0.85f), ck = linmap(m[base + 5], -0.85f, 0.85f);   // negative = fast start (exponential feel), positive = slow start
   float& x = v->ev[e]; float& t = v->et[e]; i32& st = v->st[e]; t += dt;
   switch (st) {

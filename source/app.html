@@ -2543,6 +2543,9 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
+  ['2026-11-20', [
+    'Synth envelopes: in Loop mode, set one Rate (like 1/8) for the whole cycle; Attack and Decay become its shape.',
+  ]],
   ['2026-11-15', [
     'Chords climb with the scale: each chord in the grid sits higher than the one before. Picking a progression keeps your chord colour.',
     'Chords: the grid is now the key\'s seven chords in order, up two octaves. New defaults: sevenths, close voicing, smooth voice leading, root in the bass.',

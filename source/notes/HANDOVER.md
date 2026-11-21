@@ -177,3 +177,9 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 - New defaults: close voicing, sevenths, Smooth on, root bass. normalizeKx moves settings saved before (no `v`) that still had all four old defaults (open, rich, smooth off, bass off); anything chosen stays. kx.v = 2.
 - Tonic pads (dia 0) light as roots, as in Notes mode.
 - Grid chords (scale order, not a progression) are voiced with `rise` = their root above the key's root: window and bass climb with the degree, so C Dm Em F G Am B° ascend (before, the fixed window dropped V, vi and vii° below the tonic). Progression chords keep the fixed window. Picking a progression no longer forces colour to Rich.
+
+## Envelope loop rate (2026-11-20)
+- New synth params al/2l/3l ("Rate": Free or a note value), appended to TFSYN in js/host.js. In Loop mode the envelope page's Sync cell (`ay@`) shows Rate instead.
+- Engine (envStep): Loop + a Rate → attack and decay are scaled so A+D is exactly that note value at the song's tempo; their ratio is kept. Free = the old behaviour (own times, or each snapped with Sync), so older patches sound the same.
+- Knobs show Attack/Decay as a share of the cycle; the display draws four cycles. Test: "a looping envelope at a note value repeats exactly that often".
+- Work tree: the repository is /home/claude/trackfill (Pages root, source/ copied in by deploy.sh). Work in a copy of source/ (here /home/claude/tf), never in trackfill/source itself: deploy.sh deletes and replaces it.

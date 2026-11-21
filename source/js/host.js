@@ -110,6 +110,8 @@ const TFSYN = (() => {
     ['f3h', 'Op 3 phase', 'lin', 0, 360, 0, 'ph'], ['f4h', 'Op 4 phase', 'lin', 0, 360, 0, 'ph']);
   for (const [e, n] of [['a', 'Amp'], ['2', 'Env 2'], ['3', 'Env 3']]) L.push([e + 'y', 'Sync', 'opt', ['Free', 'Sync'], 0, 'Free', 'e' + e], [e + 'm', 'Mode', 'opt', ['Normal', 'Loop', 'One-shot'], 0, 'Normal', 'e' + e]);   // envelope times in note values; loop attack–decay while held, or play the whole shape on any tap
   L.push(['sbf', 'Sub → filter', 'opt', ['Off', 'On'], 0, 'Off', 'sb'], ['nzf', 'Noise → filter', 'opt', ['Off', 'On'], 0, 'Off', 'nz']);   // route the sub and the noise through the filter
+  // a looping envelope's whole cycle as one note value (Free: attack and decay keep their own times); attack and decay then share the cycle
+  for (const e of ['a', '2', '3']) L.push([e + 'l', 'Rate', 'opt', ['Free'].concat(TF_ENV_DIVS.map(d => d[0])), 0, 'Free', 'e' + e]);
   return L.map(([id, l, k, a, b, d, tab], i) => ({ i, id, l, k, a, b, d, tab }));
 })();
 const TFSYN_ID = Object.fromEntries(TFSYN.map(p => [p.id, p]));
