@@ -191,3 +191,7 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 ## Automation point value and level snap (2026-11-21)
 - drawAutoLane draws a bubble over the selected point: the target's own fmt (dB, %, rates…) and bar.beat.sixteenth.
 - homeY(y, extra) also sticks to the neighbouring points' values (when dragging a point, and when adding one between two), within 10 px, with the existing haptic and the full-width guide line.
+
+## Export range and fades (2026-11-23)
+- Export sheet: Song scenes From/To (EXR, this session only) → exOrder() (songOrder within the range; also used by MIDI export). File name gets "-scenes-a-b" when ranged.
+- Fade in / Fade out in bars (ex.fi, ex.fo, saved with the export settings): applyFades after rendering, a squared curve; bars at P.bpm (a tempo lane isn't followed). Fade out ends at the last bar's end and the 2 s ring-out is cut. Applies to the mix, each stem and a single scene.

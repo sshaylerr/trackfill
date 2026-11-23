@@ -2558,6 +2558,9 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
+  ['2026-11-23', [
+    'Export: pick which scenes the song covers (From/To), and add a fade in or out in bars.',
+  ]],
   ['2026-11-21', [
     'Automation: the selected point shows its value and place, and points snap level with the points either side.',
   ]],
@@ -2612,6 +2615,16 @@ function openDiag() {
 }
 
 /* ---------- export, backup ---------- */
+// the song's scenes for export: all of them, or a range of scene numbers (EXR, for this session: a range kept between projects would surprise)
+const EXR = { a: 0, b: null };
+function exOrder() { const n = P.scenes.length, a = clamp(EXR.a, 0, n - 1), b = EXR.b == null ? n - 1 : clamp(EXR.b, a, n - 1), o = songOrder().filter(x => x.scene >= a && x.scene <= b);
+  return o.length ? o : [{ scene: a, reps: 1 }]; }
+const exRanged = () => EXR.a > 0 || (EXR.b != null && EXR.b < P.scenes.length - 1);
+// quick fades by bars at the song's tempo: in from the first beat, out ending on the last bar's end (the ring-out after it is cut)
+function applyFades(r, fi, fo, tailSec) { const bar = BAR / BEAT * 60 / P.bpm * r.sr, end = Math.max(0, r.L.length - Math.round(tailSec * r.sr));
+  if (fi > 0) { const n = Math.min(end, Math.round(fi * bar)); for (let i = 0; i < n; i++) { const g = (i / n) ** 2; r.L[i] *= g; r.R[i] *= g; } }
+  if (fo > 0) { const n = Math.min(end, Math.round(fo * bar)); for (let i = end - n; i < end; i++) { const g = ((end - i) / n) ** 2; r.L[i] *= g; r.R[i] *= g; } r.L = r.L.subarray(0, end); r.R = r.R.subarray(0, end); }
+  return r; }
 function songOrder() { const o = []; P.scenes.forEach((s, i) => { if (noteCount(s)) o.push({ scene: i, reps: s.repeat }); }); return o.length ? o : [{ scene: UI.scene, reps: 1 }]; }
 const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 function crc32(u) { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
@@ -2666,15 +2679,21 @@ function openExport() { const ex = exPrefs();
     { st.append(h('div', 'sec', 'What')); const g = h('div', 'g3 hrow'), cur = ex.midi ? 'midi' : ex.stems ? 'stems' : 'mix';   // MIDI: the notes, for another DAW
       for (const [v, l] of [['mix', 'Mix'], ['stems', 'Stems'], ['midi', 'MIDI']]) g.append(btn(l, () => { ex.midi = v === 'midi'; ex.stems = v === 'stems'; savePrefs(); closeSheet(); openExport(); }, 'btn' + (cur === v ? ' on' : ''))); st.append(g); }
     if (!ex.midi) { row('Format', Object.entries(EXF).map(([k, v]) => [k, v[0]]), ex.fmt, 'fmt'); row('Sample rate', [[48000, '48 kHz'], [44100, '44.1 kHz']], ex.sr, 'sr'); }
-    const what = ex.midi ? 'MIDI' : ex.stems ? 'stems' : 'mix', act = h('div', 'g2'); act.append(btn(`Export the song <span class="lsub">${what}, every scene in order</span>`, () => exportAudio('song'), 'btn hot'), btn(`Export scene ${UI.scene + 1} <span class="lsub">${what}, this scene once</span>`, () => exportAudio('scene'), 'btn hot'));
+    { const n = P.scenes.length; st.append(h('div', 'sec', 'Song scenes')); const g = h('div', 'g2');   // which of the song's scenes the song export covers
+      g.append(paramEl({ label: 'From', min: 1, max: n, step: 1, coarse: 1, big: 2, get: () => clamp(EXR.a, 0, n - 1) + 1, set: v => { EXR.a = v - 1; if (EXR.b != null && EXR.b < EXR.a) EXR.b = EXR.a; refreshSong(); }, def: 1, fmt: v => 'Scene ' + v, noFocus: true }),
+        paramEl({ label: 'To', min: 1, max: n, step: 1, coarse: 1, big: 2, get: () => (EXR.b == null ? n - 1 : clamp(EXR.b, 0, n - 1)) + 1, set: v => { EXR.b = v - 1; if (EXR.b < EXR.a) EXR.a = EXR.b; refreshSong(); }, def: n, fmt: v => 'Scene ' + v, noFocus: true }));
+      st.append(g); }
+    if (!ex.midi) { row('Fade in', [[0, 'Off'], [1, '1 bar'], [2, '2 bars'], [4, '4 bars']], ex.fi || 0, 'fi'); row('Fade out', [[0, 'Off'], [1, '1 bar'], [2, '2 bars'], [4, '4 bars'], [8, '8 bars']], ex.fo || 0, 'fo'); }
+    const what = ex.midi ? 'MIDI' : ex.stems ? 'stems' : 'mix', act = h('div', 'g2'), songSub = () => exRanged() ? `${what}, scenes ${clamp(EXR.a, 0, P.scenes.length - 1) + 1}–${(EXR.b == null ? P.scenes.length - 1 : EXR.b) + 1} in order` : `${what}, every scene in order`, sb = btn(`Export the song <span class="lsub">${songSub()}</span>`, () => exportAudio('song'), 'btn hot');
+    function refreshSong() { const l = sb.querySelector('.lsub'); if (l) l.textContent = songSub(); } act.append(sb, btn(`Export scene ${UI.scene + 1} <span class="lsub">${what}, this scene once</span>`, () => exportAudio('scene'), 'btn hot'));
     st.append(h('div', 'sec', 'Export'), act);
     st.append(h('p', 'note', ex.midi ? 'A track per pad, as it plays, with the tempo.' : ex.stems ? 'One file per group, channel and return feeding the master, without the master\'s effects: together they add up to the mix.' : ex.fmt === 'wav24' ? '24-bit WAV: the best copy to send on or master.' : ex.fmt === 'wav16' ? '16-bit WAV with dither, for CD-style copies.' : 'MP3 at 320 kbps with dither: small, for sharing.')); }); }
 async function exportAudio(which) { if (exPrefs().midi) { closeSheet(); return exportMidi(which); } if (busy) return; busy = true; closeSheet(); const ex = exPrefs(), [, ext] = EXF[ex.fmt]; toast('Rendering…');
-  try { const order = which === 'song' ? songOrder() : [{ scene: UI.scene, reps: 1 }], base = slug(P.name) + (which === 'song' ? '' : '-scene-' + (UI.scene + 1)), files = [];
-    if (!ex.stems) { const r = await renderOffline(order, 2, -1, p => toast(`Rendering… ${Math.round(p * 100)}%`), { sr: ex.sr }); files.push({ name: base + ext, data: await encodeAudio(r, ex.fmt, p => toast(`Encoding… ${Math.round(p * 100)}%`)) }); }
+  try { const order = which === 'song' ? exOrder() : [{ scene: UI.scene, reps: 1 }], base = slug(P.name) + (which === 'song' ? (exRanged() ? `-scenes-${order[0].scene + 1}-${order[order.length - 1].scene + 1}` : '') : '-scene-' + (UI.scene + 1)), files = [], fade = r => applyFades(r, ex.fi || 0, ex.fo || 0, 2);
+    if (!ex.stems) { const r = fade(await renderOffline(order, 2, -1, p => toast(`Rendering… ${Math.round(p * 100)}%`), { sr: ex.sr })); files.push({ name: base + ext, data: await encodeAudio(r, ex.fmt, p => toast(`Encoding… ${Math.round(p * 100)}%`)) }); }
     else { const src = stemSources(order), Q = JSON.parse(JSON.stringify(P)); Q.chans[MASTER].fx = []; if (!src.length) throw new Error('nothing plays in ' + (which === 'song' ? 'the song' : 'this scene'));
       for (let k = 0; k < src.length; k++) { const c = src[k], nm = `${String(k + 1).padStart(2, '0')} ${chanName(c)}`.replace(/[\\/:*?"<>|]/g, '-');
-        const r = await renderOffline(order, 2, -1, p => toast(`Stem ${k + 1}/${src.length} · ${chanName(c)} · ${Math.round(p * 100)}%`), { sr: ex.sr, stem: c, P: Q });
+        const r = fade(await renderOffline(order, 2, -1, p => toast(`Stem ${k + 1}/${src.length} · ${chanName(c)} · ${Math.round(p * 100)}%`), { sr: ex.sr, stem: c, P: Q }));
         files.push({ name: `${base} - ${nm}${ext}`, data: await encodeAudio(r, ex.fmt) }); } }
     if (files.length === 1 && !(await capDownloads())) shareFile(files[0].name, new Blob([files[0].data], { type: ext === '.mp3' ? 'audio/mpeg' : 'audio/wav' }));
     else await saveFile(base + (ex.stems ? '-stems' : '') + '.zip', makeZip(files)); }

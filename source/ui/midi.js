@@ -23,7 +23,7 @@ function midiExport(order) {
   const tracks = [midiTrack(cond)];
   for (const [pi, ev] of [...pads].sort((a, b) => a[0] - b[0])) { const nm = (P.pads[pi].name || padLabel(pi)); tracks.push(midiTrack([[0, 0, [0xff, 0x03, ...midiVlq(midiText(nm).length), ...midiText(nm)]], ...ev])); }
   return new Uint8Array(midiChunk('MThd', [0, 1, tracks.length >> 8, tracks.length & 255, PPQ >> 8, PPQ & 255]).concat(...tracks.map(t => midiChunk('MTrk', t)))); }
-async function exportMidi(which) { const order = which === 'song' ? songOrder() : [{ scene: UI.scene, reps: 1 }], name = slug(P.name) + (which === 'song' ? '' : '-scene-' + (UI.scene + 1)) + '.mid';
+async function exportMidi(which) { const order = which === 'song' ? exOrder() : [{ scene: UI.scene, reps: 1 }], name = slug(P.name) + (which === 'song' ? '' : '-scene-' + (UI.scene + 1)) + '.mid';
   if (!order.some(o => noteCount(P.scenes[o.scene]))) { toast('No notes to export'); return; }
   const data = midiExport(order); if (!(await capDownloads())) shareFile(name, new Blob([data], { type: 'audio/midi' })); else await saveFile(name, data); }
 /* Reading a file someone gives you: every length is checked against what's left, and there are limits on size and notes. */
