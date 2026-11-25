@@ -4,6 +4,9 @@ A pocket sampler and sequencer for the phone: pads, chopping, a timeline with au
 
 **Use it:** open https://sshaylerr.github.io/trackfill/ in Safari, then Share › Add to Home Screen (keep "Open as Web App" on).
 
+## How it was made
+Trackfill was written with the help of an AI coding assistant. The app itself contains no AI: no AI models, no generated music or sounds, and no network calls. Every sound comes from conventional synthesis, samples and effects, and every note is the user's.
+
 ## What's here
 - The repository root is the app as GitHub Pages serves it: `index.html` (everything in one file), the app manifest, the offline cache (`sw.js`) and icons.
 - `source/` is the code it is built from: `dsp/engine.cpp` (the audio engine), `js/` (engine host and project model), `ui/` (screens), `app.html` (page and styles), `tests/` (engine tests).

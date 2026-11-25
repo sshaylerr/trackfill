@@ -2558,6 +2558,9 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What's new: newest first, in plain words. Add an entry with every update that people would notice.
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
+  ['2026-11-24', [
+    'About: how Trackfill was made, and that there is no AI inside it.',
+  ]],
   ['2026-11-23', [
     'Export: pick which scenes the song covers (From/To), and add a fade in or out in bars.',
   ]],
@@ -2600,6 +2603,7 @@ function openChanges() {
     for (const [d, items] of CHANGES) { st.append(h('div', 'sec', fmtDay(d))); const ul = h('ul', 'log'); for (const t of items) ul.append(h('li', '', esc(t))); st.append(ul); } }); }
 function openAbout() { openSheet('About', card => { const st = h('div', 'stack'); card.append(st);
   st.append(h('div', 'sec', 'Your work'), h('p', 'note', 'Everything stays on this device. Trackfill never sends your work or anything about you anywhere: no accounts, no tracking, no ads. Back up from Projects.'));
+  st.append(h('div', 'sec', 'Made with AI, no AI inside'), h('p', 'note', 'Trackfill was written with the help of an AI coding assistant. The app itself has no AI in it: no AI models, no generated music or sounds, and nothing sent online. Every sound comes from its synths, samples and effects, the way any instrument makes them, and every note is yours.'));
   st.append(h('div', 'sec', 'Built with'), h('p', 'note', 'MP3 encoding: lamejs (LGPL-3.0), unmodified · Time stretch: Signalsmith Stretch (MIT) · Fonts: Nunito and Barlow Semi Condensed; on the synths, Archivo, Archivo Narrow, Archivo Black, VT323, Silkscreen, Michroma, DotGothic16, Space Grotesk, Space Mono, Share Tech Mono, Rajdhani, Iceland, Work Sans and Press Start 2P (all SIL Open Font License) · Sampled instruments: VCSL and VSCO 2 Community Edition (CC0) · Source and licences: github.com/sshaylerr/trackfill')); }); }
 function openDiag() {
   openSheet('Engine check', async card => { const box = h('div', 'diag'); box.append(h('p', 'note', 'Checking this device…')); card.append(box);
