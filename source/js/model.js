@@ -425,6 +425,7 @@ const FX_DEFS = [
     P_('Low width', .5, v => Math.round(v * 200) + '%'), P_('Low-mid width', .5, v => Math.round(v * 200) + '%'), P_('High-mid width', .5, v => Math.round(v * 200) + '%'), P_('High width', .5, v => Math.round(v * 200) + '%'), P_('Stereoize', 0, fPct), P_('Output', .5, v => fDb(linmap(v, -12, 12)))] },
   { name: 'De-esser', short: 'De-ess', params: [P_('Frequency', .5, v => fHz(expmap(v, 3000, 12000))), P_('Threshold', .6, v => fDb(linmap(v, -50, 0))), P_('Range', .25, v => '−' + linmap(v, 0, 24).toFixed(1) + ' dB'), P_('Mode', 0, null, ['Split', 'Wide']), P_('Listen', 0, null, ['Off', 'On'])] },
   { name: 'Multiband', short: 'Multi', params: MBD_P },
+  { name: 'Air', short: 'Air', params: [P_('Mid air', .3, fPct), P_('High air', .3, fPct), P_('Link', 0, null, ['Off', 'On']), P_('Trim', .5, v => fSign(v, -12, 12)), P_('Mix', 1, fPct)] },
 ];
 // Shaper shapes (the drawn curve: 1 = full level, 0 = the Depth's dip) and Step FX actions
 const FX_LFO_SHAPES = { Pump: [{ x: 0, y: 0, c: -.65 }, { x: .55, y: 1, c: 0 }, { x: .97, y: 1, c: 0 }], 'Gate 1/8': [{ x: 0, y: 1, c: 0 }, { x: .45, y: 1, c: 0 }, { x: .5, y: 0, c: 0 }, { x: .95, y: 0, c: 0 }],
@@ -432,7 +433,7 @@ const FX_LFO_SHAPES = { Pump: [{ x: 0, y: 0, c: -.65 }, { x: .55, y: 1, c: 0 }, 
   Triangle: [{ x: 0, y: 0, c: 0 }, { x: .5, y: 1, c: 0 }], 'Saw down': [{ x: 0, y: 1, c: 0 }, { x: .97, y: 0, c: 0 }], 'Saw up': [{ x: 0, y: 0, c: 0 }, { x: .97, y: 1, c: 0 }], Swell: [{ x: 0, y: 0, c: .6 }, { x: .97, y: 1, c: 0 }] };
 const STEP_ACTS = [['Through', '#4a4a4f'], ['Mute', '#16161a'], ['Repeat', '#f2b544'], ['Reverse', '#5ec8e0'], ['Half', '#b48cff'], ['Filter', '#4fe0b0'], ['Tape stop', '#ff6b4a']];
 const STEP_DEFAULT = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 6, 6];
-const FX_TYPES = { EQ: 0, COMP: 1, FILTER: 2, SAT: 3, DELAY: 4, REVERB: 5, DUCK: 6, UTIL: 7, CHORUS: 8, CLIP: 9, CRUSH: 10, TRANS: 11, PHASER: 12, LIMIT: 13, MBAND: 14, TAPE: 15, GATE: 16, DISP: 17, APAN: 18, LFOT: 19, VINYL: 20, STEP: 21, GRIN: 22, DIST: 23, INFL: 24, RESO: 25, PITCH: 26, FSHIFT: 27, RING: 28, IMAGER: 29, DEESS: 30, MBD: 31 };
+const FX_TYPES = { EQ: 0, COMP: 1, FILTER: 2, SAT: 3, DELAY: 4, REVERB: 5, DUCK: 6, UTIL: 7, CHORUS: 8, CLIP: 9, CRUSH: 10, TRANS: 11, PHASER: 12, LIMIT: 13, MBAND: 14, TAPE: 15, GATE: 16, DISP: 17, APAN: 18, LFOT: 19, VINYL: 20, STEP: 21, GRIN: 22, DIST: 23, INFL: 24, RESO: 25, PITCH: 26, FSHIFT: 27, RING: 28, IMAGER: 29, DEESS: 30, MBD: 31, AIR: 32 };
 // every effect lists its modes; mode 0 is the effect's original design (old projects play it unchanged)
 FX_DEFS.forEach((d, t) => { const m = FX_MODES[t]; d.modes = [{ n: m ? m.mode0[0] : '', blurb: m ? m.mode0[1] : '', params: d.params }].concat(m ? m.more.map(([n, blurb, params]) => ({ n, blurb, params })) : []); });
 FX_DEFS[7].params.push(P_('Bass mono', 0, fHzOff(20, 500)));

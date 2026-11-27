@@ -77,6 +77,7 @@ const LOOKS = {
   '27:0': { face: '#141c24', face2: '#0e141a', cap: '#1f2a36', ring: '#5ec8e0', alt: '#5ec8e0' }, '28:0': { face: '#24181c', face2: '#1a1014', cap: '#36242a', ring: '#ff7aa8', alt: '#ff7aa8' },
   '29:0': { face: '#161a20', face2: '#0f1216', cap: '#222831', ring: '#8fd6ff', alt: '#f2b544' }, '30:0': { face: '#1c1d22', face2: '#141519', cap: '#2a2c33', ring: '#e8e2d6', alt: '#ff6b5a' },
   '25:0': { face: '#141a22', face2: '#0d1218', cap: '#1e2733', ring: '#9fd8ff', alt: '#9fd8ff' },
+  '32:0': { face: '#1a2630', face2: '#131c24', cap: '#24323e', ring: '#8fd8ff', alt: '#ffffff' },
   '31:0': { face: '#1b1f27', face2: '#141820', cap: '#262c37', ring: '#ff9a3d', alt: '#5fd3a0' },
   '21:0': { face: '#1c1d22', face2: '#141519', cap: '#2a2c33', ring: '#f2b544', alt: '#f2b544' },
 };

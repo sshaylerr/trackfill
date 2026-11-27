@@ -786,6 +786,13 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const ref = await out(fxOf({}), 700, -6), solo = await out(fxOf({ Solo: 1 / 3 }), 700, -6) - ref, flat = Math.abs(ref - await out(fxOf({}), 60, -6)), lin = await step(fxOf({}), 700, -6, -12);
     ok(Math.abs(dn - 1.5) < .25 && Math.abs(up - 1.5) < .25 && Math.abs(half) < .05 && Math.abs(joined - 1.5) < .25 && solo < -40 && flat < .3 && Math.abs(lin - 6) < .05,
       `multiband follows its curves (output change for 6 dB in): 4:1 above ${dn.toFixed(2)} (want 1.5), 4:1 up below ${up.toFixed(2)} (want 1.5), Mix 0% matches the dry sound (${half.toFixed(2)} dB off), low band off joins the mid ${joined.toFixed(2)} (want 1.5), untouched ${lin.toFixed(2)}; low solo mutes the mid ${solo.toFixed(0)} dB; bands sum flat (${flat.toFixed(2)} dB apart)`); }
+  { // Air lifts a quiet top end a lot, a loud one hardly at all, and leaves the lows alone
+    const n = 48000, run = async (hz, dbfs, fx) => { const d = new Int16Array(n), a = 32767 * 10 ** (dbfs / 20); for (let i = 0; i < n; i++) d[i] = Math.round(a * Math.sin(2 * Math.PI * hz * i / 48000));
+      const Q = M.newProject(true); Object.assign(Q.pads[0], { sample: 'tn', mode: 'one', rel: .001 }); Q.chans[0].fx = fx ? [fx] : []; Q.chans[0].vol = 1; Q.scenes[0] = Object.assign(M.emptyScene(), { bars: 1, notes: { 0: [{ t: 0, len: 24, p: 0, v: 1 }] } }); Q.bpm = 120;
+      const r = await H.tfRenderOffline(wasm, Q, new Map([['tn', { id: 'tn', data: d, frames: n, ch: 1, sr: 48000 }]]), { order: [{ scene: 0, reps: 1 }], tail: 0 }); let e = 0; for (let i = 24000; i < 40000; i++) e += r.L[i] ** 2; return 10 * Math.log10(e / 16000 + 1e-30); };
+    const air = () => { const f = M.newFx(M.FX_TYPES.AIR); f.p[0] = 1; f.p[1] = 1; return f; }, g = async (hz, db) => (await run(hz, db, air())) - (await run(hz, db, null));
+    const quiet = await g(12000, -50), loud = await g(12000, -3), low = await g(200, -20), mid = await g(4000, -50);
+    ok(quiet > 12 && quiet < 24 && loud < 2.5 && Math.abs(low) < .3 && mid > 6, `Air lifts a quiet top end and leaves loud peaks and the lows (12 kHz quiet +${quiet.toFixed(1)} dB, loud +${loud.toFixed(1)}; 4 kHz quiet +${mid.toFixed(1)}; 200 Hz ${low.toFixed(2)})`); }
   { // every Mix knob: at 0 the effect's output is the dry sound, sample for sample (the multiband's bands add back up through a phase shift, so its level is checked);
     // the effects with no Mix of their own get one from the engine at the same place the page shows it
     const n = 24000, d = new Int16Array(n); let x = 11; const w = () => (x = (x * 16807) % 2147483647) / 2147483647 * 2 - 1; for (let i = 0; i < n; i++) d[i] = Math.round(w() * 6000);

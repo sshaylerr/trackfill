@@ -287,6 +287,7 @@ function fxChanged(c) { if (c < NPADS && P.pads[c].src === 'synth') syncPad(c); 
 // '@src' is the Ducker's trigger source (pads or a channel), '@key' the Gate's. Only the layout changes: each control keeps its
 // place in the engine, in automation and in saved projects, and anything a layout misses is added at the end.
 const FX_LAY = {
+  '32:0': [['Mid air', 'High air', 'Trim', 'Mix'], ['Link']],
   '0:0': [['Low freq', 'Mid freq', 'High freq', 'Low cut'], ['Low gain', 'Mid gain', 'High gain', 'High cut'], ['', 'Mid Q', 'Mix', 'Output']],
   '0:1': [['Low freq', 'Low boost', 'Low atten', 'Tube'], ['High freq', 'Bandwidth', 'High boost', 'Output'], ['Atten freq', 'High atten', '', 'Mix']],
   '0:2': [['Low freq', 'Mid freq', 'High freq', 'Filter'], ['Low gain', 'Mid gain', 'High gain', 'Colour'], ['Low shape', 'Mix', 'High shape', 'Output']],
@@ -330,6 +331,9 @@ const FX_LAY = {
 // rows of cells: a param index, -1 for a gap, or '@src' / '@key'; the default is four to a row in the engine's order
 // Multiband: one band's controls at a time (Low, Mid, High) or the setup (splits, bands, knee, detect, solo); Mix, Time and Output stay in reach
 const MBD_TABS = ['Low', 'Mid', 'High', 'Setup'];
+// Air's Link: moving one of the two air knobs moves the other by as much (each keeps its own setting)
+function airLink(c, s, i, redraw) { const f = P.chans[c].fx[s]; let last = f.p[i];
+  return v => { const d = v - last; last = v; if (f.p[2] > .5 && d) { const o = 1 - i; f.p[o] = clamp(f.p[o] + d, 0, 1); sendParam(`${c}.${s}.${o}`, f.p[o]); const el = document.querySelector(`.dev [data-p="${o ? 'High air' : 'Mid air'}"]`); if (el && el._upd) el._upd(); } redraw(); }; }
 function mbdRows(f) { const ps = fxParams(f), ix = n => n === '' ? -1 : n[0] === '@' ? n : ps.findIndex(p => p.n === n), b = UI.mbBand == null ? 1 : UI.mbBand, B = MBD_TABS[b];
   const rows = b === 3 ? [['Low split', 'High split', 'Low band', 'High band'], ['Knee', 'Detect', 'Solo', '']]
     : [[B + ' input', B + ' above', B + ' above ratio', B + ' gain'], [B + ' below', B + ' below ratio', B + ' attack', B + ' release']];
@@ -389,7 +393,7 @@ function renderFx(V) {
       if (notesDuck && i === 7) return null; const prm = params[i], key = `${c}.${s}.${i}`; let el;
       const lk = fxLook(f.type, f.mode | 0), rot = lk.rot && prm.opts && prm.opts.length > 2;   // a look with its own knobs (and selector knobs for three settings or more)
       if (prm.opts) { el = selEl(prm.n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(key, f.p[i]); redrawVis(); if (f.type === FX_TYPES.DUCK && i === 0) { syncChan(c); renderView(); } markDirty(); }, rot ? { paint: conRot(prm.opts, null, lk.rot) } : {}); if (rot) el.classList.add('swk', 'sw-rotary'); }
-      else el = keyParam(key, Object.assign({ label: f.type === FX_TYPES.MBD ? prm.n.replace(/^(Low|Mid|High) (.)/, (_, b, ch) => ch.toUpperCase()) : prm.n, after: redrawVis }, lk.knob ? { skin: lk.knob } : {}));
+      else el = keyParam(key, Object.assign({ label: f.type === FX_TYPES.MBD ? prm.n.replace(/^(Low|Mid|High) (.)/, (_, b, ch) => ch.toUpperCase()) : prm.n, after: f.type === FX_TYPES.AIR && i < 2 ? airLink(c, s, i, redrawVis) : redrawVis }, lk.knob ? { skin: lk.knob } : {}));
       if (c < NPADS && P.pads[c].src === 'synth' && P.pads[c].syn && (P.pads[c].syn.mods || []).some(m => m.d === `fx:${s}:${i}`)) el.classList.add('modded');   // moved by the pad's synth (Map)
       el.dataset.p = prm.n; return el; };
     if (f.type === FX_TYPES.STEP) dev.append(stepPalette(c, s));
@@ -404,8 +408,8 @@ function renderFx(V) {
     // one device per line, grouped, like every other menu: colour dot (the device's faceplate), name, and its modes or what it does
     const add = t => { pushUndo('chan:' + c); const nf = newFx(t); if (t === FX_TYPES.DUCK) { const kick = P.pads.findIndex(p => p.sample === 'b:dkick' || p.sample === 'b:kick'); if (kick >= 0 && kick !== c) nf.trig = [kick]; }
       C.fx.push(nf); UI.fxSlot = C.fx.length - 1; fxChanged(c); };
-    const ABOUT = { Multiband: 'three bands, each pushed down above and lifted below: gentle glue to over-the-top', Autopan: 'moves the sound left and right', 'Shaper': 'a drawn shape on the volume: gate, pump, tremolo', Vinyl: 'crackle, wear and the turntable stop', 'Step FX': 'paint stutters, reverses and tape stops on a grid', Grin: 'one knob for the whole build-up', Ducker: 'ducks this channel when a pad plays or a sound gets loud', Utility: 'gain, pan, width, bass mono', Transient: 'more or less attack and sustain', Gate: 'cuts the sound below a threshold', Disperser: 'smears a band in time: zaps and thicker hits', Inflate: 'louder and denser, without squashing', Resonator: 'tuned strings that ring in the song\'s key', 'Frequency shift': 'moves every frequency by the same Hz: metallic, detuned', 'Ring mod': 'the sound times a tone: bells, robots, clangs', Imager: 'stereo width in four bands, mono-safe', 'De-esser': 'tames harsh s and t sounds' };
-    const GROUPS = [['Tone', ['EQ', 'Filter', 'Saturation', 'Distortion', 'Clipper', 'Bitcrush', 'Tape', 'Vinyl']], ['Dynamics', ['Compressor', 'Limiter', 'Multiband', 'Inflate', 'Transient', 'Gate', 'De-esser', 'Ducker']], ['Pitch and colour', ['Pitch', 'Frequency shift', 'Ring mod', 'Resonator']], ['Rhythm and build-ups', ['Step FX', 'Shaper', 'Autopan', 'Grin']], ['Space and movement', ['Delay', 'Reverb', 'Chorus', 'Phaser', 'Disperser']], ['Stereo and utility', ['Imager', 'Utility']]];
+    const ABOUT = { Air: 'brightness that lifts quiet detail more than loud peaks', Multiband: 'three bands, each pushed down above and lifted below: gentle glue to over-the-top', Autopan: 'moves the sound left and right', 'Shaper': 'a drawn shape on the volume: gate, pump, tremolo', Vinyl: 'crackle, wear and the turntable stop', 'Step FX': 'paint stutters, reverses and tape stops on a grid', Grin: 'one knob for the whole build-up', Ducker: 'ducks this channel when a pad plays or a sound gets loud', Utility: 'gain, pan, width, bass mono', Transient: 'more or less attack and sustain', Gate: 'cuts the sound below a threshold', Disperser: 'smears a band in time: zaps and thicker hits', Inflate: 'louder and denser, without squashing', Resonator: 'tuned strings that ring in the song\'s key', 'Frequency shift': 'moves every frequency by the same Hz: metallic, detuned', 'Ring mod': 'the sound times a tone: bells, robots, clangs', Imager: 'stereo width in four bands, mono-safe', 'De-esser': 'tames harsh s and t sounds' };
+    const GROUPS = [['Tone', ['EQ', 'Air', 'Filter', 'Saturation', 'Distortion', 'Clipper', 'Bitcrush', 'Tape', 'Vinyl']], ['Dynamics', ['Compressor', 'Limiter', 'Multiband', 'Inflate', 'Transient', 'Gate', 'De-esser', 'Ducker']], ['Pitch and colour', ['Pitch', 'Frequency shift', 'Ring mod', 'Resonator']], ['Rhythm and build-ups', ['Step FX', 'Shaper', 'Autopan', 'Grin']], ['Space and movement', ['Delay', 'Reverb', 'Chorus', 'Phaser', 'Disperser']], ['Stereo and utility', ['Imager', 'Utility']]];
     const seen = new Set();
     for (const [title, names] of GROUPS.concat([['More', FX_DEFS.filter(d => !d.legacy).map(d => d.name)]])) { const l = h('div', 'list');
       for (const n of names) { const t = FX_DEFS.findIndex(d => d.name === n); if (t < 0 || seen.has(t)) continue; seen.add(t); const d = FX_DEFS[t], full = t === FX_TYPES.DUCK && duckerCount() >= MAX_DUCKERS, lk = fxLook(t, 0);

@@ -2,7 +2,7 @@
    Curves are computed from the settings with the engine's own formulas, and drawn only when a setting changes.
    Live parts (spectrum behind EQ and Filter, gain-change meters, limiter history, multiband bands) come from the engine,
    only for the effect on screen. Colours come from the device's screen (each mode has its own look). */
-const FXV_LIVE = new Set([FX_TYPES.EQ, FX_TYPES.FILTER, FX_TYPES.COMP, FX_TYPES.DUCK, FX_TYPES.CLIP, FX_TYPES.TRANS, FX_TYPES.LIMIT, FX_TYPES.MBAND, FX_TYPES.MBD, FX_TYPES.GATE, FX_TYPES.APAN, FX_TYPES.LFOT, FX_TYPES.VINYL, FX_TYPES.STEP, FX_TYPES.GRIN, FX_TYPES.INFL, FX_TYPES.RESO, FX_TYPES.PITCH, FX_TYPES.IMAGER, FX_TYPES.DEESS]);
+const FXV_LIVE = new Set([FX_TYPES.EQ, FX_TYPES.FILTER, FX_TYPES.COMP, FX_TYPES.DUCK, FX_TYPES.CLIP, FX_TYPES.TRANS, FX_TYPES.LIMIT, FX_TYPES.MBAND, FX_TYPES.MBD, FX_TYPES.AIR, FX_TYPES.GATE, FX_TYPES.APAN, FX_TYPES.LFOT, FX_TYPES.VINYL, FX_TYPES.STEP, FX_TYPES.GRIN, FX_TYPES.INFL, FX_TYPES.RESO, FX_TYPES.PITCH, FX_TYPES.IMAGER, FX_TYPES.DEESS]);
 const fxSR = () => (ctx && ctx.sampleRate) || 48000;
 // RBJ biquads exactly as engine.cpp bq_set builds them; returns |H| in dB at f
 function bqDb(type, f0, Q, gdb, f) {
@@ -322,6 +322,12 @@ function drawFxVis(cv, c, s) {
       const cy = top + h - 6; g.fillStyle = K.line; g.fillRect(10, cy - 1, W - 20, 2); T2('−1', 10, cy - 8, K.mute, 'left', 9); T2('+1', W - 10, cy - 8, K.mute, 'right', 9);
       if (cor != null) { const x = 10 + (W - 20) * (cor + 1) / 2; g.fillStyle = cor < 0 ? COL.rec : K.acc; g.fillRect(Math.round(x) - 2, cy - 5, 4, 10); }
       if (p[7] > .001) T2('stereoize ' + Math.round(p[7] * 100) + '%', W - 8, top + 10, K.mute, 'right', 10); break; }
+    case T.AIR: { fgrid(); hgrid(-3, 15, 3); const v = live && SCOPE.vis3 ? SCOPE.vis3 : [0, 0], lm = v[0] || 0, lh = v[1] || 0, ga = Math.pow(10, lm / 20) - 1, gb = Math.pow(10, lh / 20) - 1;
+      const hpm = fr => Math.pow(10, bqDb('hp', 3000, .6, 0, fr) / 20), hph = fr => Math.pow(10, bqDb('hp', 9000, .6, 0, fr) / 20);
+      g.beginPath(); for (let x = 0; x <= W; x += 2) { const fr = SPEC_LO * Math.pow(SPEC_HI / SPEC_LO, x / W), y = dB2y(20 * Math.log10(1 + hpm(fr) * (Math.pow(10, p[0] * .5) - 1) + hph(fr) * (Math.pow(10, p[1] * .6) - 1)), top, h, -3, 15); x ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.strokeStyle = K.mute; g.lineWidth = 1.2; g.setLineDash([3, 3]); g.stroke(); g.setLineDash([]);   // the most it can lift: a quiet sound
+      curve(fr => 20 * Math.log10(1 + hpm(fr) * ga + hph(fr) * gb), -3, 15, 0);   // what it is lifting now
+      T2(`Mid +${lm.toFixed(1)} dB · High +${lh.toFixed(1)} dB${p[2] > .5 ? ' · linked' : ''}`, 8, top + 12, K.ink, 'left', 10.5, 600); break; }
     case T.DEESS: { leds(gr, 24, `${fmtHz(ex(p[0], 3000, 12000))} Hz and up · ${['split', 'wide'][dsc(p[3], 2)]}${p[4] > .5 ? ' · listening' : ''}`); break; }
   }
   g.globalAlpha = 1; if (!f.on) T2('Bypassed', 8, top + h - 8, K.mute, 'left', 10.5, 600);

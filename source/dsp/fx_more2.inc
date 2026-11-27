@@ -125,3 +125,25 @@ static void fx_deess(Fx* f, float* L, float* R, i32 n) {
     else { L[i] += hl * (g - 1.f); R[i] += hr * (g - 1.f); } }
   f->vis[0] = -most;
 }
+
+/* Air: brightness that lifts quiet detail more than loud peaks. After the classic trick of running a tape noise-reduction unit's
+   encoder alone: two overlapping high bands (from about 3 kHz and from about 9 kHz), each turned up by a compressor that lifts its
+   band a lot when it is quiet and less and less as it gets loud, added on top of the dry sound. Tails, breaths and shimmer come up;
+   loud, harsh moments barely move. Params: 0 Mid air, 1 High air, 2 Link (the page's), 3 Trim (wet), 4 Mix. vis 0/1: lift now (dB). */
+struct AirSt { BQ2 hm, hh; float em, eh, gm, gh; i32 set; };
+static inline float airW(float lv) {   // how much of the lift a band gets at this level (dBFS): all of it when quiet, none when loud, none in silence
+  const float up = clampf((lv + 6.f) / -40.f, 0.f, 1.f), fl = clampf((lv + 90.f) / 15.f, 0.f, 1.f); return up * up * (3.f - 2.f * up) * fl; }
+static void fx_air(Fx* f, float* L, float* R, i32 n) {
+  AirSt* t = (AirSt*)f->st; float* s = f->s; const float km = s[0] * 10.f, kh = s[1] * 12.f, trim = db2lin(linmap(s[3], -12.f, 12.f)), mix = s[4];
+  if (!t->set) { bq2Set(&t->hm, BQ_HP, 3000.f, 0.6f, 0.f); bq2Set(&t->hh, BQ_HP, 9000.f, 0.6f, 0.f); t->gm = t->gh = 0.f; t->set = 1; }
+  const float at = 1.f - fexp(-1.f / (0.001f * SR)), rl = 1.f - fexp(-1.f / (0.08f * SR)), gs = 1.f - fexp(-1.f / (0.003f * SR)); float mm = 0.f, mh = 0.f, wm = 0.f, wh = 0.f;
+  for (i32 i = 0; i < n; i++) {
+    const float xl = L[i], xr = R[i], ml = bq2(&t->hm, 0, xl + 1e-18f), mr = bq2(&t->hm, 1, xr + 1e-18f), hl = bq2(&t->hh, 0, xl + 1e-18f), hr = bq2(&t->hh, 1, xr + 1e-18f);
+    const float am = maxf(fabsf_(ml), fabsf_(mr)), ah = maxf(fabsf_(hl), fabsf_(hr));
+    t->em += (am - t->em) * (am > t->em ? at : rl); t->eh += (ah - t->eh) * (ah > t->eh ? at : rl);
+    if ((i & 7) == 0) { wm = km * airW(lin2db(maxf(t->em, 1e-7f))); wh = kh * airW(lin2db(maxf(t->eh, 1e-7f))); }   // the lift is worked out every 8 samples and eased in between
+    t->gm += (wm - t->gm) * gs; t->gh += (wh - t->gh) * gs; if (t->gm > mm) mm = t->gm; if (t->gh > mh) mh = t->gh;
+    const float a = db2lin(t->gm) - 1.f, b = db2lin(t->gh) - 1.f, yl = (xl + ml * a + hl * b) * trim, yr = (xr + mr * a + hr * b) * trim;
+    L[i] = xl + (yl - xl) * mix; R[i] = xr + (yr - xr) * mix; }
+  f->vis[0] = mm; f->vis[1] = mh;
+}

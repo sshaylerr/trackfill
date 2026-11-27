@@ -195,3 +195,9 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 ## Export range and fades (2026-11-23)
 - Export sheet: Song scenes From/To (EXR, this session only) → exOrder() (songOrder within the range; also used by MIDI export). File name gets "-scenes-a-b" when ranged.
 - Fade in / Fade out in bars (ex.fi, ex.fo, saved with the export settings): applyFades after rendering, a squared curve; bars at P.bpm (a tempo lane isn't followed). Fade out ends at the last bar's end and the 2 s ring-out is cut. Applies to the mix, each stem and a single scene.
+
+## Air (2026-11-27)
+- FX_TYPES.AIR = 32, engine FX_AIR (dsp/fx_more2.inc fx_air). After the noise-reduction-encoder exciter trick: two overlapping high-pass bands (3 kHz, 9 kHz, Q .6), each lifted up to 10 / 12 dB × its knob, by airW(level): all of it below about -46 dBFS (band level), none above -6, none in silence (below -90). Attack 1 ms, release 80 ms, lift eased over 3 ms and worked out every 8 samples. Trim on the wet part, own Mix.
+- Link is the page's (airLink in ui/views.js): moving one air knob moves the other by as much.
+- Display: dashed = the most it can lift (a quiet sound), solid = what it lifts now (vis 0/1). Test: "Air lifts a quiet top end…".
+- Inspired by a well-known free plugin; frequencies, amounts and timing are our own guesses until measured against it.
