@@ -2,7 +2,7 @@
    Curves are computed from the settings with the engine's own formulas, and drawn only when a setting changes.
    Live parts (spectrum behind EQ and Filter, gain-change meters, limiter history, multiband bands) come from the engine,
    only for the effect on screen. Colours come from the device's screen (each mode has its own look). */
-const FXV_LIVE = new Set([FX_TYPES.EQ, FX_TYPES.FILTER, FX_TYPES.COMP, FX_TYPES.DUCK, FX_TYPES.CLIP, FX_TYPES.TRANS, FX_TYPES.LIMIT, FX_TYPES.MBAND, FX_TYPES.MBD, FX_TYPES.AIR, FX_TYPES.GATE, FX_TYPES.APAN, FX_TYPES.LFOT, FX_TYPES.VINYL, FX_TYPES.STEP, FX_TYPES.GRIN, FX_TYPES.INFL, FX_TYPES.RESO, FX_TYPES.PITCH, FX_TYPES.IMAGER, FX_TYPES.DEESS]);
+const FXV_LIVE = new Set([FX_TYPES.EQ, FX_TYPES.FILTER, FX_TYPES.COMP, FX_TYPES.DUCK, FX_TYPES.CLIP, FX_TYPES.TRANS, FX_TYPES.LIMIT, FX_TYPES.MBAND, FX_TYPES.MBD, FX_TYPES.AIR, FX_TYPES.TAME, FX_TYPES.GATE, FX_TYPES.APAN, FX_TYPES.LFOT, FX_TYPES.VINYL, FX_TYPES.STEP, FX_TYPES.GRIN, FX_TYPES.INFL, FX_TYPES.RESO, FX_TYPES.PITCH, FX_TYPES.IMAGER, FX_TYPES.DEESS]);
 const fxSR = () => (ctx && ctx.sampleRate) || 48000;
 // RBJ biquads exactly as engine.cpp bq_set builds them; returns |H| in dB at f
 function bqDb(type, f0, Q, gdb, f) {
@@ -328,6 +328,11 @@ function drawFxVis(cv, c, s) {
       g.strokeStyle = K.mute; g.lineWidth = 1.2; g.setLineDash([3, 3]); g.stroke(); g.setLineDash([]);   // the most it can lift: a quiet sound
       curve(fr => 20 * Math.log10(1 + hpm(fr) * ga + hph(fr) * gb), -3, 15, 0);   // what it is lifting now
       T2(`Mid +${lm.toFixed(1)} dB · High +${lh.toFixed(1)} dB${p[2] > .5 ? ' · linked' : ''}`, 8, top + 12, K.ink, 'left', 10.5, 600); break; }
+    case T.TAME: { fgrid(); hgrid(-18, 3, 6); spec(); const lo = ex(p[3], 100, 8000), hi = ex(p[4], 1000, 20000), Q = lin(p[2], 2.5, 12), v = live && SCOPE.vis3 ? SCOPE.vis3 : [];
+      g.fillStyle = K.acc; g.globalAlpha = .07; g.fillRect(specX(lo, 0, W), top, specX(hi, 0, W) - specX(lo, 0, W), h); g.globalAlpha = 1;   // where it listens
+      const cuts = v.map(x => [Math.floor(x || 0), -((x || 0) % 1) * 20]).filter(([fq, d]) => fq > 20 && d < -.1); let most = 0; cuts.forEach(([, d]) => { most = Math.min(most, d); });
+      curve(fr => cuts.reduce((a, [fq, d]) => a + bqDb('peak', fq, Q, d, fr), 0), -18, 3, 0);
+      T2(cuts.length ? `${cuts.length} cut${cuts.length > 1 ? 's' : ''} · deepest ${most.toFixed(1)} dB${p[8] > .5 ? ' · listening' : ''}` : `Listening ${fmtHz(lo)}–${fmtHz(hi)} Hz${p[8] > .5 ? ' · listening' : ''}`, 8, top + 12, K.ink, 'left', 10.5, 600); break; }
     case T.DEESS: { leds(gr, 24, `${fmtHz(ex(p[0], 3000, 12000))} Hz and up · ${['split', 'wide'][dsc(p[3], 2)]}${p[4] > .5 ? ' · listening' : ''}`); break; }
   }
   g.globalAlpha = 1; if (!f.on) T2('Bypassed', 8, top + h - 8, K.mute, 'left', 10.5, 600);

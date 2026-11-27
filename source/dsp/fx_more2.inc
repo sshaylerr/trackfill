@@ -147,3 +147,57 @@ static void fx_air(Fx* f, float* L, float* R, i32 n) {
     L[i] = xl + (yl - xl) * mix; R[i] = xr + (yr - xr) * mix; }
   f->vis[0] = mm; f->vis[1] = mh;
 }
+
+/* Tame: finds the frequencies ringing out above their surroundings and dips just those. It listens with an FFT (2048 points, a new look
+   every 512 samples) and cuts with up to eight moving peak filters, so the sound itself is never delayed: only the cuts arrive a little
+   after the ringing starts (resonances ring on, so that is fine). Excess = how far a bin stands above the average of its neighbourhood
+   (half an octave either side when soft, a sixth when sharp), less the threshold. The eight largest local peaks in the focus range each
+   get a filter: one already near that frequency follows it (gliding), else a free one jumps there. Cut = excess × depth, at most 18 dB.
+   Params: 0 Depth, 1 Threshold (0–12 dB), 2 Sharpness, 3 Focus low, 4 Focus high, 5 Attack, 6 Release, 7 Mode (Stereo, Mid, Side),
+   8 Listen (what it takes away), 9 Mix. vis k: slot k's frequency (whole Hz) + its cut / 20 dB as the fraction. */
+enum { TM_N = 2048, TM_HOP = 512, TM_SL = 8 };
+struct TameSl { float lf, tlf, g, tg, sg, slf, sq; BQ q; };
+struct TameSt { float ring[TM_N]; float win[TM_N], cs[TM_N / 2], sn[TM_N / 2], re[TM_N], im[TM_N], P[TM_N / 2], A[TM_N / 2], C[TM_N / 2 + 1]; TameSl sl[TM_SL]; i32 pos, cnt, set; float m[256], sd[256], dl[256], dr[256]; };
+static void tm_fft(TameSt* t, i32 N) {   // radix-2, in place, forward, N points (twiddles from the 2048-point table)
+  float* re = t->re; float* im = t->im;
+  for (i32 i = 1, j = 0; i < N; i++) { i32 b = N >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { float a = re[i]; re[i] = re[j]; re[j] = a; a = im[i]; im[i] = im[j]; im[j] = a; } }
+  for (i32 len = 2; len <= N; len <<= 1) { const i32 h = len >> 1, st = TM_N / len;
+    for (i32 i = 0; i < N; i += len) for (i32 k = 0; k < h; k++) { const float wr = t->cs[k * st], wi = -t->sn[k * st], xr = re[i + k + h] * wr - im[i + k + h] * wi, xi = re[i + k + h] * wi + im[i + k + h] * wr;
+      re[i + k + h] = re[i + k] - xr; im[i + k + h] = im[i + k] - xi; re[i + k] += xr; im[i + k] += xi; } } }
+static void tm_look(TameSt* t, const float* s) {
+  const float thr = linmap(s[1], 0.f, 12.f), half = linmap(s[2], 0.5f, 1.f / 6.f), lo = expmap(s[3], 100.f, 8000.f), hi = expmap(s[4], 1000.f, 20000.f), dep = s[0], bw = SR / TM_N;
+  const i32 H = TM_N / 2;   // a real 2048-point transform done as a 1024-point complex one: even samples real, odd imaginary, then pulled apart
+  for (i32 i = 0; i < H; i++) { t->re[i] = t->ring[(t->pos + 2 * i) & (TM_N - 1)] * t->win[2 * i]; t->im[i] = t->ring[(t->pos + 2 * i + 1) & (TM_N - 1)] * t->win[2 * i + 1]; }
+  tm_fft(t, H); t->C[0] = 0.f;
+  for (i32 k = 0; k < H; k++) { const i32 kc = (H - k) & (H - 1); const float zr = t->re[k], zi = t->im[k], cr = t->re[kc], ci = -t->im[kc];
+    const float er = 0.5f * (zr + cr), ei = 0.5f * (zi + ci), orr = 0.5f * (zi - ci), oi = -0.5f * (zr - cr), wr = t->cs[k], wi = -t->sn[k];
+    const float xr = er + orr * wr - oi * wi, xi = ei + orr * wi + oi * wr;
+    t->A[k] += (xr * xr + xi * xi - t->A[k]) * 0.3f; t->P[k] = lin2db(t->A[k] + 1e-20f) * 0.5f; t->C[k + 1] = t->C[k] + t->P[k]; }   // power averaged over about 30 ms: a ringing frequency stays, noise's random peaks don't
+  const float r = fexp(half * 0.693147181f); i32 pk[TM_SL]; float pe[TM_SL]; i32 np = 0;
+  const i32 k0 = clampf(lo / bw, 2.f, H - 3.f), k1 = clampf(hi / bw, 3.f, H - 2.f);
+  for (i32 k = k0; k <= k1; k++) { if (t->P[k] < t->P[k - 1] || t->P[k] < t->P[k + 1] || t->P[k] < -100.f) continue;
+    i32 a = (i32)(k / r), b = (i32)(k * r + 1.f); if (a < 1) a = 1; if (b > H) b = H; if (b - a < 3) { a = k - 1; b = k + 2; }
+    const float env = (t->C[b] - t->C[a]) / (b - a), e = t->P[k] - env - thr; if (e <= 0.f) continue;
+    if (np < TM_SL) { pk[np] = k; pe[np++] = e; } else { i32 w = 0; for (i32 j = 1; j < TM_SL; j++) if (pe[j] < pe[w]) w = j; if (e > pe[w]) { pk[w] = k; pe[w] = e; } } }
+  for (i32 j = 0; j < TM_SL; j++) t->sl[j].tg = 0.f; i32 used = 0;
+  for (i32 n = 0; n < np; n++) { i32 bi = 0; for (i32 j = 1; j < np; j++) if (pe[j] > pe[bi]) bi = j; const i32 k = pk[bi]; const float e = pe[bi]; pe[bi] = -1.f;
+    const float y0 = t->P[k - 1], y1 = t->P[k], y2 = t->P[k + 1], d = y0 - 2.f * y1 + y2, off = fabsf_(d) > 1e-6f ? clampf(0.5f * (y0 - y2) / d, -0.5f, 0.5f) : 0.f, lf = flog((k + off) * bw) * 1.44269504f, cut = -minf(18.f, e * dep * 1.5f);
+    i32 sel = -1; float best = 1.f / 6.f; for (i32 j = 0; j < TM_SL; j++) if (!((used >> j) & 1) && fabsf_(t->sl[j].lf - lf) < best) { best = fabsf_(t->sl[j].lf - lf); sel = j; }
+    if (sel < 0) { float q = -0.5f; for (i32 j = 0; j < TM_SL; j++) if (!((used >> j) & 1) && t->sl[j].g > q) { q = t->sl[j].g; sel = j; } if (sel >= 0) t->sl[sel].lf = lf; }
+    if (sel < 0) continue; used |= 1 << sel; t->sl[sel].tlf = lf; t->sl[sel].tg = cut; } }
+static void fx_tame(Fx* f, float* L, float* R, i32 n) {
+  TameSt* t = (TameSt*)f->st; float* s = f->s; const i32 mode = disc(s[7], 3), lis = disc(s[8], 2); const float mix = s[9], Q = linmap(s[2], 2.5f, 12.f);
+  if (!t->set) { for (i32 i = 0; i < TM_N; i++) t->win[i] = 0.5f - 0.5f * fcos(6.28318531f * i / TM_N); for (i32 k = 0; k < TM_N / 2; k++) { t->cs[k] = fcos(6.28318531f * k / TM_N); t->sn[k] = fsin(6.28318531f * k / TM_N); }
+    for (i32 j = 0; j < TM_SL; j++) { t->sl[j].lf = t->sl[j].tlf = 10.f; t->sl[j].g = t->sl[j].tg = 0.f; } t->cnt = (i32)(((u32)(__SIZE_TYPE__)f >> 4) % TM_HOP); t->set = 1; }   // instances look at different moments, so their transforms never pile into one block
+  const float at = 1.f - fexp(-32.f / (expmap(s[5], 1.f, 100.f) * 0.001f * SR)), rl = 1.f - fexp(-32.f / (expmap(s[6], 10.f, 500.f) * 0.001f * SR));
+  for (i32 o = 0; o < n; o += 32) { const i32 m = n - o < 32 ? n - o : 32; float* l = L + o; float* r = R + o;
+    for (i32 i = 0; i < m; i++) { const float a = mode == 2 ? (l[i] - r[i]) * 0.5f : (l[i] + r[i]) * 0.5f; t->ring[t->pos] = a; t->pos = (t->pos + 1) & (TM_N - 1); t->dl[i] = l[i]; t->dr[i] = r[i]; }
+    t->cnt += m; if (t->cnt >= TM_HOP) { t->cnt -= TM_HOP; tm_look(t, s); }
+    float* x0 = l; float* x1 = r; if (mode) { for (i32 i = 0; i < m; i++) { t->m[i] = (l[i] + r[i]) * 0.5f; t->sd[i] = (l[i] - r[i]) * 0.5f; } x0 = x1 = mode == 1 ? t->m : t->sd; }
+    for (i32 j = 0; j < TM_SL; j++) { TameSl* q = &t->sl[j]; q->g += (q->tg - q->g) * (q->tg < q->g ? at : rl); q->lf += (q->tlf - q->lf) * 0.25f;
+      if (q->g < -0.05f) { if (fabsf_(q->g - q->sg) > 0.03f || fabsf_(q->lf - q->slf) > 0.001f || q->sq != Q) { bq_set(&q->q, BQ_PEAK, fexp(q->lf * 0.693147181f), Q, q->g); q->sg = q->g; q->slf = q->lf; q->sq = Q; } q->q.on = 1; /* new coefficients only when the cut has moved */ if (mode) { float* a = x0; for (i32 i = 0; i < m; i++) { float z1 = q->q.z1[0], z2 = q->q.z2[0], y = q->q.b0 * a[i] + z1; q->q.z1[0] = q->q.b1 * a[i] - q->q.a1 * y + z2; q->q.z2[0] = q->q.b2 * a[i] - q->q.a2 * y; a[i] = y; } } else bq_run(&q->q, x0, x1, m); }
+      else { q->q.z1[0] = q->q.z1[1] = q->q.z2[0] = q->q.z2[1] = 0.f; q->sg = 1.f; } }
+    if (mode) for (i32 i = 0; i < m; i++) { l[i] = t->m[i] + t->sd[i]; r[i] = t->m[i] - t->sd[i]; }
+    for (i32 i = 0; i < m; i++) { float wl = l[i], wr = r[i]; if (lis) { wl = t->dl[i] - wl; wr = t->dr[i] - wr; } l[i] = t->dl[i] + (wl - t->dl[i]) * mix; r[i] = t->dr[i] + (wr - t->dr[i]) * mix; } }
+  for (i32 j = 0; j < TM_SL; j++) f->vis[j] = floorf_(clampf(fexp(t->sl[j].lf * 0.693147181f), 0.f, 30000.f)) + minf(0.99f, -t->sl[j].g / 20.f);
+}

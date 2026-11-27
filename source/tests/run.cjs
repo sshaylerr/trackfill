@@ -793,6 +793,16 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
     const air = () => { const f = M.newFx(M.FX_TYPES.AIR); f.p[0] = 1; f.p[1] = 1; return f; }, g = async (hz, db) => (await run(hz, db, air())) - (await run(hz, db, null));
     const quiet = await g(12000, -50), loud = await g(12000, -3), low = await g(200, -20), mid = await g(4000, -50);
     ok(quiet > 12 && quiet < 24 && loud < 2.5 && Math.abs(low) < .3 && mid > 6, `Air lifts a quiet top end and leaves loud peaks and the lows (12 kHz quiet +${quiet.toFixed(1)} dB, loud +${loud.toFixed(1)}; 4 kHz quiet +${mid.toFixed(1)}; 200 Hz ${low.toFixed(2)})`); }
+  { // Tame dips a frequency ringing out above its surroundings and leaves the rest
+    const n = 96000, d = new Int16Array(n); let x = 7, b0 = 0, b1 = 0, b2 = 0; const w = () => (x = (x * 16807) % 2147483647) / 2147483647 * 2 - 1;
+    for (let i = 0; i < n; i++) { const wn = w(); b0 = .99765 * b0 + wn * .099; b1 = .963 * b1 + wn * .2965; b2 = .57 * b2 + wn * 1.0527; d[i] = Math.round((b0 + b1 + b2 + wn * .1848) * 2200 + 2500 * Math.sin(2 * Math.PI * 3000 * i / 48000)); }
+    const run = async fx => { const Q = M.newProject(true); Object.assign(Q.pads[0], { sample: 'rs', mode: 'one', rel: .001 }); Q.chans[0].fx = fx ? [fx] : []; Q.scenes[0] = Object.assign(M.emptyScene(), { bars: 1, notes: { 0: [{ t: 0, len: 24, p: 0, v: 1 }] } }); Q.bpm = 120;
+      return (await H.tfRenderOffline(wasm, Q, new Map([['rs', { id: 'rs', data: d, frames: n, ch: 1, sr: 48000 }]]), { order: [{ scene: 0, reps: 1 }], tail: 0 })).L; };
+    const tone = (L, hz) => { let c = 0, s2 = 0; for (let i = 48000; i < 80000; i++) { c += L[i] * Math.cos(2 * Math.PI * hz * i / 48000); s2 += L[i] * Math.sin(2 * Math.PI * hz * i / 48000); } return 10 * Math.log10(c * c + s2 * s2 + 1e-30); };
+    const band = (L, f0, f1) => { const N = 4096; let e = 0; for (let o = 48000; o + N < 80000; o += N) { const re = new Float64Array(N), im = new Float64Array(N); for (let i = 0; i < N; i++) re[i] = L[o + i] * (.5 - .5 * Math.cos(2 * Math.PI * i / N));
+        for (let k = Math.round(f0 / 48000 * N); k < Math.round(f1 / 48000 * N); k++) { let a = 0, bb = 0; for (let i = 0; i < N; i += 2) { a += re[i] * Math.cos(2 * Math.PI * k * i / N); bb += re[i] * Math.sin(2 * Math.PI * k * i / N); } e += a * a + bb * bb; } } return 10 * Math.log10(e + 1e-30); };
+    const dry = await run(null), f = M.newFx(M.FX_TYPES.TAME); f.p[0] = 1; const wet = await run(f), cut = tone(wet, 3000) - tone(dry, 3000), else1 = band(wet, 6000, 6400) - band(dry, 6000, 6400), else2 = band(wet, 1200, 1500) - band(dry, 1200, 1500);
+    ok(cut < -6 && Math.abs(else1) < 1 && Math.abs(else2) < 1, `Tame dips a ringing 3 kHz by ${cut.toFixed(1)} dB and leaves the rest (${else2.toFixed(2)} dB at 1.2–1.5 kHz, ${else1.toFixed(2)} dB at 6–6.4 kHz)`); }
   { // every Mix knob: at 0 the effect's output is the dry sound, sample for sample (the multiband's bands add back up through a phase shift, so its level is checked);
     // the effects with no Mix of their own get one from the engine at the same place the page shows it
     const n = 24000, d = new Int16Array(n); let x = 11; const w = () => (x = (x * 16807) % 2147483647) / 2147483647 * 2 - 1; for (let i = 0; i < n; i++) d[i] = Math.round(w() * 6000);

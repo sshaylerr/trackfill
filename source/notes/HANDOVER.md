@@ -201,3 +201,9 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 - Link is the page's (airLink in ui/views.js): moving one air knob moves the other by as much.
 - Display: dashed = the most it can lift (a quiet sound), solid = what it lifts now (vis 0/1). Test: "Air lifts a quiet top end…".
 - Inspired by a well-known free plugin; frequencies, amounts and timing are our own guesses until measured against it.
+
+## Tame (2026-11-27)
+- FX_TYPES.TAME = 33, engine FX_TAME (dsp/fx_more2.inc). A resonance suppressor that listens with an FFT and cuts with filters, so the audio is never delayed: 2048-point real FFT (as a 1024-point complex one) every 512 samples on the detection signal (L+R, mid or side), power averaged over ~30 ms (noise's random peaks don't trigger it). Excess = bin dB − mean of its neighbourhood (±½ octave soft … ±⅙ sharp, by prefix sums) − Threshold (0–12 dB). The 8 biggest local peaks in Focus low–high claim up to 8 peaking filters (nearest within ⅙ octave follows and glides, else a free slot jumps there); cut = excess × depth × 1.5, ≤ 18 dB, with attack/release. Q 2.5–12 from Sharpness. Modes Stereo / Mid / Side (M/S filters one of them). Listen = what it removes. Own Mix.
+- Instances look at different moments (hop phase from the state address) so their transforms don't land in one block. Filters get new coefficients only when a cut has moved.
+- vis k = slot k: whole Hz + cut/20 dB as the fraction (8 slots; host now sends vis 0–7). Display: the summed cut curve and the focus range over the live spectrum.
+- Cost: about 1% of a desktop core per instance with all 8 cuts working (analysis ≈ 0.25%); about 5× the Multiband. Test: "Tame dips a ringing 3 kHz…".

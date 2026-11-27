@@ -20,7 +20,7 @@ enum { NCH = 83, SPEAKER = 83, NPAD = 64, G0 = 64, B0 = 72, R0 = 80, MASTER = 82
 // the console: every channel has a channel EQ in slot NSLOT and (groups, buses, master) a bus compressor in slot NSLOT + 1, outside the inserts
 enum { SL_EQ = 8, SL_BUS = 9, NSLOTX = 10, FX_CEQ = 40, FX_CBUS = 41, FX_PEQ = 42, FX_WEQ = 43, FX_PBUS = 44, FX_WBUS = 45 };
 enum { FX_EQ = 0, FX_COMP, FX_FILTER, FX_SAT, FX_DELAY, FX_REVERB, FX_DUCK, FX_UTIL, FX_CHORUS, FX_CLIP, FX_CRUSH, FX_TRANS, FX_PHASER,
-       FX_LIMIT, FX_MBAND, FX_TAPE, FX_GATE, FX_DISP, FX_APAN, FX_LFOT, FX_VINYL, FX_STEP, FX_GRIN, FX_DIST, FX_INFL, FX_RESO, FX_PITCH, FX_FSHIFT, FX_RING, FX_IMAGER, FX_DEESS, FX_MBD, FX_AIR, FX_COUNT };
+       FX_LIMIT, FX_MBAND, FX_TAPE, FX_GATE, FX_DISP, FX_APAN, FX_LFOT, FX_VINYL, FX_STEP, FX_GRIN, FX_DIST, FX_INFL, FX_RESO, FX_PITCH, FX_FSHIFT, FX_RING, FX_IMAGER, FX_DEESS, FX_MBD, FX_AIR, FX_TAME, FX_COUNT };
 
 static float SR = 48000.f, BPM = 120.f;
 
@@ -330,7 +330,7 @@ static u64 discMask(i32 t, i32 m) {
     case FX_LIMIT: return B3 | B4;
     case FX_APAN: return B0 | B1 | B4; case FX_LFOT: return B0 | B1; case FX_VINYL: return B4; case FX_STEP: return B0 | B1; case FX_GRIN: return B1;
     case FX_CEQ: return B4 | (1u << 13) | (1u << 14); case FX_CBUS: return B1 | B2 | B3; case FX_PEQ: return B0 | B2 | B3 | B5 | B7 | B8; case FX_WEQ: return B0 | B1 | B3 | B5;
-    case FX_PBUS: return B1 | B2 | B3 | B4 | B5 | B6; case FX_WBUS: return B1 | B2 | B3 | B5 | B7 | B8; case FX_INFL: return B3 | B4; case FX_RESO: return B0 | B1 | B2 | B6; case FX_PITCH: return m == 1 ? B0 | B1 : 0; case FX_RING: return B1; case FX_DEESS: return B3 | B4; case FX_MBD: return (u64)B5 | B6 | B7 | B8 | B9; case FX_AIR: return B2;
+    case FX_PBUS: return B1 | B2 | B3 | B4 | B5 | B6; case FX_WBUS: return B1 | B2 | B3 | B5 | B7 | B8; case FX_INFL: return B3 | B4; case FX_RESO: return B0 | B1 | B2 | B6; case FX_PITCH: return m == 1 ? B0 | B1 : 0; case FX_RING: return B1; case FX_DEESS: return B3 | B4; case FX_MBD: return (u64)B5 | B6 | B7 | B8 | B9; case FX_AIR: return B2; case FX_TAME: return B7 | B8;
     default: return 0;
   }
 }
@@ -874,7 +874,7 @@ static u32 fxStateBytes(i32 t, i32 m) {
     case FX_LIMIT: return sizeof(LimSt); case FX_MBAND: return sizeof(MbSt); case FX_TAPE: return sizeof(TapeSt); case FX_GATE: return sizeof(GateSt); case FX_DISP: return sizeof(DispSt);
     case FX_APAN: return sizeof(APSt); case FX_LFOT: return sizeof(LTSt); case FX_VINYL: return sizeof(VinSt); case FX_STEP: return sizeof(StepSt); case FX_GRIN: return sizeof(GrinSt);
     case FX_DIST: return sizeof(DistSt); case FX_INFL: return sizeof(InflSt); case FX_RESO: return sizeof(ResoSt); case FX_CEQ: return sizeof(CeqSt); case FX_CBUS: return sizeof(CbusSt); case FX_PEQ: case FX_WEQ: return sizeof(CeqSt); case FX_PBUS: return sizeof(PbusSt); case FX_WBUS: return sizeof(WbusSt);
-    case FX_PITCH: return sizeof(PitchSt); case FX_FSHIFT: return sizeof(FSh2St); case FX_RING: return sizeof(RingSt); case FX_IMAGER: return sizeof(ImgSt); case FX_DEESS: return sizeof(DeesSt); case FX_MBD: return sizeof(MbdSt); case FX_AIR: return sizeof(AirSt);
+    case FX_PITCH: return sizeof(PitchSt); case FX_FSHIFT: return sizeof(FSh2St); case FX_RING: return sizeof(RingSt); case FX_IMAGER: return sizeof(ImgSt); case FX_DEESS: return sizeof(DeesSt); case FX_MBD: return sizeof(MbdSt); case FX_AIR: return sizeof(AirSt); case FX_TAME: return sizeof(TameSt);
     default: return fxStateBytes0(t);
   }
 }
@@ -914,7 +914,7 @@ static void fx_run(i32 c, Fx* f, float* L, float* R, i32 n) {
     case FX_GATE: fx_gate(f, L, R, n, kL, kR); break; case FX_DISP: fx_disp(f, L, R, n); break;
     case FX_APAN: fx_autopan(f, L, R, n); break; case FX_LFOT: fx_lfotool(f, L, R, n); break; case FX_VINYL: fx_vinyl(f, L, R, n); break; case FX_STEP: fx_step(f, L, R, n); break; case FX_GRIN: fx_grin(f, L, R, n); break;
     case FX_DIST: fx_dist(f, L, R, n); break; case FX_INFL: fx_inflate(f, L, R, n); break; case FX_RESO: fx_reso(f, L, R, n); break;
-    case FX_PITCH: fx_pitch(f, L, R, n); break; case FX_FSHIFT: fx_fshift(f, L, R, n); break; case FX_RING: fx_ring(f, L, R, n); break; case FX_IMAGER: fx_imager(f, L, R, n); break; case FX_DEESS: fx_deess(f, L, R, n); break; case FX_MBD: fx_mbd(f, L, R, n); break; case FX_AIR: fx_air(f, L, R, n); break; case FX_CBUS: fx_cbus(f, L, R, n); break; case FX_PBUS: fx_pbus(f, L, R, n); break; case FX_WBUS: fx_wbus(f, L, R, n); break; case FX_PEQ: case FX_WEQ: case FX_CEQ: fx_ceq(f, L, R, n); break;
+    case FX_PITCH: fx_pitch(f, L, R, n); break; case FX_FSHIFT: fx_fshift(f, L, R, n); break; case FX_RING: fx_ring(f, L, R, n); break; case FX_IMAGER: fx_imager(f, L, R, n); break; case FX_DEESS: fx_deess(f, L, R, n); break; case FX_MBD: fx_mbd(f, L, R, n); break; case FX_AIR: fx_air(f, L, R, n); break; case FX_TAME: fx_tame(f, L, R, n); break; case FX_CBUS: fx_cbus(f, L, R, n); break; case FX_PBUS: fx_pbus(f, L, R, n); break; case FX_WBUS: fx_wbus(f, L, R, n); break; case FX_PEQ: case FX_WEQ: case FX_CEQ: fx_ceq(f, L, R, n); break;
   }
   if (gm >= 0 && (m0 < 0.9999f || m1 < 0.9999f)) { const float d = (m1 - m0) / n; float w = m0;   // dry/wet, eased across the block
     for (i32 i = 0; i < n; i++) { w += d; L[i] = dryL[i] + (L[i] - dryL[i]) * w; R[i] = dryR[i] + (R[i] - dryR[i]) * w; } }

@@ -617,7 +617,7 @@ class TFHost {
     if (w.n >= 128) { if (w.cols.length < 3 * 1024) w.cols.push(w.a, w.b, w.g); w.n = 0; w.a = w.b = w.g = 0; }
   }
   scopeReport() {
-    const s = this.scope, v = this.visFx, r = { ch: s ? s.ch : -1, vis: v ? this.ex.tf_fx_vis(v[0], v[1], 0) : 0, vis3: v ? [0, 1, 2, 3, 4, 5].map(i => this.ex.tf_fx_vis(v[0], v[1], i)) : null };
+    const s = this.scope, v = this.visFx, r = { ch: s ? s.ch : -1, vis: v ? this.ex.tf_fx_vis(v[0], v[1], 0) : 0, vis3: v ? [0, 1, 2, 3, 4, 5, 6, 7].map(i => this.ex.tf_fx_vis(v[0], v[1], i)) : null };
     if (this.an && this.anMask && s) r.an = this.an.report(this.anMask);
     if (v && this.ex.tf_fxio) { const a = new Float32Array(this.ex.memory.buffer, this.ex.tf_fxio(), 32), o = v[1] * 4; r.io = [a[o], a[o + 1], a[o + 2], a[o + 3]]; a.fill(0); }   // the device's in/out peaks since the last report
     const w = this.wv; if (w && v && w.c === v[0] && w.s === v[1]) { if (w.cols.length) { r.wv = w.cols; for (let i = 2; i < w.cols.length; i += 3) r.vis = Math.min(r.vis, w.cols[i]); } w.cols = []; }   // the meter shows the deepest dip, however short
