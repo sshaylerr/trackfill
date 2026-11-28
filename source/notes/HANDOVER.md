@@ -392,6 +392,26 @@ Technical notes on each recent feature: where it lives and the non-obvious decis
 - `showUpdates()` (app.html) runs 0.9 s after boot. `UI.seenLog` (saved in prefs) is the newest `CHANGES` date the user has seen. First launch ever: it just records the newest date. Later, if `CHANGES[0][0]` is newer and no sheet is open, `openChanges(since)` shows only the newer entries with "Everything before" and "Got it". The menu's What's new calls `openChanges()` (everything) and also marks it seen.
 - So: a new What's new line in `CHANGES` under today's date is what triggers the popup on the owner's phone.
 
+### Instrument redesign, phase 1 (2026-11-28)
+- The owner approved the "instrument" design (round 4 mockups, slightly squarer corners). Phase 1 is on branch
+  `claude/project-thread-pzs6hd`, not on main: the old app stays live until the owner says to publish.
+- Look: the CSS block "the instrument (2026-11-28)" at the end of app.html's styles. Body colours are `--i-*`; the screen keeps the
+  app's own names (`--bg`, `--ink`, `--mute`…) so canvases follow. Two finishes: `html[data-finish="silver"]` or none (Graphite).
+  The old colour themes are retired (`applyTheme` ignores `UI.theme`); Appearance has Finish, Pad colour and Pad drawings.
+  No `color-mix` in the new rules (older iOS); older browsers get the accent's shades mixed in `applyTheme`.
+- One typeface: Instrument Sans (variable, fonts/instrument-sans-latin-var.woff2, OFL), with the same line-metric overrides as the
+  old faces.
+- Top row: Play, Record, the output meter (`#meter`: bars, clip lamp, level and CPU; tap = master analyzer), Undo, Edit, d-pad.
+  The song display `#deck` holds the scene and bar (`deckInfo`), tempo (`#bTempo`), menu (`#bMenu`), Loop scene / Play song
+  (`#bLoop`), the count of scenes made, and the scene tiles. `deckFit` makes it compact on short phones (`.low`) and with the d-pad
+  open on a short phone (`body.tight`); it runs at once in `togglePanel` so the smoke test's no-reflow check holds.
+- Pad drawings (`padArt*` in ui/views.js): drawn once per change into a shared canvas and shown as an `<img>`. Live canvases on 16
+  pads cost about 15% more main-thread time while playing; as images it matches the old app.
+- Measured (4× slowed CPU, demo playing, main thread busy): pads 27% (old 24%), timeline 66% (68%), mixer 29% (29%), sound 39% (45%).
+- Next phases, in the order of the round 4b PDF: Sound page (presets in the display, Map mode as drawn), Timeline keys row,
+  Mixer, effect device pages, then retiring the synth faceplates. Note repeat and pad quick knobs in the mockups are new features:
+  ask before building them.
+
 ## 10. Decisions, audits and the parked list
 
 - Recurring: every few features, remind the user to run the safety pass: notes/safety-pass.md (tests, levels, performance, security audit, and a hand review of what changed).
