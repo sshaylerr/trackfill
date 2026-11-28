@@ -525,3 +525,29 @@ function openStepPatterns(c, s) { const f = P.chans[c].fx[s];
 function stepPalette(c, s) { const row = h('div', 'keys stepPal'); if (UI.stepTool == null) UI.stepTool = 2;
   STEP_ACTS.forEach(([n, col], k) => { if (k === 0) return; const b = btn(`<i style="background:${col}"></i>${esc(n === 'Tape stop' ? 'Stop' : n)}`, () => { UI.stepTool = k; renderView(); }, 'key sm' + (UI.stepTool === k ? ' on' : '')); row.append(b); });
   return row; }
+
+/* ---------- pad drawings: each pad shows its sound under the cap (a sample's waveform; a synth's note: its wave inside its amp envelope).
+   Drawn once per change (a signature per pad), never per frame, and shown as a still image: a live canvas is a layer of its own, and
+   sixteen of them doubled what a pad hit cost to put on screen. Off in Appearance. ---------- */
+const PADART = { q: new Set(), raf: 0 };
+function padArtSig(p) { if (!p || !hasSound(p) || UI.padArt === false) return '';
+  if (p.src === 'synth') { const q = p.syn.p || {}; return ['s', p.syn.eng, p.color, q.aa, q.ad, q.as, q.ar, document.documentElement.dataset.finish].join('|'); }
+  const s = SAMPLES.get(p.sample); return s ? ['w', p.sample, p.color, p.start, p.end, p.reverse ? 1 : 0, s.frames, document.documentElement.dataset.finish].join('|') : ''; }
+function padArtWant(pd, pi) { const p = P.pads[pi], sig = UI.keys ? '' : padArtSig(p); if (pd._art === sig && (!sig || pd.querySelector('.pw'))) return;
+  pd._art = sig; pd._pi = pi; let cv = pd.querySelector('.pw'); if (!sig) { if (cv) cv.remove(); return; }
+  if (!cv) { cv = h('img', 'pw'); cv.alt = ''; pd.prepend(cv); } PADART.q.add(pd); if (!PADART.raf) PADART.raf = requestAnimationFrame(padArtRun); }
+function padArtRun() { PADART.raf = 0; for (const pd of PADART.q) if (pd.isConnected) guarded('padArt', () => padArtDraw(pd)); PADART.q.clear(); }
+function padArtDraw(pd) {
+  const img = pd.querySelector('.pw'), p = P.pads[pd._pi]; if (!img || !p) return; const dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.round(img.clientWidth), H = Math.round(img.clientHeight); if (W < 8 || H < 8) return;
+  const cv = PADART.cv || (PADART.cv = document.createElement('canvas')); cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); padArtPaint(g, p, W, H, dpr); img.src = cv.toDataURL(); }
+function padArtPaint(g, p, W, H, dpr) { g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H); const col = PAD_COLORS[p.color], x0 = 2, w = W - 4, mid = H / 2, A = H * .46;
+  if (p.src === 'synth') { const q = p.syn.p || {}, at = q.aa ?? .002, dc = q.ad ?? .4, su = q.as ?? 1, rl = q.ar ?? .25, hold = Math.max(.25, at + dc), len = hold + rl;
+    const env = t => t < at ? t / at : t < hold ? 1 - (1 - su) * Math.min(1, (t - at) / Math.max(dc, 1e-3)) : su * Math.max(0, 1 - (t - hold) / Math.max(rl, 1e-3));
+    const e = p.syn.eng, cyc = e === 'sub' ? x => Math.sin(2 * Math.PI * x) : e === 'fm' ? x => Math.sin(2 * Math.PI * x + 1.6 * Math.sin(4 * Math.PI * x)) : e === 'wt' ? x => Math.tanh(2.6 * Math.sin(2 * Math.PI * x)) : e === 'analog' ? x => 2 * (x - Math.floor(x + .5)) : x => Math.sin(2 * Math.PI * x) * (.6 + .4 * Math.sin(17 * x));
+    const N = e === 'sub' ? 5 : 7; g.strokeStyle = col; g.globalAlpha = document.documentElement.dataset.finish === 'silver' ? 1 : .8; g.lineWidth = 1.2; g.lineJoin = 'round'; g.beginPath();
+    for (let i = 0; i <= 400; i++) { const f = i / 400, t = f * len, y = mid - env(t) * cyc((f * N) % 1) * A; i ? g.lineTo(x0 + w * f, y) : g.moveTo(x0, y); } g.stroke(); return; }
+  const s = SAMPLES.get(p.sample); if (!s) return; const a = samplePeaks(s, 600), n = 600, i0 = Math.floor((p.start || 0) * n), i1 = Math.max(i0 + 2, Math.floor((p.end == null ? 1 : p.end) * n)), cols = Math.max(2, Math.round(w / 1.5));
+  g.fillStyle = col; g.globalAlpha = document.documentElement.dataset.finish === 'silver' ? .8 : .55; g.beginPath(); const at = c => { let k = i0 + Math.floor(c / cols * (i1 - i0)); if (p.reverse) k = i1 - 1 - (k - i0); return k; };
+  for (let c = 0; c < cols; c++) { const k = at(c); g.lineTo(x0 + w * c / cols, mid - Math.max(.02, a[k * 2 + 1]) * A); }
+  for (let c = cols - 1; c >= 0; c--) { const k = at(c); g.lineTo(x0 + w * c / cols, mid - Math.min(-.02, a[k * 2]) * A); } g.closePath(); g.fill();
+}
