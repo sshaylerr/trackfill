@@ -22,8 +22,8 @@ function renderPads(V) {
     grid.append(pd); }
   bindPadGrid(grid);   // touches land on the grid and go to the nearest pad (see bindPadGrid)
   const chop = padChop(); if (chop) w.classList.add('chopping');
-  const [pd, pk] = padInst(!!chop); w.classList.add('inst');   // the selected pad on a display, its 4 knobs under it (ui/inst.js)
-  w.append(pd, pk, top); if (chop) w.append(chopWave(UI.pad)); w.append(grid); V.append(w); refreshPadDots(); if (chop) requestAnimationFrame(drawChop); requestAnimationFrame(() => pdDraw(true));
+  // padInst() (ui/inst.js) builds the pad display and its 4 knobs; held back until the page's layout makes room for them without shrinking the pads
+  w.append(top); if (chop) w.append(chopWave(UI.pad)); w.append(grid); V.append(w); refreshPadDots(); if (chop) requestAnimationFrame(drawChop);
 }
 
 function impKey() { const b = btn('<span class="kl">Import</span><svg viewBox="0 0 24 24"><path d="M11 4h2v9.2l3.3-3.3 1.4 1.4L12 17l-5.7-5.7 1.4-1.4 3.3 3.3zM5 18h14v2H5z"/></svg>', () => pickAudio(null), 'key sm imp'); b.setAttribute('aria-label', 'Import'); return b; }   // narrow: just its icon
