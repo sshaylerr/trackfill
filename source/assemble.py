@@ -56,7 +56,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   });
 }
 </script>"""
-page = head + app[:cut] + '\n<style>html{margin:0;height:100%;background:#0b0b0c}body{margin:0;height:100%;background:#1c1c1f}</style>\n</head>\n<body>\n' + app[cut:] + '\n' + sw + '\n</body>\n</html>\n'
+page = head + app[:cut] + '\n<style>html,body{margin:0;height:100%}</style>\n</head>\n<body>\n' + app[cut:] + '\n' + sw + '\n</body>\n</html>\n'
 # a content security policy: only this page's own scripts run (by hash), and the page can reach nothing but its own site. If a name or a
 # shared project ever slipped markup past the escaping, it could neither run nor send anything anywhere.
 import re as _re

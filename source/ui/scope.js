@@ -52,7 +52,7 @@ function scopeView(cv, draw) { SCOPE.views.push({ cv, draw }); }
 const SPEC_LO = 25, SPEC_HI = 20000, SPEC_DB = 84;
 const specX = (f, x, w) => x + w * Math.log(f / SPEC_LO) / Math.log(SPEC_HI / SPEC_LO);
 // the pad page's waveform: the last second and a half of the mix, coloured by its lows, mids and highs like the analyzer's
-const padScopeShown = () => { const c = document.querySelector('.padScope'); return !!c && c.clientWidth > 30; };
+const padScopeShown = () => { const c = document.querySelector('.padScope, .pdw.mix canvas'); return !!c && c.clientWidth > 30; };
 // its views, changed with a tap: rolling waveform, spectrum, oscilloscope (a steady picture of the wave itself, held still at each rise through zero)
 const PAD_SCOPES = [['wave', 'Waveform'], ['spec', 'Spectrum'], ['osc', 'Scope']];
 const padScopeMode = () => { const m = anPrefs().pad; return PAD_SCOPES.some(x => x[0] === m) ? m : 'wave'; };

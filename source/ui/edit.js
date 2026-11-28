@@ -243,7 +243,8 @@ function openEdit() {
       if (tab === 'Pad') { const pi = UI.view === 'mix' ? UI.mixSel : UI.pad;
         grid(key('Copy', () => copyPad(pi)), key('Paste', () => pastePad(pi), clipIs('pad')), key('Duplicate', () => duplicatePad(pi), hasSound(P.pads[pi]), { cls: 'hot' }), confirmBtn('Clear', 'Again', () => { closeSheet(); clearPad(pi); }),
           key('Swap with…', () => { UI.swapFrom = pi; if (UI.view !== 'pads') { UI.keys = false; setView('pads'); } toast(`Tap a pad to swap with ${padLabel(pi)}`); }, true, { w: 2 }),
-          key('Duplicate + notes', () => duplicatePadAll(pi), padUsed(P.pads[pi]) || P.scenes.some(sc => sc.notes[pi] && sc.notes[pi].length), { w: 2, cls: 'hot' })); }
+          key('Duplicate + notes', () => duplicatePadAll(pi), padUsed(P.pads[pi]) || P.scenes.some(sc => sc.notes[pi] && sc.notes[pi].length), { w: 2, cls: 'hot' }),
+          key('Import a sound…', () => { closeSheet(); pickAudio(null); }, true, { w: 2 }), key('Capture what I played', () => { closeSheet(); doCapture(); }, true, { w: 2 })); }
       if (tab === 'Channel') { const c = UI.mixSel;
         grid(key('Copy', () => copyChan(c)), key('Paste', () => pasteChan(c), clipIs('chan')), key('Copy FX', () => copyChain(c), P.chans[c].fx.length > 0), key('Paste FX', () => pasteChain(c), clipIs('chain'))); }
       if (tab === 'Effect') { const c = UI.fxCh, s = UI.fxSlot, f = P.chans[c].fx[s];

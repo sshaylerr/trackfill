@@ -866,6 +866,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
   --i-key1:#3D3C38; --i-key2:#31302D; --i-keyedge:rgba(0,0,0,.6); --i-keyhi:rgba(255,255,255,.085); --i-keysh:rgba(0,0,0,.42);
   --i-pad1:#383733; --i-pad2:#2D2C29; --i-tint1:rgba(56,55,51,.86); --i-tint2:rgba(45,44,41,.9); --i-padhi:rgba(255,255,255,.07); --i-padedge:rgba(0,0,0,.6);
   --i-bezel:rgba(255,255,255,.07); --i-lampoff:rgba(0,0,0,.45); --i-lampon:#F6F0E2; --i-lampglow:rgba(255,240,215,.55);
+  --i-kn1:#4B4945; --i-kn2:#36352F; --i-knf1:#5C5A55; --i-knf2:#383733; --i-knline:#F1EBDF;
   --i-r:5px; --i-rd:7px; --i-rs:4px;
   /* the glass */
   --bg:#131312; --panel:#171716; --raised:#1D1D1B; --raised2:#252523; --line:rgba(236,231,220,.12); --sheet:#161615; --glow:#33312E;
@@ -881,6 +882,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
   --i-key1:#EEEBE5; --i-key2:#DCD9D2; --i-keyedge:rgba(70,64,58,.38); --i-keyhi:rgba(255,255,255,.9); --i-keysh:rgba(60,50,40,.22);
   --i-pad1:#E6E3DD; --i-pad2:#D5D2CB; --i-tint1:rgba(230,227,221,.82); --i-tint2:rgba(213,210,203,.86); --i-padhi:rgba(255,255,255,.85); --i-padedge:rgba(70,64,58,.32);
   --i-bezel:rgba(255,255,255,.85); --i-lampoff:rgba(45,40,35,.42); --i-lampon:#FFF1D8; --i-lampglow:rgba(255,190,120,.75);
+  --i-kn1:#CFCCC6; --i-kn2:#AEABA5; --i-knf1:#F4F2EE; --i-knf2:#C6C3BC; --i-knline:#2A2926;
   --on1:#F8F6F1; --on2:#E6E3DC; --edge:rgba(70,64,58,.38);
 }
 html{background:var(--i-body2)}
@@ -901,8 +903,8 @@ body{background:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAQAAA
 .btn.on:not(:is(.dev,.cwin,.synDev,.list,.chooser,.sd) *){box-shadow:0 0 0 1px var(--i-keyedge),inset 0 0 0 1.5px var(--i-leg),0 2px 3px var(--i-keysh)}
 .key.warn:not(:is(.dev,.cwin,.synDev,.list,.chooser,.sd) *),.btn.warn:not(:is(.dev,.cwin,.synDev,.list,.chooser,.sd) *){color:#D9553B;text-shadow:none}
 /* the lamp slit on the bigger keys (the transport, the page keys): dark when off, lit when on */
-:is(#tabs button,#top .tb,.key.lamp){background-image:linear-gradient(var(--i-lampoff),var(--i-lampoff)),radial-gradient(130% 95% at 50% 25%,var(--i-key1),var(--i-key2))!important;background-size:13px 3px,100% 100%!important;background-position:50% 7px,0 0!important;background-repeat:no-repeat!important}
-:is(#tabs button,#top .tb,.key.lamp).on{background-image:linear-gradient(var(--i-lampon),var(--i-lampon)),radial-gradient(130% 95% at 50% 25%,var(--on1),var(--on2))!important;box-shadow:0 0 0 1px var(--i-keyedge),inset 0 1px 0 var(--i-keyhi),0 2px 3px var(--i-keysh),inset 0 -12px 18px -14px var(--i-lampglow)}
+:is(#tabs button,#top .tb,.key.lamp,.padsView .toolbar .key){background-image:linear-gradient(var(--i-lampoff),var(--i-lampoff)),radial-gradient(130% 95% at 50% 25%,var(--i-key1),var(--i-key2))!important;background-size:13px 3px,100% 100%!important;background-position:50% 7px,0 0!important;background-repeat:no-repeat!important}
+:is(#tabs button,#top .tb,.key.lamp,.padsView .toolbar .key).on{background-image:linear-gradient(var(--i-lampon),var(--i-lampon)),radial-gradient(130% 95% at 50% 25%,var(--on1),var(--on2))!important;box-shadow:0 0 0 1px var(--i-keyedge),inset 0 1px 0 var(--i-keyhi),0 2px 3px var(--i-keysh),inset 0 -12px 18px -14px var(--i-lampglow)}
 :root[data-finish="silver"] :is(#tabs button,#top .tb,.key.lamp).on{background-image:linear-gradient(#E5552F,#E5552F),radial-gradient(130% 95% at 50% 25%,var(--on1),var(--on2))!important}
 
 /* ---- the top row: Play, Record, the output meter, Undo, Edit, the d-pad ---- */
@@ -1004,9 +1006,16 @@ body[data-pads="tint"] .pad:not(.empty)::after{background:var(--pc)}
 .pad.has .pn::after{border-radius:50%}
 .pad .pw{position:absolute;left:6px;right:6px;bottom:22%;height:40%;width:calc(100% - 12px);pointer-events:none;display:block}
 .pad.hit .pw,.pad.held .pw{opacity:.35}
-#view.short .pad .pw{display:none}   /* pads too short for a drawing under the name (a short phone with the d-pad open) */
+.grid.noart .pad .pw{display:none}   /* pads too short for a drawing under the name (set from the pads' own height) */
 .pad .nm,.pad .pn{z-index:1}
 .pad.kroot .pn,.pad.klatch .pn,.pad.kprog .pn{color:#E5552F;opacity:1}
+/* the pad's face, as drawn: its name at the top, its sound in a strip along the bottom, never on top of each other.
+   The pad's number shows on an empty pad and in Keys and Chop, where it says something; the picked pad's number is on the display. */
+.padsView:not(.chopping) .pad:not(.kp) .nm{font-size:13px;line-height:15px;max-height:30px;position:absolute;top:9px;left:10px;right:24px;-webkit-line-clamp:2;overflow-wrap:break-word} .padsView:not(.chopping) .pad:not(.kp) .pn::after{display:none} .pad .nm.fit{font-size:11px!important;line-height:14px!important;letter-spacing:-.01em;overflow-wrap:anywhere} #view.tiny .pad .nm.fit{font-size:10px!important;line-height:11px!important}
+.padsView:not(.chopping) .pad:not(.kp):not(.empty) .pn{display:none}
+.padsView:not(.chopping) .pad:not(.kp).empty .pn{position:absolute;left:10px;top:9px} .padsView:not(.chopping) .pad.empty:not(.kp) .nm{display:none}
+.pad .pw{left:8px;right:8px;width:calc(100% - 16px);bottom:8px;top:auto;height:calc(100% - 48px);max-height:34px;min-height:10px}
+.pad.has:not(.kp)::before{content:"";position:absolute;right:12px;top:20px;width:5px;height:5px;border-radius:50%;background:var(--pc);opacity:.9}
 
 /* ---- squarer corners for the rest of the body's parts ---- */
 .key.sm,.key.xs,.btn.sm,.btn.xs{border-radius:var(--i-rs)}
@@ -1075,23 +1084,33 @@ body[data-pads="tint"] .pad:not(.empty)::after{background:var(--pc)}
 #view.cramp .sdh{padding-top:7px} #view.cramp .sd input.sdn{font-size:19px;height:24px} #view.cramp .sdtabs{padding-top:5px} #view.cramp .sdtabs button{height:24px}
 #view.short .sdsub{padding-top:5px} #view.short .sds{display:none} #view.short .sdh{padding-top:6px} #view.short .sd .pnav .tk,#view.short .sd .tk{height:24px} #view.short .sdmap{padding:4px 0 5px;gap:2px 4px} #view.short .sdtabs button{height:22px} #view.short .sdtabs{padding-top:3px}
 
-/* ---- the Pads page (phase 3): the selected pad on a display, 4 knobs you choose ---- */
-.padsView.inst{gap:8px}
-.sd.pdsp{flex:0 1 auto;min-height:0}
-.pdh{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:8px 12px 0;flex:none;min-width:0}
-.sd .pdl{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;flex:1 1 auto;height:auto;padding:0;background:none;border:0;box-shadow:none;border-radius:0;text-align:left;color:var(--ink)}
-.sd .pdl b{font:500 18px/22px var(--font-ui);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .sd .pdl span{font:400 12px/15px var(--font-ui);color:var(--mute);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
-.pdr{font:400 11.5px/15px var(--font-ui);color:var(--mute);white-space:nowrap;flex:none;padding-top:24px}
-.pdw{flex:0 1 64px;min-height:0;margin:6px 12px 0;position:relative} .pdw canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none} .pdw.gone canvas{visibility:hidden}
-.sd.pdsp .sdmap{padding:6px 0 8px} .sd.pdsp .sdmap .mc{cursor:pointer}
-.kgrid.pdk{flex:none;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:none}
-.toolbar .key.rpt.on{white-space:nowrap} .toolbar .key.imp svg{display:none;width:18px;height:18px;fill:currentColor}
-@container (max-width:384px){.padsView .toolbar{gap:4px} .padsView .toolbar .key.sm{padding:0 6px} .padsView .toolbar .key.imp{padding:0;width:32px;flex:none} .padsView .toolbar .key.imp .kl{display:none} .padsView .toolbar .key.imp svg{display:block;margin:auto}}
-@container (max-width:350px){.padsView .toolbar .key.sm{padding:0 4px;font-size:11.5px}}
-#view.cramp .pdw{flex-basis:56px} #view.cramp .pdh{padding-top:6px} #view.cramp .sd .pdl b{font-size:16px;line-height:19px} #view.cramp .pdr{padding-top:20px}
-#view.short .pdw{display:none} #view.short .sd .pdl span{display:none} #view.short .pdr{padding-top:3px} #view.short .padsView.inst{gap:6px}
-#view.short .pdh{display:none} #view.tiny .padsView .pdsp,#view.tiny .padsView .pdk{display:none}   /* very little room (a small phone with the d-pad open): the pads come first */
+/* ---- the Pads page (phase 3): the picked pad joins the song display; 4 knobs under it ---- */
+#dpad{display:none;grid-area:pd;min-width:0;flex-direction:column}
+#deck.pads{grid-template-areas:'pos tempo menu' 'seg song song' 'sc sc sc' 'pd pd pd'} #deck.pads.low{grid-template-areas:'pos seg tempo menu' 'sc sc sc sc' 'pd pd pd pd'}
+#deck.pads #dpad{display:flex}
+.pdh{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0 0;flex:none;min-width:0}
+.pdsp .pdl{display:flex;align-items:baseline;gap:8px;min-width:0;flex:1 1 auto;height:auto;padding:0;background:none;border:0;box-shadow:none;border-radius:0;text-align:left;color:var(--ink);overflow:hidden}
+.pdsp .pdl b{font:500 17px/22px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0} .pdsp .pdl span{font:400 12px/15px var(--font-ui);color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+.pdsp .pdv{height:22px;padding:0 9px;flex:none;border:0;border-radius:var(--i-rs);background:none;box-shadow:inset 0 0 0 1px rgba(236,231,220,.2);color:var(--mute);font:500 11.5px var(--font-ui);white-space:nowrap;min-width:0}
+.pdw{height:64px;flex:none;margin:6px 0 0;position:relative} .pdw canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none} .pdw.gone canvas{visibility:hidden}
+html[data-pdwave="off"] .pdw{display:none}
+.pdsp .sdmap{padding:6px 0 0} .pdsp .sdmap .mc{cursor:pointer}
+.padsView{--i-kz:64px} #view.tiny .padsView{--i-kz:44px} .kgrid.pdk{flex:none;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:calc(var(--i-kz) + 4px)}
+.padsView .toolbar .tgap{flex:1 1 0;min-width:0} .padsView .toolbar .key.rpt,.padsView .toolbar .kbtn{flex:0 1 92px;min-width:0} .toolbar .key.rpt.on{white-space:nowrap}
+#view.cramp .pdw{height:52px}
+#view.short .pdw{display:none}
+#view.tiny .padsView .pdk{display:none} body.tight #deck.pads #dpad{display:none}
 
+/* the knob, as drawn: a knurled rim and a turned metal face under the pointer (the scale and the pointer stay in the knob's own drawing) */
+:is(.ik,.idet){position:relative} :is(.ik,.idet) .kcap{position:absolute;left:50%;top:50%;width:calc(var(--i-kz) * .735);height:calc(var(--i-kz) * .735);transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
+  background:repeating-conic-gradient(var(--i-kn1) 0 2.5deg,var(--i-kn2) 2.5deg 5deg);box-shadow:0 4px 6px rgba(0,0,0,.42),0 1px 1px rgba(0,0,0,.4),0 0 0 1px rgba(0,0,0,.4)}
+:root[data-finish="silver"] :is(.ik,.idet) .kcap{box-shadow:0 4px 6px rgba(60,50,40,.3),0 1px 1px rgba(60,50,40,.35),0 0 0 1px rgba(70,64,58,.35)}
+:is(.ik,.idet) .kcap::after{content:"";position:absolute;inset:8%;border-radius:50%;background:conic-gradient(from 200deg,var(--i-knf1),var(--i-knf2) 25%,var(--i-knf1) 50%,var(--i-knf2) 75%,var(--i-knf1));box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 0 0 1px rgba(0,0,0,.28)}
+:is(.ik,.idet) svg{position:relative;z-index:1} :is(.ik,.idet) .kb,:is(.ik,.idet) .ksh{fill:none!important;stroke:none!important} :is(.ik,.idet) .ki{stroke:var(--i-knline)!important}
+/* the Pads page's keys: as tall as the page keys, each with its lamp */
+.padsView .toolbar{height:46px;gap:6px} .padsView .toolbar .key{height:46px;padding-top:10px;font-size:13px;border-radius:var(--i-r)} .padsView .toolbar .keys{gap:6px;height:46px} .padsView .toolbar .keys .key{width:44px;padding:10px 0 0}
+#view.tiny .padsView .toolbar,#view.tiny .padsView .toolbar .key{height:38px} #view.tiny .padsView .toolbar .key{padding-top:8px;background-position:50% 5px,0 0!important}
+.padsView{--i-kz:64px} #view.short .padsView{--i-kz:56px} #view.tiny .padsView{--i-kz:44px}
 /* Map mode */
 .sd .mline{display:flex;align-items:center;gap:8px;padding:10px 12px 0;flex:none;min-width:0}
 .sd .mhead{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;white-space:nowrap;overflow:hidden}
@@ -1127,6 +1146,7 @@ body[data-pads="tint"] .pad:not(.empty)::after{background:var(--pc)}
     <div id="dhd"><div class="dpos"><b id="dScene"></b><span id="dBar"></span></div><div id="note" role="status" aria-live="polite"></div><button class="dtempo" id="bTempo" aria-label="Tempo"><b>96</b><small>bpm</small></button><button class="dmenu" id="bMenu" aria-label="Project menu"><i></i><i></i><i></i></button></div>
     <div id="dstrip"><button class="dseg" id="bLoop" aria-label="Playback mode"></button><span id="dSong"></span></div>
     <nav id="scenes" aria-label="Scenes"></nav>
+    <div id="dpad"></div>
   </section>
   <main id="view"></main>
   <section id="panel" hidden aria-label="Precision controls">
@@ -1492,7 +1512,7 @@ function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 
 // the song's key, for effects that play in it (the Resonator): sent whenever it changes
 let keySent = ''; function syncKey(force) { if (!P || !P.key) return; const iv = scaleOf(P.key.scale)[1], sig = P.key.root + ':' + iv.join(','); if (sig === keySent && !force) return; keySent = sig; send({ t: 'key', root: P.key.root, iv }); }
 function saveNow() { clearTimeout(saveTimer); if (P) { projSave(); abTouched(); } }
-function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, finish: UI.finish, padArt: UI.padArt !== false, padStyle: UI.padStyle, font2: UI.font, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog, rptR: UI.rptR || 24 }); }
+function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, finish: UI.finish, padArt2: UI.padArt === true, padStyle: UI.padStyle, font2: UI.font, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog, rptR: UI.rptR || 24 }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -1857,7 +1877,7 @@ function renderView() {
   if (NAV.mode === 'edit') navEndEdit(true);
   const V = $('#view'); V.innerHTML = ''; UI.regs = []; TL.cv = null; SCOPE.views = SCOPE.views.filter(v => v.cv.closest('#sheet'));
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === (UI.view === 'fx' ? UI.fxBack : UI.view)));
-  $('#deck').classList.toggle('min', UI.view === 'sound');
+  $('#deck').classList.toggle('min', UI.view === 'sound'); $('#deck').classList.toggle('pads', UI.view === 'pads'); deckFit(); if (UI.view !== 'pads') $('#dpad').innerHTML = '';
   ({ pads: renderPads, seq: renderSeq, sound: renderSound, mix: renderMix, fx: renderFx })[UI.view](V);
   updatePanel(); updateSoundChip(); scopeWant(); fitFonts(V); fitFonts($('#top'));
 }
@@ -1960,6 +1980,10 @@ function playChord(pi, c) {
   const all = addBass(notes, c, kx.bass); KEYS.flip[pi] = !KEYS.flip[pi];
   return humanize(all, { strum: kx.strum, dir: kx.dir, feel: kx.feel, bassFirst: kx.bass !== 'off' }, Math.random, KEYS.flip[pi]);
 }
+// a name whose longest word is wider than its pad gets a size smaller, rather than breaking mid-word (checked once per change, a frame later)
+const NMFIT = new Set(); let nmRaf = 0;
+function nmFitRun() { nmRaf = 0; for (const pd of NMFIT) { const n = pd.querySelector('.nm'); if (!n || !pd.isConnected) continue; n.classList.remove('fit'); const w = n.clientWidth, words = n.textContent.split(/\s+/), g = nmFitRun.g || (nmFitRun.g = document.createElement('canvas').getContext('2d')); g.font = getComputedStyle(n).font; if (words.some(x => g.measureText(x).width > w) || n.scrollHeight > n.clientHeight + 2) n.classList.add('fit'); } NMFIT.clear(); }
+function padArtFit() { const g = document.querySelector('.padsView .grid'), p = g && g.querySelector('.pad'); if (p) g.classList.toggle('noart', p.offsetHeight < 60); }
 function refreshPadDots() {
   const grid = document.querySelector('.grid'); if (!grid) return; grid.classList.toggle('swapping', UI.swapFrom != null && !UI.keys); const sc = P.scenes[UI.scene], chop = padChop(), kb = document.querySelector('.kbtn'); if (kb) kb.textContent = chopOf(UI.pad) ? 'Chop' : 'Keys';
   [...grid.children].forEach(pd => { const cell = +pd.dataset.cell; let pi, name;
@@ -1970,8 +1994,8 @@ function refreshPadDots() {
       pd.classList.toggle('sel', UI.pad === pi); pd.classList.toggle('has', !!(sc.notes[pi] && sc.notes[pi].length)); pd.classList.toggle('frz', !!p.frz); }
     const p = P.pads[pi]; pd.style.setProperty('--pc', chop ? sliceCol(cell) : PAD_COLORS[p.color]); if (chop) pd.classList.toggle('sel', cell === UI.slice); pd.classList.toggle('empty', !padUsed(p) || (chop && cell >= chop.pts.length)); pd.classList.toggle('cursor', UI.panel && UI.keys && cell === UI.keyCell);
     pd.classList.toggle('klatch', !!(kc && ((KEYS.latch && KEYS.latch.pi === pi && KEYS.latch.cell === cell) || (KEYS.arpN && KEYS.arpN.pi === pi && !KEYS.arpN.held.size && !kc.chord && KEYS.arpN.notes.some(x => x.semi === kc.semi))))); pd.classList.toggle('kroot', !!(kc && kc.root)); pd.classList.toggle('kout', !!(kc && kc.out)); pd.classList.toggle('kchord', !!(kc && kc.chord)); pd.classList.toggle('kprog', !!(kc && kc.prog)); if (kc && kc.none) pd.classList.add('empty');
-    const html = `<span class="pn">${chop ? cell + 1 : pn != null ? esc(pn) : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; pd._art = null; }
-    padArtWant(pd, chop ? -1 : pi); });
+    const html = `<span class="pn">${chop ? cell + 1 : pn != null ? esc(pn) : padLabel(pi)}</span><span class="nm">${esc(name)}</span>`; if (pd._h !== html) { pd.innerHTML = html; pd._h = html; pd._art = null; NMFIT.add(pd); }
+    padArtWant(pd, chop ? -1 : pi); }); if (NMFIT.size && !nmRaf) nmRaf = requestAnimationFrame(nmFitRun);
   const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; if (p.name && !chop && !UI.keys) sel.dataset.alt = p.name; else delete sel.dataset.alt; fitFonts(sel); }
   if (UI.strip && UI.panel) refreshStrip();
   if (UI.view === 'pads') pdFollow();
@@ -2667,7 +2691,7 @@ function openAppearance() {
     st.append(fg, h('div', 'sec', 'Pad colour')); const g = h('div', 'g2');
     for (const [v, l] of [['dark', 'Lamp only'], ['tint', 'Tinted']]) g.append(btn(l, () => { UI.padStyle = v; again(); }, 'btn' + ((UI.padStyle === 'dark' ? 'dark' : 'tint') === v ? ' on' : '')));
     st.append(g, h('div', 'sec', 'Pad drawings')); const dg = h('div', 'g2');
-    for (const [v, l] of [[true, 'On'], [false, 'Off']]) dg.append(btn(l, () => { UI.padArt = v; savePrefs(); if (UI.view === 'pads') renderView(); closeSheet(); openAppearance(); }, 'btn' + ((UI.padArt !== false) === v ? ' on' : '')));
+    for (const [v, l] of [[true, 'On'], [false, 'Off']]) dg.append(btn(l, () => { UI.padArt = v; savePrefs(); if (UI.view === 'pads') renderView(); closeSheet(); openAppearance(); }, 'btn' + ((UI.padArt === true) === v ? ' on' : '')));
     st.append(dg); card.append(st); }, () => {});
 }
 function afterLoad() { UI.tl.loop = UI.tl.start = null; sendRange(); setTimeout(() => { stretchAllSoon(0); audStretchSoon(); }, 400); ensureBuiltinsFor(P); UI.scene = 0; UI.pad = 0; UI.bank = 0; UI.tl.sel = null; UI.tl.selPt = -1; UI.tl.zoom = null; UI.tl.sx = 0; UI.tl.target = null; UI.tl.lane = 'notes'; if (UI.view === 'fx') UI.view = 'mix'; syncProject(); markDirty(); renderAll(); }
@@ -2738,6 +2762,10 @@ const CHANGES = [
     'Del is now Shift + Back on the d-pad. Hold the Pads key on any page to pick another pad.',
     'Fixed: Loop scene and Play song could be cut off on some phones.',
     'Repeat: turn it on and hold a pad to play it again in time; chords repeat whole. Hold the Repeat key to pick the rate.',
+    'The Pads page has one display: the song on top, the pad you last played under it with its waveform (drag its start and end), and the names and values of four knobs. Tap a knob’s name to choose what it turns.',
+    'The display’s corner key switches between the pad’s sound and the mix: waveform, spectrum or scope.',
+    'Pads show their name at the top and no drawing (turn drawings back on in Appearance). Import and Capture are in Edit › Pad.',
+    'Knobs have a knurled rim and a turned face, and the body has its warm grey back.',
   ]],
   ['2026-11-27', [
     'Multiband redesigned: small knobs grouped by band, the main three as big knobs, and thresholds you can drag on the screen.',
@@ -3086,7 +3114,7 @@ function refreshStrip() {
 }
 function toggleStrip() { UI.strip = !UI.strip; $('#panel').classList.toggle('padsOn', UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; if (UI.strip) refreshStrip(); else updatePanel(); savePrefs(); }
 // the song display and the rows around it get more compact on short phones and with the d-pad open (set at once, so nothing settles a frame later)
-function deckFit() { $('#deck').classList.toggle('low', innerHeight < 800 || !!UI.panel); document.body.classList.toggle('tight', innerHeight < 760 && !!UI.panel); }
+function deckFit() { $('#deck').classList.toggle('low', innerHeight < 800 || !!UI.panel || UI.view === 'pads'); document.body.classList.toggle('tight', innerHeight < 760 && !!UI.panel); }
 function togglePanel() {
   UI.panel = !UI.panel; $('#panel').hidden = !UI.panel; deckFit(); if (INFO.el) noteDone(); $('#bPanel').classList.toggle('on', UI.panel);
   if (!UI.panel) { if (NAV.mode === 'edit') navEndEdit(true); NAV.mode = 'nav'; if (NAV.el) NAV.el.classList.remove('nf', 'ne'); if (UI.view === 'seq') drawTL(); else drawChop(); updatePanel(); }
@@ -3247,7 +3275,7 @@ const CANVAS_RO = typeof ResizeObserver === 'function' ? new ResizeObserver(es =
     if (cv._redraw) { try { cv._redraw(); } catch (err) { console.error(err); } } else any = true; }
   if (any) requestAnimationFrame(() => { if (UI.view === 'sound') { drawDisp(); drawSynDisp(); drawDrumDisp(); } drawChop(); if (UI.view === 'seq' && TL.cv && TL.cv.isConnected) sizeTL(); }); }) : null;
 if (CANVAS_RO) new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.tagName === 'CANVAS') CANVAS_RO.observe(n); else n.querySelectorAll && n.querySelectorAll('canvas').forEach(c => CANVAS_RO.observe(c)); } }).observe(document.body, { childList: true, subtree: true });
-new ResizeObserver(() => { placeSheet(); deckFit(); document.querySelectorAll('.disp.sdc').forEach(d => d.classList.toggle('gone', d.clientHeight < 30)); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('snug', hh < 720); V.classList.toggle('cramp', hh < 600); V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audSize(); audDraw(); } if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); clearTimeout(FIT_T); FIT_T = setTimeout(() => { fitFonts(V); fitFonts($('#scenes')); fitFonts($('#top')); }, 150); }).observe($('#view'));   // a new width: text fitted again
+new ResizeObserver(() => { placeSheet(); deckFit(); padArtFit(); document.querySelectorAll('.disp.sdc').forEach(d => d.classList.toggle('gone', d.clientHeight < 30)); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('snug', hh < 720); V.classList.toggle('cramp', hh < 600); V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audSize(); audDraw(); } if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); clearTimeout(FIT_T); FIT_T = setTimeout(() => { fitFonts(V); fitFonts($('#scenes')); fitFonts($('#top')); }, 150); }).observe($('#view'));   // a new width: text fitted again
 let FIT_T = 0;
 let lastHeard = -1;
 // the screen loop runs only while something moves (playback, sound, meters falling, a recent touch); wake() restarts it
@@ -3290,7 +3318,7 @@ async function boot() {
   P = await projBoot(); await warmBuiltins(P); ensureBuiltinsFor(P);
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (SNAPS.some(x => x.t === pr.snap)) UI.tl.snap = pr.snap; UI.tl.velOpen = pr.velOpen !== false;
-    UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.finish = pr.finish === 'silver' ? 'silver' : 'graphite'; UI.padArt = pr.padArt !== false; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark'; UI.font = pr.font2 === 'narrow' ? 'narrow' : 'rounded';
+    UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.finish = pr.finish === 'silver' ? 'silver' : 'graphite'; UI.padArt = pr.padArt2 === true;   /* pad drawings: off unless chosen (the Pads display shows the picked pad's sound) */ UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark'; UI.font = pr.font2 === 'narrow' ? 'narrow' : 'rounded';
     UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null; UI.rptR = [96, 48, 32, 24, 16, 12].includes(pr.rptR) ? pr.rptR : 24;
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);

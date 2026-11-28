@@ -14,16 +14,15 @@ function renderPads(V) {
   const ck = () => chopOf(UI.pad) ? 'Chop' : 'Keys';
   if (UI.keys && chopOf(UI.pad)) top.append(btn('Chop', () => { UI.keys = false; renderView(); }, 'key sm on kbtn'));
   else if (UI.keys) top.append(btn('Keys', () => { UI.keys = false; stopLatch(); renderView(); }, 'key sm on kbtn'), btn(IC.left, () => keysOct(-1), 'key sm ic'), btn(IC.right, () => keysOct(1), 'key sm ic'), btn(keysModeLabel(UI.pad) + ' ▾', () => openKeysSheet(UI.pad), 'key sm kmode'), rptKey());
-  else top.append(seg(['A', 'B', 'C', 'D'], UI.bank, i => { UI.bank = i; UI.pad = i * 16 + UI.pad % 16; renderView(); savePrefs(); }), btn(ck(), () => { UI.keys = true; renderView(); }, 'key sm kbtn'), rptKey(), impKey());
-  const ps = h('canvas', 'lcdbox padScope'); ps.onclick = padScopeNext; ps.setAttribute('aria-label', 'Mix display: tap to change'); scopeView(ps, () => drawPadScope(ps)); requestAnimationFrame(() => { if (!ps.isConnected) return; if (ps.clientWidth < 30) ps.style.display = 'none'; else prepCanvas(ps); });   // sized to its spot at once; no room, not shown   // a small rolling waveform of the mix, where a phone has no room for the pad's name
-  top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'), ps);
+  else top.append(seg(['A', 'B', 'C', 'D'], UI.bank, i => { UI.bank = i; UI.pad = i * 16 + UI.pad % 16; renderView(); savePrefs(); }), h('i', 'tgap'), rptKey(), btn(ck(), () => { UI.keys = true; renderView(); }, 'key sm kbtn'));
+  // Import and Capture live in Edit › Pad; the picked pad's name and waveform are on the display above
   const grid = h('div', 'grid');
   for (const cell of padOrder(16)) { const pd = h('div', 'pad' + (PADHELD.has(cell) ? ' held' : '')); pd.dataset.cell = cell;
     grid.append(pd); }
   bindPadGrid(grid);   // touches land on the grid and go to the nearest pad (see bindPadGrid)
   const chop = padChop(); if (chop) w.classList.add('chopping');
-  // padInst() (ui/inst.js) builds the pad display and its 4 knobs; held back until the page's layout makes room for them without shrinking the pads
-  w.append(top); if (chop) w.append(chopWave(UI.pad)); w.append(grid); V.append(w); refreshPadDots(); if (chop) requestAnimationFrame(drawChop);
+  const [pd, pk] = padInst(!!chop); const dp = $('#dpad'); dp.innerHTML = ''; dp.append(...pd.childNodes); dp._pi = pd._pi; dp.className = 'pdsp';   // the picked pad joins the song display; its 4 knobs sit under it (ui/inst.js)
+  w.append(pk, top); if (chop) w.append(chopWave(UI.pad)); w.append(grid); V.append(w); refreshPadDots(); if (chop) requestAnimationFrame(drawChop); requestAnimationFrame(() => { padArtFit(); pdDraw(true); });
 }
 
 function impKey() { const b = btn('<span class="kl">Import</span><svg viewBox="0 0 24 24"><path d="M11 4h2v9.2l3.3-3.3 1.4 1.4L12 17l-5.7-5.7 1.4-1.4 3.3 3.3zM5 18h14v2H5z"/></svg>', () => pickAudio(null), 'key sm imp'); b.setAttribute('aria-label', 'Import'); return b; }   // narrow: just its icon
@@ -533,7 +532,7 @@ function stepPalette(c, s) { const row = h('div', 'keys stepPal'); if (UI.stepTo
    Drawn once per change (a signature per pad), never per frame, and shown as a still image: a live canvas is a layer of its own, and
    sixteen of them doubled what a pad hit cost to put on screen. Off in Appearance. ---------- */
 const PADART = { q: new Set(), raf: 0 };
-function padArtSig(p) { if (!p || !hasSound(p) || UI.padArt === false) return '';
+function padArtSig(p) { if (!p || !hasSound(p) || UI.padArt !== true) return '';
   if (p.src === 'synth') { const q = p.syn.p || {}; return ['s', p.syn.eng, p.color, q.aa, q.ad, q.as, q.ar, document.documentElement.dataset.finish].join('|'); }
   const s = SAMPLES.get(p.sample); return s ? ['w', p.sample, p.color, p.start, p.end, p.reverse ? 1 : 0, s.frames, document.documentElement.dataset.finish].join('|') : ''; }
 function padArtWant(pd, pi) { const p = P.pads[pi], sig = UI.keys ? '' : padArtSig(p); if (pd._art === sig && (!sig || pd.querySelector('.pw'))) return;
