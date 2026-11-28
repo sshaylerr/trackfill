@@ -19,7 +19,7 @@ function ikDress(el) { const svg = el.querySelector('svg'); if (!svg || el.class
 function ikChoice(el) { const reg = el._reg, n = el._n || 2;
   if (!reg || !reg.edit) { el.classList.add('ipush'); el.insertAdjacentHTML('afterbegin', '<i class="pcap"></i>'); return; }
   el.classList.add('idet'); el.insertAdjacentHTML('afterbegin', `<i class="kcap"></i><svg viewBox="0 0 48 48" aria-hidden="true"><g class="kt">${IK_TICKS(Math.min(11, n))}</g>${IK_CAP}<circle class="kb" cx="24" cy="24" r="16.4"/><line class="ki" x1="24" y1="19.5" x2="24" y2="10.2"/></svg>`);
-  const ki = el.querySelector('.ki'), paint = () => { const i = reg.get(); ki.setAttribute('transform', `rotate(${-135 + 270 * (n > 1 ? clamp(i, 0, n - 1) / (n - 1) : 0)} 24 24)`); };
+  const ki = el.querySelector('.ki'), paint = () => { const i = reg.get(); const r = -135 + 270 * (n > 1 ? clamp(i, 0, n - 1) / (n - 1) : 0); ki.setAttribute('transform', `rotate(${r} 24 24)`); el.style.setProperty('--kr', r + 'deg'); };
   paint(); el._paint = paint;
   // turn it: up or right steps on, down or left steps back, one setting per notch
   let d = null; el.addEventListener('pointerdown', e => { d = { y: e.clientY, x: e.clientX, moved: false, id: e.pointerId }; try { el.setPointerCapture(e.pointerId); } catch (_) {} });
@@ -202,7 +202,7 @@ function padInst(chop) {
   L.setAttribute('aria-label', 'Open this pad\'s sound'); L.onclick = () => setView('sound');
   const mix = pdMix(), vk = btn(mix ? 'Mix · ' + (PAD_SCOPES.find(x => x[0] === padScopeMode()) || PAD_SCOPES[0])[1] : 'Sound', pdNext, 'pdv'); vk.setAttribute('aria-label', 'Display: the pad\'s sound or the mix (tap to change)'); R.replaceWith(vk);
   hd.append(L, vk); d.append(hd);
-  if (!chop || mix) { const wv = h('div', 'pdw' + (mix ? ' mix' : '')), cv = h('canvas'); wv.append(cv); d.append(wv); if (mix) { cv.onclick = padScopeNext; scopeView(cv, () => drawPadScope(cv)); } else pdBindWave(cv); }
+  if (!chop || mix) { const wv = h('div', 'pdw' + (mix ? ' mix' : '')), cv = h('canvas'); wv.append(cv); d.append(wv); if (mix) { cv.onclick = padScopeNext; scopeView(cv, () => drawPadScope(cv)); } else { pdBindWave(cv); wv.append(h('i', 'pdph')); } }
   const redraw = () => pdDraw(true);
   qkList(pi).forEach((k, i) => { const el = qkCtl(pi, k, redraw); g.append(el); });
   ikMap(g, map); d.append(map);
@@ -255,3 +255,17 @@ function rptKey() { let held = false, t = 0; const b = btn(UI.rpt ? 'Repeat ' + 
 function openRptSheet() { openSheet('Repeat rate', card => { const l = h('div', 'list');
   for (const [r, n] of RPT_RATES) { const li = h('div', 'li' + ((UI.rpt || UI.rptR || 24) === r ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${n}</b><span>${r === 24 ? 'the usual' : r % 3 ? 'triplets' : ''}</span></div>`; li.onclick = () => { UI.rptR = r; UI.rpt = r; savePrefs(); closeSheet(); renderView(); }; l.append(li); }
   card.append(h('div', 'sec', 'A held pad plays again every'), l); }); }
+
+// the playhead on the pad's waveform: where the sound is, from when it started and how fast it plays (pitch, stretch); a line moved by
+// transform, one frame at a time and only while a sound plays, so it costs almost nothing. A gate or loop stops when let go.
+const PDPH = { on: null, raf: 0 };
+function pdPlay(pi, semi = 0) { const p = P.pads[pi], s = SAMPLES.get(p.sample); if (UI.view !== 'pads' || pi !== UI.pad || pdMix() || !s || !qkHasPad(p) || padChop()) return;
+  const now = performance.now(); if (PDPH.on && PDPH.on.pi === pi && now - PDPH.on.t0 < 40) return;   // the same hit, heard back from the engine
+  const rate = Math.pow(2, (p.pitch + p.fine / 100 + semi) / 12) * (p.tempo > 0 ? P.bpm / p.tempo : 1), dur = s.frames / s.sr;
+  PDPH.on = { pi, t0: now, rate, dur, held: p.mode !== 'one' }; if (!PDPH.raf) PDPH.raf = requestAnimationFrame(pdPhTick); }
+function pdPhStop(pi) { if (PDPH.on && PDPH.on.pi === pi && PDPH.on.held) PDPH.on.done = true; }
+function pdPhTick() { PDPH.raf = 0; const o = PDPH.on, el = document.querySelector('.pdw .pdph'); if (!o || !el || UI.pad !== o.pi) { if (el) el.style.opacity = 0; PDPH.on = null; return; }
+  const p = P.pads[o.pi], W = el.parentNode.clientWidth, t = (performance.now() - o.t0) / 1000 * o.rate / o.dur;   // fraction of the whole sample played
+  let f = p.start + t; if (p.mode === 'loop' && !o.done) { const a = clamp(p.loopS, p.start, p.end), L = Math.max(.001, p.end - a); if (f > p.end) f = a + ((f - a) % L); }
+  if (f >= p.end || (o.done && p.mode !== 'one')) { el.style.opacity = 0; PDPH.on = null; return; }
+  const x = (p.reverse ? 1 - f + p.start - (1 - p.end) : f) * W; el.style.transform = `translateX(${x.toFixed(1)}px)`; el.style.opacity = 1; PDPH.raf = requestAnimationFrame(pdPhTick); }
