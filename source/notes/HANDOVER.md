@@ -412,6 +412,15 @@ Technical notes on each recent feature: where it lives and the non-obvious decis
   Mixer, effect device pages, then retiring the synth faceplates. Note repeat and pad quick knobs in the mockups are new features:
   ask before building them.
 
+### Instrument redesign, phase 2: the Sound page (2026-11-28)
+- `ui/inst.js` (assembled last): `sndInst(w, pi, parts)` sets a Sound page in place. Each renderer (sample, chop, drum, synth, audio) still builds its own tabs, picture and `.kgrid`; sndInst puts the head (pad name, ‹ pad ›, source and engine, presets), the tabs and the picture in `.sd`, then moves each control's `.klab`/`.kval` (or a choice's `.sw`) into `.sdmap` cells in the same grid column and row. A MutationObserver mirrors nf/ne/drag/modded/maptgt/msel onto the display cell.
+- Knobs under the display: `ikDress` adds the printed scale and a bigger cap (`#capG`, finish-aware vars `--i-cap*`). Choices become detent knobs (`ikChoice`: drag a notch per setting, tap steps) or round push keys (cellBtn).
+- Map mode (`mapInst`): source chips in the display (tap adds or selects, hold arms), the top knob row is the picked control's row of the page (others hidden, still tappable in the display), the bottom row is its up to four amounts. Curve, Via opens `openRouteMore`.
+- Faceplates retired: `synSkin` returns null; `.synDev[data-eng]` CSS and 11 faceplate fonts removed (−220 KB). SKINS keeps `cats` and `play`. Console fonts (Archivo, Archivo Narrow, Work Sans) stay for phase 3.
+- The Sound page's big canvases draw at most 2 px per point (smoke's canvas check knows). Perf, 4× throttled, main thread busy: synth 14–23% (phase 1: 20%), sample 17–19% (phase 1: 32%).
+- `#deck.min` on the Sound page: one line (scene, tempo, menu). Del = Shift + Back (`#pDel` removed); hold the Pads key → `openPadStrip()`.
+- Next: phase 3, Timeline keys row, Mixer, effect device pages. Note repeat and pad quick knobs are new features: ask before building them.
+
 ## 10. Decisions, audits and the parked list
 
 - Recurring: every few features, remind the user to run the safety pass: notes/safety-pass.md (tests, levels, performance, security audit, and a hand review of what changed).

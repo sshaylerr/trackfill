@@ -203,21 +203,12 @@ function setEngine(pi, id) { const S = synOf(pi); if ((S.eng || 'analog') === id
 function renderSynthSound(w, pi, head) {
   synEngPages(pi); const pad = P.pads[pi], pg = SYN_PAGES[SYN_ST.pg], tab = synTab(), eng = SYN_ENGINES.find(e => e.id === (synOf(pi).eng || 'analog')) || SYN_ENGINES[0];
   // the faceplate: engine logo and selector, then tabs, screen and controls (page keys and the Map bar sit above it)
-  const dev = h('div', 'dev synDev'), sk = synSkin(pi); applyLook(dev, Object.assign({}, LOOK_BASE, eng.look)); dev.dataset.eng = eng.id; skinDefs();
-  // the whole instrument is one faceplate (ui/skins.js): its name, the page keys, tabs, screen and controls; Map's rows take the place of the first two
-  const mb = UI.map ? mapBar(pi) : null;
-  if (mb) dev.append(mb[1]); else { const S = synOf(pi), dh = h('div', 'devHead'), changed = S.sig != null && patchSig(S) !== S.sig;
-    const lcd = btn(`<span>${esc(S.name || 'Init')}</span>${changed ? '<i>edited</i>' : ''}`, () => openPresetBrowser(pi), 'presetLcd');
-    const ek = btn(`<b>${eng.n}</b>${sk ? `<small>${esc(sk.tag)}</small>` : ''}<span class="car">▾</span>`, () => openEnginePicker(pi), 'engKey'); ek.setAttribute('aria-label', 'Synth engine: ' + eng.n);
-    dh.append(ek, btn(IC.left, () => stepPreset(pi, -1), 'key sm ic pstep'), lcd, btn(IC.right, () => stepPreset(pi, 1), 'key sm ic pstep'));
-    if (sk && sk.play) { const pb = btn('Play', () => audition(pi), 'key sm playKey'); pb.setAttribute('aria-label', 'Play the sound'); dh.append(pb); }
-    dev.append(dh); }
-  w.append(head);
-  if (mb) dev.append(mb[0]);
-  else { const pages = seg(SYN_PAGES.map(x => x.n), SYN_ST.pg, i => { SYN_ST.pg = i; renderView(); }); pages.classList.add('synPages'); if (sk && eng.id !== 'fm') pages.classList.add('capkeys'); [...pages.children].forEach(k => { const alt = { 'Sub·Noise': 'Sub·Nz', Instrument: 'Instr' }[k.textContent]; if (alt) k.dataset.alt = alt; }); dev.append(pages); }
+  const dev = h('div', 'dev synDev'), sk = null; dev.dataset.eng = eng.id;   // the parts are built here and set in place by sndInst (ui/inst.js)
+  const mb = UI.map ? mapInst(pi) : null;
+  { const pages = seg(SYN_PAGES.map(x => x.n), SYN_ST.pg, i => { SYN_ST.pg = i; renderView(); }); pages.classList.add('synPages'); [...pages.children].forEach(k => { const alt = { 'Sub·Noise': 'Sub·Nz', Instrument: 'Instr' }[k.textContent]; if (alt) k.dataset.alt = alt; }); dev.append(pages); }
   const tabs = h('div', 'keys synTabs'); for (const [id, l] of pg.tabs) { const b = btn(l, () => { SYN_ST.tab[SYN_ST.pg] = id; renderView(); }, 'key sm' + (id === tab ? ' on' : '')); tabs.append(b); }
   if (pg.n === 'Filter' || pg.n === 'Mix') { tabs.innerHTML = ''; tabs.append(h('div', 'lcdbox synInfo', pg.n === 'Filter' ? 'Filter · ' + esc(synOf(pi).p.flt ?? 'Ladder') + ' · after the oscillators' : 'Channel · level, pan, sends and effects')); }
-  dev.append(tabs); if (sk && sk.cats && tab === 'in') dev.append(insCats(pi));
+  dev.append(tabs); const cats = (SKINS[engOf(pi)] || {}).cats && tab === 'in' ? insCats(pi) : null; if (cats) dev.append(cats);
   const disp = h('div', 'scr disp' + (sk && sk.screen.pixel ? ' pix' : '')), cv = h('canvas', tab[0] === 'l' && tab !== 'l' ? 'navc' : ''); disp.append(cv); synCv = cv;
   if (/^l\d$/.test(tab)) { cv.classList.add('navc'); cv.setAttribute('aria-label', 'LFO shape'); cv._ctl = lfoCtl; cv._draw = drawSynDisp; bindLfo(cv, lfoSynSrc(pi)); }
   if (isGrPad(pi) && (tab === 'gr' || tab === 'g2')) { cv.classList.add('navc'); cv.setAttribute('aria-label', 'Grain position and spray'); cv._ctl = grCtl; cv._draw = drawSynDisp; bindGrain(cv, pi); }
@@ -231,7 +222,8 @@ function renderSynthSound(w, pi, head) {
   } finally { CTL_SKIN = null; }
   g.addEventListener('pointerdown', e => { if (!UI.map) return; const c = e.target.closest('[data-syn]'); if (!c) return; e.preventDefault(); e.stopPropagation(); mapPick(pi, c.dataset.syn); }, true);
   g.addEventListener('click', e => { if (UI.map && e.target.closest('[data-syn]')) { e.stopPropagation(); e.preventDefault(); } }, true);
-  dev.append(disp, g); if (sk && sk.jacks) dev.append(skinJacks(sk)); w.append(dev); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
+  const pk = dev.querySelector('.synPages');
+  sndInst(w, pi, { kind: 'synth', tabs: pk, sub: [tabs, cats], top: mb ? mb.top : null, body: [disp], grid: g, grid2: mb ? mb.amts : null, map: mb }); paintMods(g, pi); requestAnimationFrame(drawSynDisp);
 }
 function synHeadKey(pi) { const pad = P.pads[pi], k = btn(pad.src === 'synth' ? 'Synth' : pad.src === 'drum' ? 'Drum' : pad.src === 'audio' ? 'Audio' : 'Sample', () => openSynthSource(pi), 'key sm srcKey' + (pad.src !== 'sample' ? ' on' : '')); return k; }
 function mapKey(pi) { return btn('Map', () => { UI.map = UI.map ? null : { target: null, route: -1, armed: -1 }; renderView(); }, 'key sm mapKey' + (UI.map ? ' on' : '')); }
@@ -307,7 +299,7 @@ let SYN_CAP = null;   // a screen's captions, drawn last on the screen's own col
 function drawSynDisp0(cv, sc) { SYN_CAP = []; try { drawSynDisp1(cv, sc); } finally { const q = SYN_CAP; SYN_CAP = null; q.forEach(f => f()); } }
 function drawSynDisp1(cv, sc) {
   const pi = UI.pad, S = synOf(pi);
-  const r = innerBox(cv.parentNode), dpr = sc && sc.pixel ? 1 : window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
+  const r = innerBox(cv.parentNode), dpr = sc && sc.pixel ? 1 : Math.min(2, window.devicePixelRatio || 1), W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
   cv.parentNode.classList.toggle('gone', H < 34); if (H < 34) return;   // too small to read: the screen steps aside until there's room
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.shadowBlur = 0; g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);

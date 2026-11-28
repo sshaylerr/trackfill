@@ -91,7 +91,7 @@ function makeCtl(o, kind) {
 const paramEl = o => makeCtl(o, 'bar');
 // rotary-switch style selector for discrete choices: tap steps through, d-pad up/down picks
 function selEl(label, opts, get, set, o = {}) {
-  const el = h('div', 'selr'), sw = h('div', 'sw'), lab = h('div', 'klab'); lab.textContent = label; el.append(sw, lab);
+  const el = h('div', 'selr'), sw = h('div', 'sw'), lab = h('div', 'klab'); lab.textContent = label; el.append(sw, lab); el._n = opts.length;
   const upd = () => { if (o.paint) o.paint(sw, get()); else sw.innerHTML = '<span>' + esc(opts[get()]) + '</span>'; if (el.isConnected) fitFonts(sw); }; upd();
   // o.onHold: a long press opens more (a menu) instead of stepping; with the d-pad, holding OK does the same
   let holdT = 0, held = false; if (o.onHold) { const end = () => { clearTimeout(holdT); holdT = 0; };

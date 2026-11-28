@@ -11,7 +11,7 @@ const SKINS = {
   sub: { tag: 'Bass voice', knob: 'cap', sw: 'slide', screen: { bg: '#0a0505', ink: '#ff3b24', trace: '#ff3b24', mute: '#ec5a40', dim: '#4a1510', line: '#2a0d0a', accent: '#ffb02e', font: 'Share Tech Mono', fs: 1.15, glow: 3, glowCol: 'rgba(255,42,16,.9)' } },
   ins: { tag: 'Sound module', knob: 'alu', sw: 'box', cats: true, screen: { bg: '#041a19', bg2: '#021010', ink: '#6ff7e6', trace: '#6ff7e6', mute: '#62d8c8', dim: '#1f5a53', line: 'rgba(111,247,230,.12)', accent: '#6ff7e6', font: 'Iceland', fs: 1.5, glow: 3, glowCol: 'rgba(63,240,220,.8)' } },
   sfx: { tag: 'Sweep generator', knob: 'flat', sw: 'slide', play: true, screen: { bg: '#000000', ink: '#ffffff', trace: '#2d6bff', mute: '#9c9c9c', dim: '#4a4a4a', line: '#1a1a1a', accent: '#ff5a1f', font: '"Press Start 2P"', fs: .72, pixel: true } } };
-const synSkin = pi => SKINS[engOf(pi)] || null;
+const synSkin = pi => null;   // the faceplates are retired (2026-11-28): every engine plays on the one instrument. SKINS keeps cats and play, which aren't looks
 let CTL_SKIN = null;   // while a faceplate builds its controls, every knob on it takes its knob
 
 /* knobs, drawn in a 48-unit box. .ki turns with the value; .kr/.kv are a value arc and .kd the dots of an LED ring, where a knob has them */
@@ -36,9 +36,9 @@ const KNOB_DEFS = '<linearGradient id="kDesk" x1="0" y1="0" x2="0" y2="1"><stop 
   + '<radialGradient id="kAlu" cx=".38" cy=".3" r=".9"><stop offset="0" stop-color="#f1f3f5"/><stop offset=".55" stop-color="#a7acb2"/><stop offset="1" stop-color="#5d6268"/></radialGradient>';
 // the screens draw on canvases, which don't fetch a typeface by themselves: load them all once, then draw again
 let SKIN_FONTS = null;
-const SKIN_FACES = ['700 12px "Archivo Narrow"', '400 12px Michroma', '700 12px "Space Grotesk"', '700 12px Archivo', '800 12px Archivo', '400 12px "Archivo Black"', '700 12px Rajdhani', '600 12px "Work Sans"', '700 12px "Work Sans"'];
+const SKIN_FACES = ['700 12px "Archivo Narrow"', '700 12px Archivo', '800 12px Archivo', '600 12px "Work Sans"', '700 12px "Work Sans"'];
 function skinFonts() { if (SKIN_FONTS || typeof document === 'undefined' || !document.fonts) return;
-  SKIN_FONTS = Promise.all(Object.values(SKINS).map(s => '400 16px ' + s.screen.font).concat(SKIN_FACES).map(f => document.fonts.load(f).catch(() => {})))
+  SKIN_FONTS = Promise.all(SKIN_FACES.map(f => document.fonts.load(f).catch(() => {})))
     .then(() => { if (typeof drawSynDisp === 'function') drawSynDisp(); const v = document.getElementById('view'); if (v && v.querySelector('.synDev')) fitFonts(v); }); }   // labels measured again in their own faces
 function skinDefs() { skinFonts(); const d = document.querySelector('svg defs'); if (d && !document.getElementById('kCream')) d.insertAdjacentHTML('beforeend', KNOB_DEFS); }
 
