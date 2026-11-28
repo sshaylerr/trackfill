@@ -13,12 +13,12 @@ const IK_CAP = '<circle class="ksh" cx="24" cy="25.4" r="16.6"/>';
 // a knob made by makeCtl, dressed as a machined one: the scale, a shadow and a bigger cap (its pointer still turns as before)
 function ikDress(el) { const svg = el.querySelector('svg'); if (!svg || el.classList.contains('ik')) return; el.classList.add('ik');
   const kb = svg.querySelector('.kb'), ki = svg.querySelector('.ki'); if (kb) kb.setAttribute('r', '16.4'); if (ki) { ki.setAttribute('y1', '19.5'); ki.setAttribute('y2', '10.2'); }
-  svg.insertAdjacentHTML('afterbegin', '<g class="kt">' + IK_SCALE + '</g>' + IK_CAP); }
+  svg.insertAdjacentHTML('afterbegin', '<g class="kt">' + IK_SCALE + '</g>' + IK_CAP); svg.insertAdjacentHTML('beforebegin', '<i class="kcap"></i>'); }
 
 // a choice (selEl) under the display: a detent knob that clicks through its settings, or a round key where a tap opens something
 function ikChoice(el) { const reg = el._reg, n = el._n || 2;
   if (!reg || !reg.edit) { el.classList.add('ipush'); el.insertAdjacentHTML('afterbegin', '<i class="pcap"></i>'); return; }
-  el.classList.add('idet'); el.insertAdjacentHTML('afterbegin', `<svg viewBox="0 0 48 48" aria-hidden="true"><g class="kt">${IK_TICKS(Math.min(11, n))}</g>${IK_CAP}<circle class="kb" cx="24" cy="24" r="16.4"/><line class="ki" x1="24" y1="19.5" x2="24" y2="10.2"/></svg>`);
+  el.classList.add('idet'); el.insertAdjacentHTML('afterbegin', `<i class="kcap"></i><svg viewBox="0 0 48 48" aria-hidden="true"><g class="kt">${IK_TICKS(Math.min(11, n))}</g>${IK_CAP}<circle class="kb" cx="24" cy="24" r="16.4"/><line class="ki" x1="24" y1="19.5" x2="24" y2="10.2"/></svg>`);
   const ki = el.querySelector('.ki'), paint = () => { const i = reg.get(); ki.setAttribute('transform', `rotate(${-135 + 270 * (n > 1 ? clamp(i, 0, n - 1) / (n - 1) : 0)} 24 24)`); };
   paint(); el._paint = paint;
   // turn it: up or right steps on, down or left steps back, one setting per notch
@@ -195,26 +195,29 @@ function openQkSheet(pi, slot) {
 
 // the display and the knobs for the selected pad; rebuilt when another pad is picked
 function padInst(chop) {
-  const pi = UI.pad, p = P.pads[pi], d = h('div', 'sd pdsp'), g = h('div', 'kgrid'), map = h('div'); d._pi = pi;
+  const pi = UI.pad, p = P.pads[pi], d = h('div', 'pdsp'), g = h('div', 'kgrid'), map = h('div'); d._pi = pi;
   const hd = h('div', 'pdh'), L = h('button', 'pdl'), R = h('div', 'pdr'), s = SAMPLES.get(p.sample);
   const src = p.src === 'synth' ? 'Synth' : p.src === 'drum' ? 'Drum' : p.src === 'audio' ? 'Audio track' : padUsed(p) ? 'Sample' : 'Empty';
   L.innerHTML = `<b>${esc(p.name || (padUsed(p) ? src : 'Empty pad'))}</b><span>${esc([src, padLabel(pi), s && p.src !== 'synth' ? (s.frames / s.sr).toFixed(1) + ' s' : ''].filter(Boolean).join(' · '))}</span>`;
   L.setAttribute('aria-label', 'Open this pad\'s sound'); L.onclick = () => setView('sound');
-  hd.append(L, R); d.append(hd);
-  if (!chop) { const wv = h('div', 'pdw'), cv = h('canvas'); wv.append(cv); d.append(wv); pdBindWave(cv); }
+  const mix = pdMix(), vk = btn(mix ? 'Mix · ' + (PAD_SCOPES.find(x => x[0] === padScopeMode()) || PAD_SCOPES[0])[1] : 'Sound', pdNext, 'pdv'); vk.setAttribute('aria-label', 'Display: the pad\'s sound or the mix (tap to change)'); R.replaceWith(vk);
+  hd.append(L, vk); d.append(hd);
+  if (!chop || mix) { const wv = h('div', 'pdw' + (mix ? ' mix' : '')), cv = h('canvas'); wv.append(cv); d.append(wv); if (mix) { cv.onclick = padScopeNext; scopeView(cv, () => drawPadScope(cv)); } else pdBindWave(cv); }
   const redraw = () => pdDraw(true);
   qkList(pi).forEach((k, i) => { const el = qkCtl(pi, k, redraw); g.append(el); });
   ikMap(g, map); d.append(map);
   [...map.children].forEach((mc, i) => { mc.dataset.slot = i; mc._knob = g.children[i]; mc.onclick = () => openQkSheet(pi, i); mc.setAttribute('role', 'button'); mc.setAttribute('aria-label', 'Choose what knob ' + (i + 1) + ' turns'); });
-  g.classList.add('pdk'); pdTimes(R, pi);
+  g.classList.add('pdk');
   return [d, g];
 }
-function pdTimes(R, pi) { const p = P.pads[pi], s = SAMPLES.get(p.sample); if (!R) return;
-  if (!s || p.src === 'synth' || p.src === 'audio') { R.textContent = ''; return; } const dur = s.frames / s.sr, t = f => { const v = f * dur, m = Math.floor(v / 60); return m + ':' + (v - m * 60).toFixed(2).padStart(5, '0'); };
-  R.textContent = `start ${t(p.start)} · end ${t(p.end)}`; }
+// the display shows the picked pad's sound, or the mix (its rolling waveform, spectrum or scope); tap the key in its corner to change
+const pdMix = () => (anPrefs().pdv || 'pad') === 'mix';
+function pdNext() { const A = anPrefs(); if (!pdMix()) { A.pdv = 'mix'; A.pad = 'wave'; } else { const i = PAD_SCOPES.findIndex(x => x[0] === padScopeMode()); if (i >= PAD_SCOPES.length - 1) A.pdv = 'pad'; else A.pad = PAD_SCOPES[i + 1][0]; }
+  SCOPE.osc = null; savePrefs(); const d = document.querySelector('.pdsp'); if (d) { d._pi = -1; pdFollowNow(); } scopeWant(); wake(); }
+const pdTime = (f, dur) => { const v = f * dur, m = Math.floor(v / 60); return m + ':' + (v - m * 60).toFixed(2).padStart(5, '0'); };
 // the waveform: drawn when something about it changes, never per frame
 function pdDraw(force) {
-  const d = document.querySelector('.pdsp'); if (!d) return; const wv = d.querySelector('.pdw'), cv = wv && wv.firstChild; pdTimes(d.querySelector('.pdr'), d._pi); if (!cv) return;
+  const d = document.querySelector('.pdsp'); if (!d) return; const wv = d.querySelector('.pdw:not(.mix)'), cv = wv && wv.firstChild; if (!cv) return;
   const W = Math.round(wv.clientWidth), H = Math.round(wv.clientHeight); wv.classList.toggle('gone', H < 22); if (H < 22 || W < 8) return;
   const p = P.pads[d._pi], sig = [padArtSig(p) || p.src, p.start, p.end, W, H].join('|'); if (!force && cv._sig === sig) return; cv._sig = sig;
   const dpr = Math.min(2, window.devicePixelRatio || 1); cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
@@ -222,11 +225,12 @@ function pdDraw(force) {
   if (p.src === 'synth' && p.syn) { padArtPaint(g, p, W, H, dpr); return; }
   if (!s || p.src === 'audio') { g.fillStyle = COL.dim; g.font = `400 12px ${FONT_LCD}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(p.src === 'audio' ? 'Audio track · its clips are on the Timeline' : 'Empty · tap Import, or load a sound in Sound', W / 2, H / 2); return; }
   const pk = samplePeaks(s, 600), n = 600, mid = H / 2, A = H * .47, cols = Math.max(2, Math.round(W / 1.5));
-  g.fillStyle = col; g.beginPath(); const at = c => Math.min(n - 1, Math.floor(c / cols * n)), rv = k => p.reverse ? n - 1 - k : k;
+  g.fillStyle = col; g.globalAlpha = .8; g.beginPath(); const at = c => Math.min(n - 1, Math.floor(c / cols * n)), rv = k => p.reverse ? n - 1 - k : k;
   for (let c = 0; c < cols; c++) g.lineTo(W * c / cols, mid - Math.max(.02, pk[rv(at(c)) * 2 + 1]) * A);
-  for (let c = cols - 1; c >= 0; c--) g.lineTo(W * c / cols, mid - Math.min(-.02, pk[rv(at(c)) * 2]) * A); g.closePath(); g.fill();
+  for (let c = cols - 1; c >= 0; c--) g.lineTo(W * c / cols, mid - Math.min(-.02, pk[rv(at(c)) * 2]) * A); g.closePath(); g.fill(); g.globalAlpha = 1;
   const xs = Math.round(p.start * W), xe = Math.round(p.end * W); g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, 0, xs, H); g.fillRect(xe, 0, W - xe, H);
-  g.fillStyle = COL.ink; g.fillRect(xs - 1, 0, 2, H); g.fillRect(xe - 1, 0, 2, H); }
+  g.fillStyle = COL.ink; g.fillRect(xs - 1, 0, 2, H); g.fillRect(xe - 1, 0, 2, H);
+  if (p.start > 0 || p.end < 1) { const dur = s.frames / s.sr, t = pdTime(p.start, dur) + ' – ' + pdTime(p.end, dur); g.font = `400 10.5px ${FONT_LCD}`; g.textAlign = 'right'; g.textBaseline = 'bottom'; const tw = g.measureText(t).width; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(W - tw - 8, H - 15, tw + 8, 15); g.fillStyle = COL.mute; g.fillText(t, W - 4, H - 2); } }   // the trimmed part's times, only once it's trimmed
 // on the waveform: drag near the start or the end to move it; a tap plays the pad
 function pdBindWave(cv) { let d = null;
   cv.addEventListener('pointerdown', e => { ensureAudio(); const pi = UI.pad, p = P.pads[pi]; d = { x0: e.clientX, moved: false, pushed: false, pi };
@@ -239,7 +243,7 @@ function pdBindWave(cv) { let d = null;
 let pdRaf = 0;
 function pdFollow() { if (!pdRaf) pdRaf = requestAnimationFrame(pdFollowNow); }   // once a frame at most: fast playing across pads rebuilds the knobs once
 function pdFollowNow() { pdRaf = 0; const d = document.querySelector('.pdsp'); if (!d || UI.view !== 'pads') return; if (d._pi === UI.pad) { pdDraw(); return; }
-  const k = d.nextElementSibling, [nd, ng] = padInst(!!padChop()); d.replaceWith(nd); if (k && k.classList.contains('pdk')) k.replaceWith(ng); UI.regs = UI.regs.filter(r => r.el && r.el.isConnected); requestAnimationFrame(() => pdDraw(true)); }
+  const k = document.querySelector('#view .pdk'), [nd, ng] = padInst(!!padChop()); d.innerHTML = ''; d.append(...nd.childNodes); d._pi = nd._pi; if (k) k.replaceWith(ng); UI.regs = UI.regs.filter(r => r.el && r.el.isConnected); SCOPE.views = SCOPE.views.filter(v => v.cv.isConnected); requestAnimationFrame(() => pdDraw(true)); }
 
 // note repeat: while on, a held pad plays again on the grid (the rate is held under the key); chords repeat whole
 const RPT_RATES = [[96, '1/4'], [48, '1/8'], [32, '1/8T'], [24, '1/16'], [16, '1/16T'], [12, '1/32']];

@@ -426,6 +426,8 @@ Technical notes on each recent feature: where it lives and the non-obvious decis
 - Repeat: `UI.rpt` (rate in ticks, 0 off; `UI.rptR` remembered in prefs). In `padDown` a held pad sends the engine's `arp` message with one note (or the chord, pattern 'chord'); padUp stops it. Recording goes through `arpPlayed` as for the arpeggiator.
 - Fit: Import becomes an icon under 384 px wide; on #view.short the waveform and name line hide; on #view.tiny (small phone with the d-pad open) the display and knobs hide so the pads keep their room.
 - Also: the 'ResizeObserver loop' browser notice is no longer reported as an error; on ≤400 px the song display drops '4 bars' so the scene name fits beside Loop scene / Play song.
+- Revised after review (same day): the pad display lives in the song display (`#dpad` in `#deck`, `#deck.pads` adds a 'pd' grid row; `#deck.low` on the Pads page so the song header is one row). Key row: A B C D, Repeat, Keys (lamp keys, 46 px). Import and Capture moved to Edit › Pad (function check). The display's corner key (`pdNext`) cycles the pad's sound → mix waveform → spectrum → scope (`anPrefs().pdv`, `drawPadScope`). Pad faces: name at the top, number only on empty pads (and in Keys/Chop), pad drawings off unless chosen (pref `padArt2`), `NMFIT` shrinks a name that won't fit. Knobs: `.kcap` (knurled rim + turned face, `--i-kn*`, as in the mockup) behind the SVG's scale and pointer. Fixed: assemble.py's web build overrode the body's colour since phase 1.
+- Lesson: compare with the approved mockup at the user's real window (430×873 home-screen app) and with a real project (long names, empty pads) before shipping.
 - Next: Timeline keys row, Mixer, effect device pages.
 
 ## 10. Decisions, audits and the parked list
