@@ -1108,6 +1108,7 @@ body[data-pads="tint"] .pad:not(.empty)::after{background:var(--pc)}
 .pad.has .pn::after{border-radius:50%}
 .pad .pw{position:absolute;left:6px;right:6px;bottom:22%;height:40%;width:calc(100% - 12px);pointer-events:none;display:block}
 .pad.hit .pw,.pad.held .pw{opacity:.35}
+#view.short .pad .pw{display:none}   /* pads too short for a drawing under the name (a short phone with the d-pad open) */
 .pad .nm,.pad .pn{z-index:1}
 .pad.kroot .pn,.pad.klatch .pn,.pad.kprog .pn{color:#E5552F;opacity:1}
 
