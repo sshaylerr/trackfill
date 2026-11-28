@@ -80,7 +80,7 @@ function openLaneSheet(c) {
     const strip = [0, 1, 2, 3].filter(i => i < 2 || c < R0).map(i => [c + '.-1.' + i, STRIP[i].label, 'channel']);
     if (c < G0) strip.push([c + '.-2.2', 'Pitch bend', '± ' + (P.pads[c].bendR || 2) + ' semitones'], [c + '.-2.0', 'Cutoff', 'pad filter'], [c + '.-2.1', 'Resonance', 'pad filter']);
     if (conOn()) strip.push([c + '.-1.4', 'Drive', conName() + ' console']);
-    if (P.chans[c].par) strip.push([c + '.-1.5', 'Parallel blend', `inserts ${P.chans[c].par[0] + 1}–${P.chans[c].par[1] + 1}`]);
+    if (P.chans[c].par) { const w = `parallel, inserts ${P.chans[c].par[0] + 1}–${P.chans[c].par[1] + 1}`; strip.push([c + '.-1.5', 'Untouched level', w], [c + '.-1.6', 'Processed level', w]); }
     list('Channel', strip);
     if (conOn()) { const C = P.chans[c]; list('Console EQ', [[`${c}.8.-1`, 'EQ in / out', 'console']].concat(conEqP(C.eq).map((p, i) => p.opts ? null : [`${c}.8.${i}`, p.n, 'console EQ']).filter(Boolean)));
       if (C.bus) list('Bus compressor', [[`${c}.9.-1`, 'In / out', 'console']].concat(conBusP(C.bus).map((p, i) => p.opts ? null : [`${c}.9.${i}`, p.n, 'bus compressor']).filter(Boolean))); }
@@ -283,15 +283,15 @@ function openFx(c, back) { navReset(); UI.fxCh = c; UI.fxBack = back || 'mix'; U
    One per channel; any first and last slot. */
 function openParallel(c, s0) { const C = P.chans[c], n = Math.max(1, C.fx.length);
   openSheet('Parallel', card => { const st = h('div', 'stack'); card.append(st);
-    st.append(h('p', 'note', 'Inserts in the section work on a copy of the sound; Blend mixes it back with the untouched sound. At 50% both play at full level.'));
+    st.append(h('p', 'note', 'Inserts in the section work on a copy of the sound, then the two are added back together, each at its own level.'));
     const set = p => { pushUndo('chan:' + c); C.par = p; fxChanged(c); closeSheet(); openParallel(c, s0); };
     const row = h('div', 'g2'); row.append(btn('Off', () => set(null), 'btn' + (C.par ? '' : ' on')), btn(C.par ? `Inserts ${C.par[0] + 1}–${C.par[1] + 1}` : `Start at insert ${s0 + 1}`, () => { if (!C.par) set([s0, s0]); }, 'btn' + (C.par ? ' on' : '')));
     st.append(h('div', 'sec', 'Section'), row);
     if (C.par) { const g = h('div', 'g2');
       g.append(paramEl({ label: 'First', min: 1, max: n, step: 1, coarse: 1, big: 2, get: () => C.par[0] + 1, set: v => { pushUndo('chan:' + c); C.par = [v - 1, Math.max(v - 1, C.par[1])]; fxChanged(c); }, def: 1, fmt: v => 'Insert ' + v, noFocus: true }),
         paramEl({ label: 'Last', min: 1, max: n, step: 1, coarse: 1, big: 2, get: () => C.par[1] + 1, set: v => { pushUndo('chan:' + c); C.par = [Math.min(v - 1, C.par[0]), v - 1]; fxChanged(c); }, def: n, fmt: v => 'Insert ' + v, noFocus: true }));
-      const bl = h('div', 'g2'); bl.append(keyParam(c + '.-1.5', { label: 'Blend' }));
-      st.append(g, h('div', 'sec', 'Blend'), bl); }
+      const bl = h('div', 'g2'); bl.style.cssText = 'display:flex;flex-direction:row'; for (const [k, l] of [['5', 'Untouched'], ['6', 'Processed']]) { const e = keyParam(c + '.-1.' + k, { label: l }); e.style.cssText += ';flex:1 1 0;width:auto;min-width:0'; bl.append(e); }
+      st.append(g, h('div', 'sec', 'Levels'), bl); }
   }); }
 function remapSlots(c, map) {   // keep automation attached to the right effect when slots move: map[oldSlot] = newSlot or -1
   const S = c < NPADS && P.pads[c].src === 'synth' && P.pads[c].syn;   // and a synth pad's routes onto its effects

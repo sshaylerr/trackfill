@@ -691,7 +691,8 @@ function normalize(p) {
       if (o.type === 21) o.steps = Array.from({ length: 16 }, (_, i) => Math.max(0, Math.min(6, (Array.isArray(f.steps) ? f.steps[i] : 0) | 0)));
       return o; });
     const pr = Array.isArray(s.par) ? s.par.map(v => v | 0) : null; o.par = pr && pr.length === 2 && pr[0] >= 0 && pr[1] >= pr[0] && pr[1] < NSLOTS ? pr : null;   // the parallel section: [first slot, last slot]
-    o.pbl = s.pbl == null ? .5 : clamp01(+s.pbl || 0);
+    if (s.pbl != null && s.pdl == null) { const b = clamp01(+s.pbl || 0); s.pdl = FDR().tfFaderPos(Math.min(1, 2 * (1 - b))); s.pwl = FDR().tfFaderPos(Math.min(1, 2 * b)); }   // the single Blend it had for a day: the same two levels
+    o.pdl = s.pdl == null ? .85 : clamp01(+s.pdl || 0); o.pwl = s.pwl == null ? .85 : clamp01(+s.pwl || 0); delete o.pbl;   // the parallel section's levels: untouched, processed (fader positions)
     return consoleClean(o, c, s, CONSOLES.some(k => k[0] === p.console) ? p.console : 'none'); });
   n.scenes = Array.from({ length: Array.isArray(p.scenes) && p.scenes.length ? Math.min(MAX_SCENES, p.scenes.length) : NSCENES }, (_, i) => { const s = Object.assign(emptyScene(), (p.scenes || [])[i] || {}); s.name = tfName(s.name, 14); s.notes = s.notes && typeof s.notes === 'object' ? s.notes : {}; s.auto = s.auto && typeof s.auto === 'object' ? s.auto : {}; s.clips = clipsClean(s.clips); return s; });
   n.console = CONSOLES.some(k => k[0] === p.console) ? p.console : 'none';

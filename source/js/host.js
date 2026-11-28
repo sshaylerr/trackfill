@@ -205,7 +205,7 @@ function tfSlotFx(P, C, s) { return s < TF.NSLOT ? C.fx[s] : !tfConsoleOn(P) ? n
 function tfBase(P, k) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return null;
   if (s === -4) return tfTempoV(P.bpm);
-  if (s === -1) return [C.vol, C.pan, C.sa, C.sb, C.drv || 0, C.pbl == null ? .5 : C.pbl][i];
+  if (s === -1) return [C.vol, C.pan, C.sa, C.sb, C.drv || 0, C.pdl == null ? .85 : C.pdl, C.pwl == null ? .85 : C.pwl][i];
   if (s === -2) { const p = P.pads[c]; return p ? [p.cut, p.res, p.bend == null ? .5 : p.bend][i] : null; }
   if (s === -3) { const p = P.pads[c], d = TFSYN[i]; return p && p.syn && d ? tfSynNorm(d, p.syn.p[d.id]) : null; }   // synth parameter i
   const f = tfSlotFx(P, C, s); return f ? (i === -1 ? (f.on ? 1 : 0) : f.p[i]) : null;
@@ -213,7 +213,7 @@ function tfBase(P, k) {
 function tfSetBase(P, k, v) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return;
   if (s === -4) { P.bpm = Math.round(tfTempoBpm(v) * 10) / 10; return; }
-  if (s === -1) C[['vol', 'pan', 'sa', 'sb', 'drv', 'pbl'][i]] = v;
+  if (s === -1) C[['vol', 'pan', 'sa', 'sb', 'drv', 'pdl', 'pwl'][i]] = v;
   else if (s === -2) { const p = P.pads[c]; if (p) p[['cut', 'res', 'bend'][i]] = v; }
   else if (s === -3) { const p = P.pads[c], d = TFSYN[i]; if (p && p.syn && d) p.syn.p[d.id] = tfSynPhys(d, v); }
   else { const f = tfSlotFx(P, C, s); if (f) f.p[i] = v; }
@@ -429,7 +429,7 @@ class TFHost {
   applyKey(k, v) {
     const { c, s, i } = tfParseKey(k), ex = this.ex;
     if (v == null || !(v === v) || s === -4) return;   // tempo is followed by the scheduler, not set here
-    if (s === -1) { if (i === 0) ex.tf_ch_set(c, 0, tfFaderGain(v)); else if (i === 1) ex.tf_ch_set(c, 1, v * 2 - 1); else if (i === 4) ex.tf_ch_set(c, 9, tfConsoleOn(this.P) && !(c < TF.NPAD && this.frozen(c)) ? v : 0); else if (i === 5) ex.tf_ch_set(c, 11, v); else ex.tf_ch_set(c, i, tfSendGain(v)); }   // drive (i 4): a frozen pad has it in its render
+    if (s === -1) { if (i === 0) ex.tf_ch_set(c, 0, tfFaderGain(v)); else if (i === 1) ex.tf_ch_set(c, 1, v * 2 - 1); else if (i === 4) ex.tf_ch_set(c, 9, tfConsoleOn(this.P) && !(c < TF.NPAD && this.frozen(c)) ? v : 0); else if (i === 5) ex.tf_ch_set(c, 11, tfFaderGain(v)); else if (i === 6) ex.tf_ch_set(c, 14, tfFaderGain(v)); else ex.tf_ch_set(c, i, tfSendGain(v)); }   // drive (i 4): a frozen pad has it in its render
     else if (s === -2 && i === 2) { const p = this.P.pads[c]; ex.tf_ch_bend(c, (v * 2 - 1) * ((p && p.bendR) || 2), v * 2 - 1); }   // pitch bend: ± the pad's bend range
     else if (s === -3) { if (ex.tf_syn_param) ex.tf_syn_param(c, i, v); }
     else if (s === -2) { if (this.frozen(c)) return; ex.tf_ch_set(c, i === 0 ? 5 : 6, i === 0 ? 20 * Math.pow(1000, v) : 0.7 + v * v * 18); }
@@ -443,7 +443,7 @@ class TFHost {
   syncChan(c) {
     const ex = this.ex, C = this.P.chans[c], frz = c < TF.NPAD && this.frozen(c);
     ex.tf_ch_route(c, tfDest(this.P, c));
-    for (let i = 0; i < 6; i++) this.applyKey(c + '.-1.' + i, [C.vol, C.pan, C.sa, C.sb, C.drv || 0, C.pbl == null ? .5 : C.pbl][i]);
+    for (let i = 0; i < 7; i++) this.applyKey(c + '.-1.' + i, [C.vol, C.pan, C.sa, C.sb, C.drv || 0, C.pdl == null ? .85 : C.pdl, C.pwl == null ? .85 : C.pwl][i]);
     ex.tf_ch_set(c, 12, C.par ? C.par[0] : -1); ex.tf_ch_set(c, 13, C.par ? C.par[1] : -1);   // the parallel section (slots, first to last)
     ex.tf_ch_set(c, 7, C.eq && C.eq.post ? 1 : 0); ex.tf_ch_set(c, 10, ({ punchy: 1, warm: 2 })[this.P.console] || 0);   // the console's character
     for (let s = 0; s < TF.NSLOT + 2; s++) {
