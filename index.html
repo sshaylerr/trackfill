@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-JiWJSD2kI2Jv6NSawoJ4abw4QEZBo3BKIa2EO/WYp3s=' 'sha256-dcw+VbOGiaFjjnd69/prHdgXLd6kfX6QrjY/cY8VIlk=' 'sha256-TiDtah5kCGV1ly0XnP03VmXAwZ4+SJKRegq2Z4eXgLs=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-JiWJSD2kI2Jv6NSawoJ4abw4QEZBo3BKIa2EO/WYp3s=' 'sha256-dcw+VbOGiaFjjnd69/prHdgXLd6kfX6QrjY/cY8VIlk=' 'sha256-itUVkV6XuOfbmlBl4q/8VYW1xfOWVRuzWB6Uon+at0c=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -6724,8 +6724,8 @@ function renderPads(V) {
     grid.append(pd); }
   bindPadGrid(grid);   // touches land on the grid and go to the nearest pad (see bindPadGrid)
   const chop = padChop(); if (chop) w.classList.add('chopping');
-  const [pd, pk] = padInst(!!chop); w.classList.add('inst');   // the selected pad on a display, its 4 knobs under it (ui/inst.js)
-  w.append(pd, pk, top); if (chop) w.append(chopWave(UI.pad)); w.append(grid); V.append(w); refreshPadDots(); if (chop) requestAnimationFrame(drawChop); requestAnimationFrame(() => pdDraw(true));
+  // padInst() (ui/inst.js) builds the pad display and its 4 knobs; held back until the page's layout makes room for them without shrinking the pads
+  w.append(top); if (chop) w.append(chopWave(UI.pad)); w.append(grid); V.append(w); refreshPadDots(); if (chop) requestAnimationFrame(drawChop);
 }
 
 function impKey() { const b = btn('<span class="kl">Import</span><svg viewBox="0 0 24 24"><path d="M11 4h2v9.2l3.3-3.3 1.4 1.4L12 17l-5.7-5.7 1.4-1.4 3.3 3.3zM5 18h14v2H5z"/></svg>', () => pickAudio(null), 'key sm imp'); b.setAttribute('aria-label', 'Import'); return b; }   // narrow: just its icon
@@ -10784,8 +10784,6 @@ const CHANGES = [
     'Map mode shows every source at once. Tap one to move the picked control, hold one to connect it to many; the lower knobs set up to four amounts.',
     'Del is now Shift + Back on the d-pad. Hold the Pads key on any page to pick another pad.',
     'Fixed: Loop scene and Play song could be cut off on some phones.',
-    'The Pads page shows the pad you last played on a display: its name, its waveform, and its start and end (drag them on the waveform). Tap the name to open its Sound page.',
-    'Four knobs under the Pads display. Tap a knob’s name to choose what it turns: tune, release, filter, sends, synth macros or any effect setting. Each pad keeps its own.',
     'Repeat: turn it on and hold a pad to play it again in time; chords repeat whole. Hold the Repeat key to pick the rate.',
   ]],
   ['2026-11-27', [
