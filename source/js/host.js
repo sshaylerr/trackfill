@@ -592,6 +592,7 @@ class TFHost {
     if (ref !== this.refCh) { this.refCh = ref; this.refV = null; if (this.an) { this.an.qOn = false; this.an.qL.fill(0); this.an.qR.fill(0); } }
     let s = this.scope; if (!s) { s = this.scope = { buf: new Float32Array(2048), w: 0, pkL: 0, pkR: 0, ssL: 0, ssR: 0, n: 0, mem: null }; if (!this.spec) this.spec = new TFSpectrum(this.sr); }
     if (s.ch !== m.ch) { s.ch = m.ch; s.mem = null; s.buf.fill(0); s.pkL = s.pkR = s.ssL = s.ssR = 0; s.n = 0; }   // never carry the last channel's levels over
+    s.lite = !!m.lite;   // the pad page's little waveform: no spectrum needed
   }
   scopeFeed(m) {
     const s = this.scope, ex = this.ex, mem = ex.memory.buffer;
@@ -622,7 +623,7 @@ class TFHost {
     if (v && this.ex.tf_fxio) { const a = new Float32Array(this.ex.memory.buffer, this.ex.tf_fxio(), 32), o = v[1] * 4; r.io = [a[o], a[o + 1], a[o + 2], a[o + 3]]; a.fill(0); }   // the device's in/out peaks since the last report
     const w = this.wv; if (w && v && w.c === v[0] && w.s === v[1]) { if (w.cols.length) { r.wv = w.cols; for (let i = 2; i < w.cols.length; i += 3) r.vis = Math.min(r.vis, w.cols[i]); } w.cols = []; }   // the meter shows the deepest dip, however short
     if (s) { const loud = s.pkL > 1e-5 || s.pkR > 1e-5, n = Math.max(1, s.n);
-      r.b = loud ? Array.from(this.spec.run(s.buf, s.w)) : null; r.pk = [s.pkL, s.pkR]; r.rms = [Math.sqrt(s.ssL / n), Math.sqrt(s.ssR / n)];
+      r.b = loud && !s.lite ? Array.from(this.spec.run(s.buf, s.w)) : null; r.pk = [s.pkL, s.pkR]; r.rms = [Math.sqrt(s.ssL / n), Math.sqrt(s.ssR / n)];
       s.pkL = s.pkR = s.ssL = s.ssR = 0; s.n = 0; }
     return r;
   }

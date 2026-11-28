@@ -207,3 +207,8 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 - Instances look at different moments (hop phase from the state address) so their transforms don't land in one block. Filters get new coefficients only when a cut has moved.
 - vis k = slot k: whole Hz + cut/20 dB as the fraction (8 slots; host now sends vis 0–7). Display: the summed cut curve and the focus range over the live spectrum.
 - Cost: about 1% of a desktop core per instance with all 8 cuts working (analysis ≈ 0.25%); about 5× the Multiband. Test: "Tame dips a ringing 3 kHz…".
+
+## Pad page waveform (2026-11-27)
+- Phones (≤460 px, where the pad name box is hidden): canvas .padScope in the pads toolbar, a rolling 1.5 s waveform of the master coloured by lows/mids/highs (the analyzer's wave columns). scopeWant asks for ch MASTER, mask 8, `lite` (the host skips the spectrum). Hidden below 30 px wide (keys mode).
+- Silence doesn't keep the screen drawing: onScope only wakes the frame loop when the mini scope's peak is above -80 dB.
+- Fixed: a display asked for before the engine was up (the pad scope at start, any open analyzer) never got its numbers; on 'ready' the scope request is sent again.

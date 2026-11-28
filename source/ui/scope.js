@@ -14,13 +14,14 @@ function scopeWant() {
   else if (UI.view === 'sound' && UI.snd === PG.MIX) ch = UI.pad;
   else if (UI.view === 'mix' && conOn() && UI.mixMode === 'bus') { fc = hasBusComp(UI.mixSel) ? UI.mixSel : MASTER; fs = NSLOTS + 1; }   // the console's gain reduction meter
   else if (UI.view === 'fx' && P.chans[UI.fxCh].fx[UI.fxSlot]) { fc = UI.fxCh; fs = UI.fxSlot; const t = P.chans[fc].fx[fs].type; if (t === FX_TYPES.EQ || t === FX_TYPES.FILTER) ch = fc; }
-  const full = SCOPE.sheet >= 0 ? anMask() : 0, ref = full & 2 && UI.anRef != null && UI.anRef !== ch ? UI.anRef : -1, key = ch + ':' + fc + ':' + fs + ':' + full + ':' + ref; if (key === SCOPE.key) return; SCOPE.key = key;
+  let full = SCOPE.sheet >= 0 ? anMask() : 0; const mini = ch < 0 && fc < 0 && UI.view === 'pads' && padScopeShown(); if (mini) { ch = MASTER; full = 8; }   // the pad page's little waveform: the mix, waveform only
+  const ref = full & 2 && UI.anRef != null && UI.anRef !== ch ? UI.anRef : -1, key = ch + ':' + fc + ':' + fs + ':' + full + ':' + ref + ':' + (mini ? 1 : 0); if (key === SCOPE.key) return; SCOPE.key = key; SCOPE.mini = mini;
   SCOPE.hist = []; SCOPE.wv.n = 0; SCOPE.io.pk.fill(-120); SCOPE.io.hold.fill(-120);   // a different effect: start its histories fresh
   if (ch !== SCOPE.ch) { SCOPE.tgt.fill(-120); SCOPE.disp.fill(-120); SCOPE.pk = [-120, -120]; SCOPE.rms = [-120, -120]; SCOPE.hold = [-120, -120]; SCOPE.vis = SCOPE.visD = 0; }
-  SCOPE.ch = ch; SCOPE.fc = fc; SCOPE.fs = fs; SCOPE.ref = ref; send({ t: 'scope', ch, fc, fs, full, ref });
+  SCOPE.ch = ch; SCOPE.fc = fc; SCOPE.fs = fs; SCOPE.ref = ref; if (mini && !SCOPE.an) SCOPE.an = anNew(); send({ t: 'scope', ch, fc, fs, full, ref, lite: mini });
 }
 function onScope(sc) {
-  if (sc.ch !== SCOPE.ch) return; const now = performance.now(); SCOPE.at = now; SCOPE.vis = sc.vis || 0; SCOPE.vis3 = sc.vis3 || null; wake();
+  if (sc.ch !== SCOPE.ch) return; const now = performance.now(), quiet = SCOPE.mini && !(sc.pk && Math.max(sc.pk[0], sc.pk[1]) > 1e-4); if (!quiet) { SCOPE.at = now; wake(); } SCOPE.vis = sc.vis || 0; SCOPE.vis3 = sc.vis3 || null;   // the pad page's waveform doesn't keep the screen drawing through silence
   SCOPE.hist.push(SCOPE.vis); if (SCOPE.hist.length > 90) SCOPE.hist.shift();   // limiter history
   if (sc.an) anTake(sc.an);
   if (sc.io) { const io = SCOPE.io; for (let i = 0; i < 4; i++) { const p = lin2dbJS(sc.io[i]); io.pk[i] = Math.max(p, io.pk[i]); if (p >= io.hold[i] || now - io.at[i] > 1500) { io.hold[i] = p; io.at[i] = now; } } }
@@ -49,6 +50,14 @@ function scopeView(cv, draw) { SCOPE.views.push({ cv, draw }); }
 /* ---------- drawing ---------- */
 const SPEC_LO = 25, SPEC_HI = 20000, SPEC_DB = 84;
 const specX = (f, x, w) => x + w * Math.log(f / SPEC_LO) / Math.log(SPEC_HI / SPEC_LO);
+// the pad page's waveform: the last second and a half of the mix, coloured by its lows, mids and highs like the analyzer's
+const padScopeShown = () => { const c = document.querySelector('.padScope'); return !!c && c.clientWidth > 30; };
+function drawPadScope(cv) { if (!SCOPE.mini || cv.clientWidth < 30) return; const { g, W, H } = prepCanvas(cv), A = SCOPE.an; g.clearRect(0, 0, W, H); g.fillStyle = COL.line; g.fillRect(0, Math.round(H / 2), W, 1); if (!A || !A.cn) return;
+  const n = A.cn, oldest = n - Math.min(AN_WCOLS, n), cpp = 560 / W, mid = H / 2, amp = H / 2 - 3;
+  for (let x = 0; x < W; x++) { const c1 = n - 1 - (W - 1 - x) * cpp, a = Math.floor(c1 - cpp + 1e-6) + 1, b = Math.floor(c1); let mn = 1, mx = -1, lo = 0, mi = 0, hi = 0;
+    for (let c = a; c <= b; c++) { if (c < oldest || c >= n) continue; const o = (c % AN_WCOLS) * 5; mn = Math.min(mn, A.cols[o]); mx = Math.max(mx, A.cols[o + 1]); lo = Math.max(lo, A.cols[o + 2]); mi = Math.max(mi, A.cols[o + 3]); hi = Math.max(hi, A.cols[o + 4]); }
+    if (mx < mn) continue; const m = Math.max(lo, mi * 1.6, hi * 2.5, 1e-9); g.fillStyle = `rgb(${Math.round(70 + 185 * lo / m)},${Math.round(60 + 195 * mi * 1.6 / m)},${Math.round(70 + 185 * hi * 2.5 / m)})`;
+    const y1 = mid - Math.min(1, mx) * amp, y2 = mid - Math.max(-1, mn) * amp; g.fillRect(x, y1, 1, Math.max(1, y2 - y1)); } }
 function prepCanvas(cv) { const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, Math.round(r.height));
   if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; } const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); return { g, W, H }; }
 // canvas text that fits a width: shortened with an ellipsis rather than running into what's next to it

@@ -425,6 +425,7 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .key.follow.held svg{fill:var(--accent);opacity:.5}   /* following, paused while you work: tap to pick the playhead up again */
 .padsView{container-type:inline-size;padding-bottom:3px}
 @media (max-width:460px){.padsSel{display:none!important}}
+.padScope{display:none;flex:1 1 0;min-width:0;padding:0} @media (max-width:460px){.padScope{display:block}}
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));gap:8px;flex:1 1 0;min-height:0;width:100%;max-height:calc(100cqw * 1.45);margin:auto 0;touch-action:none}   /* the gaps too: two fingers on the pads are never a pinch */
 .pad{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#28282c 60%,#242428);border:1px solid #070708;
   box-shadow:0 3px 0 #050506,inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.4);display:flex;flex-direction:column;justify-content:space-between;padding:7px 8px 15px;position:relative;touch-action:none;min-width:0;min-height:0;overflow:hidden}
@@ -1508,7 +1509,7 @@ function onEngine(m) {
     if (m.arp) arpPlayed(m.arp);
     if (T.playing && T.rec) recTrack();
   } else if (m.t === 'warmed') { ENG.warmed = true; ENG.warmMs = m.ms;
-  } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); sendMonitor(); sendRange(); }
+  } else if (m.t === 'ready') { ENG.ready = true; updateSoundChip(); sendMonitor(); sendRange(); SCOPE.key = null; scopeWant(); }   // a display asked for before the engine was up gets its numbers now
   else if (m.t === 'trip') {
     const n = Date.now(), who = m.ch === MASTER ? 'the master output' : chanName(m.ch);
     if (m.ch === MASTER) { T.playing = false; updateTransport(); }
@@ -2559,6 +2560,7 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
   ['2026-11-27', [
+    'Pads: a small rolling waveform of the mix next to Capture, on phones.',
     'New effect: Tame. Finds the frequencies ringing out and dips just those, with no added delay.',
     'New effect: Air. Brightness that lifts quiet top-end detail more than loud peaks: Mid air, High air, Link and Trim.',
   ]],

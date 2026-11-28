@@ -15,7 +15,8 @@ function renderPads(V) {
   if (UI.keys && chopOf(UI.pad)) top.append(btn('Chop', () => { UI.keys = false; renderView(); }, 'key sm on kbtn'));
   else if (UI.keys) top.append(btn('Keys', () => { UI.keys = false; stopLatch(); renderView(); }, 'key sm on kbtn'), btn(IC.left, () => keysOct(-1), 'key sm ic'), btn(IC.right, () => keysOct(1), 'key sm ic'), btn(keysModeLabel(UI.pad) + ' ▾', () => openKeysSheet(UI.pad), 'key sm kmode'));
   else top.append(seg(['A', 'B', 'C', 'D'], UI.bank, i => { UI.bank = i; UI.pad = i * 16 + UI.pad % 16; renderView(); savePrefs(); }), btn(ck(), () => { UI.keys = true; renderView(); }, 'key sm kbtn'), btn('Import', () => pickAudio(null), 'key sm'));
-  top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'));
+  const ps = h('canvas', 'lcdbox padScope'); scopeView(ps, () => drawPadScope(ps)); requestAnimationFrame(() => { if (ps.isConnected && ps.clientWidth) prepCanvas(ps); });   // sized to its spot at once, drawn on or not   // a small rolling waveform of the mix, where a phone has no room for the pad's name
+  top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'), ps);
   const grid = h('div', 'grid');
   for (const cell of padOrder(16)) { const pd = h('div', 'pad' + (PADHELD.has(cell) ? ' held' : '')); pd.dataset.cell = cell;
     grid.append(pd); }
