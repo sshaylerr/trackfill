@@ -143,3 +143,111 @@ function mapInst(pi) {
         if (inRow) el.style.gridRow = '1'; else el.classList.add('mhide');
         if (el._mc && el.dataset.syn) el._mc.onclick = () => mapPick(pi, el.dataset.syn); } } };
 }
+
+/* ---------- the Pads page (phase 3): the selected pad on a display, 4 knobs you choose, and note repeat ----------
+   The display shows the pad you last played: its name, where its sound comes from, and its waveform with the start and end.
+   Under it, 4 knobs. Each pad keeps its own choice (pad.qk, relative keys like '.-2.0' or 'p:pitch'); null means the defaults. */
+const QK_PAD = {
+  pitch: { label: 'Tune', entry: ENTRY.st, min: -24, max: 24, step: 1, coarse: 1, big: 12, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v + ' st' },
+  fine: { label: 'Fine', entry: ENTRY.ct, min: -100, max: 100, step: 1, coarse: 10, big: 50, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v + ' ct' },
+  start: { label: 'Start', step: .001, coarse: .01, big: .05, def: 0, fmt: v => (v * 100).toFixed(1) + '%' },
+  end: { label: 'End', step: .001, coarse: .01, big: .05, def: 1, fmt: v => (v * 100).toFixed(1) + '%' },
+  atk: { label: 'Attack', max: 2, step: .001, coarse: .02, big: .1, def: 0, fmt: v => Math.round(v * 1000) + ' ms' },
+  rel: { label: 'Release', max: 4, step: .001, coarse: .02, big: .25, def: .05, fmt: v => Math.round(v * 1000) + ' ms' },
+  glide: { label: 'Glide', max: 1, step: .001, coarse: .01, big: .1, def: .08, fmt: v => Math.round(v * 1000) + ' ms' } };
+const qkHasPad = p => p.src === 'sample' || p.src === 'drum';   // the pad's own sound settings: samples and drums (a synth has its own)
+function qkValid(pi, k) { const p = P.pads[pi]; if (typeof k !== 'string') return false;
+  if (k.startsWith('p:')) return !!QK_PAD[k.slice(2)] && qkHasPad(p);
+  const { s, i } = tfParseKey(pi + k); if (p.src === 'audio' && s < -1) return false;
+  if (s === -1) return i >= 0 && i <= 3 || (i === 4 && conOn());
+  if (s === -2) return i >= 0 && i <= 2;
+  if (s === -3) return p.src === 'synth' && !!p.syn && synAutoIds(pi).some(id => TFSYN_ID[id].i === i);
+  const f = P.chans[pi].fx[s]; return s >= 0 && s < NSLOTS && !!f && (i === -1 || (i >= 0 && !!fxParams(f)[i] && !fxParams(f)[i].opts)); }
+function qkDefaults(pi) { const p = P.pads[pi];
+  if (p.src === 'audio') return ['.-1.0', '.-1.1', '.-1.2', '.-1.3'];
+  if (p.src === 'synth' && p.syn) { const m = synAutoIds(pi).filter(id => id[0] === 'm').map(id => '.-3.' + TFSYN_ID[id].i), c = [...new Set([...m, '.-2.0', '.-2.1'])]; return [c[0], c[1], c[2], '.-1.2']; }
+  return ['p:pitch', 'p:rel', '.-2.0', '.-1.2']; }
+function qkList(pi) { const d = qkDefaults(pi), q = P.pads[pi].qk; return d.map((k, i) => q && q[i] && qkValid(pi, q[i]) ? q[i] : k); }
+function qkCtl(pi, k, after) {
+  if (k.startsWith('p:')) return padParam(pi, k.slice(2), Object.assign({}, QK_PAD[k.slice(2)], { after }));
+  const m = keyMeta(pi + k), lab = tfParseKey(pi + k).s >= 0 ? m.short.replace(/^\d+·/, '') : m.short === 'Vol' ? 'Volume' : m.short;
+  return keyParam(pi + k, { label: lab, after }); }
+function qkName(pi, k) { if (k.startsWith('p:')) return QK_PAD[k.slice(2)].label; const m = keyMeta(pi + k); return m.label; }
+
+// choose what one of the 4 knobs turns, from this pad's own settings, its channel, its synth and its effects
+function openQkSheet(pi, slot) {
+  const p = P.pads[pi], cur = qkList(pi)[slot];
+  openSheet(`Knob ${slot + 1} · ${padLabel(pi)} ${p.name || ''}`.trim(), card => {
+    const pick = k => { pushUndo('pad:' + pi); const q = qkList(pi); q[slot] = k; const d = qkDefaults(pi); p.qk = q.every((x, i) => x === d[i]) ? null : q; markDirty(); closeSheet(); renderView(); };
+    const list = (title, items) => { items = items.filter(([k]) => qkValid(pi, k)); if (!items.length) return; card.append(h('div', 'sec', title)); const l = h('div', 'list');
+      for (const [k, sub] of items) { const li = h('div', 'li' + (k === cur ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${esc(qkName(pi, k))}</b><span>${esc(sub)}</span></div>`; li.onclick = () => pick(k); l.append(li); }
+      card.append(l); };
+    const top = h('div', 'list'), ty = h('div', 'li'); ty.innerHTML = `<div class="lt"><b>Type a value</b><span>${esc(qkName(pi, cur))}</span></div>`;
+    ty.onclick = () => { const el = document.querySelector(`.pdsp .mc[data-slot="${slot}"]`), knob = el && el._knob; closeSheet(); if (knob && knob._reg && knob._reg.type) knob._reg.type(); }; top.append(ty); card.append(top);
+    list('Sound', Object.keys(QK_PAD).map(n => ['p:' + n, 'this pad']));
+    list('Filter', [['.-2.0', 'pad filter'], ['.-2.1', 'pad filter'], ['.-2.2', 'this pad']]);
+    list('Channel', [0, 1, 2, 3, 4].map(i => ['.-1.' + i, i === 4 ? 'console' : 'mixer']));
+    if (p.src === 'synth' && p.syn) list('Synth', synAutoIds(pi).map(id => ['.-3.' + TFSYN_ID[id].i, id[0] === 'm' ? 'macro' : 'synth']));
+    P.chans[pi].fx.forEach((f, s) => list(`Insert ${s + 1} · ${FX_DEFS[f.type].name}`, [['.' + s + '.-1', 'on / off']].concat(fxParams(f).map((_, i) => ['.' + s + '.' + i, FX_DEFS[f.type].name]))));
+    const d = qkDefaults(pi)[slot]; if (cur !== d) { const l = h('div', 'list'), li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>Back to ${esc(qkName(pi, d))}</b><span>this knob's default</span></div>`; li.onclick = () => pick(d); l.append(li); card.append(h('div', 'sec', 'Default'), l); }
+  });
+}
+
+// the display and the knobs for the selected pad; rebuilt when another pad is picked
+function padInst(chop) {
+  const pi = UI.pad, p = P.pads[pi], d = h('div', 'sd pdsp'), g = h('div', 'kgrid'), map = h('div'); d._pi = pi;
+  const hd = h('div', 'pdh'), L = h('button', 'pdl'), R = h('div', 'pdr'), s = SAMPLES.get(p.sample);
+  const src = p.src === 'synth' ? 'Synth' : p.src === 'drum' ? 'Drum' : p.src === 'audio' ? 'Audio track' : padUsed(p) ? 'Sample' : 'Empty';
+  L.innerHTML = `<b>${esc(p.name || (padUsed(p) ? src : 'Empty pad'))}</b><span>${esc([src, padLabel(pi), s && p.src !== 'synth' ? (s.frames / s.sr).toFixed(1) + ' s' : ''].filter(Boolean).join(' · '))}</span>`;
+  L.setAttribute('aria-label', 'Open this pad\'s sound'); L.onclick = () => setView('sound');
+  hd.append(L, R); d.append(hd);
+  if (!chop) { const wv = h('div', 'pdw'), cv = h('canvas'); wv.append(cv); d.append(wv); pdBindWave(cv); }
+  const redraw = () => pdDraw(true);
+  qkList(pi).forEach((k, i) => { const el = qkCtl(pi, k, redraw); g.append(el); });
+  ikMap(g, map); d.append(map);
+  [...map.children].forEach((mc, i) => { mc.dataset.slot = i; mc._knob = g.children[i]; mc.onclick = () => openQkSheet(pi, i); mc.setAttribute('role', 'button'); mc.setAttribute('aria-label', 'Choose what knob ' + (i + 1) + ' turns'); });
+  g.classList.add('pdk'); pdTimes(R, pi);
+  return [d, g];
+}
+function pdTimes(R, pi) { const p = P.pads[pi], s = SAMPLES.get(p.sample); if (!R) return;
+  if (!s || p.src === 'synth' || p.src === 'audio') { R.textContent = ''; return; } const dur = s.frames / s.sr, t = f => { const v = f * dur, m = Math.floor(v / 60); return m + ':' + (v - m * 60).toFixed(2).padStart(5, '0'); };
+  R.textContent = `start ${t(p.start)} · end ${t(p.end)}`; }
+// the waveform: drawn when something about it changes, never per frame
+function pdDraw(force) {
+  const d = document.querySelector('.pdsp'); if (!d) return; const wv = d.querySelector('.pdw'), cv = wv && wv.firstChild; pdTimes(d.querySelector('.pdr'), d._pi); if (!cv) return;
+  const W = Math.round(wv.clientWidth), H = Math.round(wv.clientHeight); wv.classList.toggle('gone', H < 22); if (H < 22 || W < 8) return;
+  const p = P.pads[d._pi], sig = [padArtSig(p) || p.src, p.start, p.end, W, H].join('|'); if (!force && cv._sig === sig) return; cv._sig = sig;
+  const dpr = Math.min(2, window.devicePixelRatio || 1); cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const s = SAMPLES.get(p.sample), col = PAD_COLORS[p.color];
+  if (p.src === 'synth' && p.syn) { padArtPaint(g, p, W, H, dpr); return; }
+  if (!s || p.src === 'audio') { g.fillStyle = COL.dim; g.font = `400 12px ${FONT_LCD}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(p.src === 'audio' ? 'Audio track · its clips are on the Timeline' : 'Empty · tap Import, or load a sound in Sound', W / 2, H / 2); return; }
+  const pk = samplePeaks(s, 600), n = 600, mid = H / 2, A = H * .47, cols = Math.max(2, Math.round(W / 1.5));
+  g.fillStyle = col; g.beginPath(); const at = c => Math.min(n - 1, Math.floor(c / cols * n)), rv = k => p.reverse ? n - 1 - k : k;
+  for (let c = 0; c < cols; c++) g.lineTo(W * c / cols, mid - Math.max(.02, pk[rv(at(c)) * 2 + 1]) * A);
+  for (let c = cols - 1; c >= 0; c--) g.lineTo(W * c / cols, mid - Math.min(-.02, pk[rv(at(c)) * 2]) * A); g.closePath(); g.fill();
+  const xs = Math.round(p.start * W), xe = Math.round(p.end * W); g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, 0, xs, H); g.fillRect(xe, 0, W - xe, H);
+  g.fillStyle = COL.ink; g.fillRect(xs - 1, 0, 2, H); g.fillRect(xe - 1, 0, 2, H); }
+// on the waveform: drag near the start or the end to move it; a tap plays the pad
+function pdBindWave(cv) { let d = null;
+  cv.addEventListener('pointerdown', e => { ensureAudio(); const pi = UI.pad, p = P.pads[pi]; d = { x0: e.clientX, moved: false, pushed: false, pi };
+    if (!p.sample || !qkHasPad(p)) return; try { cv.setPointerCapture(e.pointerId); } catch (_) {} const r = cv.getBoundingClientRect(), f = (e.clientX - r.left) / r.width; d.which = Math.abs(f - p.start) < Math.abs(f - p.end) ? 'start' : 'end'; });
+  cv.addEventListener('pointermove', e => { if (!d || !d.which) return; if (Math.abs(e.clientX - d.x0) > 5) d.moved = true; if (!d.moved) return;
+    if (!d.pushed) { pushUndo('pad:' + d.pi); touchPad(d.pi); d.pushed = true; } const p = P.pads[d.pi], r = cv.getBoundingClientRect(), f = clamp((e.clientX - r.left) / r.width, 0, 1);
+    if (d.which === 'start') p.start = Math.min(f, p.end - .01); else p.end = Math.max(f, p.start + .01); if (p.chop) chopLater(d.pi); syncPad(d.pi); pdDraw(true); UI.regs.forEach(x => x.upd && x.upd()); markDirty(); });
+  const up = () => { if (d && !d.moved) audition(d.pi); if (d && d.pushed) refreshPadDots(); d = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', () => { d = null; }); }
+// another pad picked (by playing it): the display and knobs follow
+let pdRaf = 0;
+function pdFollow() { if (!pdRaf) pdRaf = requestAnimationFrame(pdFollowNow); }   // once a frame at most: fast playing across pads rebuilds the knobs once
+function pdFollowNow() { pdRaf = 0; const d = document.querySelector('.pdsp'); if (!d || UI.view !== 'pads') return; if (d._pi === UI.pad) { pdDraw(); return; }
+  const k = d.nextElementSibling, [nd, ng] = padInst(!!padChop()); d.replaceWith(nd); if (k && k.classList.contains('pdk')) k.replaceWith(ng); UI.regs = UI.regs.filter(r => r.el && r.el.isConnected); requestAnimationFrame(() => pdDraw(true)); }
+
+// note repeat: while on, a held pad plays again on the grid (the rate is held under the key); chords repeat whole
+const RPT_RATES = [[96, '1/4'], [48, '1/8'], [32, '1/8T'], [24, '1/16'], [16, '1/16T'], [12, '1/32']];
+const rptName = r => (RPT_RATES.find(x => x[0] === r) || RPT_RATES[3])[1];
+function rptKey() { let held = false, t = 0; const b = btn(UI.rpt ? 'Repeat ' + rptName(UI.rpt) : 'Repeat', () => { if (held) { held = false; return; } UI.rpt = UI.rpt ? 0 : (UI.rptR || 24); toast(UI.rpt ? 'Repeat ' + rptName(UI.rpt) + ' · hold a pad. Hold this key for the rate.' : 'Repeat off'); renderView(); }, 'key sm rpt' + (UI.rpt ? ' on' : ''));
+  b.setAttribute('aria-label', 'Note repeat (hold: rate)');
+  b.addEventListener('pointerdown', () => { held = false; clearTimeout(t); t = setTimeout(() => { held = true; haptic(); openRptSheet(); }, 450); }); for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, () => clearTimeout(t));
+  return b; }
+function openRptSheet() { openSheet('Repeat rate', card => { const l = h('div', 'list');
+  for (const [r, n] of RPT_RATES) { const li = h('div', 'li' + ((UI.rpt || UI.rptR || 24) === r ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${n}</b><span>${r === 24 ? 'the usual' : r % 3 ? 'triplets' : ''}</span></div>`; li.onclick = () => { UI.rptR = r; UI.rpt = r; savePrefs(); closeSheet(); renderView(); }; l.append(li); }
+  card.append(h('div', 'sec', 'A held pad plays again every'), l); }); }

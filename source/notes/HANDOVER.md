@@ -419,7 +419,14 @@ Technical notes on each recent feature: where it lives and the non-obvious decis
 - Faceplates retired: `synSkin` returns null; `.synDev[data-eng]` CSS and 11 faceplate fonts removed (−220 KB). SKINS keeps `cats` and `play`. Console fonts (Archivo, Archivo Narrow, Work Sans) stay for phase 3.
 - The Sound page's big canvases draw at most 2 px per point (smoke's canvas check knows). Perf, 4× throttled, main thread busy: synth 14–23% (phase 1: 20%), sample 17–19% (phase 1: 32%).
 - `#deck.min` on the Sound page: one line (scene, tempo, menu). Del = Shift + Back (`#pDel` removed); hold the Pads key → `openPadStrip()`.
-- Next: phase 3, Timeline keys row, Mixer, effect device pages. Note repeat and pad quick knobs are new features: ask before building them.
+
+### Instrument redesign, phase 3: the Pads page (2026-11-28)
+- `padInst(chop)` in `ui/inst.js`: a `.sd.pdsp` display (name and source, start/end times, waveform `.pdw`, the knobs' names and values via `ikMap`) and a `.kgrid.pdk` of 4 knobs. `pdFollow()` rebuilds both (once a frame, rAF) when another pad is picked; `pdDraw()` redraws the waveform only when its signature changes.
+- Quick knobs: `pad.qk` (model: null or 4 relative keys, `'.-2.0'` or `'p:pitch'`; normalized, old projects load unchanged with null). `qkDefaults`: sample/drum Tune, Release, Cutoff, Send A; synth: first macros then Cutoff/Res, Send A; audio: Vol, Pan, Send A/B. Tap a knob's name → `openQkSheet` (type a value, pad sound, filter, channel, synth, inserts, back to default).
+- Repeat: `UI.rpt` (rate in ticks, 0 off; `UI.rptR` remembered in prefs). In `padDown` a held pad sends the engine's `arp` message with one note (or the chord, pattern 'chord'); padUp stops it. Recording goes through `arpPlayed` as for the arpeggiator.
+- Fit: Import becomes an icon under 384 px wide; on #view.short the waveform and name line hide; on #view.tiny (small phone with the d-pad open) the display and knobs hide so the pads keep their room.
+- Also: the 'ResizeObserver loop' browser notice is no longer reported as an error; on ≤400 px the song display drops '4 bars' so the scene name fits beside Loop scene / Play song.
+- Next: Timeline keys row, Mixer, effect device pages.
 
 ## 10. Decisions, audits and the parked list
 

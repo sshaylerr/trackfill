@@ -960,6 +960,7 @@ body.tight .slot:not(.add) .srow{display:none} body.tight .slot.add .srow{height
 /* nothing on the switch can clip: Safari gives a button its own padding and box, so the switch sizes to its words and rounds its own ends */
 #deck #bLoop.dseg{-webkit-appearance:none;appearance:none;padding:0;margin:0;min-width:max-content;width:max-content;max-width:none;height:auto;min-height:22px;overflow:visible;flex-shrink:0;align-items:stretch}
 #deck #bLoop.dseg i{flex:none;line-height:22px;min-height:22px;justify-content:center}
+@media (max-width:400px){#deck.low #bLoop.dseg i{padding:0 7px;font-size:11px} #deck.low #dBar{display:none}}   /* a small phone: the scene's name keeps its room */
 #deck #bLoop.dseg i:first-child{border-radius:var(--i-rs) 0 0 var(--i-rs)} #deck #bLoop.dseg i:last-child{border-radius:0 var(--i-rs) var(--i-rs) 0}
 #dSong{font-size:11.5px;color:var(--mute);white-space:nowrap} #dSong b{color:var(--ink);font-weight:500}
 #scenes{height:auto;gap:6px;padding:0}
@@ -1073,6 +1074,23 @@ body[data-pads="tint"] .pad:not(.empty)::after{background:var(--pc)}
 #view.cramp .sdmap{gap:3px 4px;padding:5px 0 6px} #view.cramp .sdmap .mc .kval,#view.cramp .sdmap .mc .sw>span{font-size:13.5px;line-height:16px} #view.cramp .sdmap .mc .klab{font-size:10.5px;line-height:12px}
 #view.cramp .sdh{padding-top:7px} #view.cramp .sd input.sdn{font-size:19px;height:24px} #view.cramp .sdtabs{padding-top:5px} #view.cramp .sdtabs button{height:24px}
 #view.short .sdsub{padding-top:5px} #view.short .sds{display:none} #view.short .sdh{padding-top:6px} #view.short .sd .pnav .tk,#view.short .sd .tk{height:24px} #view.short .sdmap{padding:4px 0 5px;gap:2px 4px} #view.short .sdtabs button{height:22px} #view.short .sdtabs{padding-top:3px}
+
+/* ---- the Pads page (phase 3): the selected pad on a display, 4 knobs you choose ---- */
+.padsView.inst{gap:8px}
+.sd.pdsp{flex:0 1 auto;min-height:0}
+.pdh{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:8px 12px 0;flex:none;min-width:0}
+.sd .pdl{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;flex:1 1 auto;height:auto;padding:0;background:none;border:0;box-shadow:none;border-radius:0;text-align:left;color:var(--ink)}
+.sd .pdl b{font:500 18px/22px var(--font-ui);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .sd .pdl span{font:400 12px/15px var(--font-ui);color:var(--mute);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.pdr{font:400 11.5px/15px var(--font-ui);color:var(--mute);white-space:nowrap;flex:none;padding-top:24px}
+.pdw{flex:0 1 64px;min-height:0;margin:6px 12px 0;position:relative} .pdw canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none} .pdw.gone canvas{visibility:hidden}
+.sd.pdsp .sdmap{padding:6px 0 8px} .sd.pdsp .sdmap .mc{cursor:pointer}
+.kgrid.pdk{flex:none;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:none}
+.toolbar .key.rpt.on{white-space:nowrap} .toolbar .key.imp svg{display:none;width:18px;height:18px;fill:currentColor}
+@container (max-width:384px){.padsView .toolbar{gap:4px} .padsView .toolbar .key.sm{padding:0 6px} .padsView .toolbar .key.imp{padding:0;width:32px;flex:none} .padsView .toolbar .key.imp .kl{display:none} .padsView .toolbar .key.imp svg{display:block;margin:auto}}
+@container (max-width:350px){.padsView .toolbar .key.sm{padding:0 4px;font-size:11.5px}}
+#view.cramp .pdw{flex-basis:56px} #view.cramp .pdh{padding-top:6px} #view.cramp .sd .pdl b{font-size:16px;line-height:19px} #view.cramp .pdr{padding-top:20px}
+#view.short .pdw{display:none} #view.short .sd .pdl span{display:none} #view.short .pdr{padding-top:3px} #view.short .padsView.inst{gap:6px}
+#view.short .pdh{display:none} #view.tiny .padsView .pdsp,#view.tiny .padsView .pdk{display:none}   /* very little room (a small phone with the d-pad open): the pads come first */
 
 /* Map mode */
 .sd .mline{display:flex;align-items:center;gap:8px;padding:10px 12px 0;flex:none;min-width:0}
@@ -1474,7 +1492,7 @@ function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 
 // the song's key, for effects that play in it (the Resonator): sent whenever it changes
 let keySent = ''; function syncKey(force) { if (!P || !P.key) return; const iv = scaleOf(P.key.scale)[1], sig = P.key.root + ':' + iv.join(','); if (sig === keySent && !force) return; keySent = sig; send({ t: 'key', root: P.key.root, iv }); }
 function saveNow() { clearTimeout(saveTimer); if (P) { projSave(); abTouched(); } }
-function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, finish: UI.finish, padArt: UI.padArt !== false, padStyle: UI.padStyle, font2: UI.font, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog }); }
+function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, finish: UI.finish, padArt: UI.padArt !== false, padStyle: UI.padStyle, font2: UI.font, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog, rptR: UI.rptR || 24 }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -1623,7 +1641,7 @@ async function startEngine() {
 const APPERR = { log: [], said: 0 };
 function appError(msg) { msg = String(msg || 'unknown').slice(0, 160); APPERR.log = APPERR.log.concat(new Date().toTimeString().slice(0, 8) + ' ' + msg).slice(-8);
   if (Date.now() - APPERR.said > 60000) { APPERR.said = Date.now(); try { toast('Something went wrong: ' + msg.slice(0, 80) + ' · Engine check has the details'); } catch (e) {} } }
-addEventListener('error', e => { if (e.message) appError(e.message + (e.lineno ? ' (line ' + e.lineno + ')' : '')); });
+addEventListener('error', e => { if (e.message && !/ResizeObserver loop/.test(e.message)) appError(e.message + (e.lineno ? ' (line ' + e.lineno + ')' : '')); });
 addEventListener('unhandledrejection', e => { const r = e.reason; if (r && (r.name === 'AbortError' || r.name === 'NotAllowedError')) return; appError(r && r.message ? r.message : r); });   // a cancelled share or a blocked play is not a fault
 // the last 50 things done, for Engine check's Copy results: what was tapped and where, so a problem can be traced back to the steps before it
 const TRAIL = { log: [], trips: [] };
@@ -1956,6 +1974,7 @@ function refreshPadDots() {
     padArtWant(pd, chop ? -1 : pi); });
   const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; if (p.name && !chop && !UI.keys) sel.dataset.alt = p.name; else delete sel.dataset.alt; fitFonts(sel); }
   if (UI.strip && UI.panel) refreshStrip();
+  if (UI.view === 'pads') pdFollow();
 }
 function stopLatch() { if (KEYS.latch) { send({ t: 'arpStop', tag: KEYS.latch.tag }); KEYS.latch = null; } if (KEYS.arpN) { send({ t: 'arpStop', tag: KEYS.arpN.tag }); KEYS.arpN = null; } }
 // notes the arpeggiator played: recorded as played while recording, otherwise kept for Capture
@@ -2053,6 +2072,11 @@ function padDown(cell, hk = cell) {   // hk: the key this press is held under (t
     if (lt) { send({ t: 'arpStop', tag: lt.tag }); KEYS.latch = null; if (kx.latch && lt.pi === pi && lt.cell === cell) { refreshPadDots(); return hk; } }
     send({ t: 'arp', pad: pi, tag, notes: notes.map(x => ({ semi: x.semi, vel: x.vel })), pat: kx.apat, rate: kx.arate, oct: kx.aoct, gate: kx.agate });
     if (kx.latch) { KEYS.latch = { tag, pi, cell }; refreshPadDots(); } else HELD[hk] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return hk;
+  }
+  if (UI.rpt && !(kc && kxOf(pi).arp)) {   // note repeat: the engine plays the note (or the whole chord) again on the grid until let go
+    const notes = kc && kc.chord ? playChord(pi, kc.chord).map(x => ({ semi: x.semi, vel: x.vel })) : [{ semi, vel: kc && kc.vel != null ? kc.vel : .9 }];
+    send({ t: 'arp', pad: pi, tag, notes, pat: notes.length > 1 ? 'chord' : 'up', rate: UI.rpt, oct: 1, gate: .5 }); if (chop) selectSlice(cell);
+    HELD[hk] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return hk;
   }
   if (kc && kc.chord) {   // a chord: every note shares one tag, so letting go releases them all (and cancels strummed notes not yet played)
     const notes = playChord(pi, kc.chord); send({ t: 'hit', pad: pi, notes, tag });
@@ -2713,6 +2737,9 @@ const CHANGES = [
     'Map mode shows every source at once. Tap one to move the picked control, hold one to connect it to many; the lower knobs set up to four amounts.',
     'Del is now Shift + Back on the d-pad. Hold the Pads key on any page to pick another pad.',
     'Fixed: Loop scene and Play song could be cut off on some phones.',
+    'The Pads page shows the pad you last played on a display: its name, its waveform, and its start and end (drag them on the waveform). Tap the name to open its Sound page.',
+    'Four knobs under the Pads display. Tap a knob’s name to choose what it turns: tune, release, filter, sends, synth macros or any effect setting. Each pad keeps its own.',
+    'Repeat: turn it on and hold a pad to play it again in time; chords repeat whole. Hold the Repeat key to pick the rate.',
   ]],
   ['2026-11-27', [
     'Multiband redesigned: small knobs grouped by band, the main three as big knobs, and thresholds you can drag on the screen.',
@@ -3266,7 +3293,7 @@ async function boot() {
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (SNAPS.some(x => x.t === pr.snap)) UI.tl.snap = pr.snap; UI.tl.velOpen = pr.velOpen !== false;
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.finish = pr.finish === 'silver' ? 'silver' : 'graphite'; UI.padArt = pr.padArt !== false; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark'; UI.font = pr.font2 === 'narrow' ? 'narrow' : 'rounded';
-    UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null;
+    UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null; UI.rptR = [96, 48, 32, 24, 16, 12].includes(pr.rptR) ? pr.rptR : 24;
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty(); setTimeout(showUpdates, 900);
