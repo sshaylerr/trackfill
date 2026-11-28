@@ -803,6 +803,13 @@ const order = P => { const o = []; P.scenes.forEach((s, i) => { if (Object.value
         for (let k = Math.round(f0 / 48000 * N); k < Math.round(f1 / 48000 * N); k++) { let a = 0, bb = 0; for (let i = 0; i < N; i += 2) { a += re[i] * Math.cos(2 * Math.PI * k * i / N); bb += re[i] * Math.sin(2 * Math.PI * k * i / N); } e += a * a + bb * bb; } } return 10 * Math.log10(e + 1e-30); };
     const dry = await run(null), f = M.newFx(M.FX_TYPES.TAME); f.p[0] = 1; const wet = await run(f), cut = tone(wet, 3000) - tone(dry, 3000), else1 = band(wet, 6000, 6400) - band(dry, 6000, 6400), else2 = band(wet, 1200, 1500) - band(dry, 1200, 1500);
     ok(cut < -6 && Math.abs(else1) < 1 && Math.abs(else2) < 1, `Tame dips a ringing 3 kHz by ${cut.toFixed(1)} dB and leaves the rest (${else2.toFixed(2)} dB at 1.2–1.5 kHz, ${else1.toFixed(2)} dB at 6–6.4 kHz)`); }
+  { // a parallel section: its inserts work on a copy, blended back with the untouched sound (0 untouched only, 50% both full, 100% processed only)
+    const n = 24000, d = new Int16Array(n); for (let i = 0; i < n; i++) d[i] = Math.round(4000 * Math.sin(2 * Math.PI * 440 * i / 48000));
+    const run = async (par, pbl) => { const Q = M.newProject(true); Object.assign(Q.pads[0], { sample: 'pt', mode: 'one', rel: .001 }); const u = M.newFx(M.FX_TYPES.UTIL); u.p[0] = .625; Q.chans[0].fx = [u]; Q.chans[0].par = par; Q.chans[0].pbl = pbl;
+      Q.scenes[0] = Object.assign(M.emptyScene(), { bars: 1, notes: { 0: [{ t: 0, len: 24, p: 0, v: 1 }] } }); Q.bpm = 120;
+      const L = (await H.tfRenderOffline(wasm, Q, new Map([['pt', { id: 'pt', data: d, frames: n, ch: 1, sr: 48000 }]]), { order: [{ scene: 0, reps: 1 }], tail: 0 })).L; let e = 0; for (let i = 6000; i < 18000; i++) e += L[i] * L[i]; return 10 * Math.log10(e); };
+    const serial = await run(null, .5), dry = await run([0, 0], 0) - serial, both = await run([0, 0], .5) - serial, wet = await run([0, 0], 1) - serial;
+    ok(Math.abs(dry + 6.02) < .1 && Math.abs(both - 3.52) < .1 && Math.abs(wet) < .1, `a parallel section blends its inserts with the untouched sound (against +6 dB in series: blend 0 ${dry.toFixed(2)} dB, 50% ${both.toFixed(2)} dB, 100% ${wet.toFixed(2)} dB)`); }
   { // every Mix knob: at 0 the effect's output is the dry sound, sample for sample (the multiband's bands add back up through a phase shift, so its level is checked);
     // the effects with no Mix of their own get one from the engine at the same place the page shows it
     const n = 24000, d = new Int16Array(n); let x = 11; const w = () => (x = (x * 16807) % 2147483647) / 2147483647 * 2 - 1; for (let i = 0; i < n; i++) d[i] = Math.round(w() * 6000);

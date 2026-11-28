@@ -14,17 +14,18 @@ function scopeWant() {
   else if (UI.view === 'sound' && UI.snd === PG.MIX) ch = UI.pad;
   else if (UI.view === 'mix' && conOn() && UI.mixMode === 'bus') { fc = hasBusComp(UI.mixSel) ? UI.mixSel : MASTER; fs = NSLOTS + 1; }   // the console's gain reduction meter
   else if (UI.view === 'fx' && P.chans[UI.fxCh].fx[UI.fxSlot]) { fc = UI.fxCh; fs = UI.fxSlot; const t = P.chans[fc].fx[fs].type; if (t === FX_TYPES.EQ || t === FX_TYPES.FILTER) ch = fc; }
-  let full = SCOPE.sheet >= 0 ? anMask() : 0; const mini = ch < 0 && fc < 0 && UI.view === 'pads' && padScopeShown(); if (mini) { ch = MASTER; full = 8; }   // the pad page's little waveform: the mix, waveform only
-  const ref = full & 2 && UI.anRef != null && UI.anRef !== ch ? UI.anRef : -1, key = ch + ':' + fc + ':' + fs + ':' + full + ':' + ref + ':' + (mini ? 1 : 0); if (key === SCOPE.key) return; SCOPE.key = key; SCOPE.mini = mini;
+  let full = SCOPE.sheet >= 0 ? anMask() : 0; const mini = ch < 0 && fc < 0 && UI.view === 'pads' && padScopeShown(), md = padScopeMode(); if (mini) { ch = MASTER; full = md === 'wave' ? 8 : 0; }   // the pad page's little display: the mix, only what its view needs
+  const ref = full & 2 && UI.anRef != null && UI.anRef !== ch ? UI.anRef : -1, key = ch + ':' + fc + ':' + fs + ':' + full + ':' + ref + ':' + (mini ? md : 0); if (key === SCOPE.key) return; SCOPE.key = key; SCOPE.mini = mini;
   SCOPE.hist = []; SCOPE.wv.n = 0; SCOPE.io.pk.fill(-120); SCOPE.io.hold.fill(-120);   // a different effect: start its histories fresh
   if (ch !== SCOPE.ch) { SCOPE.tgt.fill(-120); SCOPE.disp.fill(-120); SCOPE.pk = [-120, -120]; SCOPE.rms = [-120, -120]; SCOPE.hold = [-120, -120]; SCOPE.vis = SCOPE.visD = 0; }
-  SCOPE.ch = ch; SCOPE.fc = fc; SCOPE.fs = fs; SCOPE.ref = ref; if (mini && !SCOPE.an) SCOPE.an = anNew(); send({ t: 'scope', ch, fc, fs, full, ref, lite: mini });
+  SCOPE.ch = ch; SCOPE.fc = fc; SCOPE.fs = fs; SCOPE.ref = ref; if (mini && !SCOPE.an) SCOPE.an = anNew(); send({ t: 'scope', ch, fc, fs, full, ref, lite: mini && md !== 'spec', osc: mini && md === 'osc' });
 }
 function onScope(sc) {
   if (sc.ch !== SCOPE.ch) return; const now = performance.now(), quiet = SCOPE.mini && !(sc.pk && Math.max(sc.pk[0], sc.pk[1]) > 1e-4); if (!quiet) { SCOPE.at = now; wake(); } SCOPE.vis = sc.vis || 0; SCOPE.vis3 = sc.vis3 || null;   // the pad page's waveform doesn't keep the screen drawing through silence
   SCOPE.hist.push(SCOPE.vis); if (SCOPE.hist.length > 90) SCOPE.hist.shift();   // limiter history
   if (sc.an) anTake(sc.an);
   if (sc.io) { const io = SCOPE.io; for (let i = 0; i < 4; i++) { const p = lin2dbJS(sc.io[i]); io.pk[i] = Math.max(p, io.pk[i]); if (p >= io.hold[i] || now - io.at[i] > 1500) { io.hold[i] = p; io.at[i] = now; } } }
+  if (sc.osc) SCOPE.osc = sc.osc;
   if (sc.wv) { const w = SCOPE.wv; for (let i = 0; i + 2 < sc.wv.length; i += 3) { const j = (w.n % 1024) * 3; w.buf[j] = sc.wv[i]; w.buf[j + 1] = sc.wv[i + 1]; w.buf[j + 2] = sc.wv[i + 2]; w.n++; } }
   if (!sc.pk) return;
   if (sc.b) SCOPE.tgt.set(sc.b); else SCOPE.tgt.fill(-120);
@@ -52,7 +53,18 @@ const SPEC_LO = 25, SPEC_HI = 20000, SPEC_DB = 84;
 const specX = (f, x, w) => x + w * Math.log(f / SPEC_LO) / Math.log(SPEC_HI / SPEC_LO);
 // the pad page's waveform: the last second and a half of the mix, coloured by its lows, mids and highs like the analyzer's
 const padScopeShown = () => { const c = document.querySelector('.padScope'); return !!c && c.clientWidth > 30; };
-function drawPadScope(cv) { if (!SCOPE.mini || cv.clientWidth < 30) return; const { g, W, H } = prepCanvas(cv), A = SCOPE.an; g.clearRect(0, 0, W, H); g.fillStyle = COL.line; g.fillRect(0, Math.round(H / 2), W, 1); if (!A || !A.cn) return;
+// its views, changed with a tap: rolling waveform, spectrum, oscilloscope (a steady picture of the wave itself, held still at each rise through zero)
+const PAD_SCOPES = [['wave', 'Waveform'], ['spec', 'Spectrum'], ['osc', 'Scope']];
+const padScopeMode = () => { const m = anPrefs().pad; return PAD_SCOPES.some(x => x[0] === m) ? m : 'wave'; };
+function padScopeNext() { const i = PAD_SCOPES.findIndex(x => x[0] === padScopeMode()), n = PAD_SCOPES[(i + 1) % PAD_SCOPES.length]; anPrefs().pad = n[0]; savePrefs(); SCOPE.osc = null; SCOPE.psName = { t: performance.now(), n: n[1] }; scopeWant(); wake(); }
+function drawPadScope(cv) { if (!SCOPE.mini || cv.clientWidth < 30) return; const { g, W, H } = prepCanvas(cv), A = SCOPE.an, md = padScopeMode(); g.clearRect(0, 0, W, H);
+  const nm = SCOPE.psName; if (nm && performance.now() - nm.t < 900) { vText(g, nm.n.toUpperCase(), W / 2, H / 2, COL.dim, 'center', 9, 600); return; }   // the new view's name, a moment
+  if (md === 'spec') { drawSpectrum(g, 0, 0, W, H, { alpha: .35, line: .9, col: COL.accent }); return; }
+  g.fillStyle = COL.line; g.fillRect(0, Math.round(H / 2), W, 1);
+  if (md === 'osc') { const a = SCOPE.osc; if (!a) return; let st = 0; for (let i = 1; i < a.length / 2; i++) if (a[i - 1] < 0 && a[i] >= 0) { st = i; break; }
+    let pk = .02; for (let i = 0; i < a.length; i++) pk = Math.max(pk, Math.abs(a[i])); const n = Math.min(a.length - st, 220), k = (H / 2 - 3) / Math.max(pk, .25);
+    g.beginPath(); for (let x = 0; x < n; x++) { const y = H / 2 - a[st + x] * k; x ? g.lineTo(x * W / (n - 1), y) : g.moveTo(0, y); } g.strokeStyle = COL.accent; g.lineWidth = 1.4; g.stroke(); return; }
+  if (!A || !A.cn) return;
   const n = A.cn, oldest = n - Math.min(AN_WCOLS, n), cpp = 560 / W, mid = H / 2, amp = H / 2 - 3;
   for (let x = 0; x < W; x++) { const c1 = n - 1 - (W - 1 - x) * cpp, a = Math.floor(c1 - cpp + 1e-6) + 1, b = Math.floor(c1); let mn = 1, mx = -1, lo = 0, mi = 0, hi = 0;
     for (let c = a; c <= b; c++) { if (c < oldest || c >= n) continue; const o = (c % AN_WCOLS) * 5; mn = Math.min(mn, A.cols[o]); mx = Math.max(mx, A.cols[o + 1]); lo = Math.max(lo, A.cols[o + 2]); mi = Math.max(mi, A.cols[o + 3]); hi = Math.max(hi, A.cols[o + 4]); }
@@ -274,7 +286,7 @@ function openAnalyzer(c) {
         st.append(p); }
       requestAnimationFrame(() => scopeFrame(0)); };
     build();
-  }, () => { SCOPE.sheet = -1; SCOPE.an = null; SCOPE.views = SCOPE.views.filter(v => v.cv.isConnected); scopeWant(); });
+  }, () => { SCOPE.sheet = -1; SCOPE.an = null; SCOPE.shut = performance.now(); SCOPE.views = SCOPE.views.filter(v => v.cv.isConnected); scopeWant(); });
 }
 // the mixer's name box: tap it to open the full analyzer for that channel (nothing is analyzed until then)
 const IC_SCOPE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V14h3v6zm5 0V8h3v12zm5 0v-9h3v9zm5 0V5h3v15z"/></svg>';

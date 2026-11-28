@@ -205,7 +205,7 @@ function tfSlotFx(P, C, s) { return s < TF.NSLOT ? C.fx[s] : !tfConsoleOn(P) ? n
 function tfBase(P, k) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return null;
   if (s === -4) return tfTempoV(P.bpm);
-  if (s === -1) return [C.vol, C.pan, C.sa, C.sb, C.drv || 0][i];
+  if (s === -1) return [C.vol, C.pan, C.sa, C.sb, C.drv || 0, C.pbl == null ? .5 : C.pbl][i];
   if (s === -2) { const p = P.pads[c]; return p ? [p.cut, p.res, p.bend == null ? .5 : p.bend][i] : null; }
   if (s === -3) { const p = P.pads[c], d = TFSYN[i]; return p && p.syn && d ? tfSynNorm(d, p.syn.p[d.id]) : null; }   // synth parameter i
   const f = tfSlotFx(P, C, s); return f ? (i === -1 ? (f.on ? 1 : 0) : f.p[i]) : null;
@@ -213,7 +213,7 @@ function tfBase(P, k) {
 function tfSetBase(P, k, v) {
   const { c, s, i } = tfParseKey(k), C = P.chans[c]; if (!C) return;
   if (s === -4) { P.bpm = Math.round(tfTempoBpm(v) * 10) / 10; return; }
-  if (s === -1) C[['vol', 'pan', 'sa', 'sb', 'drv'][i]] = v;
+  if (s === -1) C[['vol', 'pan', 'sa', 'sb', 'drv', 'pbl'][i]] = v;
   else if (s === -2) { const p = P.pads[c]; if (p) p[['cut', 'res', 'bend'][i]] = v; }
   else if (s === -3) { const p = P.pads[c], d = TFSYN[i]; if (p && p.syn && d) p.syn.p[d.id] = tfSynPhys(d, v); }
   else { const f = tfSlotFx(P, C, s); if (f) f.p[i] = v; }
@@ -429,7 +429,7 @@ class TFHost {
   applyKey(k, v) {
     const { c, s, i } = tfParseKey(k), ex = this.ex;
     if (v == null || !(v === v) || s === -4) return;   // tempo is followed by the scheduler, not set here
-    if (s === -1) { if (i === 0) ex.tf_ch_set(c, 0, tfFaderGain(v)); else if (i === 1) ex.tf_ch_set(c, 1, v * 2 - 1); else if (i === 4) ex.tf_ch_set(c, 9, tfConsoleOn(this.P) && !(c < TF.NPAD && this.frozen(c)) ? v : 0); else ex.tf_ch_set(c, i, tfSendGain(v)); }   // drive (i 4): a frozen pad has it in its render
+    if (s === -1) { if (i === 0) ex.tf_ch_set(c, 0, tfFaderGain(v)); else if (i === 1) ex.tf_ch_set(c, 1, v * 2 - 1); else if (i === 4) ex.tf_ch_set(c, 9, tfConsoleOn(this.P) && !(c < TF.NPAD && this.frozen(c)) ? v : 0); else if (i === 5) ex.tf_ch_set(c, 11, v); else ex.tf_ch_set(c, i, tfSendGain(v)); }   // drive (i 4): a frozen pad has it in its render
     else if (s === -2 && i === 2) { const p = this.P.pads[c]; ex.tf_ch_bend(c, (v * 2 - 1) * ((p && p.bendR) || 2), v * 2 - 1); }   // pitch bend: ± the pad's bend range
     else if (s === -3) { if (ex.tf_syn_param) ex.tf_syn_param(c, i, v); }
     else if (s === -2) { if (this.frozen(c)) return; ex.tf_ch_set(c, i === 0 ? 5 : 6, i === 0 ? 20 * Math.pow(1000, v) : 0.7 + v * v * 18); }
@@ -443,7 +443,8 @@ class TFHost {
   syncChan(c) {
     const ex = this.ex, C = this.P.chans[c], frz = c < TF.NPAD && this.frozen(c);
     ex.tf_ch_route(c, tfDest(this.P, c));
-    for (let i = 0; i < 5; i++) this.applyKey(c + '.-1.' + i, [C.vol, C.pan, C.sa, C.sb, C.drv || 0][i]);
+    for (let i = 0; i < 6; i++) this.applyKey(c + '.-1.' + i, [C.vol, C.pan, C.sa, C.sb, C.drv || 0, C.pbl == null ? .5 : C.pbl][i]);
+    ex.tf_ch_set(c, 12, C.par ? C.par[0] : -1); ex.tf_ch_set(c, 13, C.par ? C.par[1] : -1);   // the parallel section (slots, first to last)
     ex.tf_ch_set(c, 7, C.eq && C.eq.post ? 1 : 0); ex.tf_ch_set(c, 10, ({ punchy: 1, warm: 2 })[this.P.console] || 0);   // the console's character
     for (let s = 0; s < TF.NSLOT + 2; s++) {
       const f = tfSlotFx(this.P, C, s), bus = f && s === TF.NSLOT + 1, t = !f ? -1 : bus && f.type === 1 ? 41 : f.type, mode = f && !bus ? (f.mode | 0) : 0, id = t < 0 ? -1 : t * 16 + mode;   // an effect slot is identified by type and mode; the console's compressor is its own design (41) with the VCA's controls
@@ -592,7 +593,7 @@ class TFHost {
     if (ref !== this.refCh) { this.refCh = ref; this.refV = null; if (this.an) { this.an.qOn = false; this.an.qL.fill(0); this.an.qR.fill(0); } }
     let s = this.scope; if (!s) { s = this.scope = { buf: new Float32Array(2048), w: 0, pkL: 0, pkR: 0, ssL: 0, ssR: 0, n: 0, mem: null }; if (!this.spec) this.spec = new TFSpectrum(this.sr); }
     if (s.ch !== m.ch) { s.ch = m.ch; s.mem = null; s.buf.fill(0); s.pkL = s.pkR = s.ssL = s.ssR = 0; s.n = 0; }   // never carry the last channel's levels over
-    s.lite = !!m.lite;   // the pad page's little waveform: no spectrum needed
+    s.lite = !!m.lite; s.osc = !!m.osc;   // the pad page's little display: no spectrum unless it shows one; the wave itself for its scope
   }
   scopeFeed(m) {
     const s = this.scope, ex = this.ex, mem = ex.memory.buffer;
@@ -623,7 +624,9 @@ class TFHost {
     if (v && this.ex.tf_fxio) { const a = new Float32Array(this.ex.memory.buffer, this.ex.tf_fxio(), 32), o = v[1] * 4; r.io = [a[o], a[o + 1], a[o + 2], a[o + 3]]; a.fill(0); }   // the device's in/out peaks since the last report
     const w = this.wv; if (w && v && w.c === v[0] && w.s === v[1]) { if (w.cols.length) { r.wv = w.cols; for (let i = 2; i < w.cols.length; i += 3) r.vis = Math.min(r.vis, w.cols[i]); } w.cols = []; }   // the meter shows the deepest dip, however short
     if (s) { const loud = s.pkL > 1e-5 || s.pkR > 1e-5, n = Math.max(1, s.n);
-      r.b = loud && !s.lite ? Array.from(this.spec.run(s.buf, s.w)) : null; r.pk = [s.pkL, s.pkR]; r.rms = [Math.sqrt(s.ssL / n), Math.sqrt(s.ssR / n)];
+      r.b = loud && !s.lite ? Array.from(this.spec.run(s.buf, s.w)) : null;
+      if (s.osc && loud) { const o = new Array(512); for (let i = 0; i < 512; i++) o[i] = s.buf[(s.w - 1024 + 2 * i) & 2047]; r.osc = o; }   // the last 21 ms, every other sample
+      r.pk = [s.pkL, s.pkR]; r.rms = [Math.sqrt(s.ssL / n), Math.sqrt(s.ssR / n)];
       s.pkL = s.pkR = s.ssL = s.ssR = 0; s.n = 0; }
     return r;
   }

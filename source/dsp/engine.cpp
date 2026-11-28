@@ -256,10 +256,10 @@ struct Chan {
   float cv, cp, ca, cb, cm, ccut, cres;        // smoothed
   float fz1[2], fz2[2];                        // pad filter state
   i32 out; u32 quiet, tail, oq, gap; Fx fx[NSLOTX];
-  i32 eqPost; float drv, cdrv, cdx[2], cdy[2], cei, ceo, cmk, chx[2], chy[2], clp[2], cbx[2], cby[2], cbl[2]; i32 ckind;   // the console: channel EQ before or after the inserts; the console's character (0 = none)   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
+  i32 eqPost; float drv, cdrv, cdx[2], cdy[2], cei, ceo, cmk, chx[2], chy[2], clp[2], cbx[2], cby[2], cbl[2]; i32 ckind; i32 parA, parB; float pbl, pbs;   // the console: channel EQ before or after the inserts; the console's character (0 = none)   // quiet: samples of silent input; oq: of silent input and output; gap: the longest silence an effect can hold inside it
 };
 static Chan chs[NCH];
-static float dirL[MAXN], dirR[MAXN]; static i32 dirMute = 0;   // channels routed to the speaker; exports leave them out
+static float dirL[MAXN], dirR[MAXN]; static i32 dirMute = 0; static float parL[MAXN], parR[MAXN];   // the parallel section's untouched copy   // channels routed to the speaker; exports leave them out
 EX void tf_direct_mute(i32 m) { dirMute = m ? 1 : 0; }
 static float inL[NCH][MAXN], inR[NCH][MAXN], keyL[NCH][MAXN], keyR[NCH][MAXN], pstL[NPAD][MAXN], pstR[NPAD][MAXN];
 // which input buffers hold anything this block: every other one is all zeros, so quiet channels cost nearly nothing
@@ -289,7 +289,7 @@ EX void tf_init(float sr) {
     Chan* C = &chs[c];
     C->vol = C->cv = 0.98f; C->pan = C->cp = 0; C->sa = C->ca = 0; C->sb = C->cb = 0; C->mute = C->cm = 1;
     C->cut = C->ccut = 20000.f; C->res = C->cres = 0.707f; C->out = defaultOut(c); C->tail = (u32)(0.3f * SR); C->gap = (u32)(0.1f * SR); C->quiet = 0; C->oq = 0;
-    for (i32 s = 0; s < NSLOTX; s++) C->fx[s].type = -1; C->eqPost = 0; C->drv = C->cdrv = 0; C->cdx[0] = C->cdx[1] = C->cdy[0] = C->cdy[1] = 0; C->cei = C->ceo = 0; C->cmk = 1; C->chx[0] = C->chx[1] = C->chy[0] = C->chy[1] = 0; C->clp[0] = C->clp[1] = C->cbx[0] = C->cbx[1] = C->cby[0] = C->cby[1] = C->cbl[0] = C->cbl[1] = 0; C->ckind = 0;
+    for (i32 s = 0; s < NSLOTX; s++) C->fx[s].type = -1; C->parA = C->parB = -1; C->pbl = C->pbs = 0.5f; C->eqPost = 0; C->drv = C->cdrv = 0; C->cdx[0] = C->cdx[1] = C->cdy[0] = C->cdy[1] = 0; C->cei = C->ceo = 0; C->cmk = 1; C->chx[0] = C->chx[1] = C->chy[0] = C->chy[1] = 0; C->clp[0] = C->clp[1] = C->cbx[0] = C->cbx[1] = C->cby[0] = C->cby[1] = C->cbl[0] = C->cbl[1] = 0; C->ckind = 0;
   }
 }
 EX void tf_set_bpm(float b) { BPM = sane(b, 20.f, 400.f, 120.f); }
@@ -307,7 +307,10 @@ EX void tf_ch_set(i32 c, i32 what, float v) {
     case 6: C->res = sane(v, 0.5f, 25.f, 0.707f); break;
     case 7: C->eqPost = v >= 0.5f ? 1 : 0; break;
     case 9: C->drv = sane(v, 0.f, 1.f, 0.f); break;
-    case 10: C->ckind = v >= 1.5f ? 2 : v >= 0.5f ? 1 : 0; break;   // which console's character: 0 Clean, 1 Punchy, 2 Warm
+    case 10: C->ckind = v >= 1.5f ? 2 : v >= 0.5f ? 1 : 0; break;
+    case 11: C->pbl = sane(v, 0.f, 1.f, 0.5f); break;   // the parallel section's blend
+    case 12: C->parA = v >= 0.f && v < NSLOT ? (i32)v : -1; break;
+    case 13: C->parB = v >= 0.f && v < NSLOT ? (i32)v : -1; break;   // which console's character: 0 Clean, 1 Punchy, 2 Warm
   }
 }
 EX void tf_ch_route(i32 c, i32 o) { if (c >= 0 && c < NCH) chs[c].out = validOut(c, o); }
@@ -1002,8 +1005,14 @@ static void processChan(i32 c, i32 n) {
   const i32 io = c == ioCh;
   { Fx* e = &C->fx[SL_EQ]; if (!C->eqPost && e->type >= 0 && e->on) fx_run(c, e, L, R, n); }
   { Fx* b = &C->fx[SL_BUS]; if (b->type >= 0 && b->on) fx_run(c, b, L, R, n); }
+  /* the parallel section: slots parA..parB work on the sound while an untouched copy waits, then the two are blended. Blend 0 = untouched
+     only, 50% = both at full level (the usual parallel sum), 100% = processed only; eased across each block. */
+  const i32 pa = C->parA, pb = C->parB, par = pa >= 0 && pb >= pa;
   for (i32 s = 0; s < NSLOT; s++) { Fx* f = &C->fx[s]; if (io && f->type >= 0) ioPeak(fxio[s], L, R, n);
+    if (par && s == pa) { for (i32 i = 0; i < n; i++) { parL[i] = L[i]; parR[i] = R[i]; } }
     if (f->type >= 0 && f->on) fx_run(c, f, L, R, n); else if (f->type == FX_DUCK && f->st) ((DuckSt*)f->st)->npend = 0;
+    if (par && s == pb) { const float b0 = C->pbs, b1 = C->pbl; C->pbs = b1;
+      for (i32 i = 0; i < n; i++) { const float b = b0 + (b1 - b0) * (i + 1) / n, dg = minf(1.f, 2.f * (1.f - b)), wg = minf(1.f, 2.f * b); L[i] = parL[i] * dg + L[i] * wg; R[i] = parR[i] * dg + R[i] * wg; } }
     if (io && f->type >= 0) ioPeak(fxio[s] + 2, L, R, n); }
   { Fx* e = &C->fx[SL_EQ]; if (C->eqPost && e->type >= 0 && e->on) fx_run(c, e, L, R, n); }
   consoleChar(C, L, R, n);

@@ -212,3 +212,8 @@ all inlined, so it asks no other site for anything and works offline as a home-s
 - Phones (≤460 px, where the pad name box is hidden): canvas .padScope in the pads toolbar, a rolling 1.5 s waveform of the master coloured by lows/mids/highs (the analyzer's wave columns). scopeWant asks for ch MASTER, mask 8, `lite` (the host skips the spectrum). Hidden below 30 px wide (keys mode).
 - Silence doesn't keep the screen drawing: onScope only wakes the frame loop when the mini scope's peak is above -80 dB.
 - Fixed: a display asked for before the engine was up (the pad scope at start, any open analyzer) never got its numbers; on 'ready' the scope request is sent again.
+
+## Parallel section, pad display views, ANLZ toggle (2026-11-27)
+- Channel C.par = [first, last] insert (or null), C.pbl blend (key `c.-1.5`, automatable, STRIP[5]). Engine Chan.parA/parB/pbl (tf_ch_set 11–13): at parA the sound is copied (parL/R), after parB it's blended: untouched × min(1, 2(1−b)) + processed × min(1, 2b), eased per block. remapSlots keeps the section on its effects. Fx page: PAR key → openParallel (Off / on, First, Last, Blend); slots in the section get a top bar. Test: "a parallel section blends…".
+- Pad display: tap cycles Waveform / Spectrum / Scope (anPrefs().pad). Spectrum = the light channel spectrum (not lite); Scope = host sends the last 1024 mono samples every other one (r.osc), drawn from a rising zero crossing, auto-scaled.
+- ANLZ (and the meter) close the master analyzer when it's open (SCOPE.shut guards the tap that closed it through the sheet).

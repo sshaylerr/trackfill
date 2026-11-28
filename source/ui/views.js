@@ -15,7 +15,7 @@ function renderPads(V) {
   if (UI.keys && chopOf(UI.pad)) top.append(btn('Chop', () => { UI.keys = false; renderView(); }, 'key sm on kbtn'));
   else if (UI.keys) top.append(btn('Keys', () => { UI.keys = false; stopLatch(); renderView(); }, 'key sm on kbtn'), btn(IC.left, () => keysOct(-1), 'key sm ic'), btn(IC.right, () => keysOct(1), 'key sm ic'), btn(keysModeLabel(UI.pad) + ' ▾', () => openKeysSheet(UI.pad), 'key sm kmode'));
   else top.append(seg(['A', 'B', 'C', 'D'], UI.bank, i => { UI.bank = i; UI.pad = i * 16 + UI.pad % 16; renderView(); savePrefs(); }), btn(ck(), () => { UI.keys = true; renderView(); }, 'key sm kbtn'), btn('Import', () => pickAudio(null), 'key sm'));
-  const ps = h('canvas', 'lcdbox padScope'); scopeView(ps, () => drawPadScope(ps)); requestAnimationFrame(() => { if (ps.isConnected && ps.clientWidth) prepCanvas(ps); });   // sized to its spot at once, drawn on or not   // a small rolling waveform of the mix, where a phone has no room for the pad's name
+  const ps = h('canvas', 'lcdbox padScope'); ps.onclick = padScopeNext; ps.setAttribute('aria-label', 'Mix display: tap to change'); scopeView(ps, () => drawPadScope(ps)); requestAnimationFrame(() => { if (ps.isConnected && ps.clientWidth) prepCanvas(ps); });   // sized to its spot at once, drawn on or not   // a small rolling waveform of the mix, where a phone has no room for the pad's name
   top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'), ps);
   const grid = h('div', 'grid');
   for (const cell of padOrder(16)) { const pd = h('div', 'pad' + (PADHELD.has(cell) ? ' held' : '')); pd.dataset.cell = cell;
@@ -80,6 +80,7 @@ function openLaneSheet(c) {
     const strip = [0, 1, 2, 3].filter(i => i < 2 || c < R0).map(i => [c + '.-1.' + i, STRIP[i].label, 'channel']);
     if (c < G0) strip.push([c + '.-2.2', 'Pitch bend', '± ' + (P.pads[c].bendR || 2) + ' semitones'], [c + '.-2.0', 'Cutoff', 'pad filter'], [c + '.-2.1', 'Resonance', 'pad filter']);
     if (conOn()) strip.push([c + '.-1.4', 'Drive', conName() + ' console']);
+    if (P.chans[c].par) strip.push([c + '.-1.5', 'Parallel blend', `inserts ${P.chans[c].par[0] + 1}–${P.chans[c].par[1] + 1}`]);
     list('Channel', strip);
     if (conOn()) { const C = P.chans[c]; list('Console EQ', [[`${c}.8.-1`, 'EQ in / out', 'console']].concat(conEqP(C.eq).map((p, i) => p.opts ? null : [`${c}.8.${i}`, p.n, 'console EQ']).filter(Boolean)));
       if (C.bus) list('Bus compressor', [[`${c}.9.-1`, 'In / out', 'console']].concat(conBusP(C.bus).map((p, i) => p.opts ? null : [`${c}.9.${i}`, p.n, 'bus compressor']).filter(Boolean))); }
@@ -278,9 +279,24 @@ function openOutputPicker(c) {
 
 /* ---------- effects: 8 slot keys, the selected effect's knobs below ---------- */
 function openFx(c, back) { navReset(); UI.fxCh = c; UI.fxBack = back || 'mix'; UI.fxSlot = 0; UI.view = 'fx'; renderView(); }
+/* A channel's parallel section: a run of its inserts that works on a copy of the sound, blended back with the untouched sound.
+   One per channel; any first and last slot. */
+function openParallel(c, s0) { const C = P.chans[c], n = Math.max(1, C.fx.length);
+  openSheet('Parallel', card => { const st = h('div', 'stack'); card.append(st);
+    st.append(h('p', 'note', 'Inserts in the section work on a copy of the sound; Blend mixes it back with the untouched sound. At 50% both play at full level.'));
+    const set = p => { pushUndo('chan:' + c); C.par = p; fxChanged(c); closeSheet(); openParallel(c, s0); };
+    const row = h('div', 'g2'); row.append(btn('Off', () => set(null), 'btn' + (C.par ? '' : ' on')), btn(C.par ? `Inserts ${C.par[0] + 1}–${C.par[1] + 1}` : `Start at insert ${s0 + 1}`, () => { if (!C.par) set([s0, s0]); }, 'btn' + (C.par ? ' on' : '')));
+    st.append(h('div', 'sec', 'Section'), row);
+    if (C.par) { const g = h('div', 'g2');
+      g.append(paramEl({ label: 'First', min: 1, max: n, step: 1, coarse: 1, big: 2, get: () => C.par[0] + 1, set: v => { pushUndo('chan:' + c); C.par = [v - 1, Math.max(v - 1, C.par[1])]; fxChanged(c); }, def: 1, fmt: v => 'Insert ' + v, noFocus: true }),
+        paramEl({ label: 'Last', min: 1, max: n, step: 1, coarse: 1, big: 2, get: () => C.par[1] + 1, set: v => { pushUndo('chan:' + c); C.par = [Math.min(v - 1, C.par[0]), v - 1]; fxChanged(c); }, def: n, fmt: v => 'Insert ' + v, noFocus: true }));
+      const bl = h('div', 'g2'); bl.append(keyParam(c + '.-1.5', { label: 'Blend' }));
+      st.append(g, h('div', 'sec', 'Blend'), bl); }
+  }); }
 function remapSlots(c, map) {   // keep automation attached to the right effect when slots move: map[oldSlot] = newSlot or -1
   const S = c < NPADS && P.pads[c].src === 'synth' && P.pads[c].syn;   // and a synth pad's routes onto its effects
   if (S && S.mods) S.mods = S.mods.filter(m => { const t = tfFxTarget(m.d); if (!t) return true; const ns = map[t.s]; if (!(ns >= 0)) return false; m.d = `fx:${ns}:${t.i}`; return true; });
+  const C = P.chans[c]; if (C.par) { const kept = []; for (let s = C.par[0]; s <= C.par[1]; s++) if (map[s] >= 0) kept.push(map[s]); C.par = kept.length ? [Math.min(...kept), Math.max(...kept)] : null; }   // the parallel section keeps its effects
   for (const sc of P.scenes) { const next = {}; for (const k in sc.auto) { const p = tfParseKey(k); if (p.c !== c || p.s < 0 || p.s >= TF.NSLOT) { next[k] = sc.auto[k]; continue; } const ns = map[p.s]; if (ns >= 0) next[`${c}.${ns}.${p.i}`] = sc.auto[k]; } sc.auto = next; }
 }
 function fxChanged(c) { if (c < NPADS && P.pads[c].src === 'synth') syncPad(c); syncChan(c); P.scenes.forEach((_, i) => syncScene(i)); if (c < G0 && P.pads[c].frz) touchPad(c); markDirty(); renderView(); }
@@ -376,13 +392,14 @@ function renderFx(V) {
   for (let s = 0; s < NSLOTS; s++) { const f = C.fx[s], md = f && f.mode ? FX_DEFS[f.type].modes[f.mode].n : null, k = btn(`<span class="led"></span><span class="lcd" style="font-size:8px;color:var(--dim)">${s + 1}</span>${f ? '<span class="fxn" data-alt="' + esc(FX_DEFS[f.type].short) + '">' + esc(md || FX_DEFS[f.type].short) + '</span>' : (s === C.fx.length ? '+' : '')}`,
       () => { if (s <= C.fx.length) { UI.fxSlot = s; renderView(); } }, 'key' + (s === UI.fxSlot ? ' cur' : '') + (f && f.on ? ' lit' : ''));
     if (f) { const lk = fxLook(f.type, f.mode | 0); k.style.boxShadow = `inset 0 -3px 0 ${lk.ring}, 0 2px 0 #050506`; }
+    if (C.par && s >= C.par[0] && s <= C.par[1]) { k.classList.add('par'); k.style.boxShadow = (k.style.boxShadow ? k.style.boxShadow + ', ' : '') + 'inset 0 3px 0 var(--accent)'; }   // the parallel section: a bar along the top of its slots
     if (s > C.fx.length) k.disabled = true; slots.append(k); }
   const panel = h('div', 'fxPanel'), f = C.fx[UI.fxSlot], s = UI.fxSlot;
   if (f) {
     const params = fxParams(f), fh = h('div', 'fxHead');
     const move = dir => { const t = s + dir; if (t < 0 || t >= C.fx.length) return; pushUndo('all'); [C.fx[s], C.fx[t]] = [C.fx[t], C.fx[s]]; const map = C.fx.map((_, i) => i); map[s] = t; map[t] = s; remapSlots(c, map); UI.fxSlot = t; fxChanged(c); };
     fh.append(btn(f.on ? 'On' : 'Off', () => { pushUndo('chan:' + c); f.on = !f.on; fxChanged(c); }, 'key sm' + (f.on ? ' on' : '')), h('div', 'lcdbox', `Insert ${s + 1}`),
-      btn(IC.left, () => move(-1), 'key sm ic'), btn(IC.right, () => move(1), 'key sm ic'),
+      btn('PAR', () => openParallel(c, s), 'key sm' + (C.par && s >= C.par[0] && s <= C.par[1] ? ' on' : '')), btn(IC.left, () => move(-1), 'key sm ic'), btn(IC.right, () => move(1), 'key sm ic'),
       confirmBtn('✕', '?', () => { pushUndo('all'); C.fx.splice(s, 1); const map = []; for (let i = 0; i < NSLOTS; i++) map[i] = i < s ? i : i === s ? -1 : i - 1; remapSlots(c, map); UI.fxSlot = Math.max(0, s - 1); fxChanged(c); }, 'key sm ic warn'));
     const ref = {}, dev = deviceEl(c, s, f, ref), redrawVis = () => ref.fn && ref.fn();
     const g = h('div', 'kgrid k8'), notesDuck = f.type === FX_TYPES.DUCK && Math.round(f.p[0]) === 0;
