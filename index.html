@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-ZLCgoyWc9hB2CCd5KUnPCGePieCbcfCDD4PbuN0h28g=' 'sha256-dcw+VbOGiaFjjnd69/prHdgXLd6kfX6QrjY/cY8VIlk=' 'sha256-KpnB2R3bbkoIlTdP9/Lnc/VcVP88bBkB/S/JCChGhOw=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-JiWJSD2kI2Jv6NSawoJ4abw4QEZBo3BKIa2EO/WYp3s=' 'sha256-dcw+VbOGiaFjjnd69/prHdgXLd6kfX6QrjY/cY8VIlk=' 'sha256-TiDtah5kCGV1ly0XnP03VmXAwZ4+SJKRegq2Z4eXgLs=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -990,6 +990,7 @@ body.tight .slot:not(.add) .srow{display:none} body.tight .slot.add .srow{height
 /* nothing on the switch can clip: Safari gives a button its own padding and box, so the switch sizes to its words and rounds its own ends */
 #deck #bLoop.dseg{-webkit-appearance:none;appearance:none;padding:0;margin:0;min-width:max-content;width:max-content;max-width:none;height:auto;min-height:22px;overflow:visible;flex-shrink:0;align-items:stretch}
 #deck #bLoop.dseg i{flex:none;line-height:22px;min-height:22px;justify-content:center}
+@media (max-width:400px){#deck.low #bLoop.dseg i{padding:0 7px;font-size:11px} #deck.low #dBar{display:none}}   /* a small phone: the scene's name keeps its room */
 #deck #bLoop.dseg i:first-child{border-radius:var(--i-rs) 0 0 var(--i-rs)} #deck #bLoop.dseg i:last-child{border-radius:0 var(--i-rs) var(--i-rs) 0}
 #dSong{font-size:11.5px;color:var(--mute);white-space:nowrap} #dSong b{color:var(--ink);font-weight:500}
 #scenes{height:auto;gap:6px;padding:0}
@@ -1103,6 +1104,23 @@ body[data-pads="tint"] .pad:not(.empty)::after{background:var(--pc)}
 #view.cramp .sdmap{gap:3px 4px;padding:5px 0 6px} #view.cramp .sdmap .mc .kval,#view.cramp .sdmap .mc .sw>span{font-size:13.5px;line-height:16px} #view.cramp .sdmap .mc .klab{font-size:10.5px;line-height:12px}
 #view.cramp .sdh{padding-top:7px} #view.cramp .sd input.sdn{font-size:19px;height:24px} #view.cramp .sdtabs{padding-top:5px} #view.cramp .sdtabs button{height:24px}
 #view.short .sdsub{padding-top:5px} #view.short .sds{display:none} #view.short .sdh{padding-top:6px} #view.short .sd .pnav .tk,#view.short .sd .tk{height:24px} #view.short .sdmap{padding:4px 0 5px;gap:2px 4px} #view.short .sdtabs button{height:22px} #view.short .sdtabs{padding-top:3px}
+
+/* ---- the Pads page (phase 3): the selected pad on a display, 4 knobs you choose ---- */
+.padsView.inst{gap:8px}
+.sd.pdsp{flex:0 1 auto;min-height:0}
+.pdh{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:8px 12px 0;flex:none;min-width:0}
+.sd .pdl{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;flex:1 1 auto;height:auto;padding:0;background:none;border:0;box-shadow:none;border-radius:0;text-align:left;color:var(--ink)}
+.sd .pdl b{font:500 18px/22px var(--font-ui);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .sd .pdl span{font:400 12px/15px var(--font-ui);color:var(--mute);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.pdr{font:400 11.5px/15px var(--font-ui);color:var(--mute);white-space:nowrap;flex:none;padding-top:24px}
+.pdw{flex:0 1 64px;min-height:0;margin:6px 12px 0;position:relative} .pdw canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none} .pdw.gone canvas{visibility:hidden}
+.sd.pdsp .sdmap{padding:6px 0 8px} .sd.pdsp .sdmap .mc{cursor:pointer}
+.kgrid.pdk{flex:none;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:none}
+.toolbar .key.rpt.on{white-space:nowrap} .toolbar .key.imp svg{display:none;width:18px;height:18px;fill:currentColor}
+@container (max-width:384px){.padsView .toolbar{gap:4px} .padsView .toolbar .key.sm{padding:0 6px} .padsView .toolbar .key.imp{padding:0;width:32px;flex:none} .padsView .toolbar .key.imp .kl{display:none} .padsView .toolbar .key.imp svg{display:block;margin:auto}}
+@container (max-width:350px){.padsView .toolbar .key.sm{padding:0 4px;font-size:11.5px}}
+#view.cramp .pdw{flex-basis:56px} #view.cramp .pdh{padding-top:6px} #view.cramp .sd .pdl b{font-size:16px;line-height:19px} #view.cramp .pdr{padding-top:20px}
+#view.short .pdw{display:none} #view.short .sd .pdl span{display:none} #view.short .pdr{padding-top:3px} #view.short .padsView.inst{gap:6px}
+#view.short .pdh{display:none} #view.tiny .padsView .pdsp,#view.tiny .padsView .pdk{display:none}   /* very little room (a small phone with the d-pad open): the pads come first */
 
 /* Map mode */
 .sd .mline{display:flex;align-items:center;gap:8px;padding:10px 12px 0;flex:none;min-width:0}
@@ -1759,7 +1777,7 @@ function defaultChan(c) {
 }
 // tempo: the sound's own tempo in BPM (0 = off); when set, it is repitched to follow the project tempo.
 // chop: slices of the sound. Notes on a chopped pad carry the slice number in 'p' instead of a pitch.
-function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, swg: null, swq: null, tim: 0, gain: 0, norm: false, ng: 1, fin: 0, fout: 0, silA: 0, silB: 0, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08, src: 'sample', wm: 'Repitch', wp: null, stx: null, drum: null, choke: 0, syn: null, bend: .5, bendR: 2, fk: null }; }
+function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, swg: null, swq: null, tim: 0, gain: 0, norm: false, ng: 1, fin: 0, fout: 0, silA: 0, silB: 0, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08, src: 'sample', wm: 'Repitch', wp: null, stx: null, drum: null, choke: 0, syn: null, bend: .5, bendR: 2, fk: null, qk: null }; }
 
 /* ---------- chopping ---------- */
 const MAX_SLICES = 16;
@@ -1876,6 +1894,7 @@ function normalize(p) {
     delete d.nv;   // per-note renders of a layered drum: remade on load
     d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.drum = d.drum ? DRN().drumNormalize(d.drum) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : d.src === 'drum' && d.drum ? 'drum' : d.src === 'audio' ? 'audio' : 'sample';
     d.choke = Math.max(0, Math.min(4, d.choke | 0));
+    d.qk = Array.isArray(d.qk) && d.qk.length === 4 && d.qk.some(k => typeof k === 'string') ? d.qk.map(k => typeof k === 'string' && /^(p:[a-z]{2,8}|\.-?\d{1,2}\.-?\d{1,3})$/.test(k) ? k : null) : null;   // the Pads page's 4 knobs: what each turns, relative to the pad ('.-2.0', 'p:pitch'); null: the defaults
     d.fk = d.fk && typeof d.fk === 'object' && +d.fk.r >= 0 && +d.fk.r < 12 ? { r: +d.fk.r | 0, m: !!d.fk.m } : null;   // the sound's own key, from its file name
     d.gain = Math.max(-24, Math.min(24, +d.gain || 0)); d.norm = !!d.norm; d.ng = Math.max(0, Math.min(16, +d.ng || 1)); d.fin = Math.max(0, Math.min(10, +d.fin || 0)); d.fout = Math.max(0, Math.min(10, +d.fout || 0));   // non-destructive edits
     d.swg = d.swg == null || d.swg === '' ? null : clamp01(+d.swg); d.swq = [48, 24, 12].includes(+d.swq) ? +d.swq : null; d.tim = Math.max(-40, Math.min(40, +d.tim || 0));   // groove: own swing (null: the song's) and a timing offset in ms
@@ -4693,7 +4712,7 @@ function markDirty() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 
 // the song's key, for effects that play in it (the Resonator): sent whenever it changes
 let keySent = ''; function syncKey(force) { if (!P || !P.key) return; const iv = scaleOf(P.key.scale)[1], sig = P.key.root + ':' + iv.join(','); if (sig === keySent && !force) return; keySent = sig; send({ t: 'key', root: P.key.root, iv }); }
 function saveNow() { clearTimeout(saveTimer); if (P) { projSave(); abTouched(); } }
-function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, finish: UI.finish, padArt: UI.padArt !== false, padStyle: UI.padStyle, font2: UI.font, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog }); }
+function savePrefs() { DB.put('kv', 'ui', { follow: UI.follow, strip: UI.strip, theme: UI.theme, finish: UI.finish, padArt: UI.padArt !== false, padStyle: UI.padStyle, font2: UI.font, view: UI.view === 'fx' ? 'mix' : UI.view, bank: UI.bank, pad: UI.pad, scene: UI.scene, mirror: UI.mirror, panel: UI.panel, haptics: UI.haptics, loop: T.loop, snap: UI.tl.snap, velOpen: UI.tl.velOpen !== false, click: UI.click, countIn: UI.countIn, clickVol: UI.clickVol, anP: UI.anP, ex: UI.ex, seenLog: UI.seenLog, rptR: UI.rptR || 24 }); }
 
 /* ================= undo (scoped: only the part that changed is stored) ================= */
 const UNDO = [], REDO = []; let ugKey = null, ugTime = 0;
@@ -4842,7 +4861,7 @@ async function startEngine() {
 const APPERR = { log: [], said: 0 };
 function appError(msg) { msg = String(msg || 'unknown').slice(0, 160); APPERR.log = APPERR.log.concat(new Date().toTimeString().slice(0, 8) + ' ' + msg).slice(-8);
   if (Date.now() - APPERR.said > 60000) { APPERR.said = Date.now(); try { toast('Something went wrong: ' + msg.slice(0, 80) + ' · Engine check has the details'); } catch (e) {} } }
-addEventListener('error', e => { if (e.message) appError(e.message + (e.lineno ? ' (line ' + e.lineno + ')' : '')); });
+addEventListener('error', e => { if (e.message && !/ResizeObserver loop/.test(e.message)) appError(e.message + (e.lineno ? ' (line ' + e.lineno + ')' : '')); });
 addEventListener('unhandledrejection', e => { const r = e.reason; if (r && (r.name === 'AbortError' || r.name === 'NotAllowedError')) return; appError(r && r.message ? r.message : r); });   // a cancelled share or a blocked play is not a fault
 // the last 50 things done, for Engine check's Copy results: what was tapped and where, so a problem can be traced back to the steps before it
 const TRAIL = { log: [], trips: [] };
@@ -5137,7 +5156,7 @@ function keyParam(key, o) {
 // a non-automatable pad sound parameter (pitch, start, attack…)
 function padParam(pi, k, o) {
   return makeCtl(Object.assign({}, o, { key: pi + ':' + k, scope: 'pad:' + pi, get: () => P.pads[pi][k],
-    set: v => { const p = P.pads[pi]; touchPad(pi); if (k === 'start') v = Math.min(v, p.end - .01); if (k === 'end') v = Math.max(v, p.start + .01); p[k] = v; if ((k === 'start' || k === 'end') && p.chop) chopLater(pi); syncPad(pi); drawDisp(); markDirty(); },
+    set: v => { const p = P.pads[pi]; touchPad(pi); if (k === 'start') v = Math.min(v, p.end - .01); if (k === 'end') v = Math.max(v, p.start + .01); p[k] = v; if ((k === 'start' || k === 'end') && p.chop) chopLater(pi); syncPad(pi); drawDisp(); if (o.after) o.after(v); markDirty(); },
     onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); } }), 'knob');
 }
 document.addEventListener('pointerdown', psGlideStop, true);   // any touch stops a glide, as on the phone's own lists
@@ -5312,6 +5331,7 @@ function refreshPadDots() {
     padArtWant(pd, chop ? -1 : pi); });
   const sel = document.querySelector('.padsSel'); if (sel) { const p = P.pads[UI.pad]; sel.textContent = chop ? `Chop · ${p.name || padLabel(UI.pad)} · ${chop.pts.length} slices` : UI.keys ? keysStatus(UI.pad) : `${padLabel(UI.pad)} · ${p.name || 'Empty'}`; if (p.name && !chop && !UI.keys) sel.dataset.alt = p.name; else delete sel.dataset.alt; fitFonts(sel); }
   if (UI.strip && UI.panel) refreshStrip();
+  if (UI.view === 'pads') pdFollow();
 }
 function stopLatch() { if (KEYS.latch) { send({ t: 'arpStop', tag: KEYS.latch.tag }); KEYS.latch = null; } if (KEYS.arpN) { send({ t: 'arpStop', tag: KEYS.arpN.tag }); KEYS.arpN = null; } }
 // notes the arpeggiator played: recorded as played while recording, otherwise kept for Capture
@@ -5409,6 +5429,11 @@ function padDown(cell, hk = cell) {   // hk: the key this press is held under (t
     if (lt) { send({ t: 'arpStop', tag: lt.tag }); KEYS.latch = null; if (kx.latch && lt.pi === pi && lt.cell === cell) { refreshPadDots(); return hk; } }
     send({ t: 'arp', pad: pi, tag, notes: notes.map(x => ({ semi: x.semi, vel: x.vel })), pat: kx.apat, rate: kx.arate, oct: kx.aoct, gate: kx.agate });
     if (kx.latch) { KEYS.latch = { tag, pi, cell }; refreshPadDots(); } else HELD[hk] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return hk;
+  }
+  if (UI.rpt && !(kc && kxOf(pi).arp)) {   // note repeat: the engine plays the note (or the whole chord) again on the grid until let go
+    const notes = kc && kc.chord ? playChord(pi, kc.chord).map(x => ({ semi: x.semi, vel: x.vel })) : [{ semi, vel: kc && kc.vel != null ? kc.vel : .9 }];
+    send({ t: 'arp', pad: pi, tag, notes, pat: notes.length > 1 ? 'chord' : 'up', rate: UI.rpt, oct: 1, gate: .5 }); if (chop) selectSlice(cell);
+    HELD[hk] = { tag, arp: true, rec: [], cap: [], pi, start: 0, ms: [] }; return hk;
   }
   if (kc && kc.chord) {   // a chord: every note shares one tag, so letting go releases them all (and cancels strummed notes not yet played)
     const notes = playChord(pi, kc.chord); send({ t: 'hit', pad: pi, notes, tag });
@@ -6690,8 +6715,8 @@ function renderPads(V) {
   const w = h('div', 'padsView'), top = h('div', 'toolbar');
   const ck = () => chopOf(UI.pad) ? 'Chop' : 'Keys';
   if (UI.keys && chopOf(UI.pad)) top.append(btn('Chop', () => { UI.keys = false; renderView(); }, 'key sm on kbtn'));
-  else if (UI.keys) top.append(btn('Keys', () => { UI.keys = false; stopLatch(); renderView(); }, 'key sm on kbtn'), btn(IC.left, () => keysOct(-1), 'key sm ic'), btn(IC.right, () => keysOct(1), 'key sm ic'), btn(keysModeLabel(UI.pad) + ' ▾', () => openKeysSheet(UI.pad), 'key sm kmode'));
-  else top.append(seg(['A', 'B', 'C', 'D'], UI.bank, i => { UI.bank = i; UI.pad = i * 16 + UI.pad % 16; renderView(); savePrefs(); }), btn(ck(), () => { UI.keys = true; renderView(); }, 'key sm kbtn'), btn('Import', () => pickAudio(null), 'key sm'));
+  else if (UI.keys) top.append(btn('Keys', () => { UI.keys = false; stopLatch(); renderView(); }, 'key sm on kbtn'), btn(IC.left, () => keysOct(-1), 'key sm ic'), btn(IC.right, () => keysOct(1), 'key sm ic'), btn(keysModeLabel(UI.pad) + ' ▾', () => openKeysSheet(UI.pad), 'key sm kmode'), rptKey());
+  else top.append(seg(['A', 'B', 'C', 'D'], UI.bank, i => { UI.bank = i; UI.pad = i * 16 + UI.pad % 16; renderView(); savePrefs(); }), btn(ck(), () => { UI.keys = true; renderView(); }, 'key sm kbtn'), rptKey(), impKey());
   const ps = h('canvas', 'lcdbox padScope'); ps.onclick = padScopeNext; ps.setAttribute('aria-label', 'Mix display: tap to change'); scopeView(ps, () => drawPadScope(ps)); requestAnimationFrame(() => { if (!ps.isConnected) return; if (ps.clientWidth < 30) ps.style.display = 'none'; else prepCanvas(ps); });   // sized to its spot at once; no room, not shown   // a small rolling waveform of the mix, where a phone has no room for the pad's name
   top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'), ps);
   const grid = h('div', 'grid');
@@ -6699,8 +6724,11 @@ function renderPads(V) {
     grid.append(pd); }
   bindPadGrid(grid);   // touches land on the grid and go to the nearest pad (see bindPadGrid)
   const chop = padChop(); if (chop) w.classList.add('chopping');
-  w.append(top); if (chop) w.append(chopWave(UI.pad)); w.append(grid); V.append(w); refreshPadDots(); if (chop) requestAnimationFrame(drawChop);
+  const [pd, pk] = padInst(!!chop); w.classList.add('inst');   // the selected pad on a display, its 4 knobs under it (ui/inst.js)
+  w.append(pd, pk, top); if (chop) w.append(chopWave(UI.pad)); w.append(grid); V.append(w); refreshPadDots(); if (chop) requestAnimationFrame(drawChop); requestAnimationFrame(() => pdDraw(true));
 }
+
+function impKey() { const b = btn('<span class="kl">Import</span><svg viewBox="0 0 24 24"><path d="M11 4h2v9.2l3.3-3.3 1.4 1.4L12 17l-5.7-5.7 1.4-1.4 3.3 3.3zM5 18h14v2H5z"/></svg>', () => pickAudio(null), 'key sm imp'); b.setAttribute('aria-label', 'Import'); return b; }   // narrow: just its icon
 
 /* ---------- timeline ---------- */
 function laneTitle(short) {   // short: what's left when the full title doesn't fit
@@ -10484,6 +10512,114 @@ function mapInst(pi) {
         if (el._mc && el.dataset.syn) el._mc.onclick = () => mapPick(pi, el.dataset.syn); } } };
 }
 
+/* ---------- the Pads page (phase 3): the selected pad on a display, 4 knobs you choose, and note repeat ----------
+   The display shows the pad you last played: its name, where its sound comes from, and its waveform with the start and end.
+   Under it, 4 knobs. Each pad keeps its own choice (pad.qk, relative keys like '.-2.0' or 'p:pitch'); null means the defaults. */
+const QK_PAD = {
+  pitch: { label: 'Tune', entry: ENTRY.st, min: -24, max: 24, step: 1, coarse: 1, big: 12, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v + ' st' },
+  fine: { label: 'Fine', entry: ENTRY.ct, min: -100, max: 100, step: 1, coarse: 10, big: 50, def: 0, bipolar: true, fmt: v => (v > 0 ? '+' : '') + v + ' ct' },
+  start: { label: 'Start', step: .001, coarse: .01, big: .05, def: 0, fmt: v => (v * 100).toFixed(1) + '%' },
+  end: { label: 'End', step: .001, coarse: .01, big: .05, def: 1, fmt: v => (v * 100).toFixed(1) + '%' },
+  atk: { label: 'Attack', max: 2, step: .001, coarse: .02, big: .1, def: 0, fmt: v => Math.round(v * 1000) + ' ms' },
+  rel: { label: 'Release', max: 4, step: .001, coarse: .02, big: .25, def: .05, fmt: v => Math.round(v * 1000) + ' ms' },
+  glide: { label: 'Glide', max: 1, step: .001, coarse: .01, big: .1, def: .08, fmt: v => Math.round(v * 1000) + ' ms' } };
+const qkHasPad = p => p.src === 'sample' || p.src === 'drum';   // the pad's own sound settings: samples and drums (a synth has its own)
+function qkValid(pi, k) { const p = P.pads[pi]; if (typeof k !== 'string') return false;
+  if (k.startsWith('p:')) return !!QK_PAD[k.slice(2)] && qkHasPad(p);
+  const { s, i } = tfParseKey(pi + k); if (p.src === 'audio' && s < -1) return false;
+  if (s === -1) return i >= 0 && i <= 3 || (i === 4 && conOn());
+  if (s === -2) return i >= 0 && i <= 2;
+  if (s === -3) return p.src === 'synth' && !!p.syn && synAutoIds(pi).some(id => TFSYN_ID[id].i === i);
+  const f = P.chans[pi].fx[s]; return s >= 0 && s < NSLOTS && !!f && (i === -1 || (i >= 0 && !!fxParams(f)[i] && !fxParams(f)[i].opts)); }
+function qkDefaults(pi) { const p = P.pads[pi];
+  if (p.src === 'audio') return ['.-1.0', '.-1.1', '.-1.2', '.-1.3'];
+  if (p.src === 'synth' && p.syn) { const m = synAutoIds(pi).filter(id => id[0] === 'm').map(id => '.-3.' + TFSYN_ID[id].i), c = [...new Set([...m, '.-2.0', '.-2.1'])]; return [c[0], c[1], c[2], '.-1.2']; }
+  return ['p:pitch', 'p:rel', '.-2.0', '.-1.2']; }
+function qkList(pi) { const d = qkDefaults(pi), q = P.pads[pi].qk; return d.map((k, i) => q && q[i] && qkValid(pi, q[i]) ? q[i] : k); }
+function qkCtl(pi, k, after) {
+  if (k.startsWith('p:')) return padParam(pi, k.slice(2), Object.assign({}, QK_PAD[k.slice(2)], { after }));
+  const m = keyMeta(pi + k), lab = tfParseKey(pi + k).s >= 0 ? m.short.replace(/^\d+·/, '') : m.short === 'Vol' ? 'Volume' : m.short;
+  return keyParam(pi + k, { label: lab, after }); }
+function qkName(pi, k) { if (k.startsWith('p:')) return QK_PAD[k.slice(2)].label; const m = keyMeta(pi + k); return m.label; }
+
+// choose what one of the 4 knobs turns, from this pad's own settings, its channel, its synth and its effects
+function openQkSheet(pi, slot) {
+  const p = P.pads[pi], cur = qkList(pi)[slot];
+  openSheet(`Knob ${slot + 1} · ${padLabel(pi)} ${p.name || ''}`.trim(), card => {
+    const pick = k => { pushUndo('pad:' + pi); const q = qkList(pi); q[slot] = k; const d = qkDefaults(pi); p.qk = q.every((x, i) => x === d[i]) ? null : q; markDirty(); closeSheet(); renderView(); };
+    const list = (title, items) => { items = items.filter(([k]) => qkValid(pi, k)); if (!items.length) return; card.append(h('div', 'sec', title)); const l = h('div', 'list');
+      for (const [k, sub] of items) { const li = h('div', 'li' + (k === cur ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${esc(qkName(pi, k))}</b><span>${esc(sub)}</span></div>`; li.onclick = () => pick(k); l.append(li); }
+      card.append(l); };
+    const top = h('div', 'list'), ty = h('div', 'li'); ty.innerHTML = `<div class="lt"><b>Type a value</b><span>${esc(qkName(pi, cur))}</span></div>`;
+    ty.onclick = () => { const el = document.querySelector(`.pdsp .mc[data-slot="${slot}"]`), knob = el && el._knob; closeSheet(); if (knob && knob._reg && knob._reg.type) knob._reg.type(); }; top.append(ty); card.append(top);
+    list('Sound', Object.keys(QK_PAD).map(n => ['p:' + n, 'this pad']));
+    list('Filter', [['.-2.0', 'pad filter'], ['.-2.1', 'pad filter'], ['.-2.2', 'this pad']]);
+    list('Channel', [0, 1, 2, 3, 4].map(i => ['.-1.' + i, i === 4 ? 'console' : 'mixer']));
+    if (p.src === 'synth' && p.syn) list('Synth', synAutoIds(pi).map(id => ['.-3.' + TFSYN_ID[id].i, id[0] === 'm' ? 'macro' : 'synth']));
+    P.chans[pi].fx.forEach((f, s) => list(`Insert ${s + 1} · ${FX_DEFS[f.type].name}`, [['.' + s + '.-1', 'on / off']].concat(fxParams(f).map((_, i) => ['.' + s + '.' + i, FX_DEFS[f.type].name]))));
+    const d = qkDefaults(pi)[slot]; if (cur !== d) { const l = h('div', 'list'), li = h('div', 'li'); li.innerHTML = `<div class="lt"><b>Back to ${esc(qkName(pi, d))}</b><span>this knob's default</span></div>`; li.onclick = () => pick(d); l.append(li); card.append(h('div', 'sec', 'Default'), l); }
+  });
+}
+
+// the display and the knobs for the selected pad; rebuilt when another pad is picked
+function padInst(chop) {
+  const pi = UI.pad, p = P.pads[pi], d = h('div', 'sd pdsp'), g = h('div', 'kgrid'), map = h('div'); d._pi = pi;
+  const hd = h('div', 'pdh'), L = h('button', 'pdl'), R = h('div', 'pdr'), s = SAMPLES.get(p.sample);
+  const src = p.src === 'synth' ? 'Synth' : p.src === 'drum' ? 'Drum' : p.src === 'audio' ? 'Audio track' : padUsed(p) ? 'Sample' : 'Empty';
+  L.innerHTML = `<b>${esc(p.name || (padUsed(p) ? src : 'Empty pad'))}</b><span>${esc([src, padLabel(pi), s && p.src !== 'synth' ? (s.frames / s.sr).toFixed(1) + ' s' : ''].filter(Boolean).join(' · '))}</span>`;
+  L.setAttribute('aria-label', 'Open this pad\'s sound'); L.onclick = () => setView('sound');
+  hd.append(L, R); d.append(hd);
+  if (!chop) { const wv = h('div', 'pdw'), cv = h('canvas'); wv.append(cv); d.append(wv); pdBindWave(cv); }
+  const redraw = () => pdDraw(true);
+  qkList(pi).forEach((k, i) => { const el = qkCtl(pi, k, redraw); g.append(el); });
+  ikMap(g, map); d.append(map);
+  [...map.children].forEach((mc, i) => { mc.dataset.slot = i; mc._knob = g.children[i]; mc.onclick = () => openQkSheet(pi, i); mc.setAttribute('role', 'button'); mc.setAttribute('aria-label', 'Choose what knob ' + (i + 1) + ' turns'); });
+  g.classList.add('pdk'); pdTimes(R, pi);
+  return [d, g];
+}
+function pdTimes(R, pi) { const p = P.pads[pi], s = SAMPLES.get(p.sample); if (!R) return;
+  if (!s || p.src === 'synth' || p.src === 'audio') { R.textContent = ''; return; } const dur = s.frames / s.sr, t = f => { const v = f * dur, m = Math.floor(v / 60); return m + ':' + (v - m * 60).toFixed(2).padStart(5, '0'); };
+  R.textContent = `start ${t(p.start)} · end ${t(p.end)}`; }
+// the waveform: drawn when something about it changes, never per frame
+function pdDraw(force) {
+  const d = document.querySelector('.pdsp'); if (!d) return; const wv = d.querySelector('.pdw'), cv = wv && wv.firstChild; pdTimes(d.querySelector('.pdr'), d._pi); if (!cv) return;
+  const W = Math.round(wv.clientWidth), H = Math.round(wv.clientHeight); wv.classList.toggle('gone', H < 22); if (H < 22 || W < 8) return;
+  const p = P.pads[d._pi], sig = [padArtSig(p) || p.src, p.start, p.end, W, H].join('|'); if (!force && cv._sig === sig) return; cv._sig = sig;
+  const dpr = Math.min(2, window.devicePixelRatio || 1); cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const s = SAMPLES.get(p.sample), col = PAD_COLORS[p.color];
+  if (p.src === 'synth' && p.syn) { padArtPaint(g, p, W, H, dpr); return; }
+  if (!s || p.src === 'audio') { g.fillStyle = COL.dim; g.font = `400 12px ${FONT_LCD}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(p.src === 'audio' ? 'Audio track · its clips are on the Timeline' : 'Empty · tap Import, or load a sound in Sound', W / 2, H / 2); return; }
+  const pk = samplePeaks(s, 600), n = 600, mid = H / 2, A = H * .47, cols = Math.max(2, Math.round(W / 1.5));
+  g.fillStyle = col; g.beginPath(); const at = c => Math.min(n - 1, Math.floor(c / cols * n)), rv = k => p.reverse ? n - 1 - k : k;
+  for (let c = 0; c < cols; c++) g.lineTo(W * c / cols, mid - Math.max(.02, pk[rv(at(c)) * 2 + 1]) * A);
+  for (let c = cols - 1; c >= 0; c--) g.lineTo(W * c / cols, mid - Math.min(-.02, pk[rv(at(c)) * 2]) * A); g.closePath(); g.fill();
+  const xs = Math.round(p.start * W), xe = Math.round(p.end * W); g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, 0, xs, H); g.fillRect(xe, 0, W - xe, H);
+  g.fillStyle = COL.ink; g.fillRect(xs - 1, 0, 2, H); g.fillRect(xe - 1, 0, 2, H); }
+// on the waveform: drag near the start or the end to move it; a tap plays the pad
+function pdBindWave(cv) { let d = null;
+  cv.addEventListener('pointerdown', e => { ensureAudio(); const pi = UI.pad, p = P.pads[pi]; d = { x0: e.clientX, moved: false, pushed: false, pi };
+    if (!p.sample || !qkHasPad(p)) return; try { cv.setPointerCapture(e.pointerId); } catch (_) {} const r = cv.getBoundingClientRect(), f = (e.clientX - r.left) / r.width; d.which = Math.abs(f - p.start) < Math.abs(f - p.end) ? 'start' : 'end'; });
+  cv.addEventListener('pointermove', e => { if (!d || !d.which) return; if (Math.abs(e.clientX - d.x0) > 5) d.moved = true; if (!d.moved) return;
+    if (!d.pushed) { pushUndo('pad:' + d.pi); touchPad(d.pi); d.pushed = true; } const p = P.pads[d.pi], r = cv.getBoundingClientRect(), f = clamp((e.clientX - r.left) / r.width, 0, 1);
+    if (d.which === 'start') p.start = Math.min(f, p.end - .01); else p.end = Math.max(f, p.start + .01); if (p.chop) chopLater(d.pi); syncPad(d.pi); pdDraw(true); UI.regs.forEach(x => x.upd && x.upd()); markDirty(); });
+  const up = () => { if (d && !d.moved) audition(d.pi); if (d && d.pushed) refreshPadDots(); d = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', () => { d = null; }); }
+// another pad picked (by playing it): the display and knobs follow
+let pdRaf = 0;
+function pdFollow() { if (!pdRaf) pdRaf = requestAnimationFrame(pdFollowNow); }   // once a frame at most: fast playing across pads rebuilds the knobs once
+function pdFollowNow() { pdRaf = 0; const d = document.querySelector('.pdsp'); if (!d || UI.view !== 'pads') return; if (d._pi === UI.pad) { pdDraw(); return; }
+  const k = d.nextElementSibling, [nd, ng] = padInst(!!padChop()); d.replaceWith(nd); if (k && k.classList.contains('pdk')) k.replaceWith(ng); UI.regs = UI.regs.filter(r => r.el && r.el.isConnected); requestAnimationFrame(() => pdDraw(true)); }
+
+// note repeat: while on, a held pad plays again on the grid (the rate is held under the key); chords repeat whole
+const RPT_RATES = [[96, '1/4'], [48, '1/8'], [32, '1/8T'], [24, '1/16'], [16, '1/16T'], [12, '1/32']];
+const rptName = r => (RPT_RATES.find(x => x[0] === r) || RPT_RATES[3])[1];
+function rptKey() { let held = false, t = 0; const b = btn(UI.rpt ? 'Repeat ' + rptName(UI.rpt) : 'Repeat', () => { if (held) { held = false; return; } UI.rpt = UI.rpt ? 0 : (UI.rptR || 24); toast(UI.rpt ? 'Repeat ' + rptName(UI.rpt) + ' · hold a pad. Hold this key for the rate.' : 'Repeat off'); renderView(); }, 'key sm rpt' + (UI.rpt ? ' on' : ''));
+  b.setAttribute('aria-label', 'Note repeat (hold: rate)');
+  b.addEventListener('pointerdown', () => { held = false; clearTimeout(t); t = setTimeout(() => { held = true; haptic(); openRptSheet(); }, 450); }); for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, () => clearTimeout(t));
+  return b; }
+function openRptSheet() { openSheet('Repeat rate', card => { const l = h('div', 'list');
+  for (const [r, n] of RPT_RATES) { const li = h('div', 'li' + ((UI.rpt || UI.rptR || 24) === r ? ' on' : '')); li.innerHTML = `<div class="lt"><b>${n}</b><span>${r === 24 ? 'the usual' : r % 3 ? 'triplets' : ''}</span></div>`; li.onclick = () => { UI.rptR = r; UI.rpt = r; savePrefs(); closeSheet(); renderView(); }; l.append(li); }
+  card.append(h('div', 'sec', 'A held pad plays again every'), l); }); }
+
 /* ---------- sheets ---------- */
 // the menu window sits exactly over the view area (and the scene strip above it when that leaves too little room)
 function placeSheet() { const S = $('#sheet'); if (S.hidden) return; const v = $('#view').getBoundingClientRect(), sc = $('#scenes').getBoundingClientRect(), top = v.height < 300 ? sc.top : v.top;
@@ -10648,6 +10784,9 @@ const CHANGES = [
     'Map mode shows every source at once. Tap one to move the picked control, hold one to connect it to many; the lower knobs set up to four amounts.',
     'Del is now Shift + Back on the d-pad. Hold the Pads key on any page to pick another pad.',
     'Fixed: Loop scene and Play song could be cut off on some phones.',
+    'The Pads page shows the pad you last played on a display: its name, its waveform, and its start and end (drag them on the waveform). Tap the name to open its Sound page.',
+    'Four knobs under the Pads display. Tap a knob’s name to choose what it turns: tune, release, filter, sends, synth macros or any effect setting. Each pad keeps its own.',
+    'Repeat: turn it on and hold a pad to play it again in time; chords repeat whole. Hold the Repeat key to pick the rate.',
   ]],
   ['2026-11-27', [
     'Multiband redesigned: small knobs grouped by band, the main three as big knobs, and thresholds you can drag on the screen.',
@@ -11201,7 +11340,7 @@ async function boot() {
   const pr = await DB.get('kv', 'ui');
   if (pr) { UI.view = pr.view || 'pads'; UI.bank = pr.bank || 0; UI.pad = pr.pad || 0; UI.scene = pr.scene || 0; UI.mirror = !!pr.mirror; UI.haptics = pr.haptics !== false; UI.panel = !!pr.panel; T.loop = pr.loop || 'scene'; if (SNAPS.some(x => x.t === pr.snap)) UI.tl.snap = pr.snap; UI.tl.velOpen = pr.velOpen !== false;
     UI.strip = !!pr.strip; UI.theme = pr.theme || 'amber'; UI.finish = pr.finish === 'silver' ? 'silver' : 'graphite'; UI.padArt = pr.padArt !== false; UI.padStyle = ['dark', 'tint', 'bright'].includes(pr.padStyle) ? pr.padStyle : 'dark'; UI.font = pr.font2 === 'narrow' ? 'narrow' : 'rounded';
-    UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null;
+    UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null; UI.rptR = [96, 48, 32, 24, 16, 12].includes(pr.rptR) ? pr.rptR : 24;
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
   renderAll(); wake(); markDirty(); setTimeout(showUpdates, 900);

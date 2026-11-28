@@ -119,7 +119,7 @@ function keyParam(key, o) {
 // a non-automatable pad sound parameter (pitch, start, attack…)
 function padParam(pi, k, o) {
   return makeCtl(Object.assign({}, o, { key: pi + ':' + k, scope: 'pad:' + pi, get: () => P.pads[pi][k],
-    set: v => { const p = P.pads[pi]; touchPad(pi); if (k === 'start') v = Math.min(v, p.end - .01); if (k === 'end') v = Math.max(v, p.start + .01); p[k] = v; if ((k === 'start' || k === 'end') && p.chop) chopLater(pi); syncPad(pi); drawDisp(); markDirty(); },
+    set: v => { const p = P.pads[pi]; touchPad(pi); if (k === 'start') v = Math.min(v, p.end - .01); if (k === 'end') v = Math.max(v, p.start + .01); p[k] = v; if ((k === 'start' || k === 'end') && p.chop) chopLater(pi); syncPad(pi); drawDisp(); if (o.after) o.after(v); markDirty(); },
     onStart: dpad => { if (!dpad) pushUndo('pad:' + pi); } }), 'knob');
 }
 document.addEventListener('pointerdown', psGlideStop, true);   // any touch stops a glide, as on the phone's own lists

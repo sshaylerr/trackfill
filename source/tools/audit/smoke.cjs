@@ -18,10 +18,11 @@ const crawl = async () => {
   const bars = () => ['#top', '#tabs'].map(s => { const e = document.querySelector(s); if (!e) return s + ':none'; const r = e.getBoundingClientRect(); return [s, Math.round(r.top), Math.round(r.height), Math.round(r.width)].join(':'); }).join(' ');
   const base = bars();
   const reach = () => { const items = navItems(); if (items.length < 2) return [];
-    const seen = new Set(), q = [navDefault() || items[0]]; seen.add(q[0]); const keep = NAV.el;
-    while (q.length) { const el = q.shift(); for (const d of ['up', 'down', 'left', 'right']) { NAV.el = el; NAV.mode = 'nav'; el.scrollIntoView({ block: 'nearest' }); navMove(d); const n = NAV.el; if (n && !seen.has(n)) { seen.add(n); q.push(n); } } }
+    const sig = el => { const r = el.getBoundingClientRect(), o = (el.closest('#view') || document.body).getBoundingClientRect(); return el.tagName + '|' + Math.round(r.left - o.left) + ',' + Math.round(r.top - o.top); }, got = new Set(), isig = new Map(items.map(el => [el, sig(el)]));   /* a part rebuilt on the way (the Pads page's knobs follow the pad the d-pad lands on) still counts where it stands */
+    const seen = new Set(), q = [navDefault() || items[0]]; seen.add(q[0]); got.add(sig(q[0])); const keep = NAV.el;
+    while (q.length) { const el = q.shift(); for (const d of ['up', 'down', 'left', 'right']) { NAV.el = el; NAV.mode = 'nav'; el.scrollIntoView({ block: 'nearest' }); navMove(d); const n = NAV.el; if (n && !seen.has(n)) { seen.add(n); got.add(sig(n)); q.push(n); } } }
     out.navd += seen.size; out.navs++; setNav(keep, true); window.scrollTo(0, 0); document.querySelectorAll('.scr, #sheet .card').forEach(s => { s.scrollTop = 0; });
-    return items.filter(el => !seen.has(el)).map(el => (el.getAttribute('aria-label') || el.textContent || el.className || el.tagName).trim().replace(/\s+/g, ' ').slice(0, 30)); };
+    return items.filter(el => !seen.has(el) && !got.has(isig.get(el))).map(el => (el.getAttribute('aria-label') || el.textContent || el.className || el.tagName).trim().replace(/\s+/g, ' ').slice(0, 30)); };
   // text that doesn't fit its box: wider than it (cut or ellipsised) or taller (clipped tops and tails)
   const textCut = name => { for (const el of document.querySelectorAll('#view *, #top *, #tabs *, #sheet:not([hidden]) *')) {
       if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue; const r = el.getBoundingClientRect(); if (!r.width || r.bottom < 0 || r.top > innerHeight) continue;

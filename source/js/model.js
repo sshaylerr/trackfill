@@ -555,7 +555,7 @@ function defaultChan(c) {
 }
 // tempo: the sound's own tempo in BPM (0 = off); when set, it is repitched to follow the project tempo.
 // chop: slices of the sound. Notes on a chopped pad carry the slice number in 'p' instead of a pitch.
-function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, swg: null, swq: null, tim: 0, gain: 0, norm: false, ng: 1, fin: 0, fout: 0, silA: 0, silB: 0, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08, src: 'sample', wm: 'Repitch', wp: null, stx: null, drum: null, choke: 0, syn: null, bend: .5, bendR: 2, fk: null }; }
+function defaultPad(i) { return { name: '', sample: null, color: i % 8, pitch: 0, fine: 0, start: 0, end: 1, swg: null, swq: null, tim: 0, gain: 0, norm: false, ng: 1, fin: 0, fout: 0, silA: 0, silB: 0, atk: 0, rel: .05, mode: 'one', reverse: false, cut: 1, res: .08, frz: null, tempo: 0, chop: null, voice: 'poly', poly: 8, glide: .08, kx: null, loopS: .25, xf: .08, src: 'sample', wm: 'Repitch', wp: null, stx: null, drum: null, choke: 0, syn: null, bend: .5, bendR: 2, fk: null, qk: null }; }
 
 /* ---------- chopping ---------- */
 const MAX_SLICES = 16;
@@ -672,6 +672,7 @@ function normalize(p) {
     delete d.nv;   // per-note renders of a layered drum: remade on load
     d.syn = d.syn ? SPN().normalizeSyn(d.syn) : null; d.drum = d.drum ? DRN().drumNormalize(d.drum) : null; d.src = d.src === 'synth' && d.syn ? 'synth' : d.src === 'drum' && d.drum ? 'drum' : d.src === 'audio' ? 'audio' : 'sample';
     d.choke = Math.max(0, Math.min(4, d.choke | 0));
+    d.qk = Array.isArray(d.qk) && d.qk.length === 4 && d.qk.some(k => typeof k === 'string') ? d.qk.map(k => typeof k === 'string' && /^(p:[a-z]{2,8}|\.-?\d{1,2}\.-?\d{1,3})$/.test(k) ? k : null) : null;   // the Pads page's 4 knobs: what each turns, relative to the pad ('.-2.0', 'p:pitch'); null: the defaults
     d.fk = d.fk && typeof d.fk === 'object' && +d.fk.r >= 0 && +d.fk.r < 12 ? { r: +d.fk.r | 0, m: !!d.fk.m } : null;   // the sound's own key, from its file name
     d.gain = Math.max(-24, Math.min(24, +d.gain || 0)); d.norm = !!d.norm; d.ng = Math.max(0, Math.min(16, +d.ng || 1)); d.fin = Math.max(0, Math.min(10, +d.fin || 0)); d.fout = Math.max(0, Math.min(10, +d.fout || 0));   // non-destructive edits
     d.swg = d.swg == null || d.swg === '' ? null : clamp01(+d.swg); d.swq = [48, 24, 12].includes(+d.swq) ? +d.swq : null; d.tim = Math.max(-40, Math.min(40, +d.tim || 0));   // groove: own swing (null: the song's) and a timing offset in ms
