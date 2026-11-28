@@ -204,7 +204,7 @@ function renderAudioSound(w, pi, head) {
     for (let i = 0; i < 4; i++) g.append(keyParam(pi + '.-1.' + i, { label: STRIP[i].label }));
     g.append(cellBtn('Output', destName(pi), () => openOutputPicker(pi)), cellBtn('Effects', C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'None', () => openFx(pi, 'sound')), none(), cellBtn('Mixer', 'Open', () => { UI.mixPage = Math.floor(pi / 8); UI.mixSel = pi; setView('mix'); }));
   }
-  w.append(head, pages, disp, g); requestAnimationFrame(drawDisp); }
+  sndInst(w, pi, { tabs: pages, body: [disp], grid: g }); requestAnimationFrame(drawDisp); }
 // the screen: the selected clip in its recording (the part the clip plays lit, fades drawn on it)
 function drawAudioDisp(g, W, H) { const pi = UI.pad, x = audSelInfo(pi), col = PAD_COLORS[P.pads[pi].color]; g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
   const txt = (t, x0, y, c = COL.mute, al = 'left') => { g.fillStyle = c; g.font = `500 10.5px ${FONT_LCD}`; g.textAlign = al; g.textBaseline = 'middle'; g.fillText(t, x0, y); g.textAlign = 'left'; };

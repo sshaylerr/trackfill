@@ -76,11 +76,11 @@ function renderDrumPage(w, pi, head, pages) {
   } else for (const [id, label] of M.knobs) g.append(drumKnob(pi, id, label));
   g.append(T && T.x ? cellBtn('Knobs', lyView ? 'Layer' : 'Body', () => { UI.drumLy = lyView ? -1 : pi; renderView(); }) : cellBtn('Machine', DRUM_MACH_N[machOf(d)], () => openDrumMachines(pi)),
     cellBtn('More', d.key !== 'Free' ? 'Key: ' + d.key : 'Options', () => openDrumMore(pi)));
-  dev.append(g); w.append(head, pages, dev); requestAnimationFrame(drawDrumDisp);
+  const slots = h('div', 'keys'); [...row.children].slice(1).forEach(k => { if (!k.classList.contains('empty')) slots.append(k); }); const lab = slots.childNodes.length ? h('div', 'lcdbox', 'Earlier versions') : null; sndInst(w, pi, { kind: 'drum', tabs: pages, sub: slots.childNodes.length ? [lab, slots] : null, body: [disp], grid: g }); requestAnimationFrame(drawDrumDisp);
 }
 function drawDrumDisp() {
   const cv = drumCv; if (!cv || !cv.isConnected) return; const pi = UI.pad, pad = P.pads[pi], d = pad.drum; if (!d) return; const s = SAMPLES.get(pad.sample);
-  const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
+  const r = innerBox(cv.parentNode), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(1, Math.round(r.width)), H = Math.max(1, r.height);
   cv.parentNode.classList.toggle('gone', H < 34); if (H < 34) return;
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H); const col = PAD_COLORS[pad.color];

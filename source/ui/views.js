@@ -114,7 +114,7 @@ function renderSound(V) {
   if (pad.src === 'audio') { renderAudioSound(w, pi, head); V.append(w); return; }
   const pages = seg(pad.src === 'drum' && pad.drum ? ['Drum', ...SND_PAGES.slice(1)] : SND_PAGES, UI.snd, i => { UI.snd = i; renderView(); }); pages.style.display = 'grid'; pages.style.gridTemplateColumns = 'repeat(5,1fr)'; pages.querySelectorAll('.key').forEach(k => k.style.width = '100%');
   if (UI.snd === PG.SAMPLE && pad.src === 'drum' && pad.drum) { renderDrumPage(w, pi, head, pages); V.append(w); return; }
-  if (UI.snd === PG.CHOP) { w.append(head, pages, chopView(pi)); V.append(w); requestAnimationFrame(drawChop); return; }
+  if (UI.snd === PG.CHOP) { const cw = chopView(pi), [cd, cp, cg] = [...cw.children]; cw.innerHTML = ''; cw.append(cp); sndInst(w, pi, { tabs: pages, body: [cd], after: [cw], grid: cg }); V.append(w); requestAnimationFrame(drawChop); return; }
   const disp = h('div', 'scr disp'), cv = h('canvas'); disp.append(cv); dispCv = cv; bindWave(cv);
   if (UI.snd === PG.SAMPLE) disp.append(btn(pad.sample ? 'Replace sample' : 'Load a sound', openLibrary, 'key sm dispKey'));   // the sound itself lives on the screen, next to its name
   const g = h('div', 'kgrid'), redraw = { after: () => drawDisp() };
@@ -142,14 +142,14 @@ function renderSound(V) {
     g.append(cellBtn('Output', destName(pi), () => openOutputPicker(pi)), cellBtn('Effects', C.fx.length ? C.fx.map(f => FX_DEFS[f.type].short).join(' ') : 'None', () => openFx(pi, 'sound')),
       cellBtn('Freeze', pad.frz ? 'Frozen' : 'Off', () => { if (pad.frz) { unfreeze(pi); renderView(); toast('Unfrozen'); } else freezePad(pi); }), cellBtn('Mixer', 'Open', () => { UI.mixPage = Math.floor(pi / 8); UI.mixSel = pi; setView('mix'); }));
   }
-  w.append(head, pages, disp, g); V.append(w); requestAnimationFrame(drawDisp); if (UI.snd === PG.MIX) scopeView(cv, drawDisp);
+  sndInst(w, pi, { tabs: pages, body: [disp], grid: g }); V.append(w); requestAnimationFrame(drawDisp); if (UI.snd === PG.MIX) scopeView(cv, drawDisp);
 }
 function modeSel(pi) { const pad = P.pads[pi]; return selEl('Mode', ['One-shot', 'Gate', 'Loop'], () => ['one', 'gate', 'loop'].indexOf(pad.mode), i => { pushUndo('pad:' + pi); touchPad(pi); const was = pad.mode; pad.mode = ['one', 'gate', 'loop'][i]; if ((was === 'loop') !== (pad.mode === 'loop') && UI.view === 'sound') setTimeout(renderView); syncPad(pi); markDirty(); drawDisp(); }); }
 function samplePeaks(s, W) { if (s._pk && s._pk.w === W) return s._pk.a; const d = s.data, ch = s.ch, n = s.frames, a = new Float32Array(W * 2), stride = Math.max(1, Math.floor(n / W / 200));
   for (let x = 0; x < W; x++) { const i0 = Math.floor(x * n / W), i1 = Math.floor((x + 1) * n / W); let mn = 0, mx = 0; for (let i = i0; i < i1; i += stride) { const v = d[i * ch] / 32768; if (v < mn) mn = v; if (v > mx) mx = v; } a[x * 2] = mn; a[x * 2 + 1] = mx; }
   s._pk = { w: W, a }; return a; }
 function drawDisp() {
-  const cv = dispCv; if (!cv || !cv.isConnected || UI.view !== 'sound') return; const r = innerBox(cv.parentNode), dpr = window.devicePixelRatio || 1, W = Math.max(1, Math.round(r.width)), H = r.height;
+  const cv = dispCv; if (!cv || !cv.isConnected || UI.view !== 'sound') return; const r = innerBox(cv.parentNode), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(1, Math.round(r.width)), H = r.height;
   if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; } const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = COL.bg; g.fillRect(0, 0, W, H);
   const pi = UI.pad, pad = P.pads[pi], s = SAMPLES.get(pad.sample), col = PAD_COLORS[pad.color];
   if (pad.src === 'audio') { drawAudioDisp(g, W, H); return; }
