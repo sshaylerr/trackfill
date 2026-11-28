@@ -15,7 +15,7 @@ function renderPads(V) {
   if (UI.keys && chopOf(UI.pad)) top.append(btn('Chop', () => { UI.keys = false; renderView(); }, 'key sm on kbtn'));
   else if (UI.keys) top.append(btn('Keys', () => { UI.keys = false; stopLatch(); renderView(); }, 'key sm on kbtn'), btn(IC.left, () => keysOct(-1), 'key sm ic'), btn(IC.right, () => keysOct(1), 'key sm ic'), btn(keysModeLabel(UI.pad) + ' ▾', () => openKeysSheet(UI.pad), 'key sm kmode'));
   else top.append(seg(['A', 'B', 'C', 'D'], UI.bank, i => { UI.bank = i; UI.pad = i * 16 + UI.pad % 16; renderView(); savePrefs(); }), btn(ck(), () => { UI.keys = true; renderView(); }, 'key sm kbtn'), btn('Import', () => pickAudio(null), 'key sm'));
-  const ps = h('canvas', 'lcdbox padScope'); ps.onclick = padScopeNext; ps.setAttribute('aria-label', 'Mix display: tap to change'); scopeView(ps, () => drawPadScope(ps)); requestAnimationFrame(() => { if (ps.isConnected && ps.clientWidth) prepCanvas(ps); });   // sized to its spot at once, drawn on or not   // a small rolling waveform of the mix, where a phone has no room for the pad's name
+  const ps = h('canvas', 'lcdbox padScope'); ps.onclick = padScopeNext; ps.setAttribute('aria-label', 'Mix display: tap to change'); scopeView(ps, () => drawPadScope(ps)); requestAnimationFrame(() => { if (!ps.isConnected) return; if (ps.clientWidth < 30) ps.style.display = 'none'; else prepCanvas(ps); });   // sized to its spot at once; no room, not shown   // a small rolling waveform of the mix, where a phone has no room for the pad's name
   top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'), ps);
   const grid = h('div', 'grid');
   for (const cell of padOrder(16)) { const pd = h('div', 'pad' + (PADHELD.has(cell) ? ' held' : '')); pd.dataset.cell = cell;
@@ -349,6 +349,21 @@ const FX_LAY = {
 // rows of cells: a param index, -1 for a gap, or '@src' / '@key'; the default is four to a row in the engine's order
 // Multiband: one band's controls at a time (Low, Mid, High) or the setup (splits, bands, knee, detect, solo); Mix, Time and Output stay in reach
 const MBD_TABS = ['Low', 'Mid', 'High', 'Setup'];
+/* The Multiband's controls, close together and sized by importance (as in the big desktop studios): each band is a small panel of
+   little knobs side by side (its on switch in the header; tap the name to light it on the screen), the splits and detector settings
+   in a slim row under the screen, and the three that shape the whole sound as big knobs. Thresholds can also be dragged on the screen. */
+function mbdPanel(c, s, f, redraw) { const ps = fxParams(f), ix = n => ps.findIndex(p => p.n === n), B = ['Low', 'Mid', 'High'], w = h('div', 'mbp');
+  const knob = (n, label, cls) => { const i = ix(n), el = keyParam(`${c}.${s}.${i}`, { label, after: redraw, cls }); el.dataset.p = n; return el; };
+  const pick = (n, say) => { const i = ix(n), prm = ps[i], el = selEl(n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(`${c}.${s}.${i}`, f.p[i]); redraw(); markDirty(); if (/band$/.test(n)) renderView(); }, say ? { paint: (sw, k) => { sw.innerHTML = '<span>' + esc(say(prm.opts[k])) + '</span>'; } } : {}); el.classList.add('msel'); el.dataset.p = n; return el; };
+  const setup = h('div', 'mbset'); setup.append(knob('Low split', 'Low split', 'sm'), pick('Knee', v => v + ' knee'), pick('Detect', v => v), pick('Solo', v => v === 'Off' ? 'No solo' : 'Solo ' + v.toLowerCase()), knob('High split', 'High split', 'sm'));
+  const bands = h('div', 'mbbands'), on = [f.p[ix('Low band')] >= .5, true, f.p[ix('High band')] >= .5];
+  B.forEach((b, k) => { const col = h('div', 'mbband' + ((UI.mbBand ?? 1) === k ? ' cur' : '') + (on[k] ? '' : ' off')), hd = h('div', 'mbbh');
+    const nm = h('button', 'mbbn', b.toUpperCase()); nm.setAttribute('aria-label', b + ' band'); nm.onclick = () => { UI.mbBand = k; renderView(); }; hd.append(nm);
+    if (k !== 1) { const pw = btn(on[k] ? 'ON' : 'OFF', () => { const i = ix(b + ' band'); pushUndo('chan:' + c); f.p[i] = on[k] ? 0 : 1; sendParam(`${c}.${s}.${i}`, f.p[i]); markDirty(); renderView(); }, 'key sm mbpw' + (on[k] ? ' on' : '')); pw.setAttribute('aria-label', b + ' band on or off'); hd.append(pw); }
+    const g = h('div', 'mbk'); for (const [sfx, l, cls] of [['above', 'Above', ''], ['above ratio', 'Ratio', 'sm'], ['below', 'Below', ''], ['below ratio', 'Ratio', 'sm'], ['attack', 'Attack', 'sm'], ['release', 'Release', 'sm'], ['input', 'Input', 'sm'], ['gain', 'Gain', '']]) g.append(knob(`${b} ${sfx}`, l, 'mk ' + cls));
+    col.append(hd, g); bands.append(col); });
+  const big = h('div', 'mbbig'); for (const n of ['Mix', 'Time', 'Output']) big.append(knob(n, n, 'big'));
+  big.append(cellBtn('Preset', 'Pick', () => openMbdPresets(c, s))); w.append(setup, bands, big); return w; }
 // Air's Link: moving one of the two air knobs moves the other by as much (each keeps its own setting)
 function airLink(c, s, i, redraw) { const f = P.chans[c].fx[s]; let last = f.p[i];
   return v => { const d = v - last; last = v; if (f.p[2] > .5 && d) { const o = 1 - i; f.p[o] = clamp(f.p[o] + d, 0, 1); sendParam(`${c}.${s}.${o}`, f.p[o]); const el = document.querySelector(`.dev [data-p="${o ? 'High air' : 'Mid air'}"]`); if (el && el._upd) el._upd(); } redraw(); }; }
@@ -416,9 +431,9 @@ function renderFx(V) {
       if (c < NPADS && P.pads[c].src === 'synth' && P.pads[c].syn && (P.pads[c].syn.mods || []).some(m => m.d === `fx:${s}:${i}`)) el.classList.add('modded');   // moved by the pad's synth (Map)
       el.dataset.p = prm.n; return el; };
     if (f.type === FX_TYPES.STEP) dev.append(stepPalette(c, s));
-    if (f.type === FX_TYPES.MBD) { const tb = h('div', 'mbTabs'); MBD_TABS.forEach((n, b) => tb.append(btn(n, () => { UI.mbBand = b; renderView(); }, 'key sm' + ((UI.mbBand ?? 1) === b ? ' on' : '')))); dev.append(tb); }
-    for (const r of fxRows(f)) { const els = r.map(cell).filter(Boolean); els.forEach((el, k) => { el.style.gridColumn = (k ? 'auto' : (4 - els.length + 1)) + ' / span 2'; g.append(el); }); }   // a short row sits in the middle
-    dev.append(g);
+    if (f.type === FX_TYPES.MBD) { dev.classList.add('mbdev'); dev.append(mbdPanel(c, s, f, redrawVis)); }
+    else for (const r of fxRows(f)) { const els = r.map(cell).filter(Boolean); els.forEach((el, k) => { el.style.gridColumn = (k ? 'auto' : (4 - els.length + 1)) + ' / span 2'; g.append(el); }); }   // a short row sits in the middle
+    if (f.type !== FX_TYPES.MBD) dev.append(g);
     if (f.type === FX_TYPES.FILTER && (f.mode | 0) > 0) { const r = h('div', 'g2 lfoRow'); r.append(btn('LFO shape… <span class="lsub">' + (f.lfo && f.lfo.length ? 'drawn' : 'sine') + '</span>', () => openFilterLfo(c, s), 'key')); dev.append(r); }   // the filter's LFO, drawn like the Shaper   // Step FX: pick an action, then tap steps on the screen
     panel.append(fh, dev);
     if (c < G0 && P.pads[c].frz) panel.append(h('p', 'note', 'Frozen: changing effects unfreezes it.'));

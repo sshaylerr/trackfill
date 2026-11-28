@@ -96,7 +96,7 @@ function deviceEl(c, s, f, redrawRef) {
   if (FXV_LIVE.has(f.type)) scopeView(vcv, redraw); requestAnimationFrame(redraw);
   if (f.type === FX_TYPES.LFOT) { vcv.classList.add('navc'); vcv.setAttribute('aria-label', 'Shaper shape'); vcv._ctl = lfoCtl; vcv._draw = redraw;
     bindLfo(vcv, { pts: () => P.chans[c].fx[s].lfo, changed: () => { syncChan(c); markDirty(); redraw(); }, draw: redraw, undo: () => pushUndo('chan:' + c), snap: x => Math.round(x * 32) / 32 }); }
-  if (f.type === FX_TYPES.MBD) vcv.addEventListener('click', e => { const r = vcv.getBoundingClientRect(), row = Math.floor((e.clientY - r.top - 6) / ((r.height - 12) / 3)); if (row < 0 || row > 2) return; UI.mbBand = 2 - row; renderView(); });   // tap a band on the screen to edit it
+  if (f.type === FX_TYPES.MBD) mbdScreenDrag(vcv, c, s, redraw);   // tap a band to pick it; drag a threshold line to move it
   if (f.type === FX_TYPES.STEP) { vcv.classList.add('navc'); vcv.setAttribute('aria-label', 'Step pattern'); vcv._ctl = stepCtl(c, s, redraw); vcv._draw = redraw; bindSteps(vcv, c, s, redraw); }
   const row = h('div', 'fxvrow'), mi = ioMeter('In'), mo = ioMeter('Out'); row.append(mi, vis, mo);
   scopeView(mi, () => { mi._upd(SCOPE.io.pk[0], SCOPE.io.pk[1], SCOPE.io.hold[0], SCOPE.io.hold[1]); mo._upd(SCOPE.io.pk[2], SCOPE.io.pk[3], SCOPE.io.hold[2], SCOPE.io.hold[3]); });
@@ -139,3 +139,18 @@ const stepCtl = (c, s, redraw) => ({ hasSel() { return false; }, okOnDown: true,
   info() { return `Step ${STEPED.cur + 1} · arrows move · OK paints ${STEP_ACTS[UI.stepTool ?? 2][0]} · Del clears`; }, heldInfo() { return ''; },
   left() { STEPED.cur = (STEPED.cur + 15) % 16; redraw(); }, right() { STEPED.cur = (STEPED.cur + 1) % 16; redraw(); }, up() { STEPED.cur = (STEPED.cur + 8) % 16; redraw(); }, down() { STEPED.cur = (STEPED.cur + 8) % 16; redraw(); },
   ok() { paintStep(c, s, STEPED.cur, redraw); }, back() { return false; }, del() { const f = P.chans[c].fx[s]; pushUndo('chan:' + c); f.steps[STEPED.cur] = 0; syncChan(c); markDirty(); redraw(); } });
+
+/* the Multiband's screen: drag a band's top line (above) or its bottom line (below) sideways; a tap picks the band (its column lights) */
+function mbdScreenDrag(cv, c, s, redraw) { let d = null;
+  const geo = e => { const r = cv.getBoundingClientRect(), x0 = 46, x1 = r.width - 44, row = Math.floor((e.clientY - r.top - 6) / ((r.height - 12) / 3)), x = e.clientX - r.left;
+    return { b: 2 - row, row, x, db: -72 + 72 * clamp((x - x0) / (x1 - x0), 0, 1), X: v => x0 + (x1 - x0) * (clamp(v, -72, 0) + 72) / 72 }; };
+  cv.addEventListener('pointerdown', e => { const f = P.chans[c].fx[s], g = geo(e); if (g.row < 0 || g.row > 2) return; const q = 10 + 8 * g.b, ta = -60 + 60 * f.p[q + 1], tb = Math.min(ta, -80 + 80 * f.p[q + 3]);
+    const da = Math.abs(g.X(ta) - g.x), dbb = Math.abs(g.X(tb) - g.x), i = Math.min(da, dbb) > 22 ? -1 : da <= dbb ? q + 1 : q + 3;
+    d = { b: g.b, i, moved: false, x: e.clientX }; if (i >= 0) { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} } });
+  cv.addEventListener('pointermove', e => { if (!d || d.i < 0) return; if (!d.moved && Math.abs(e.clientX - d.x) < 3) return;
+    const f = P.chans[c].fx[s], key = `${c}.${s}.${d.i}`, g = geo(e), above = (d.i - 10) % 8 === 1, v = clamp(above ? (g.db + 60) / 60 : (g.db + 80) / 80, 0, 1);
+    if (!d.moved) { d.moved = true; pushUndo('chan:' + c); send({ t: 'live', key, on: true }); }
+    tfSetBase(P, key, v); sendParam(key, v); if (T.playing && T.rec) recAuto(key, v); markDirty(); redraw();
+    const el = document.querySelector(`.mbt [data-p="${fxParams(f)[d.i].n}"]`); if (el && el._upd) el._upd(); });
+  const end = () => { if (!d) return; if (d.moved) send({ t: 'live', key: `${c}.${s}.${d.i}`, on: false }); else if (d.b >= 0 && d.b <= 2) { UI.mbBand = d.b; renderView(); } d = null; };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end); }

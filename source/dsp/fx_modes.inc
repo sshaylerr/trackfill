@@ -558,7 +558,7 @@ struct MbdSt { MbSt x; float env[3], ms[3], up[3], g[3]; i32 init; };
 static float mbdAboveSlope(float v) { if (v < 0.2f) { float r = 1.f / (1.f + (0.2f - v) / 0.2f); return 1.f / r - 1.f; } if (v >= 0.995f) return -1.f; return 1.f / expmap((v - 0.2f) / 0.8f, 1.f, 100.f) - 1.f; }
 // below: the middle is 1:1; above the middle lifts quiet parts (upward compression up to 8:1), below it pushes them down (to 1:8, then a gate)
 static float mbdBelowSlope(float v) { if (v >= 0.5f) return 1.f - 1.f / expmap((v - 0.5f) * 2.f, 1.f, 8.f); if (v <= 0.005f) return -60.f; return -(expmap((0.5f - v) * 2.f, 1.f, 8.f) - 1.f); }
-static inline float mbdKnee(float over, float slope, float k) {   // gain (dB) for a level `over` dB past a threshold, with a soft knee k dB wide
+static inline float mbdKnee(float over, float slope, float k) {   // gain in dB, for a level `over` dB past a threshold, with a soft knee k dB wide
   if (k <= 0.f) return over > 0.f ? slope * over : 0.f; if (over <= -0.5f * k) return 0.f; if (over < 0.5f * k) { float t = over + 0.5f * k; return slope * t * t / (2.f * k); } return slope * over; }
 static void fx_mbd(Fx* f, float* L, float* R, i32 n) {
   MbdSt* m = (MbdSt*)f->st; float* s = f->s;

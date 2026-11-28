@@ -2,12 +2,12 @@
 
 /* ----- Distortion: six flavours, oversampled twice so the top end stays clean ----- */
 // params (every flavour): Drive, Tone, Character (what it does depends on the flavour), Low cut (before the drive), Mix, Output
-// flavours: Overdrive (pedal: a mid push into a soft, slightly lopsided clip; Character = asymmetry)
-//           Distortion (op-amp into diodes; Character = how hard the clip is)
-//           Amp (two preamp stages into a speaker cabinet; Character = how much cabinet)
-//           Fold (a wavefolder: the louder it gets, the more it folds back; Character = symmetry)
-//           Rectify (the wave flipped up: octave-up fuzz; Character = half-wave to full-wave)
-//           Bass (the lows stay clean under a driven top, for basses; Character = where the split is)
+// flavours: Overdrive (pedal: a mid push into a soft, slightly lopsided clip; Character: asymmetry)
+//           Distortion (op-amp into diodes; Character: how hard the clip is)
+//           Amp (two preamp stages into a speaker cabinet; Character: how much cabinet)
+//           Fold (a wavefolder: the louder it gets, the more it folds back; Character: symmetry)
+//           Rectify (the wave flipped up: octave-up fuzz; Character: half-wave to full-wave)
+//           Bass (the lows stay clean under a driven top, for basses; Character: where the split is)
 struct DistSt { OS2 os[2]; float hp[2], mh[2], lo1[2], lo2[2], dc[2], dcy[2], tn[2], cabH[2], cabL[2]; BQ2 cab; float autoG, lastDr, lastCh, lastSplit; };
 static inline float distCurve(i32 m, float u, float ch) {
   switch (m) {

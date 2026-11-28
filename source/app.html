@@ -425,6 +425,23 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .key.follow.held svg{fill:var(--accent);opacity:.5}   /* following, paused while you work: tap to pick the playhead up again */
 .padsView{container-type:inline-size;padding-bottom:3px}
 @media (max-width:460px){.padsSel{display:none!important}}
+/* number boxes (the small size); the Multiband's compact panel: little knobs close together, grouped by band */
+.nbox{height:28px;min-width:0;border-radius:4px;background:var(--d-scr,#0b0b0c);border:1px solid #000;box-shadow:inset 0 1px 4px rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;touch-action:none;color:var(--d-ring,var(--accent));font:600 12px var(--font-lcd);overflow:hidden;white-space:nowrap}
+.nbox .nval{overflow:hidden;text-overflow:ellipsis;padding:0 3px} .nbox.drag{border-color:var(--d-ring,var(--accent))}
+.mbp{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.mbset{display:grid;grid-template-columns:1fr 1.15fr 1fr 1.15fr 1fr;gap:4px;align-items:center}
+.mbset .msel{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0} .mbset .msel .sw{height:24px;width:100%;font-size:10.5px;display:flex;align-items:center;justify-content:center;padding:0 2px} .mbset .msel .klab{display:none}
+.mbbands{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.mbband{background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.05);border-radius:6px;padding:3px 2px 2px;min-width:0} .mbband.cur{border-color:color-mix(in srgb,var(--d-ring,var(--accent)) 55%,transparent)} .mbband.off .mbk{opacity:.4}
+.mbbh{display:flex;align-items:center;justify-content:space-between;padding:0 4px 2px;min-height:20px} .mbbn{background:none;border:0;padding:2px 0;font:700 10px var(--font-ui);letter-spacing:.08em;color:var(--d-ink2,var(--dim));cursor:pointer} .mbband.cur .mbbn{color:var(--d-ink,var(--ink))}
+.mbbh .mbpw{height:17px;min-height:17px;font-size:8.5px;padding:0 5px;letter-spacing:.04em}
+.mbk{display:grid;grid-template-columns:1fr 1fr;gap:0 1px} .mbk .knob{padding:1px 0;--kvh:11px;--klh:11px} .mbk .knob svg{width:38px;height:38px} .mbk .knob.sm svg{width:28px;height:28px;margin:5px 0}
+.mbk .knob .kval{font-size:9.5px;line-height:11px} .mbk .knob .klab{font-size:8.5px;line-height:10px} .mbset .knob svg{width:28px;height:28px} .mbset .knob .kval{font-size:9.5px} .mbset .knob .klab{font-size:8.5px}
+.mbbig{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:center} .knob.big svg{width:52px;height:52px}
+#view.snug .mbdev .fxvrow{height:72px} #view.snug .mbp{gap:4px;margin-top:2px} #view.snug .mbk .knob svg{width:30px;height:30px} #view.snug .mbk .knob.sm svg{width:24px;height:24px;margin:3px 0} #view.snug .knob.big svg{width:40px;height:40px} #view.snug .mbbig .cell .klab{display:none}
+#view.cramp .mbbands{grid-template-rows:auto auto;gap:3px 5px} #view.cramp .mbband{display:contents} #view.cramp .mbbh{grid-row:1;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.05);border-radius:6px;padding:2px 4px} #view.cramp .mbband.cur .mbbh{border-color:color-mix(in srgb,var(--d-ring,var(--accent)) 55%,transparent)} #view.cramp .mbband:not(.cur) .mbk{display:none} #view.cramp .mbband.cur .mbk{grid-row:2;grid-column:1/-1;grid-template-columns:repeat(8,minmax(0,1fr));background:rgba(0,0,0,.18);border-radius:6px;padding:2px 0} #view.cramp .mbband.off .mbk{opacity:.4}
+#view.short .mbk .knob svg{width:30px;height:30px} #view.short .mbk .knob.sm svg{width:24px;height:24px;margin:3px 0} #view.short .mbk .knob .klab{display:none} #view.short .knob.big svg{width:38px;height:38px} #view.short .mbset .knob svg{width:22px;height:22px} #view.short .mbset .knob .klab{display:none}
+#view.cramp .mbdev .fxvrow{height:58px} #view.short .mbdev .fxvrow{display:none} #view.short .mbset .msel .sw{height:20px} #view.short .mbbh{min-height:18px;padding-top:1px;padding-bottom:1px} #view.short .mbp{gap:3px} #view.tiny .mbk .knob.sm svg{margin:1px 0} #view.tiny .mbdev{padding-bottom:2px} #view.cramp .mbk .knob .kval{font-size:8.5px} #view.cramp .mbk .knob .klab{display:block} #view.cramp .mbset .knob svg{width:22px;height:22px} #view.cramp .mbset .knob .klab{display:none} #view.cramp .knob.big svg{width:34px;height:34px}
 .padScope{display:none;flex:1 1 0;min-width:0;padding:0} @media (max-width:460px){.padScope{display:block}}
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));gap:8px;flex:1 1 0;min-height:0;width:100%;max-height:calc(100cqw * 1.45);margin:auto 0;touch-action:none}   /* the gaps too: two fingers on the pads are never a pinch */
 .pad{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#28282c 60%,#242428);border:1px solid #070708;
@@ -2364,7 +2381,7 @@ async function importFiles(files, firstPad) {
   for (const f of files) {
     try { const ab = await f.arrayBuffer(), buf = await new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
       const chans = []; for (let c = 0; c < Math.min(2, buf.numberOfChannels); c++) chans.push(buf.getChannelData(c));
-      const tg = nameTags(f.name, buf.duration), name = tg.name.slice(0, 24); ids.push({ id: addUserSample(name, buf.sampleRate, chans.length, interleave(chans, Math.floor(buf.sampleRate * 90))), name, tg, beats: /drum|beat|perc|top|break|groove|kick|snare|hat|clap|shaker|fill/i.test(f.name) }); }
+      const tg = nameTags(f.name, buf.duration), name = tfName(tg.name, 24) || "Sound"; ids.push({ id: addUserSample(name, buf.sampleRate, chans.length, interleave(chans, Math.floor(buf.sampleRate * 90))), name, tg, beats: /drum|beat|perc|top|break|groove|kick|snare|hat|clap|shaker|fill/i.test(f.name) }); }
     catch (err) { failed.push(f.name); }
   }
   // fill: the chosen pad first, then the next empty pads from the selected pad onward
@@ -2561,6 +2578,8 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
   ['2026-11-27', [
+    'Multiband redesigned: small knobs grouped by band, the main three as big knobs, and thresholds you can drag on the screen.',
+    'What’s new pops up after an update.',
     'Parallel inserts: on any channel, pick a run of inserts (PAR) to work on a copy of the sound, with separate levels for the untouched and processed sound.',
     'Pads: tap the little display to switch between waveform, spectrum and scope. ANLZ closes the analyzer when it is open.',
     'Pads: a small rolling waveform of the mix next to Capture, on phones.',
@@ -2606,10 +2625,14 @@ const CHANGES = [
   ['2026-10-23', ['Instrument engine: pianos, strings, choirs, keys, basses and hits.', 'Sub synth engine with 808 drop.', 'New effects: Step FX, LFO Tool, Vinyl, Autopan, Grin.', 'Quantize, box select and pinch zoom on the timeline.']],
 ];
 const fmtDay = d => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-function openChanges() {
-  UI.seenLog = CHANGES[0][0]; savePrefs();
+// since: only the days after it (the popup after an update), with a way on to the whole list
+function openChanges(since) {
+  UI.seenLog = CHANGES[0][0]; savePrefs(); const list = since ? CHANGES.filter(([d]) => d > since) : CHANGES;
   openSheet('What’s new', card => { const st = h('div', 'stack'); card.append(st);
-    for (const [d, items] of CHANGES) { st.append(h('div', 'sec', fmtDay(d))); const ul = h('ul', 'log'); for (const t of items) ul.append(h('li', '', esc(t))); st.append(ul); } }); }
+    for (const [d, items] of list) { st.append(h('div', 'sec', fmtDay(d))); const ul = h('ul', 'log'); for (const t of items) ul.append(h('li', '', esc(t))); st.append(ul); }
+    if (since) { const g = h('div', 'g2'); g.append(btn('Everything before', () => { closeSheet(); openChanges(); }, 'btn'), btn('Got it', closeSheet, 'btn hot')); st.append(g); } }); }
+// after an update: what changed since the last visit, once (a first visit just remembers where it starts)
+function showUpdates() { const top = CHANGES[0][0]; if (!UI.seenLog) { UI.seenLog = top; savePrefs(); return; } if (UI.seenLog < top && !UI.sheet) openChanges(UI.seenLog); }
 function openAbout() { openSheet('About', card => { const st = h('div', 'stack'); card.append(st);
   st.append(h('div', 'sec', 'Your work'), h('p', 'note', 'Everything stays on this device. Trackfill never sends your work or anything about you anywhere: no accounts, no tracking, no ads. Back up from Projects.'));
   st.append(h('div', 'sec', 'Made with AI, no AI inside'), h('p', 'note', 'Trackfill was written with the help of an AI coding assistant. The app itself has no AI in it: no AI models, no generated music or sounds, and nothing sent online. Every sound comes from its synths, samples and effects, the way any instrument makes them, and every note is yours.'));
@@ -3052,7 +3075,7 @@ const CANVAS_RO = typeof ResizeObserver === 'function' ? new ResizeObserver(es =
     if (cv._redraw) { try { cv._redraw(); } catch (err) { console.error(err); } } else any = true; }
   if (any) requestAnimationFrame(() => { if (UI.view === 'sound') { drawDisp(); drawSynDisp(); drawDrumDisp(); } drawChop(); if (UI.view === 'seq' && TL.cv && TL.cv.isConnected) sizeTL(); }); }) : null;
 if (CANVAS_RO) new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.tagName === 'CANVAS') CANVAS_RO.observe(n); else n.querySelectorAll && n.querySelectorAll('canvas').forEach(c => CANVAS_RO.observe(c)); } }).observe(document.body, { childList: true, subtree: true });
-new ResizeObserver(() => { placeSheet(); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audSize(); audDraw(); } if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); clearTimeout(FIT_T); FIT_T = setTimeout(() => { fitFonts(V); fitFonts($('#scenes')); fitFonts($('#top')); }, 150); }).observe($('#view'));   // a new width: text fitted again
+new ResizeObserver(() => { placeSheet(); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('snug', hh < 720); V.classList.toggle('cramp', hh < 600); V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audSize(); audDraw(); } if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); clearTimeout(FIT_T); FIT_T = setTimeout(() => { fitFonts(V); fitFonts($('#scenes')); fitFonts($('#top')); }, 150); }).observe($('#view'));   // a new width: text fitted again
 let FIT_T = 0;
 let lastHeard = -1;
 // the screen loop runs only while something moves (playback, sound, meters falling, a recent touch); wake() restarts it
@@ -3099,7 +3122,7 @@ async function boot() {
     UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null;
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
-  renderAll(); wake(); markDirty();
+  renderAll(); wake(); markDirty(); setTimeout(showUpdates, 900);
   await abLoad(); brLoad(); setTimeout(abTick, 15000); setTimeout(refCleanup, 60000); setInterval(abTick, 5 * 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(abTick, 4000); });
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
   // Safari clears a website's storage after a week unused, but never an app on the Home Screen: say so (at most once a week) when that applies

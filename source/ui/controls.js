@@ -36,6 +36,9 @@ function makeCtl(o, kind) {
     upd = () => { const v = o.get(), f = clamp((v - mn) / (mx - mn), 0, 1), a = o.bipolar ? 75 * Math.min(f, .5) : 0, len = o.bipolar ? 75 * Math.abs(f - .5) : 75 * f;
       if (kv) { kv.style.strokeDasharray = `${Math.max(.01, len)} 100`; kv.style.strokeDashoffset = String(-a); } ki.setAttribute('transform', `rotate(${-135 + 270 * f} 24 24)`); val.textContent = o.fmt(v);
       if (dots.length) dots.forEach((d, i) => { const q = i / (dots.length - 1), lo = o.bipolar ? Math.min(f, .5) : 0, hi = o.bipolar ? Math.max(f, .5) : f; d.classList.toggle('on', q >= lo - .05 && q <= hi + .05); }); };
+  } else if (kind === 'num') {   // a number box: the value alone, drag up or down (the small size, for settings set once and tables of them)
+    el = h('div', 'nbox' + (o.cls ? ' ' + o.cls : '')); el.setAttribute('aria-label', o.label); el.innerHTML = '<span class="nval lcd"></span>'; const val = el.firstChild;
+    upd = () => { val.textContent = o.fmt(o.get()); };
   } else if (kind === 'fader') {
     el = h('div', 'fader'); el.innerHTML = '<div class="fval"></div><div class="ftrack"><div class="fmeter"><i></i></div><div class="fmeter"><i></i></div><div class="funity"></div><div class="fcap"></div></div>';
     track = el.querySelector('.ftrack'); const cap = el.querySelector('.fcap'), val = el.querySelector('.fval'), un = el.querySelector('.funity');
@@ -64,7 +67,7 @@ function makeCtl(o, kind) {
       const go = kind === 'bar' ? (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) : o.onSwipe ? Math.abs(dy) > 6 && Math.abs(dy) >= Math.abs(dx) : Math.hypot(dx, dy) > 4; if (!go) return;
       lpOff(); d.drag = true; d.x = e.clientX; d.y = e.clientY; if (kind === 'bar') { try { el.setPointerCapture(e.pointerId); } catch (_) {} } el.classList.add('drag'); o.onStart && o.onStart(); return; }
     const fine = UI.fine === 2 ? .04 : UI.fine ? .12 : 1, ex = e.clientX - d.x, ey = e.clientY - d.y;
-    const frac = kind === 'bar' ? ex / (track.clientWidth || 100) : kind === 'knob' ? (o.onSwipe ? -ey : ex - ey) / 180 : -ey / Math.max(40, (track.clientHeight || 100) - 16);
+    const frac = kind === 'bar' ? ex / (track.clientWidth || 100) : kind === 'knob' ? (o.onSwipe ? -ey : ex - ey) / 180 : kind === 'num' ? -ey / 160 : -ey / Math.max(40, (track.clientHeight || 100) - 16);
     const nv = d.v + frac * (mx - mn) * fine; setV(o.dragStep && !UI.fine ? Math.round(nv / o.dragStep) * o.dragStep : nv);   // dragStep: whole values by touch (Fine or the d-pad for the in-betweens)
   });
   const end = e => { if (!d) return;

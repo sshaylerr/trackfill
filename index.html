@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-ZLCgoyWc9hB2CCd5KUnPCGePieCbcfCDD4PbuN0h28g=' 'sha256-dcw+VbOGiaFjjnd69/prHdgXLd6kfX6QrjY/cY8VIlk=' 'sha256-tnnoBQgtpZtSdL8gFCFgFaZLct5WsFy6k8zktOgh8b0=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-NRbXXsDezBAY2/X+61SwM0qfsM419j4twgK7KuYL//g=' 'sha256-ZLCgoyWc9hB2CCd5KUnPCGePieCbcfCDD4PbuN0h28g=' 'sha256-dcw+VbOGiaFjjnd69/prHdgXLd6kfX6QrjY/cY8VIlk=' 'sha256-BguSYqNv3A2XFlSIE+H3tE01bahGIxVgASI0IB45TWc=' 'sha256-sCQjs2OZGk44ZEfK1doC3pqgUkzoqGgNjMiLBXgj7bI=' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -465,6 +465,23 @@ ul.log{margin:0 0 4px;padding-left:18px;display:grid;gap:5px;font-size:13.5px;li
 .key.follow.held svg{fill:var(--accent);opacity:.5}   /* following, paused while you work: tap to pick the playhead up again */
 .padsView{container-type:inline-size;padding-bottom:3px}
 @media (max-width:460px){.padsSel{display:none!important}}
+/* number boxes (the small size); the Multiband's compact panel: little knobs close together, grouped by band */
+.nbox{height:28px;min-width:0;border-radius:4px;background:var(--d-scr,#0b0b0c);border:1px solid #000;box-shadow:inset 0 1px 4px rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;touch-action:none;color:var(--d-ring,var(--accent));font:600 12px var(--font-lcd);overflow:hidden;white-space:nowrap}
+.nbox .nval{overflow:hidden;text-overflow:ellipsis;padding:0 3px} .nbox.drag{border-color:var(--d-ring,var(--accent))}
+.mbp{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.mbset{display:grid;grid-template-columns:1fr 1.15fr 1fr 1.15fr 1fr;gap:4px;align-items:center}
+.mbset .msel{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0} .mbset .msel .sw{height:24px;width:100%;font-size:10.5px;display:flex;align-items:center;justify-content:center;padding:0 2px} .mbset .msel .klab{display:none}
+.mbbands{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.mbband{background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.05);border-radius:6px;padding:3px 2px 2px;min-width:0} .mbband.cur{border-color:color-mix(in srgb,var(--d-ring,var(--accent)) 55%,transparent)} .mbband.off .mbk{opacity:.4}
+.mbbh{display:flex;align-items:center;justify-content:space-between;padding:0 4px 2px;min-height:20px} .mbbn{background:none;border:0;padding:2px 0;font:700 10px var(--font-ui);letter-spacing:.08em;color:var(--d-ink2,var(--dim));cursor:pointer} .mbband.cur .mbbn{color:var(--d-ink,var(--ink))}
+.mbbh .mbpw{height:17px;min-height:17px;font-size:8.5px;padding:0 5px;letter-spacing:.04em}
+.mbk{display:grid;grid-template-columns:1fr 1fr;gap:0 1px} .mbk .knob{padding:1px 0;--kvh:11px;--klh:11px} .mbk .knob svg{width:38px;height:38px} .mbk .knob.sm svg{width:28px;height:28px;margin:5px 0}
+.mbk .knob .kval{font-size:9.5px;line-height:11px} .mbk .knob .klab{font-size:8.5px;line-height:10px} .mbset .knob svg{width:28px;height:28px} .mbset .knob .kval{font-size:9.5px} .mbset .knob .klab{font-size:8.5px}
+.mbbig{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:center} .knob.big svg{width:52px;height:52px}
+#view.snug .mbdev .fxvrow{height:72px} #view.snug .mbp{gap:4px;margin-top:2px} #view.snug .mbk .knob svg{width:30px;height:30px} #view.snug .mbk .knob.sm svg{width:24px;height:24px;margin:3px 0} #view.snug .knob.big svg{width:40px;height:40px} #view.snug .mbbig .cell .klab{display:none}
+#view.cramp .mbbands{grid-template-rows:auto auto;gap:3px 5px} #view.cramp .mbband{display:contents} #view.cramp .mbbh{grid-row:1;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.05);border-radius:6px;padding:2px 4px} #view.cramp .mbband.cur .mbbh{border-color:color-mix(in srgb,var(--d-ring,var(--accent)) 55%,transparent)} #view.cramp .mbband:not(.cur) .mbk{display:none} #view.cramp .mbband.cur .mbk{grid-row:2;grid-column:1/-1;grid-template-columns:repeat(8,minmax(0,1fr));background:rgba(0,0,0,.18);border-radius:6px;padding:2px 0} #view.cramp .mbband.off .mbk{opacity:.4}
+#view.short .mbk .knob svg{width:30px;height:30px} #view.short .mbk .knob.sm svg{width:24px;height:24px;margin:3px 0} #view.short .mbk .knob .klab{display:none} #view.short .knob.big svg{width:38px;height:38px} #view.short .mbset .knob svg{width:22px;height:22px} #view.short .mbset .knob .klab{display:none}
+#view.cramp .mbdev .fxvrow{height:58px} #view.short .mbdev .fxvrow{display:none} #view.short .mbset .msel .sw{height:20px} #view.short .mbbh{min-height:18px;padding-top:1px;padding-bottom:1px} #view.short .mbp{gap:3px} #view.tiny .mbk .knob.sm svg{margin:1px 0} #view.tiny .mbdev{padding-bottom:2px} #view.cramp .mbk .knob .kval{font-size:8.5px} #view.cramp .mbk .knob .klab{display:block} #view.cramp .mbset .knob svg{width:22px;height:22px} #view.cramp .mbset .knob .klab{display:none} #view.cramp .knob.big svg{width:34px;height:34px}
 .padScope{display:none;flex:1 1 0;min-width:0;padding:0} @media (max-width:460px){.padScope{display:block}}
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));gap:8px;flex:1 1 0;min-height:0;width:100%;max-height:calc(100cqw * 1.45);margin:auto 0;touch-action:none}   /* the gaps too: two fingers on the pads are never a pinch */
 .pad{--pc:#888;border-radius:3px;background:linear-gradient(180deg,#323237,#28282c 60%,#242428);border:1px solid #070708;
@@ -4929,6 +4946,9 @@ function makeCtl(o, kind) {
     upd = () => { const v = o.get(), f = clamp((v - mn) / (mx - mn), 0, 1), a = o.bipolar ? 75 * Math.min(f, .5) : 0, len = o.bipolar ? 75 * Math.abs(f - .5) : 75 * f;
       if (kv) { kv.style.strokeDasharray = `${Math.max(.01, len)} 100`; kv.style.strokeDashoffset = String(-a); } ki.setAttribute('transform', `rotate(${-135 + 270 * f} 24 24)`); val.textContent = o.fmt(v);
       if (dots.length) dots.forEach((d, i) => { const q = i / (dots.length - 1), lo = o.bipolar ? Math.min(f, .5) : 0, hi = o.bipolar ? Math.max(f, .5) : f; d.classList.toggle('on', q >= lo - .05 && q <= hi + .05); }); };
+  } else if (kind === 'num') {   // a number box: the value alone, drag up or down (the small size, for settings set once and tables of them)
+    el = h('div', 'nbox' + (o.cls ? ' ' + o.cls : '')); el.setAttribute('aria-label', o.label); el.innerHTML = '<span class="nval lcd"></span>'; const val = el.firstChild;
+    upd = () => { val.textContent = o.fmt(o.get()); };
   } else if (kind === 'fader') {
     el = h('div', 'fader'); el.innerHTML = '<div class="fval"></div><div class="ftrack"><div class="fmeter"><i></i></div><div class="fmeter"><i></i></div><div class="funity"></div><div class="fcap"></div></div>';
     track = el.querySelector('.ftrack'); const cap = el.querySelector('.fcap'), val = el.querySelector('.fval'), un = el.querySelector('.funity');
@@ -4957,7 +4977,7 @@ function makeCtl(o, kind) {
       const go = kind === 'bar' ? (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) : o.onSwipe ? Math.abs(dy) > 6 && Math.abs(dy) >= Math.abs(dx) : Math.hypot(dx, dy) > 4; if (!go) return;
       lpOff(); d.drag = true; d.x = e.clientX; d.y = e.clientY; if (kind === 'bar') { try { el.setPointerCapture(e.pointerId); } catch (_) {} } el.classList.add('drag'); o.onStart && o.onStart(); return; }
     const fine = UI.fine === 2 ? .04 : UI.fine ? .12 : 1, ex = e.clientX - d.x, ey = e.clientY - d.y;
-    const frac = kind === 'bar' ? ex / (track.clientWidth || 100) : kind === 'knob' ? (o.onSwipe ? -ey : ex - ey) / 180 : -ey / Math.max(40, (track.clientHeight || 100) - 16);
+    const frac = kind === 'bar' ? ex / (track.clientWidth || 100) : kind === 'knob' ? (o.onSwipe ? -ey : ex - ey) / 180 : kind === 'num' ? -ey / 160 : -ey / Math.max(40, (track.clientHeight || 100) - 16);
     const nv = d.v + frac * (mx - mn) * fine; setV(o.dragStep && !UI.fine ? Math.round(nv / o.dragStep) * o.dragStep : nv);   // dragStep: whole values by touch (Fine or the d-pad for the in-betweens)
   });
   const end = e => { if (!d) return;
@@ -5727,7 +5747,7 @@ async function importFiles(files, firstPad) {
   for (const f of files) {
     try { const ab = await f.arrayBuffer(), buf = await new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
       const chans = []; for (let c = 0; c < Math.min(2, buf.numberOfChannels); c++) chans.push(buf.getChannelData(c));
-      const tg = nameTags(f.name, buf.duration), name = tg.name.slice(0, 24); ids.push({ id: addUserSample(name, buf.sampleRate, chans.length, interleave(chans, Math.floor(buf.sampleRate * 90))), name, tg, beats: /drum|beat|perc|top|break|groove|kick|snare|hat|clap|shaker|fill/i.test(f.name) }); }
+      const tg = nameTags(f.name, buf.duration), name = tfName(tg.name, 24) || "Sound"; ids.push({ id: addUserSample(name, buf.sampleRate, chans.length, interleave(chans, Math.floor(buf.sampleRate * 90))), name, tg, beats: /drum|beat|perc|top|break|groove|kick|snare|hat|clap|shaker|fill/i.test(f.name) }); }
     catch (err) { failed.push(f.name); }
   }
   // fill: the chosen pad first, then the next empty pads from the selected pad onward
@@ -6555,7 +6575,7 @@ function renderPads(V) {
   if (UI.keys && chopOf(UI.pad)) top.append(btn('Chop', () => { UI.keys = false; renderView(); }, 'key sm on kbtn'));
   else if (UI.keys) top.append(btn('Keys', () => { UI.keys = false; stopLatch(); renderView(); }, 'key sm on kbtn'), btn(IC.left, () => keysOct(-1), 'key sm ic'), btn(IC.right, () => keysOct(1), 'key sm ic'), btn(keysModeLabel(UI.pad) + ' ▾', () => openKeysSheet(UI.pad), 'key sm kmode'));
   else top.append(seg(['A', 'B', 'C', 'D'], UI.bank, i => { UI.bank = i; UI.pad = i * 16 + UI.pad % 16; renderView(); savePrefs(); }), btn(ck(), () => { UI.keys = true; renderView(); }, 'key sm kbtn'), btn('Import', () => pickAudio(null), 'key sm'));
-  const ps = h('canvas', 'lcdbox padScope'); ps.onclick = padScopeNext; ps.setAttribute('aria-label', 'Mix display: tap to change'); scopeView(ps, () => drawPadScope(ps)); requestAnimationFrame(() => { if (ps.isConnected && ps.clientWidth) prepCanvas(ps); });   // sized to its spot at once, drawn on or not   // a small rolling waveform of the mix, where a phone has no room for the pad's name
+  const ps = h('canvas', 'lcdbox padScope'); ps.onclick = padScopeNext; ps.setAttribute('aria-label', 'Mix display: tap to change'); scopeView(ps, () => drawPadScope(ps)); requestAnimationFrame(() => { if (!ps.isConnected) return; if (ps.clientWidth < 30) ps.style.display = 'none'; else prepCanvas(ps); });   // sized to its spot at once; no room, not shown   // a small rolling waveform of the mix, where a phone has no room for the pad's name
   top.append(btn('Capture', doCapture, 'key sm'), h('div', 'lcdbox padsSel'), ps);
   const grid = h('div', 'grid');
   for (const cell of padOrder(16)) { const pd = h('div', 'pad' + (PADHELD.has(cell) ? ' held' : '')); pd.dataset.cell = cell;
@@ -6889,6 +6909,21 @@ const FX_LAY = {
 // rows of cells: a param index, -1 for a gap, or '@src' / '@key'; the default is four to a row in the engine's order
 // Multiband: one band's controls at a time (Low, Mid, High) or the setup (splits, bands, knee, detect, solo); Mix, Time and Output stay in reach
 const MBD_TABS = ['Low', 'Mid', 'High', 'Setup'];
+/* The Multiband's controls, close together and sized by importance (as in the big desktop studios): each band is a small panel of
+   little knobs side by side (its on switch in the header; tap the name to light it on the screen), the splits and detector settings
+   in a slim row under the screen, and the three that shape the whole sound as big knobs. Thresholds can also be dragged on the screen. */
+function mbdPanel(c, s, f, redraw) { const ps = fxParams(f), ix = n => ps.findIndex(p => p.n === n), B = ['Low', 'Mid', 'High'], w = h('div', 'mbp');
+  const knob = (n, label, cls) => { const i = ix(n), el = keyParam(`${c}.${s}.${i}`, { label, after: redraw, cls }); el.dataset.p = n; return el; };
+  const pick = (n, say) => { const i = ix(n), prm = ps[i], el = selEl(n, prm.opts, () => Math.round(f.p[i] * (prm.opts.length - 1)), k => { pushUndo('chan:' + c); f.p[i] = optVal(k, prm.opts.length); sendParam(`${c}.${s}.${i}`, f.p[i]); redraw(); markDirty(); if (/band$/.test(n)) renderView(); }, say ? { paint: (sw, k) => { sw.innerHTML = '<span>' + esc(say(prm.opts[k])) + '</span>'; } } : {}); el.classList.add('msel'); el.dataset.p = n; return el; };
+  const setup = h('div', 'mbset'); setup.append(knob('Low split', 'Low split', 'sm'), pick('Knee', v => v + ' knee'), pick('Detect', v => v), pick('Solo', v => v === 'Off' ? 'No solo' : 'Solo ' + v.toLowerCase()), knob('High split', 'High split', 'sm'));
+  const bands = h('div', 'mbbands'), on = [f.p[ix('Low band')] >= .5, true, f.p[ix('High band')] >= .5];
+  B.forEach((b, k) => { const col = h('div', 'mbband' + ((UI.mbBand ?? 1) === k ? ' cur' : '') + (on[k] ? '' : ' off')), hd = h('div', 'mbbh');
+    const nm = h('button', 'mbbn', b.toUpperCase()); nm.setAttribute('aria-label', b + ' band'); nm.onclick = () => { UI.mbBand = k; renderView(); }; hd.append(nm);
+    if (k !== 1) { const pw = btn(on[k] ? 'ON' : 'OFF', () => { const i = ix(b + ' band'); pushUndo('chan:' + c); f.p[i] = on[k] ? 0 : 1; sendParam(`${c}.${s}.${i}`, f.p[i]); markDirty(); renderView(); }, 'key sm mbpw' + (on[k] ? ' on' : '')); pw.setAttribute('aria-label', b + ' band on or off'); hd.append(pw); }
+    const g = h('div', 'mbk'); for (const [sfx, l, cls] of [['above', 'Above', ''], ['above ratio', 'Ratio', 'sm'], ['below', 'Below', ''], ['below ratio', 'Ratio', 'sm'], ['attack', 'Attack', 'sm'], ['release', 'Release', 'sm'], ['input', 'Input', 'sm'], ['gain', 'Gain', '']]) g.append(knob(`${b} ${sfx}`, l, 'mk ' + cls));
+    col.append(hd, g); bands.append(col); });
+  const big = h('div', 'mbbig'); for (const n of ['Mix', 'Time', 'Output']) big.append(knob(n, n, 'big'));
+  big.append(cellBtn('Preset', 'Pick', () => openMbdPresets(c, s))); w.append(setup, bands, big); return w; }
 // Air's Link: moving one of the two air knobs moves the other by as much (each keeps its own setting)
 function airLink(c, s, i, redraw) { const f = P.chans[c].fx[s]; let last = f.p[i];
   return v => { const d = v - last; last = v; if (f.p[2] > .5 && d) { const o = 1 - i; f.p[o] = clamp(f.p[o] + d, 0, 1); sendParam(`${c}.${s}.${o}`, f.p[o]); const el = document.querySelector(`.dev [data-p="${o ? 'High air' : 'Mid air'}"]`); if (el && el._upd) el._upd(); } redraw(); }; }
@@ -6956,9 +6991,9 @@ function renderFx(V) {
       if (c < NPADS && P.pads[c].src === 'synth' && P.pads[c].syn && (P.pads[c].syn.mods || []).some(m => m.d === `fx:${s}:${i}`)) el.classList.add('modded');   // moved by the pad's synth (Map)
       el.dataset.p = prm.n; return el; };
     if (f.type === FX_TYPES.STEP) dev.append(stepPalette(c, s));
-    if (f.type === FX_TYPES.MBD) { const tb = h('div', 'mbTabs'); MBD_TABS.forEach((n, b) => tb.append(btn(n, () => { UI.mbBand = b; renderView(); }, 'key sm' + ((UI.mbBand ?? 1) === b ? ' on' : '')))); dev.append(tb); }
-    for (const r of fxRows(f)) { const els = r.map(cell).filter(Boolean); els.forEach((el, k) => { el.style.gridColumn = (k ? 'auto' : (4 - els.length + 1)) + ' / span 2'; g.append(el); }); }   // a short row sits in the middle
-    dev.append(g);
+    if (f.type === FX_TYPES.MBD) { dev.classList.add('mbdev'); dev.append(mbdPanel(c, s, f, redrawVis)); }
+    else for (const r of fxRows(f)) { const els = r.map(cell).filter(Boolean); els.forEach((el, k) => { el.style.gridColumn = (k ? 'auto' : (4 - els.length + 1)) + ' / span 2'; g.append(el); }); }   // a short row sits in the middle
+    if (f.type !== FX_TYPES.MBD) dev.append(g);
     if (f.type === FX_TYPES.FILTER && (f.mode | 0) > 0) { const r = h('div', 'g2 lfoRow'); r.append(btn('LFO shape… <span class="lsub">' + (f.lfo && f.lfo.length ? 'drawn' : 'sine') + '</span>', () => openFilterLfo(c, s), 'key')); dev.append(r); }   // the filter's LFO, drawn like the Shaper   // Step FX: pick an action, then tap steps on the screen
     panel.append(fh, dev);
     if (c < G0 && P.pads[c].frz) panel.append(h('p', 'note', 'Frozen: changing effects unfreezes it.'));
@@ -7994,7 +8029,7 @@ function deviceEl(c, s, f, redrawRef) {
   if (FXV_LIVE.has(f.type)) scopeView(vcv, redraw); requestAnimationFrame(redraw);
   if (f.type === FX_TYPES.LFOT) { vcv.classList.add('navc'); vcv.setAttribute('aria-label', 'Shaper shape'); vcv._ctl = lfoCtl; vcv._draw = redraw;
     bindLfo(vcv, { pts: () => P.chans[c].fx[s].lfo, changed: () => { syncChan(c); markDirty(); redraw(); }, draw: redraw, undo: () => pushUndo('chan:' + c), snap: x => Math.round(x * 32) / 32 }); }
-  if (f.type === FX_TYPES.MBD) vcv.addEventListener('click', e => { const r = vcv.getBoundingClientRect(), row = Math.floor((e.clientY - r.top - 6) / ((r.height - 12) / 3)); if (row < 0 || row > 2) return; UI.mbBand = 2 - row; renderView(); });   // tap a band on the screen to edit it
+  if (f.type === FX_TYPES.MBD) mbdScreenDrag(vcv, c, s, redraw);   // tap a band to pick it; drag a threshold line to move it
   if (f.type === FX_TYPES.STEP) { vcv.classList.add('navc'); vcv.setAttribute('aria-label', 'Step pattern'); vcv._ctl = stepCtl(c, s, redraw); vcv._draw = redraw; bindSteps(vcv, c, s, redraw); }
   const row = h('div', 'fxvrow'), mi = ioMeter('In'), mo = ioMeter('Out'); row.append(mi, vis, mo);
   scopeView(mi, () => { mi._upd(SCOPE.io.pk[0], SCOPE.io.pk[1], SCOPE.io.hold[0], SCOPE.io.hold[1]); mo._upd(SCOPE.io.pk[2], SCOPE.io.pk[3], SCOPE.io.hold[2], SCOPE.io.hold[3]); });
@@ -8037,6 +8072,21 @@ const stepCtl = (c, s, redraw) => ({ hasSel() { return false; }, okOnDown: true,
   info() { return `Step ${STEPED.cur + 1} · arrows move · OK paints ${STEP_ACTS[UI.stepTool ?? 2][0]} · Del clears`; }, heldInfo() { return ''; },
   left() { STEPED.cur = (STEPED.cur + 15) % 16; redraw(); }, right() { STEPED.cur = (STEPED.cur + 1) % 16; redraw(); }, up() { STEPED.cur = (STEPED.cur + 8) % 16; redraw(); }, down() { STEPED.cur = (STEPED.cur + 8) % 16; redraw(); },
   ok() { paintStep(c, s, STEPED.cur, redraw); }, back() { return false; }, del() { const f = P.chans[c].fx[s]; pushUndo('chan:' + c); f.steps[STEPED.cur] = 0; syncChan(c); markDirty(); redraw(); } });
+
+/* the Multiband's screen: drag a band's top line (above) or its bottom line (below) sideways; a tap picks the band (its column lights) */
+function mbdScreenDrag(cv, c, s, redraw) { let d = null;
+  const geo = e => { const r = cv.getBoundingClientRect(), x0 = 46, x1 = r.width - 44, row = Math.floor((e.clientY - r.top - 6) / ((r.height - 12) / 3)), x = e.clientX - r.left;
+    return { b: 2 - row, row, x, db: -72 + 72 * clamp((x - x0) / (x1 - x0), 0, 1), X: v => x0 + (x1 - x0) * (clamp(v, -72, 0) + 72) / 72 }; };
+  cv.addEventListener('pointerdown', e => { const f = P.chans[c].fx[s], g = geo(e); if (g.row < 0 || g.row > 2) return; const q = 10 + 8 * g.b, ta = -60 + 60 * f.p[q + 1], tb = Math.min(ta, -80 + 80 * f.p[q + 3]);
+    const da = Math.abs(g.X(ta) - g.x), dbb = Math.abs(g.X(tb) - g.x), i = Math.min(da, dbb) > 22 ? -1 : da <= dbb ? q + 1 : q + 3;
+    d = { b: g.b, i, moved: false, x: e.clientX }; if (i >= 0) { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} } });
+  cv.addEventListener('pointermove', e => { if (!d || d.i < 0) return; if (!d.moved && Math.abs(e.clientX - d.x) < 3) return;
+    const f = P.chans[c].fx[s], key = `${c}.${s}.${d.i}`, g = geo(e), above = (d.i - 10) % 8 === 1, v = clamp(above ? (g.db + 60) / 60 : (g.db + 80) / 80, 0, 1);
+    if (!d.moved) { d.moved = true; pushUndo('chan:' + c); send({ t: 'live', key, on: true }); }
+    tfSetBase(P, key, v); sendParam(key, v); if (T.playing && T.rec) recAuto(key, v); markDirty(); redraw();
+    const el = document.querySelector(`.mbt [data-p="${fxParams(f)[d.i].n}"]`); if (el && el._upd) el._upd(); });
+  const end = () => { if (!d) return; if (d.moved) send({ t: 'live', key: `${c}.${s}.${d.i}`, on: false }); else if (d.b >= 0 && d.b <= 2) { UI.mbBand = d.b; renderView(); } d = null; };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end); }
 
 /* ---------- Keys view settings: what the pads play (notes, scale or chords), the project key, and chord voicing and feel ---------- */
 function keysModeLabel(pi) { const m = kxOf(pi).mode; return m === 'chords' ? 'Chords' : m === 'scale' ? 'Scale' : m === 'levels' ? '16 Levels' : 'Notes'; }
@@ -9724,7 +9774,7 @@ function stretchCheck(pi) { const pad = P.pads[pi]; if (!pad || !pad.wm || pad.w
 
 // keys: { r: 0..11, m: minor }. A minor sound in a major song matches the song's relative minor (and the other way round).
 function songKeyOf() { return { r: P.key.root, m: tonality(SCALES[P.key.scale][1]) === 'min' }; }
-function keyName(k) { return NOTE_NAMES[k.r] + (k.m ? ' minor' : ' major'); }
+function fkName(k) { return NOTE_NAMES[k.r] + (k.m ? ' minor' : ' major'); }
 function keyShift(fk, sk) { const to = fk.m === sk.m ? sk.r : sk.m ? sk.r + 3 : sk.r + 9; const d = ((to - fk.r) % 12 + 12) % 12; return d > 6 ? d - 12 : d; }
 /* ---------- the Stretch menu (on the Sample page: the sound's tempo, the mode and its settings) ---------- */
 function stretchLabel(pad) { const m = pad.wm || 'Repitch'; return pad.tempo > 0 ? `${m} · ${+pad.tempo.toFixed(1)}→${P.bpm}` : m === 'Repitch' ? 'Off' : m + (pad.wp && pad.wp.speed !== 1 ? ' · ' + pad.wp.speed.toFixed(2) + '×' : ''); }
@@ -9738,7 +9788,7 @@ function openStretch(pi) {
       li.onclick = () => { pushUndo('pad:' + pi); touchPad(pi); pad.wm = m; markDirty(); if (m === 'Repitch') { pad.stx = null; syncPad(pi); } else refreshStretch(pi); closeSheet(); openStretch(pi); }; l.append(li); }
     st.append(h('div', 'sec', 'Mode'), l);
     if (pad.fk) { const sk = songKeyOf(), d = keyShift(pad.fk, sk), kr = h('div', 'g2');   // the sound's key (from its file name) against the song's
-      st.append(h('div', 'sec', `Key: ${keyName(pad.fk)}, the song is in ${keyName(sk)}`));
+      st.append(h('div', 'sec', `Key: ${fkName(pad.fk)}, the song is in ${fkName(sk)}`));
       kr.append(btn('Original', () => { pushUndo('pad:' + pi); touchPad(pi); pad.pitch = 0; pad.fine = 0; syncPad(pi); markDirty(); closeSheet(); openStretch(pi); }, 'btn' + (!pad.pitch && !pad.fine ? ' on' : '')),
         btn(`Match song · ${d > 0 ? '+' : ''}${d} st`, () => { pushUndo('pad:' + pi); touchPad(pi); pad.pitch = d; pad.fine = 0; syncPad(pi); markDirty(); closeSheet(); openStretch(pi); toast(d ? `Moved ${d > 0 ? 'up' : 'down'} ${Math.abs(d)} semitone${Math.abs(d) > 1 ? 's' : ''}${pad.wm === 'Repitch' ? ': with Repitch this also changes its speed' : ''}` : 'Already in the song\'s key'); }, 'btn' + (pad.pitch === d && !pad.fine && d ? ' on' : '')));
       st.append(kr); }
@@ -10309,6 +10359,8 @@ async function deviceTest() { if (DEVTEST.running) return; DEVTEST.running = tru
 // What’s new: one short line per change, essentials only, shipped features only.
 const CHANGES = [
   ['2026-11-27', [
+    'Multiband redesigned: small knobs grouped by band, the main three as big knobs, and thresholds you can drag on the screen.',
+    'What’s new pops up after an update.',
     'Parallel inserts: on any channel, pick a run of inserts (PAR) to work on a copy of the sound, with separate levels for the untouched and processed sound.',
     'Pads: tap the little display to switch between waveform, spectrum and scope. ANLZ closes the analyzer when it is open.',
     'Pads: a small rolling waveform of the mix next to Capture, on phones.',
@@ -10354,10 +10406,14 @@ const CHANGES = [
   ['2026-10-23', ['Instrument engine: pianos, strings, choirs, keys, basses and hits.', 'Sub synth engine with 808 drop.', 'New effects: Step FX, LFO Tool, Vinyl, Autopan, Grin.', 'Quantize, box select and pinch zoom on the timeline.']],
 ];
 const fmtDay = d => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-function openChanges() {
-  UI.seenLog = CHANGES[0][0]; savePrefs();
+// since: only the days after it (the popup after an update), with a way on to the whole list
+function openChanges(since) {
+  UI.seenLog = CHANGES[0][0]; savePrefs(); const list = since ? CHANGES.filter(([d]) => d > since) : CHANGES;
   openSheet('What’s new', card => { const st = h('div', 'stack'); card.append(st);
-    for (const [d, items] of CHANGES) { st.append(h('div', 'sec', fmtDay(d))); const ul = h('ul', 'log'); for (const t of items) ul.append(h('li', '', esc(t))); st.append(ul); } }); }
+    for (const [d, items] of list) { st.append(h('div', 'sec', fmtDay(d))); const ul = h('ul', 'log'); for (const t of items) ul.append(h('li', '', esc(t))); st.append(ul); }
+    if (since) { const g = h('div', 'g2'); g.append(btn('Everything before', () => { closeSheet(); openChanges(); }, 'btn'), btn('Got it', closeSheet, 'btn hot')); st.append(g); } }); }
+// after an update: what changed since the last visit, once (a first visit just remembers where it starts)
+function showUpdates() { const top = CHANGES[0][0]; if (!UI.seenLog) { UI.seenLog = top; savePrefs(); return; } if (UI.seenLog < top && !UI.sheet) openChanges(UI.seenLog); }
 function openAbout() { openSheet('About', card => { const st = h('div', 'stack'); card.append(st);
   st.append(h('div', 'sec', 'Your work'), h('p', 'note', 'Everything stays on this device. Trackfill never sends your work or anything about you anywhere: no accounts, no tracking, no ads. Back up from Projects.'));
   st.append(h('div', 'sec', 'Made with AI, no AI inside'), h('p', 'note', 'Trackfill was written with the help of an AI coding assistant. The app itself has no AI in it: no AI models, no generated music or sounds, and nothing sent online. Every sound comes from its synths, samples and effects, the way any instrument makes them, and every note is yours.'));
@@ -10800,7 +10856,7 @@ const CANVAS_RO = typeof ResizeObserver === 'function' ? new ResizeObserver(es =
     if (cv._redraw) { try { cv._redraw(); } catch (err) { console.error(err); } } else any = true; }
   if (any) requestAnimationFrame(() => { if (UI.view === 'sound') { drawDisp(); drawSynDisp(); drawDrumDisp(); } drawChop(); if (UI.view === 'seq' && TL.cv && TL.cv.isConnected) sizeTL(); }); }) : null;
 if (CANVAS_RO) new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.tagName === 'CANVAS') CANVAS_RO.observe(n); else n.querySelectorAll && n.querySelectorAll('canvas').forEach(c => CANVAS_RO.observe(c)); } }).observe(document.body, { childList: true, subtree: true });
-new ResizeObserver(() => { placeSheet(); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audSize(); audDraw(); } if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); clearTimeout(FIT_T); FIT_T = setTimeout(() => { fitFonts(V); fitFonts($('#scenes')); fitFonts($('#top')); }, 150); }).observe($('#view'));   // a new width: text fitted again
+new ResizeObserver(() => { placeSheet(); const V = $('#view'), hh = V.clientHeight; V.classList.toggle('snug', hh < 720); V.classList.toggle('cramp', hh < 600); V.classList.toggle('short', hh < 470); V.classList.toggle('tiny', hh < 360); if (UI.view === 'seq' && AED.cv && AED.cv.isConnected) { audSize(); audDraw(); } if (UI.view === 'seq') sizeTL(); else if (UI.view === 'sound') { drawDisp(); drawSynDisp(); } else if (UI.view === 'mix') UI.regs.forEach(f => f.upd && f.upd()); if (UI.panel) updatePanel(); clearTimeout(FIT_T); FIT_T = setTimeout(() => { fitFonts(V); fitFonts($('#scenes')); fitFonts($('#top')); }, 150); }).observe($('#view'));   // a new width: text fitted again
 let FIT_T = 0;
 let lastHeard = -1;
 // the screen loop runs only while something moves (playback, sound, meters falling, a recent touch); wake() restarts it
@@ -10847,7 +10903,7 @@ async function boot() {
     UI.follow = pr.follow !== false; UI.seenLog = typeof pr.seenLog === 'string' ? pr.seenLog : null;
     UI.click = ['off', 'rec', 'always'].includes(pr.click) ? pr.click : 'rec'; UI.countIn = [0, 1, 2].includes(pr.countIn) ? pr.countIn : 1; UI.clickVol = clamp(+pr.clickVol || .5, 0, 1); if (pr.anP && typeof pr.anP === 'object') UI.anP = pr.anP; if (pr.ex && EXF[pr.ex.fmt]) UI.ex = { fmt: pr.ex.fmt, sr: pr.ex.sr === 44100 ? 44100 : 48000, stems: !!pr.ex.stems }; }
   applyTheme(); $('#panel').classList.toggle('padsOn', !!UI.strip); $('#pStrip').textContent = UI.strip ? 'D-pad' : 'Pads'; $('#panel').classList.toggle('mirror', UI.mirror); $('#panel').hidden = !UI.panel; $('#bPanel').classList.toggle('on', UI.panel);
-  renderAll(); wake(); markDirty();
+  renderAll(); wake(); markDirty(); setTimeout(showUpdates, 900);
   await abLoad(); brLoad(); setTimeout(abTick, 15000); setTimeout(refCleanup, 60000); setInterval(abTick, 5 * 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(abTick, 4000); });
   if (!DB.ok) setTimeout(() => toast('This browser is not keeping your work between visits. Save a backup from the menu.'), 1200);
   // Safari clears a website's storage after a week unused, but never an app on the Home Screen: say so (at most once a week) when that applies
